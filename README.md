@@ -59,8 +59,8 @@ All development testing is conducted in an isolated virtual lab.
 
 ## Roadmap
 
-- [ ] Phase 1 — Research & Design (Mar–Apr 2025)
-- [ ] Phase 2 — AI/ML Model (Apr–May 2025)
-- [ ] Phase 3 — Framework Build (May–Jun 2025)
-- [ ] Phase 4 — Testing & Validation (Jul 2025)
-- [ ] Phase 5 — Write-up & Release (Aug–Sep 2025)
+- [ ] Phase 1 — Research & Design (Mar–Apr 2026)
+- [ ] Phase 2 — AI/ML Model (Apr–May 2026)
+- [ ] Phase 3 — Framework Build (May–Jun 2026)
+- [ ] Phase 4 — Testing & Validation (Jul 2026)
+- [ ] Phase 5 — Write-up & Release (Aug–Sep 2026)
