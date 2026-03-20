@@ -1,0 +1,152 @@
+{
+    "target": "localhost",
+    "port": 1883,
+    "scan_time": "2026-03-20 21:23:37",
+    "attacks": [
+        {
+            "attack": "Connection Test",
+            "host": "localhost",
+            "port": 1883,
+            "connected": true,
+            "auth_required": false,
+            "finding": "BROKER ACCEPTS ANONYMOUS CONNECTIONS \u2014 No authentication required",
+            "severity": "CRITICAL"
+        },
+        {
+            "attack": "Authentication Bypass",
+            "host": "localhost",
+            "credentials_tried": 17,
+            "bypass_found": true,
+            "valid_credentials": [
+                {
+                    "username": "",
+                    "password": ""
+                },
+                {
+                    "username": "admin",
+                    "password": "admin"
+                },
+                {
+                    "username": "admin",
+                    "password": "password"
+                },
+                {
+                    "username": "admin",
+                    "password": "1234"
+                },
+                {
+                    "username": "admin",
+                    "password": ""
+                },
+                {
+                    "username": "root",
+                    "password": "root"
+                },
+                {
+                    "username": "root",
+                    "password": "password"
+                },
+                {
+                    "username": "root",
+                    "password": ""
+                },
+                {
+                    "username": "mqtt",
+                    "password": "mqtt"
+                },
+                {
+                    "username": "mqtt",
+                    "password": "password"
+                },
+                {
+                    "username": "guest",
+                    "password": "guest"
+                },
+                {
+                    "username": "user",
+                    "password": "user"
+                },
+                {
+                    "username": "test",
+                    "password": "test"
+                },
+                {
+                    "username": "pi",
+                    "password": "raspberry"
+                },
+                {
+                    "username": "ubnt",
+                    "password": "ubnt"
+                },
+                {
+                    "username": "admin",
+                    "password": "admin123"
+                },
+                {
+                    "username": "support",
+                    "password": "support"
+                }
+            ],
+            "finding": "Authentication bypass successful \u2014 17 valid credential set(s) found",
+            "severity": "CRITICAL"
+        },
+        {
+            "attack": "Topic Enumeration",
+            "host": "localhost",
+            "topics_found": [
+                "home/temperature",
+                "home/camera/status",
+                "device/sensor1"
+            ],
+            "message_count": 6,
+            "finding": "Discovered 3 topic(s), captured 6 message(s)",
+            "severity": "HIGH"
+        },
+        {
+            "attack": "Message Injection",
+            "host": "localhost",
+            "injections_attempted": 3,
+            "injections_successful": 3,
+            "finding": "Message injection successful \u2014 3 message(s) injected without authorisation",
+            "severity": "HIGH"
+        },
+        {
+            "attack": "Sensitive Data Harvest",
+            "host": "localhost",
+            "sensitive_found": [
+                {
+                    "topic": "home/camera/status",
+                    "pattern": "location",
+                    "payload": "{\"status\": \"recording\", \"location\": \"front_door\"}",
+                    "timestamp": "2026-03-20 21:24:06"
+                },
+                {
+                    "topic": "device/sensor1",
+                    "pattern": "password",
+                    "payload": "{\"password\": \"sensor123\", \"data\": \"reading\"}",
+                    "timestamp": "2026-03-20 21:24:06"
+                },
+                {
+                    "topic": "home/camera/status",
+                    "pattern": "location",
+                    "payload": "{\"status\": \"recording\", \"location\": \"front_door\"}",
+                    "timestamp": "2026-03-20 21:24:08"
+                },
+                {
+                    "topic": "device/sensor1",
+                    "pattern": "password",
+                    "payload": "{\"password\": \"sensor123\", \"data\": \"reading\"}",
+                    "timestamp": "2026-03-20 21:24:08"
+                }
+            ],
+            "finding": "4 sensitive data pattern(s) found in MQTT traffic",
+            "severity": "CRITICAL"
+        }
+    ],
+    "summary": {
+        "critical": 3,
+        "high": 2,
+        "medium": 0,
+        "info": 0
+    }
+}
