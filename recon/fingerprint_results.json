@@ -1,0 +1,36 @@
+[
+    {
+        "ip": "10.0.2.15",
+        "scan_time": "2026-03-20 15:27:25",
+        "hostname": "unknown",
+        "state": "up",
+        "ports": [
+            22
+        ],
+        "services": {
+            "22": {
+                "protocol": "tcp",
+                "state": "open",
+                "name": "ssh",
+                "product": "OpenSSH",
+                "version": "10.2p1 Debian 5",
+                "extrainfo": "protocol 2.0"
+            }
+        },
+        "device_type": "embedded_linux_device",
+        "confidence": 100.0,
+        "risk_indicators": [],
+        "all_scores": {
+            "mqtt_broker": 0,
+            "coap_device": 0,
+            "ip_camera": 0,
+            "iot_gateway": 0,
+            "smart_home_hub": 0,
+            "industrial_controller": 0,
+            "network_printer": 0,
+            "embedded_linux_device": 18,
+            "voip_device": 0,
+            "generic_iot_device": 0
+        }
+    }
+]
