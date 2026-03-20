@@ -1,0 +1,21 @@
+[
+    {
+        "ip": "10.0.2.15",
+        "scan_time": "2026-03-20 15:27:25",
+        "hostname": "unknown",
+        "state": "up",
+        "ports": [
+            22
+        ],
+        "services": {
+            "22": {
+                "protocol": "tcp",
+                "state": "open",
+                "name": "ssh",
+                "product": "OpenSSH",
+                "version": "10.2p1 Debian 5",
+                "extrainfo": "protocol 2.0"
+            }
+        }
+    }
+]
