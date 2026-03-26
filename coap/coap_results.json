@@ -1,0 +1,107 @@
+{
+    "target": "localhost",
+    "port": 5683,
+    "scan_time": "2026-03-26 21:34:33",
+    "attacks": [
+        {
+            "attack": "Resource Discovery",
+            "host": "localhost",
+            "port": 5683,
+            "resources_found": [
+                "/.well-known/core",
+                "/temperature",
+                "/credentials",
+                "/control",
+                "/firmware",
+                "https://christian.amsuess.com/tools/aiocoap/#version-0.4.17"
+            ],
+            "raw_response": "</.well-known/core>;ct=\"40\",</temperature>,</credentials>,</control>,</firmware>,<https://christian.amsuess.com/tools/aiocoap/#version-0.4.17>;rel=\"impl-info\"",
+            "finding": "Discovered 6 resource(s) \u2014 device attack surface fully mapped",
+            "severity": "HIGH"
+        },
+        {
+            "attack": "Unauthenticated Access",
+            "host": "localhost",
+            "readable_resources": [
+                {
+                    "path": "/temperature",
+                    "response": "2.05 Content",
+                    "payload": "temperature=22.5C,unit=celsius,location=server_room"
+                },
+                {
+                    "path": "/credentials",
+                    "response": "2.05 Content",
+                    "payload": "device_id=IoT_SENSOR_001,admin_user=admin,admin_password=admin123,api_key=SECRET_API_KEY_12345,firmware=v1.2.3"
+                },
+                {
+                    "path": "/control",
+                    "response": "2.05 Content",
+                    "payload": "status=active"
+                },
+                {
+                    "path": "/firmware",
+                    "response": "2.05 Content",
+                    "payload": "firmware_version=1.2.3,model=SmartSensor-X100,manufacturer=VulnTech,update_url=http://update.vulntech.com/firmware"
+                }
+            ],
+            "writable_resources": [
+                {
+                    "path": "/temperature",
+                    "response": "2.04 Changed"
+                },
+                {
+                    "path": "/control",
+                    "response": "2.04 Changed"
+                }
+            ],
+            "sensitive_data": [
+                {
+                    "resource": "/temperature",
+                    "pattern": "location",
+                    "payload": "temperature=22.5C,unit=celsius,location=server_room"
+                },
+                {
+                    "resource": "/credentials",
+                    "pattern": "password",
+                    "payload": "device_id=IoT_SENSOR_001,admin_user=admin,admin_password=admin123,api_key=SECRET_API_KEY_12345,firmware=v1.2.3"
+                },
+                {
+                    "resource": "/firmware",
+                    "pattern": "firmware",
+                    "payload": "firmware_version=1.2.3,model=SmartSensor-X100,manufacturer=VulnTech,update_url=http://update.vulntech.com/firmware"
+                }
+            ],
+            "finding": "Sensitive data exposed on 3 resource(s) without authentication",
+            "severity": "CRITICAL"
+        },
+        {
+            "attack": "Replay Attack",
+            "host": "localhost",
+            "vulnerable_resources": [
+                "/temperature",
+                "/control"
+            ],
+            "finding": "2 resource(s) vulnerable to replay attacks \u2014 no duplicate request detection",
+            "severity": "HIGH"
+        },
+        {
+            "attack": "Malformed Packet Injection",
+            "host": "localhost",
+            "tests_run": 3,
+            "anomalies": [
+                {
+                    "test": "Empty payload PUT",
+                    "finding": "Device accepts empty PUT without validation"
+                }
+            ],
+            "finding": "1 anomalie(s) found \u2014 device does not handle malformed packets robustly",
+            "severity": "MEDIUM"
+        }
+    ],
+    "summary": {
+        "critical": 1,
+        "high": 2,
+        "medium": 1,
+        "info": 0
+    }
+}
