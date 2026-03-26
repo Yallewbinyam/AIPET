@@ -1,8 +1,10 @@
-# AIPET — AI-Powered Penetration Testing Framework for IoT
+
+# AIPET — Explainable AI-Powered Penetration Testing Framework for IoT
 
 > The first open-source framework combining IoT-specific 
-> protocol attack modules with an AI-driven vulnerability 
-> suggestion engine.
+> protocol attack modules with an explainable AI-driven 
+> vulnerability suggestion engine — telling you not just 
+> what is vulnerable, but exactly why.
 
 ## ⚠️ Responsible Use
 This tool is designed for **authorised penetration testing only**.  
