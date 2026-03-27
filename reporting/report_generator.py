@@ -913,7 +913,7 @@ def generate_report(
     profiles_path   = "recon/complete_profiles.json",
     mqtt_path       = "mqtt/mqtt_results.json",
     coap_path       = "coap/coap_results.json",
-    http_path       = "http/http_results.json",
+    http_path       = "http_attack/http_results.json",
     firmware_path   = "firmware/firmware_results.json",
     ai_path         = "ai_engine/ai_results.json",
     output_dir      = "reporting"

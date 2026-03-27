@@ -1,0 +1,43 @@
+{
+    "target": "localhost",
+    "start_time": "2026-03-27 02:55:16",
+    "modules_run": [
+        "Module 1: Recon",
+        "Module 2: MQTT",
+        "Module 3: CoAP",
+        "Module 4: HTTP",
+        "Module 5: Firmware",
+        "Module 6: AI Engine",
+        "Module 7: Report"
+    ],
+    "summary": {},
+    "devices_found": 1,
+    "mqtt_summary": {
+        "critical": 2,
+        "high": 1,
+        "medium": 0,
+        "info": 2
+    },
+    "coap_summary": {
+        "critical": 1,
+        "high": 2,
+        "medium": 1,
+        "info": 0
+    },
+    "http_summary": {
+        "critical": 3,
+        "high": 0,
+        "medium": 0,
+        "info": 1
+    },
+    "firmware_summary": {
+        "critical": 5,
+        "high": 0,
+        "medium": 0,
+        "info": 1
+    },
+    "ai_predictions": 1,
+    "report_path": "reporting/aipet_report_20260327_025620.md",
+    "end_time": "2026-03-27 02:56:20",
+    "elapsed_seconds": 63.92
+}
