@@ -1,6 +1,6 @@
 # =============================================================
 # AIPET — AI-Powered Penetration Testing Framework for IoT
-# Module 6: AI Engine — Model Trainer
+# Module 6: AI Engine — Model Trainerclear
 # Author: Binyam
 # Institution: Coventry University — MSc Cyber Security
 #              (Ethical Hacking)
