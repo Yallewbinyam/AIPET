@@ -68,6 +68,48 @@ CREDENTIAL_PATTERNS = [
         "HIGH"
     ),
 ]
+# ── False Positive Patterns ───────────────────────────────────
+# These are known strings that match credential patterns
+# but are NOT real hardcoded credentials.
+# Common in BusyBox binaries and embedded Linux error messages.
+FALSE_POSITIVE_PATTERNS = [
+    "password: incorrect",
+    "password: window-change",
+    "password: ext:%s",
+    "password: <hidden>",
+    "password: <password>",
+    "login: /dev/loop",
+    "user: <user>",
+    "username: username",
+    "password: password",
+    "pwd: $(sed",
+    "password: wpakey",
+    "user: nixio.getpw",
+    "user: $1$",
+    "login: bool",
+]
+
+
+def is_false_positive(match_text):
+    """
+    Check if a credential match is a known false positive.
+
+    BusyBox binaries and embedded Linux tools contain
+    error message strings like 'password: incorrect' that
+    match credential patterns but are not real credentials.
+    This function filters them out to improve result quality.
+
+    Args:
+        match_text (str): The matched credential string
+
+    Returns:
+        bool: True if the match is a false positive
+    """
+    match_lower = match_text.lower()
+    for fp_pattern in FALSE_POSITIVE_PATTERNS:
+        if fp_pattern.lower() in match_lower:
+            return True
+    return False
 
 # ── Patterns: Private Keys and Certificates ───────────────────
 # Strings that indicate cryptographic material is present.
@@ -100,6 +142,7 @@ KEY_PATTERNS = [
         "CRITICAL"
     ),
 ]
+
 
 # ── Patterns: Dangerous Configurations ───────────────────────
 # Strings indicating security-reducing configurations.
@@ -261,13 +304,21 @@ def search_file(filepath, patterns):
                         match_str = str(match)
                     match_strings.append(match_str)
 
-                findings.append({
-                    "file":     filepath,
-                    "pattern":  pattern_name,
-                    "severity": severity,
-                    "matches":  match_strings[:5],  # Max 5 examples
-                    "count":    len(matches)
-                })
+               # Filter out known false positives
+                real_matches = [
+                    m for m in match_strings
+                    if not is_false_positive(m)
+                ]
+
+                # Only add finding if real matches remain
+                if real_matches:
+                    findings.append({
+                        "file":     filepath,
+                        "pattern":  pattern_name,
+                        "severity": severity,
+                        "matches":  real_matches[:5],
+                        "count":    len(real_matches)
+                    })
 
     except PermissionError:
         # Cannot read file — note it but continue
@@ -446,10 +497,60 @@ def hunt_credentials(firmware_path):
                     os.path.join(root, filename)
                 )
 
+    # File extensions to scan for credentials
+    # Binary executables are excluded — they contain
+    # error message strings that produce false positives
+    TEXT_EXTENSIONS = {
+        '.conf', '.cfg', '.ini', '.sh', '.bash',
+        '.lua', '.py', '.php', '.js', '.html', '.htm',
+        '.xml', '.json', '.yaml', '.yml', '.txt',
+        '.env', '.config', '.properties', '.settings',
+        '.passwd', '.shadow', '.htpasswd', '.secret',
+        'passwd', 'shadow', 'config', 'profile',
+    }
+
     print(f"    [*] Scanning {len(files_to_scan)} file(s)...")
 
     for filepath in files_to_scan:
         result["files_scanned"] += 1
+
+        # Check if file is likely a text file worth scanning
+        filename = os.path.basename(filepath)
+        ext = os.path.splitext(filename)[1].lower()
+        name_lower = filename.lower()
+
+        # Skip binary executables — they contain error message
+        # strings like "password: incorrect" that are not
+        # real hardcoded credentials
+        is_text_file = (
+            ext in TEXT_EXTENSIONS or
+            name_lower in TEXT_EXTENSIONS or
+            ext in {'.md', '.log', '.bak', '.old'} or
+            '.' not in filename is False
+        )
+
+        # Always scan config-like files regardless of extension
+        is_config = any(keyword in name_lower for keyword in [
+            'conf', 'config', 'passwd', 'shadow', 'secret',
+            'credential', 'auth', 'pass', 'key', 'token',
+            '.lua', '.sh', '.php', '.py', '.js', '.env'
+        ])
+
+        if not is_text_file and not is_config:
+            # Try to detect text content by reading first bytes
+            try:
+                with open(filepath, 'rb') as f:
+                    header = f.read(512)
+                # If more than 30% non-printable bytes — skip
+                non_printable = sum(
+                    1 for b in header
+                    if b < 9 or (13 < b < 32) or b > 126
+                )
+                if len(header) > 0 and                         non_printable / len(header) > 0.30:
+                    continue
+            except Exception:
+                continue
+
         findings = search_file(filepath, CREDENTIAL_PATTERNS)
 
         for finding in findings:
@@ -881,5 +982,5 @@ def run_firmware_analysis(firmware_path):
 
 
 if __name__ == "__main__":
-    run_firmware_analysis("lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root")# Run against our simulated firmware directory
+    run_firmware_analysis("lab/fake_firmware")# Run against our simulated firmware directory
     
