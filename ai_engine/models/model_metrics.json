@@ -1,0 +1,83 @@
+{
+    "evaluation_date": "2026-03-27 00:57:26",
+    "test_samples": 300,
+    "f1_weighted": 0.8614,
+    "precision": 0.871,
+    "recall": 0.8567,
+    "accuracy": 0.8567,
+    "target_f1": 0.85,
+    "target_met": true,
+    "f1_per_class": {
+        "Low": 0.5714,
+        "Medium": 0.4286,
+        "High": 0.5957,
+        "Critical": 0.944
+    },
+    "confusion_matrix": [
+        [
+            4,
+            1,
+            1,
+            0
+        ],
+        [
+            3,
+            6,
+            7,
+            0
+        ],
+        [
+            1,
+            4,
+            28,
+            8
+        ],
+        [
+            0,
+            1,
+            17,
+            219
+        ]
+    ],
+    "feature_importance": {
+        "device_type": 0.11328734686728399,
+        "open_port_count": 0.08268964145896868,
+        "port_22": 0.027428701001209917,
+        "port_23": 0.03152032630753223,
+        "port_80": 0.031068067538627606,
+        "port_443": 0.026123897275054445,
+        "port_502": 0.004161711158082632,
+        "port_1883": 0.020821284794599097,
+        "port_5683": 0.0146297794901258,
+        "port_8080": 0.02062517716187962,
+        "port_8883": 0.012657220289259906,
+        "mqtt_anonymous": 0.06268663225834403,
+        "mqtt_default_creds": 0.012163564524887848,
+        "mqtt_sensitive_data": 0.018054854430336033,
+        "coap_unauth_read": 0.012258356056219366,
+        "coap_unauth_write": 0.005506240449163026,
+        "coap_replay": 0.008604281016165314,
+        "http_default_creds": 0.04744154516713334,
+        "http_admin_exposed": 0.0495775244042522,
+        "http_sensitive_data": 0.05267975823961535,
+        "firmware_hardcoded_creds": 0.08555440325940601,
+        "firmware_private_key": 0.033279178160968946,
+        "firmware_telnet": 0.032595563720279865,
+        "firmware_vulnerable_component": 0.0891837060824483,
+        "firmware_debug": 0.026889842844942908,
+        "firmware_version_risk": 0.07851139604321361
+    },
+    "cross_validation": {
+        "cv_scores": [
+            0.869737185544074,
+            0.8755862472051499,
+            0.8797356857117399,
+            0.858861054339491,
+            0.8503024083196498
+        ],
+        "mean_f1": 0.8668,
+        "std_f1": 0.0108,
+        "ci_lower": 0.8451,
+        "ci_upper": 0.8885
+    }
+}
