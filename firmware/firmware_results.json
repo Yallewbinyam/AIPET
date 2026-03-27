@@ -1,0 +1,210 @@
+{
+    "target": "lab/fake_firmware",
+    "scan_time": "2026-03-27 00:01:56",
+    "analyses": [
+        {
+            "analysis": "Binwalk Scan",
+            "target": "lab/fake_firmware",
+            "signatures": [],
+            "finding": "No signatures found",
+            "severity": "INFO"
+        },
+        {
+            "analysis": "Credential Hunt",
+            "target": "lab/fake_firmware",
+            "credentials_found": [
+                {
+                    "file": "lab/fake_firmware/bin/firmware.bin",
+                    "pattern": "Hardcoded Password",
+                    "severity": "CRITICAL",
+                    "matches": [
+                        "password: secret123\u0000api_key=HARDCODED_KEY_XYZ\u0000telnet"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/fake_firmware/bin/firmware.bin",
+                    "pattern": "Hardcoded API Key",
+                    "severity": "CRITICAL",
+                    "matches": [
+                        "api_key: HARDCODED_KEY_XYZ\u0000telnet"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/fake_firmware/etc/config.conf",
+                    "pattern": "Hardcoded Password",
+                    "severity": "CRITICAL",
+                    "matches": [
+                        "password: admin123",
+                        "password: mqtt_pass123",
+                        "password: wifipassword123"
+                    ],
+                    "count": 3
+                },
+                {
+                    "file": "lab/fake_firmware/etc/config.conf",
+                    "pattern": "Hardcoded Username",
+                    "severity": "HIGH",
+                    "matches": [
+                        "username: admin",
+                        "username: mqtt_user"
+                    ],
+                    "count": 2
+                },
+                {
+                    "file": "lab/fake_firmware/etc/config.conf",
+                    "pattern": "Hardcoded API Key",
+                    "severity": "CRITICAL",
+                    "matches": [
+                        "api_key: SECRET_API_KEY_12345",
+                        "secret_key: wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
+                    ],
+                    "count": 2
+                },
+                {
+                    "file": "lab/fake_firmware/etc/config.conf",
+                    "pattern": "AWS Access Key",
+                    "severity": "CRITICAL",
+                    "matches": [
+                        "AKIAIOSFODNN7EXAMPLE"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/fake_firmware/etc/config.conf",
+                    "pattern": "AWS Secret Key",
+                    "severity": "CRITICAL",
+                    "matches": [
+                        "secret_key: wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/fake_firmware/etc/config.conf",
+                    "pattern": "MQTT Credentials",
+                    "severity": "HIGH",
+                    "matches": [
+                        "mqtt_username: mqtt_user"
+                    ],
+                    "count": 1
+                }
+            ],
+            "files_scanned": 5,
+            "finding": "Found 8 hardcoded credential pattern(s) \u2014 6 CRITICAL",
+            "severity": "CRITICAL"
+        },
+        {
+            "analysis": "Private Key Scanner",
+            "target": "lab/fake_firmware",
+            "keys_found": [
+                {
+                    "file": "lab/fake_firmware/etc/server.key",
+                    "pattern": "RSA Private Key",
+                    "severity": "CRITICAL",
+                    "matches": [
+                        "-----BEGIN RSA PRIVATE KEY-----"
+                    ],
+                    "count": 1,
+                    "file_hash": "06cbc556ce8980005be4c56b13f212752c562b871f21a4a3296df1ad99d3d2d3"
+                }
+            ],
+            "finding": "Found 1 private key/certificate(s) embedded in firmware \u2014 all devices share the same key",
+            "severity": "CRITICAL"
+        },
+        {
+            "analysis": "Dangerous Configuration Scanner",
+            "target": "lab/fake_firmware",
+            "configs_found": [
+                {
+                    "file": "lab/fake_firmware/etc/config.conf",
+                    "pattern": "Telnet Enabled",
+                    "severity": "CRITICAL",
+                    "matches": [
+                        "telnet_enabled: true"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/fake_firmware/etc/config.conf",
+                    "pattern": "Debug Mode Enabled",
+                    "severity": "HIGH",
+                    "matches": [
+                        "debug_mode: true"
+                    ],
+                    "count": 1
+                }
+            ],
+            "finding": "Found 2 dangerous configuration(s)",
+            "severity": "CRITICAL"
+        },
+        {
+            "analysis": "Sensitive File Finder",
+            "target": "lab/fake_firmware",
+            "files_found": [
+                {
+                    "path": "lab/fake_firmware/etc/shadow",
+                    "description": "Hashed password file",
+                    "severity": "CRITICAL",
+                    "size": 62,
+                    "hash": "7dc05c426d290fb1c171ada4b31f0c84d664f0e1ef68bbcf829fd8cf7af8d5e0"
+                },
+                {
+                    "path": "lab/fake_firmware/etc/passwd",
+                    "description": "System password file",
+                    "severity": "HIGH",
+                    "size": 141,
+                    "hash": "ec753c5897f2bf285b6da1fbbe2364fa9f2e1357fdea45769f9f16cc61fce921"
+                },
+                {
+                    "path": "lab/fake_firmware/etc/server.key",
+                    "description": "SSL server key",
+                    "severity": "CRITICAL",
+                    "size": 127,
+                    "hash": "06cbc556ce8980005be4c56b13f212752c562b871f21a4a3296df1ad99d3d2d3"
+                },
+                {
+                    "path": "lab/fake_firmware/etc/config.conf",
+                    "description": "Device configuration",
+                    "severity": "HIGH",
+                    "size": 396,
+                    "hash": "a85a4d93256c75bef14142d4ff4ca95b9bd118cf94a3b835b6fe374452971839"
+                }
+            ],
+            "finding": "Found 4 sensitive file(s) in firmware",
+            "severity": "CRITICAL"
+        },
+        {
+            "analysis": "Vulnerable Component Scanner",
+            "target": "lab/fake_firmware",
+            "components_found": [
+                {
+                    "file": "lab/fake_firmware/bin/firmware.bin",
+                    "pattern": "OpenSSL 1.0.x (Heartbleed vulnerable)",
+                    "severity": "CRITICAL",
+                    "matches": [
+                        "OpenSSL 1.0.1"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/fake_firmware/bin/firmware.bin",
+                    "pattern": "OpenSSH < 7.4 (Multiple CVEs)",
+                    "severity": "HIGH",
+                    "matches": [
+                        "OpenSSH_7.2"
+                    ],
+                    "count": 1
+                }
+            ],
+            "finding": "Found 2 potentially vulnerable component(s)",
+            "severity": "CRITICAL"
+        }
+    ],
+    "summary": {
+        "critical": 5,
+        "high": 0,
+        "medium": 0,
+        "info": 1
+    }
+}
