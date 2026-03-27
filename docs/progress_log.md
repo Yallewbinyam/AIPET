@@ -73,3 +73,70 @@
 - Begin integration testing
 
 **Status:** In progress
+
+## Week 3 (31 March – 6 April 2025)
+
+**Completed:**
+- Module 6 — Explainable AI Engine:
+  - generate_dataset.py — 2,000 sample IoT CVE dataset
+  - model_trainer.py — Random Forest, F1: 0.8614 ✅
+  - explainer.py — SHAP explanations working
+- Module 7 — Report Generator:
+  - Professional Markdown + JSON reports
+  - Executive summary, AI section, recommendations
+- Main orchestrator — aipet.py v1.0.0:
+  - One command runs all 7 modules
+  - Auto-detects which modules to run per device
+  - Full pipeline in 63.9 seconds
+- Complete implementation summary documented
+- All 7 modules committed to GitHub
+
+**Key decisions:**
+- SHAP TreeExplainer for exact values on Random Forest
+- 3D array indexing for SHAP 0.51.0 compatibility
+- http_attack folder rename to avoid Python stdlib conflict
+- argparse CLI with --demo, --target, --mqtt, --coap flags
+
+**Status:** All 7 modules complete
+           Main orchestrator working
+           Full pipeline validated
+           Significantly ahead of schedule
+          ## Validation Phase (Week 3 continued)
+
+**IoTGoat Validation:**
+- Downloaded OWASP IoTGoat v1.0 Raspberry Pi firmware
+- Extracted Squashfs filesystem using binwalk
+- Ran AIPET Module 5 against extracted filesystem
+- Results: 279 credential patterns, 12 private keys,
+  33 dangerous configs, 112 vulnerable components
+- Key finding: RSA/EC private keys in libmbedcrypto.so
+  shared across all IoTGoat devices
+- Limitation documented: BusyBox binary string matching
+  produces false positives on error message strings
+- Validation confirms AIPET detects real IoT firmware
+  vulnerabilities on independently developed targets 
+## NVD Dataset Experiment (Week 4)
+
+**Experiment:** Replace synthetic training data with
+real NVD IoT CVE data.
+
+**Results:**
+- Synthetic only:  F1 = 0.8614 ✅
+- NVD only:        F1 = 0.6690 ⚠️
+- Combined:        F1 = 0.7862 ⚠️
+
+**Finding:** NVD CVE descriptions lack granular
+feature detail (port numbers, protocol flags) needed
+for direct model training. Most NVD features were zero
+causing feature sparsity.
+
+**Decision:** Retain synthetic dataset for training.
+Use NVD data as vulnerability category validation
+evidence. Rich NVD feature extraction identified as
+future work direction.
+
+**Academic value:** This experiment produced a genuine
+research finding about the limitations of NVD data
+for ML-based IoT security assessment — documented
+honestly in Chapter 6 Discussion.
+
