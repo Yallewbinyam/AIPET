@@ -24,13 +24,15 @@ AI-driven vulnerability suggestion engine into a single workflow.
 ## Modules
 | # | Module | Status |
 |---|--------|--------|
-| 01 | Recon Engine | 🔨 In Development |
-| 02 | MQTT Attack Suite | 🔨 In Development |
-| 03 | CoAP Attack Suite | 🔨 In Development |
-| 04 | HTTP/Web IoT Suite | 🔨 In Development |
-| 05 | Firmware Analyser | 🔨 In Development |
-| 06 | AI Suggestion Engine | 🔨 In Development |
-| 07 | Report Generator | 🔨 In Development |
+| 01 | Recon Engine | ✅ Complete |
+| 02 | MQTT Attack Suite | ✅ Complete |
+| 03 | CoAP Attack Suite | ✅ Complete |
+| 04 | HTTP/Web IoT Suite | ✅ Complete |
+| 05 | Firmware Analyser | ✅ Complete |
+| 06 | Explainable AI Engine | ✅ Complete |
+| 07 | Report Generator | ✅ Complete |
+
+
 
 ## Target Environment
 - Kali Linux 2024+
