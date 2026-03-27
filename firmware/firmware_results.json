@@ -1,209 +1,4462 @@
 {
-    "target": "lab/fake_firmware",
-    "scan_time": "2026-03-27 00:01:56",
+    "target": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root",
+    "scan_time": "2026-03-27 04:05:48",
     "analyses": [
         {
             "analysis": "Binwalk Scan",
-            "target": "lab/fake_firmware",
-            "signatures": [],
-            "finding": "No signatures found",
+            "target": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root",
+            "signatures": [
+                {
+                    "offset": "0",
+                    "hex_offset": "0x0",
+                    "description": "TRX firmware header, little endian, image size: 348160 bytes, CRC32: 0xA1F165EB, flags: 0x20, version: 1, header size: 28 bytes, loader offset: 0x54404, linux kernel offset: 0x81, rootfs offset: 0x6B4"
+                },
+                {
+                    "offset": "247457",
+                    "hex_offset": "0x3C6A1",
+                    "description": "Boot section Start 0x3842 End 0x0"
+                },
+                {
+                    "offset": "247461",
+                    "hex_offset": "0x3C6A5",
+                    "description": "Boot section Start 0x0 End 0x0"
+                },
+                {
+                    "offset": "247823",
+                    "hex_offset": "0x3C80F",
+                    "description": "Boot section Start 0x42423242 End 0x0"
+                },
+                {
+                    "offset": "247827",
+                    "hex_offset": "0x3C813",
+                    "description": "Boot section Start 0x0 End 0x0"
+                },
+                {
+                    "offset": "248152",
+                    "hex_offset": "0x3C958",
+                    "description": "Boot section Start 0x42424242 End 0x42"
+                },
+                {
+                    "offset": "248156",
+                    "hex_offset": "0x3C95C",
+                    "description": "Boot section Start 0x42 End 0x0"
+                },
+                {
+                    "offset": "248160",
+                    "hex_offset": "0x3C960",
+                    "description": "Boot section Start 0x0 End 0x0"
+                }
+            ],
+            "finding": "Found 8 embedded signature(s) in firmware",
             "severity": "INFO"
         },
         {
             "analysis": "Credential Hunt",
-            "target": "lab/fake_firmware",
+            "target": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root",
             "credentials_found": [
                 {
-                    "file": "lab/fake_firmware/bin/firmware.bin",
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/usr/sbin/wpad",
                     "pattern": "Hardcoded Password",
                     "severity": "CRITICAL",
                     "matches": [
-                        "password: secret123\u0000api_key=HARDCODED_KEY_XYZ\u0000telnet"
+                        "password: ext:%s"
                     ],
                     "count": 1
                 },
                 {
-                    "file": "lab/fake_firmware/bin/firmware.bin",
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/usr/sbin/crond",
+                    "pattern": "Hardcoded Password",
+                    "severity": "CRITICAL",
+                    "matches": [
+                        "password: \u0000incorrect",
+                        "password: \u0000Retype",
+                        "password: \u0000Passwords",
+                        "Password: \u0000aa\u0000bad"
+                    ],
+                    "count": 4
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/usr/sbin/crond",
+                    "pattern": "Hardcoded Username",
+                    "severity": "HIGH",
+                    "matches": [
+                        "login: \u0000/dev/loop%u\u0000set"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/usr/sbin/wpa_supplicant",
+                    "pattern": "Hardcoded Password",
+                    "severity": "CRITICAL",
+                    "matches": [
+                        "password: ext:%s"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/usr/sbin/dropbear",
+                    "pattern": "Hardcoded Password",
+                    "severity": "CRITICAL",
+                    "matches": [
+                        "password: \u0000window-change\u0000exit-status\u0000exit-signal\u0000Waiting"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/usr/sbin/pppd",
+                    "pattern": "Hardcoded Password",
+                    "severity": "CRITICAL",
+                    "matches": [
+                        "password: \u0000<hidden>\u0000PAP"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/usr/sbin/hostapd",
+                    "pattern": "Hardcoded Password",
+                    "severity": "CRITICAL",
+                    "matches": [
+                        "password: ext:%s"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/usr/sbin/telnetd",
+                    "pattern": "Hardcoded Password",
+                    "severity": "CRITICAL",
+                    "matches": [
+                        "password: \u0000incorrect",
+                        "password: \u0000Retype",
+                        "password: \u0000Passwords",
+                        "Password: \u0000aa\u0000bad"
+                    ],
+                    "count": 4
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/usr/sbin/telnetd",
+                    "pattern": "Hardcoded Username",
+                    "severity": "HIGH",
+                    "matches": [
+                        "login: \u0000/dev/loop%u\u0000set"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/usr/sbin/ftpd",
+                    "pattern": "Hardcoded Password",
+                    "severity": "CRITICAL",
+                    "matches": [
+                        "password: \u0000incorrect",
+                        "password: \u0000Retype",
+                        "password: \u0000Passwords",
+                        "Password: \u0000aa\u0000bad"
+                    ],
+                    "count": 4
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/usr/sbin/ftpd",
+                    "pattern": "Hardcoded Username",
+                    "severity": "HIGH",
+                    "matches": [
+                        "login: \u0000/dev/loop%u\u0000set"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/usr/sbin/brctl",
+                    "pattern": "Hardcoded Password",
+                    "severity": "CRITICAL",
+                    "matches": [
+                        "password: \u0000incorrect",
+                        "password: \u0000Retype",
+                        "password: \u0000Passwords",
+                        "Password: \u0000aa\u0000bad"
+                    ],
+                    "count": 4
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/usr/sbin/brctl",
+                    "pattern": "Hardcoded Username",
+                    "severity": "HIGH",
+                    "matches": [
+                        "login: \u0000/dev/loop%u\u0000set"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/usr/sbin/ntpd",
+                    "pattern": "Hardcoded Password",
+                    "severity": "CRITICAL",
+                    "matches": [
+                        "password: \u0000incorrect",
+                        "password: \u0000Retype",
+                        "password: \u0000Passwords",
+                        "Password: \u0000aa\u0000bad"
+                    ],
+                    "count": 4
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/usr/sbin/ntpd",
+                    "pattern": "Hardcoded Username",
+                    "severity": "HIGH",
+                    "matches": [
+                        "login: \u0000/dev/loop%u\u0000set"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/usr/sbin/chroot",
+                    "pattern": "Hardcoded Password",
+                    "severity": "CRITICAL",
+                    "matches": [
+                        "password: \u0000incorrect",
+                        "password: \u0000Retype",
+                        "password: \u0000Passwords",
+                        "Password: \u0000aa\u0000bad"
+                    ],
+                    "count": 4
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/usr/sbin/chroot",
+                    "pattern": "Hardcoded Username",
+                    "severity": "HIGH",
+                    "matches": [
+                        "login: \u0000/dev/loop%u\u0000set"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/usr/bin/yes",
+                    "pattern": "Hardcoded Password",
+                    "severity": "CRITICAL",
+                    "matches": [
+                        "password: \u0000incorrect",
+                        "password: \u0000Retype",
+                        "password: \u0000Passwords",
+                        "Password: \u0000aa\u0000bad"
+                    ],
+                    "count": 4
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/usr/bin/yes",
+                    "pattern": "Hardcoded Username",
+                    "severity": "HIGH",
+                    "matches": [
+                        "login: \u0000/dev/loop%u\u0000set"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/usr/bin/which",
+                    "pattern": "Hardcoded Password",
+                    "severity": "CRITICAL",
+                    "matches": [
+                        "password: \u0000incorrect",
+                        "password: \u0000Retype",
+                        "password: \u0000Passwords",
+                        "Password: \u0000aa\u0000bad"
+                    ],
+                    "count": 4
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/usr/bin/which",
+                    "pattern": "Hardcoded Username",
+                    "severity": "HIGH",
+                    "matches": [
+                        "login: \u0000/dev/loop%u\u0000set"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/usr/bin/dropbearkey",
+                    "pattern": "Hardcoded Password",
+                    "severity": "CRITICAL",
+                    "matches": [
+                        "password: \u0000window-change\u0000exit-status\u0000exit-signal\u0000Waiting"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/usr/bin/tee",
+                    "pattern": "Hardcoded Password",
+                    "severity": "CRITICAL",
+                    "matches": [
+                        "password: \u0000incorrect",
+                        "password: \u0000Retype",
+                        "password: \u0000Passwords",
+                        "Password: \u0000aa\u0000bad"
+                    ],
+                    "count": 4
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/usr/bin/tee",
+                    "pattern": "Hardcoded Username",
+                    "severity": "HIGH",
+                    "matches": [
+                        "login: \u0000/dev/loop%u\u0000set"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/usr/bin/du",
+                    "pattern": "Hardcoded Password",
+                    "severity": "CRITICAL",
+                    "matches": [
+                        "password: \u0000incorrect",
+                        "password: \u0000Retype",
+                        "password: \u0000Passwords",
+                        "Password: \u0000aa\u0000bad"
+                    ],
+                    "count": 4
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/usr/bin/du",
+                    "pattern": "Hardcoded Username",
+                    "severity": "HIGH",
+                    "matches": [
+                        "login: \u0000/dev/loop%u\u0000set"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/usr/bin/cut",
+                    "pattern": "Hardcoded Password",
+                    "severity": "CRITICAL",
+                    "matches": [
+                        "password: \u0000incorrect",
+                        "password: \u0000Retype",
+                        "password: \u0000Passwords",
+                        "Password: \u0000aa\u0000bad"
+                    ],
+                    "count": 4
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/usr/bin/cut",
+                    "pattern": "Hardcoded Username",
+                    "severity": "HIGH",
+                    "matches": [
+                        "login: \u0000/dev/loop%u\u0000set"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/usr/bin/awk",
+                    "pattern": "Hardcoded Password",
+                    "severity": "CRITICAL",
+                    "matches": [
+                        "password: \u0000incorrect",
+                        "password: \u0000Retype",
+                        "password: \u0000Passwords",
+                        "Password: \u0000aa\u0000bad"
+                    ],
+                    "count": 4
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/usr/bin/awk",
+                    "pattern": "Hardcoded Username",
+                    "severity": "HIGH",
+                    "matches": [
+                        "login: \u0000/dev/loop%u\u0000set"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/usr/bin/nc",
+                    "pattern": "Hardcoded Password",
+                    "severity": "CRITICAL",
+                    "matches": [
+                        "password: \u0000incorrect",
+                        "password: \u0000Retype",
+                        "password: \u0000Passwords",
+                        "Password: \u0000aa\u0000bad"
+                    ],
+                    "count": 4
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/usr/bin/nc",
+                    "pattern": "Hardcoded Username",
+                    "severity": "HIGH",
+                    "matches": [
+                        "login: \u0000/dev/loop%u\u0000set"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/usr/bin/bunzip2",
+                    "pattern": "Hardcoded Password",
+                    "severity": "CRITICAL",
+                    "matches": [
+                        "password: \u0000incorrect",
+                        "password: \u0000Retype",
+                        "password: \u0000Passwords",
+                        "Password: \u0000aa\u0000bad"
+                    ],
+                    "count": 4
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/usr/bin/bunzip2",
+                    "pattern": "Hardcoded Username",
+                    "severity": "HIGH",
+                    "matches": [
+                        "login: \u0000/dev/loop%u\u0000set"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/usr/bin/strings",
+                    "pattern": "Hardcoded Password",
+                    "severity": "CRITICAL",
+                    "matches": [
+                        "password: \u0000incorrect",
+                        "password: \u0000Retype",
+                        "password: \u0000Passwords",
+                        "Password: \u0000aa\u0000bad"
+                    ],
+                    "count": 4
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/usr/bin/strings",
+                    "pattern": "Hardcoded Username",
+                    "severity": "HIGH",
+                    "matches": [
+                        "login: \u0000/dev/loop%u\u0000set"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/usr/bin/expr",
+                    "pattern": "Hardcoded Password",
+                    "severity": "CRITICAL",
+                    "matches": [
+                        "password: \u0000incorrect",
+                        "password: \u0000Retype",
+                        "password: \u0000Passwords",
+                        "Password: \u0000aa\u0000bad"
+                    ],
+                    "count": 4
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/usr/bin/expr",
+                    "pattern": "Hardcoded Username",
+                    "severity": "HIGH",
+                    "matches": [
+                        "login: \u0000/dev/loop%u\u0000set"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/usr/bin/tail",
+                    "pattern": "Hardcoded Password",
+                    "severity": "CRITICAL",
+                    "matches": [
+                        "password: \u0000incorrect",
+                        "password: \u0000Retype",
+                        "password: \u0000Passwords",
+                        "Password: \u0000aa\u0000bad"
+                    ],
+                    "count": 4
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/usr/bin/tail",
+                    "pattern": "Hardcoded Username",
+                    "severity": "HIGH",
+                    "matches": [
+                        "login: \u0000/dev/loop%u\u0000set"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/usr/bin/dirname",
+                    "pattern": "Hardcoded Password",
+                    "severity": "CRITICAL",
+                    "matches": [
+                        "password: \u0000incorrect",
+                        "password: \u0000Retype",
+                        "password: \u0000Passwords",
+                        "Password: \u0000aa\u0000bad"
+                    ],
+                    "count": 4
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/usr/bin/dirname",
+                    "pattern": "Hardcoded Username",
+                    "severity": "HIGH",
+                    "matches": [
+                        "login: \u0000/dev/loop%u\u0000set"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/usr/bin/killall",
+                    "pattern": "Hardcoded Password",
+                    "severity": "CRITICAL",
+                    "matches": [
+                        "password: \u0000incorrect",
+                        "password: \u0000Retype",
+                        "password: \u0000Passwords",
+                        "Password: \u0000aa\u0000bad"
+                    ],
+                    "count": 4
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/usr/bin/killall",
+                    "pattern": "Hardcoded Username",
+                    "severity": "HIGH",
+                    "matches": [
+                        "login: \u0000/dev/loop%u\u0000set"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/usr/bin/tr",
+                    "pattern": "Hardcoded Password",
+                    "severity": "CRITICAL",
+                    "matches": [
+                        "password: \u0000incorrect",
+                        "password: \u0000Retype",
+                        "password: \u0000Passwords",
+                        "Password: \u0000aa\u0000bad"
+                    ],
+                    "count": 4
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/usr/bin/tr",
+                    "pattern": "Hardcoded Username",
+                    "severity": "HIGH",
+                    "matches": [
+                        "login: \u0000/dev/loop%u\u0000set"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/usr/bin/basename",
+                    "pattern": "Hardcoded Password",
+                    "severity": "CRITICAL",
+                    "matches": [
+                        "password: \u0000incorrect",
+                        "password: \u0000Retype",
+                        "password: \u0000Passwords",
+                        "Password: \u0000aa\u0000bad"
+                    ],
+                    "count": 4
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/usr/bin/basename",
+                    "pattern": "Hardcoded Username",
+                    "severity": "HIGH",
+                    "matches": [
+                        "login: \u0000/dev/loop%u\u0000set"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/usr/bin/[",
+                    "pattern": "Hardcoded Password",
+                    "severity": "CRITICAL",
+                    "matches": [
+                        "password: \u0000incorrect",
+                        "password: \u0000Retype",
+                        "password: \u0000Passwords",
+                        "Password: \u0000aa\u0000bad"
+                    ],
+                    "count": 4
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/usr/bin/[",
+                    "pattern": "Hardcoded Username",
+                    "severity": "HIGH",
+                    "matches": [
+                        "login: \u0000/dev/loop%u\u0000set"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/usr/bin/md5sum",
+                    "pattern": "Hardcoded Password",
+                    "severity": "CRITICAL",
+                    "matches": [
+                        "password: \u0000incorrect",
+                        "password: \u0000Retype",
+                        "password: \u0000Passwords",
+                        "Password: \u0000aa\u0000bad"
+                    ],
+                    "count": 4
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/usr/bin/md5sum",
+                    "pattern": "Hardcoded Username",
+                    "severity": "HIGH",
+                    "matches": [
+                        "login: \u0000/dev/loop%u\u0000set"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/usr/bin/sort",
+                    "pattern": "Hardcoded Password",
+                    "severity": "CRITICAL",
+                    "matches": [
+                        "password: \u0000incorrect",
+                        "password: \u0000Retype",
+                        "password: \u0000Passwords",
+                        "Password: \u0000aa\u0000bad"
+                    ],
+                    "count": 4
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/usr/bin/sort",
+                    "pattern": "Hardcoded Username",
+                    "severity": "HIGH",
+                    "matches": [
+                        "login: \u0000/dev/loop%u\u0000set"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/usr/bin/less",
+                    "pattern": "Hardcoded Password",
+                    "severity": "CRITICAL",
+                    "matches": [
+                        "password: \u0000incorrect",
+                        "password: \u0000Retype",
+                        "password: \u0000Passwords",
+                        "Password: \u0000aa\u0000bad"
+                    ],
+                    "count": 4
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/usr/bin/less",
+                    "pattern": "Hardcoded Username",
+                    "severity": "HIGH",
+                    "matches": [
+                        "login: \u0000/dev/loop%u\u0000set"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/usr/bin/logger",
+                    "pattern": "Hardcoded Password",
+                    "severity": "CRITICAL",
+                    "matches": [
+                        "password: \u0000incorrect",
+                        "password: \u0000Retype",
+                        "password: \u0000Passwords",
+                        "Password: \u0000aa\u0000bad"
+                    ],
+                    "count": 4
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/usr/bin/logger",
+                    "pattern": "Hardcoded Username",
+                    "severity": "HIGH",
+                    "matches": [
+                        "login: \u0000/dev/loop%u\u0000set"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/usr/bin/crontab",
+                    "pattern": "Hardcoded Password",
+                    "severity": "CRITICAL",
+                    "matches": [
+                        "password: \u0000incorrect",
+                        "password: \u0000Retype",
+                        "password: \u0000Passwords",
+                        "Password: \u0000aa\u0000bad"
+                    ],
+                    "count": 4
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/usr/bin/crontab",
+                    "pattern": "Hardcoded Username",
+                    "severity": "HIGH",
+                    "matches": [
+                        "login: \u0000/dev/loop%u\u0000set"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/usr/bin/nslookup",
+                    "pattern": "Hardcoded Password",
+                    "severity": "CRITICAL",
+                    "matches": [
+                        "password: \u0000incorrect",
+                        "password: \u0000Retype",
+                        "password: \u0000Passwords",
+                        "Password: \u0000aa\u0000bad"
+                    ],
+                    "count": 4
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/usr/bin/nslookup",
+                    "pattern": "Hardcoded Username",
+                    "severity": "HIGH",
+                    "matches": [
+                        "login: \u0000/dev/loop%u\u0000set"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/usr/bin/cmp",
+                    "pattern": "Hardcoded Password",
+                    "severity": "CRITICAL",
+                    "matches": [
+                        "password: \u0000incorrect",
+                        "password: \u0000Retype",
+                        "password: \u0000Passwords",
+                        "Password: \u0000aa\u0000bad"
+                    ],
+                    "count": 4
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/usr/bin/cmp",
+                    "pattern": "Hardcoded Username",
+                    "severity": "HIGH",
+                    "matches": [
+                        "login: \u0000/dev/loop%u\u0000set"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/usr/bin/[[",
+                    "pattern": "Hardcoded Password",
+                    "severity": "CRITICAL",
+                    "matches": [
+                        "password: \u0000incorrect",
+                        "password: \u0000Retype",
+                        "password: \u0000Passwords",
+                        "Password: \u0000aa\u0000bad"
+                    ],
+                    "count": 4
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/usr/bin/[[",
+                    "pattern": "Hardcoded Username",
+                    "severity": "HIGH",
+                    "matches": [
+                        "login: \u0000/dev/loop%u\u0000set"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/usr/bin/dbclient",
+                    "pattern": "Hardcoded Password",
+                    "severity": "CRITICAL",
+                    "matches": [
+                        "password: \u0000window-change\u0000exit-status\u0000exit-signal\u0000Waiting"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/usr/bin/readlink",
+                    "pattern": "Hardcoded Password",
+                    "severity": "CRITICAL",
+                    "matches": [
+                        "password: \u0000incorrect",
+                        "password: \u0000Retype",
+                        "password: \u0000Passwords",
+                        "Password: \u0000aa\u0000bad"
+                    ],
+                    "count": 4
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/usr/bin/readlink",
+                    "pattern": "Hardcoded Username",
+                    "severity": "HIGH",
+                    "matches": [
+                        "login: \u0000/dev/loop%u\u0000set"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/usr/bin/clear",
+                    "pattern": "Hardcoded Password",
+                    "severity": "CRITICAL",
+                    "matches": [
+                        "password: \u0000incorrect",
+                        "password: \u0000Retype",
+                        "password: \u0000Passwords",
+                        "Password: \u0000aa\u0000bad"
+                    ],
+                    "count": 4
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/usr/bin/clear",
+                    "pattern": "Hardcoded Username",
+                    "severity": "HIGH",
+                    "matches": [
+                        "login: \u0000/dev/loop%u\u0000set"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/usr/bin/wc",
+                    "pattern": "Hardcoded Password",
+                    "severity": "CRITICAL",
+                    "matches": [
+                        "password: \u0000incorrect",
+                        "password: \u0000Retype",
+                        "password: \u0000Passwords",
+                        "Password: \u0000aa\u0000bad"
+                    ],
+                    "count": 4
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/usr/bin/wc",
+                    "pattern": "Hardcoded Username",
+                    "severity": "HIGH",
+                    "matches": [
+                        "login: \u0000/dev/loop%u\u0000set"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/usr/bin/hexdump",
+                    "pattern": "Hardcoded Password",
+                    "severity": "CRITICAL",
+                    "matches": [
+                        "password: \u0000incorrect",
+                        "password: \u0000Retype",
+                        "password: \u0000Passwords",
+                        "Password: \u0000aa\u0000bad"
+                    ],
+                    "count": 4
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/usr/bin/hexdump",
+                    "pattern": "Hardcoded Username",
+                    "severity": "HIGH",
+                    "matches": [
+                        "login: \u0000/dev/loop%u\u0000set"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/usr/bin/head",
+                    "pattern": "Hardcoded Password",
+                    "severity": "CRITICAL",
+                    "matches": [
+                        "password: \u0000incorrect",
+                        "password: \u0000Retype",
+                        "password: \u0000Passwords",
+                        "Password: \u0000aa\u0000bad"
+                    ],
+                    "count": 4
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/usr/bin/head",
+                    "pattern": "Hardcoded Username",
+                    "severity": "HIGH",
+                    "matches": [
+                        "login: \u0000/dev/loop%u\u0000set"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/usr/bin/test",
+                    "pattern": "Hardcoded Password",
+                    "severity": "CRITICAL",
+                    "matches": [
+                        "password: \u0000incorrect",
+                        "password: \u0000Retype",
+                        "password: \u0000Passwords",
+                        "Password: \u0000aa\u0000bad"
+                    ],
+                    "count": 4
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/usr/bin/test",
+                    "pattern": "Hardcoded Username",
+                    "severity": "HIGH",
+                    "matches": [
+                        "login: \u0000/dev/loop%u\u0000set"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/usr/bin/telnet",
+                    "pattern": "Hardcoded Password",
+                    "severity": "CRITICAL",
+                    "matches": [
+                        "password: \u0000incorrect",
+                        "password: \u0000Retype",
+                        "password: \u0000Passwords",
+                        "Password: \u0000aa\u0000bad"
+                    ],
+                    "count": 4
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/usr/bin/telnet",
+                    "pattern": "Hardcoded Username",
+                    "severity": "HIGH",
+                    "matches": [
+                        "login: \u0000/dev/loop%u\u0000set"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/usr/bin/bzcat",
+                    "pattern": "Hardcoded Password",
+                    "severity": "CRITICAL",
+                    "matches": [
+                        "password: \u0000incorrect",
+                        "password: \u0000Retype",
+                        "password: \u0000Passwords",
+                        "Password: \u0000aa\u0000bad"
+                    ],
+                    "count": 4
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/usr/bin/bzcat",
+                    "pattern": "Hardcoded Username",
+                    "severity": "HIGH",
+                    "matches": [
+                        "login: \u0000/dev/loop%u\u0000set"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/usr/bin/seq",
+                    "pattern": "Hardcoded Password",
+                    "severity": "CRITICAL",
+                    "matches": [
+                        "password: \u0000incorrect",
+                        "password: \u0000Retype",
+                        "password: \u0000Passwords",
+                        "Password: \u0000aa\u0000bad"
+                    ],
+                    "count": 4
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/usr/bin/seq",
+                    "pattern": "Hardcoded Username",
+                    "severity": "HIGH",
+                    "matches": [
+                        "login: \u0000/dev/loop%u\u0000set"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/usr/bin/reset",
+                    "pattern": "Hardcoded Password",
+                    "severity": "CRITICAL",
+                    "matches": [
+                        "password: \u0000incorrect",
+                        "password: \u0000Retype",
+                        "password: \u0000Passwords",
+                        "Password: \u0000aa\u0000bad"
+                    ],
+                    "count": 4
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/usr/bin/reset",
+                    "pattern": "Hardcoded Username",
+                    "severity": "HIGH",
+                    "matches": [
+                        "login: \u0000/dev/loop%u\u0000set"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/usr/bin/id",
+                    "pattern": "Hardcoded Password",
+                    "severity": "CRITICAL",
+                    "matches": [
+                        "password: \u0000incorrect",
+                        "password: \u0000Retype",
+                        "password: \u0000Passwords",
+                        "Password: \u0000aa\u0000bad"
+                    ],
+                    "count": 4
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/usr/bin/id",
+                    "pattern": "Hardcoded Username",
+                    "severity": "HIGH",
+                    "matches": [
+                        "login: \u0000/dev/loop%u\u0000set"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/usr/bin/xargs",
+                    "pattern": "Hardcoded Password",
+                    "severity": "CRITICAL",
+                    "matches": [
+                        "password: \u0000incorrect",
+                        "password: \u0000Retype",
+                        "password: \u0000Passwords",
+                        "Password: \u0000aa\u0000bad"
+                    ],
+                    "count": 4
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/usr/bin/xargs",
+                    "pattern": "Hardcoded Username",
+                    "severity": "HIGH",
+                    "matches": [
+                        "login: \u0000/dev/loop%u\u0000set"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/usr/bin/mkfifo",
+                    "pattern": "Hardcoded Password",
+                    "severity": "CRITICAL",
+                    "matches": [
+                        "password: \u0000incorrect",
+                        "password: \u0000Retype",
+                        "password: \u0000Passwords",
+                        "Password: \u0000aa\u0000bad"
+                    ],
+                    "count": 4
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/usr/bin/mkfifo",
+                    "pattern": "Hardcoded Username",
+                    "severity": "HIGH",
+                    "matches": [
+                        "login: \u0000/dev/loop%u\u0000set"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/usr/bin/time",
+                    "pattern": "Hardcoded Password",
+                    "severity": "CRITICAL",
+                    "matches": [
+                        "password: \u0000incorrect",
+                        "password: \u0000Retype",
+                        "password: \u0000Passwords",
+                        "Password: \u0000aa\u0000bad"
+                    ],
+                    "count": 4
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/usr/bin/time",
+                    "pattern": "Hardcoded Username",
+                    "severity": "HIGH",
+                    "matches": [
+                        "login: \u0000/dev/loop%u\u0000set"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/usr/bin/uniq",
+                    "pattern": "Hardcoded Password",
+                    "severity": "CRITICAL",
+                    "matches": [
+                        "password: \u0000incorrect",
+                        "password: \u0000Retype",
+                        "password: \u0000Passwords",
+                        "Password: \u0000aa\u0000bad"
+                    ],
+                    "count": 4
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/usr/bin/uniq",
+                    "pattern": "Hardcoded Username",
+                    "severity": "HIGH",
+                    "matches": [
+                        "login: \u0000/dev/loop%u\u0000set"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/usr/bin/printf",
+                    "pattern": "Hardcoded Password",
+                    "severity": "CRITICAL",
+                    "matches": [
+                        "password: \u0000incorrect",
+                        "password: \u0000Retype",
+                        "password: \u0000Passwords",
+                        "Password: \u0000aa\u0000bad"
+                    ],
+                    "count": 4
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/usr/bin/printf",
+                    "pattern": "Hardcoded Username",
+                    "severity": "HIGH",
+                    "matches": [
+                        "login: \u0000/dev/loop%u\u0000set"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/usr/bin/sha256sum",
+                    "pattern": "Hardcoded Password",
+                    "severity": "CRITICAL",
+                    "matches": [
+                        "password: \u0000incorrect",
+                        "password: \u0000Retype",
+                        "password: \u0000Passwords",
+                        "Password: \u0000aa\u0000bad"
+                    ],
+                    "count": 4
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/usr/bin/sha256sum",
+                    "pattern": "Hardcoded Username",
+                    "severity": "HIGH",
+                    "matches": [
+                        "login: \u0000/dev/loop%u\u0000set"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/usr/bin/env",
+                    "pattern": "Hardcoded Password",
+                    "severity": "CRITICAL",
+                    "matches": [
+                        "password: \u0000incorrect",
+                        "password: \u0000Retype",
+                        "password: \u0000Passwords",
+                        "Password: \u0000aa\u0000bad"
+                    ],
+                    "count": 4
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/usr/bin/env",
+                    "pattern": "Hardcoded Username",
+                    "severity": "HIGH",
+                    "matches": [
+                        "login: \u0000/dev/loop%u\u0000set"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/usr/bin/find",
+                    "pattern": "Hardcoded Password",
+                    "severity": "CRITICAL",
+                    "matches": [
+                        "password: \u0000incorrect",
+                        "password: \u0000Retype",
+                        "password: \u0000Passwords",
+                        "Password: \u0000aa\u0000bad"
+                    ],
+                    "count": 4
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/usr/bin/find",
+                    "pattern": "Hardcoded Username",
+                    "severity": "HIGH",
+                    "matches": [
+                        "login: \u0000/dev/loop%u\u0000set"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/usr/lib/lua/luci/sys.lua",
+                    "pattern": "Hardcoded Username",
+                    "severity": "HIGH",
+                    "matches": [
+                        "user: nixio.getpw"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/usr/lib/lua/luci/dispatcher.lua",
+                    "pattern": "Hardcoded Password",
+                    "severity": "CRITICAL",
+                    "matches": [
+                        "password: pass,"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/usr/lib/lua/luci/dispatcher.lua",
+                    "pattern": "Hardcoded Username",
+                    "severity": "HIGH",
+                    "matches": [
+                        "login: util.ubus(",
+                        "username: user,",
+                        "user: http.getenv(",
+                        "user: http.formvalue(",
+                        "user: default_user,"
+                    ],
+                    "count": 7
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/usr/lib/lua/luci/dispatcher.lua",
                     "pattern": "Hardcoded API Key",
                     "severity": "CRITICAL",
                     "matches": [
-                        "api_key: HARDCODED_KEY_XYZ\u0000telnet"
+                        "token: sys.uniqueid(16)",
+                        "token: sdat.token"
+                    ],
+                    "count": 2
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/usr/lib/lua/luci/model/uci.lua",
+                    "pattern": "Hardcoded API Key",
+                    "severity": "CRITICAL",
+                    "matches": [
+                        "token: sys.uniqueid(16)",
+                        "token: self:rollback_pending()"
+                    ],
+                    "count": 2
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/usr/lib/lua/luci/model/cbi/admin_system/admin.lua",
+                    "pattern": "Hardcoded Password",
+                    "severity": "CRITICAL",
+                    "matches": [
+                        "password: true",
+                        "password: true"
+                    ],
+                    "count": 2
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/usr/lib/lua/luci/model/cbi/admin_network/proto_pppossh.lua",
+                    "pattern": "Hardcoded Username",
+                    "severity": "HIGH",
+                    "matches": [
+                        "user: section:taboption("
                     ],
                     "count": 1
                 },
                 {
-                    "file": "lab/fake_firmware/etc/config.conf",
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/usr/lib/lua/luci/model/cbi/admin_network/wifi.lua",
                     "pattern": "Hardcoded Password",
                     "severity": "CRITICAL",
                     "matches": [
-                        "password: admin123",
-                        "password: mqtt_pass123",
-                        "password: wifipassword123"
+                        "password: true",
+                        "password: true",
+                        "password: true",
+                        "password: true",
+                        "pwd: s:taboption("
+                    ],
+                    "count": 25
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/usr/lib/lua/luci/model/cbi/admin_network/proto_ppp.lua",
+                    "pattern": "Hardcoded Password",
+                    "severity": "CRITICAL",
+                    "matches": [
+                        "password: section:taboption(",
+                        "password: true"
+                    ],
+                    "count": 2
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/usr/lib/lua/luci/model/cbi/admin_network/proto_ppp.lua",
+                    "pattern": "Hardcoded Username",
+                    "severity": "HIGH",
+                    "matches": [
+                        "username: section:taboption("
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/usr/lib/lua/luci/model/cbi/admin_network/proto_pppoe.lua",
+                    "pattern": "Hardcoded Password",
+                    "severity": "CRITICAL",
+                    "matches": [
+                        "password: section:taboption(",
+                        "password: true"
+                    ],
+                    "count": 2
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/usr/lib/lua/luci/model/cbi/admin_network/proto_pppoe.lua",
+                    "pattern": "Hardcoded Username",
+                    "severity": "HIGH",
+                    "matches": [
+                        "username: section:taboption("
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/usr/lib/lua/luci/model/cbi/admin_network/proto_l2tp.lua",
+                    "pattern": "Hardcoded Password",
+                    "severity": "CRITICAL",
+                    "matches": [
+                        "password: section:taboption(",
+                        "password: true"
+                    ],
+                    "count": 2
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/usr/lib/lua/luci/model/cbi/admin_network/proto_l2tp.lua",
+                    "pattern": "Hardcoded Username",
+                    "severity": "HIGH",
+                    "matches": [
+                        "username: section:taboption("
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/usr/lib/lua/luci/model/cbi/admin_network/wifi_add.lua",
+                    "pattern": "Hardcoded Password",
+                    "severity": "CRITICAL",
+                    "matches": [
+                        "password: true",
+                        "password: true"
+                    ],
+                    "count": 2
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/usr/lib/lua/luci/model/cbi/admin_network/proto_pppoa.lua",
+                    "pattern": "Hardcoded Password",
+                    "severity": "CRITICAL",
+                    "matches": [
+                        "password: section:taboption(",
+                        "password: true"
+                    ],
+                    "count": 2
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/usr/lib/lua/luci/model/cbi/admin_network/proto_pppoa.lua",
+                    "pattern": "Hardcoded Username",
+                    "severity": "HIGH",
+                    "matches": [
+                        "username: section:taboption("
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/usr/lib/lua/luci/model/cbi/admin_network/proto_6in4.lua",
+                    "pattern": "Hardcoded Password",
+                    "severity": "CRITICAL",
+                    "matches": [
+                        "password: section:taboption(",
+                        "password: true",
+                        "password: depends("
                     ],
                     "count": 3
                 },
                 {
-                    "file": "lab/fake_firmware/etc/config.conf",
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/usr/lib/lua/luci/model/cbi/admin_network/proto_6in4.lua",
                     "pattern": "Hardcoded Username",
                     "severity": "HIGH",
                     "matches": [
-                        "username: admin",
-                        "username: mqtt_user"
+                        "username: section:taboption(",
+                        "username: depends("
                     ],
                     "count": 2
                 },
                 {
-                    "file": "lab/fake_firmware/etc/config.conf",
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/usr/lib/lua/luci/model/cbi/admin_network/proto_pptp.lua",
+                    "pattern": "Hardcoded Password",
+                    "severity": "CRITICAL",
+                    "matches": [
+                        "password: section:taboption(",
+                        "password: true"
+                    ],
+                    "count": 2
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/usr/lib/lua/luci/model/cbi/admin_network/proto_pptp.lua",
+                    "pattern": "Hardcoded Username",
+                    "severity": "HIGH",
+                    "matches": [
+                        "username: section:taboption("
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/usr/lib/lua/luci/view/upnp_status.htm",
                     "pattern": "Hardcoded API Key",
                     "severity": "CRITICAL",
                     "matches": [
-                        "api_key: SECRET_API_KEY_12345",
-                        "secret_key: wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
+                        "token: <%=token%>"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/usr/lib/lua/luci/view/footer.htm",
+                    "pattern": "Hardcoded API Key",
+                    "severity": "CRITICAL",
+                    "matches": [
+                        "token: luci.model.uci:rollback_pending()"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/usr/lib/lua/luci/view/admin_system/clock_status.htm",
+                    "pattern": "Hardcoded API Key",
+                    "severity": "CRITICAL",
+                    "matches": [
+                        "token: <%=token%>"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/usr/lib/lua/luci/view/admin_system/reboot.htm",
+                    "pattern": "Hardcoded API Key",
+                    "severity": "CRITICAL",
+                    "matches": [
+                        "token: <%=token%>"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/usr/lib/lua/luci/view/admin_network/diagnostics.htm",
+                    "pattern": "Hardcoded API Key",
+                    "severity": "CRITICAL",
+                    "matches": [
+                        "token: <%=token%>"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/usr/lib/lua/luci/view/admin_network/iface_overview_status.htm",
+                    "pattern": "Hardcoded API Key",
+                    "severity": "CRITICAL",
+                    "matches": [
+                        "token: <%=token%>"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/usr/lib/lua/luci/view/admin_network/wifi_join.htm",
+                    "pattern": "Hardcoded API Key",
+                    "severity": "CRITICAL",
+                    "matches": [
+                        "token: <%=token%>",
+                        "token: <%=token%>"
                     ],
                     "count": 2
                 },
                 {
-                    "file": "lab/fake_firmware/etc/config.conf",
-                    "pattern": "AWS Access Key",
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/usr/lib/lua/luci/view/admin_network/wifi_overview_status.htm",
+                    "pattern": "Hardcoded API Key",
                     "severity": "CRITICAL",
                     "matches": [
-                        "AKIAIOSFODNN7EXAMPLE"
+                        "token: <%=token%>"
                     ],
                     "count": 1
                 },
                 {
-                    "file": "lab/fake_firmware/etc/config.conf",
-                    "pattern": "AWS Secret Key",
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/usr/lib/lua/luci/view/cbi/apply_widget.htm",
+                    "pattern": "Hardcoded API Key",
                     "severity": "CRITICAL",
                     "matches": [
-                        "secret_key: wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
+                        "token: <%=token%>",
+                        "token: <%=rollback_token%>"
+                    ],
+                    "count": 2
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/usr/lib/lua/luci/controller/admin/uci.lua",
+                    "pattern": "Hardcoded API Key",
+                    "severity": "CRITICAL",
+                    "matches": [
+                        "token: luci.http.formvalue("
                     ],
                     "count": 1
                 },
                 {
-                    "file": "lab/fake_firmware/etc/config.conf",
-                    "pattern": "MQTT Credentials",
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/sbin/hwclock",
+                    "pattern": "Hardcoded Password",
+                    "severity": "CRITICAL",
+                    "matches": [
+                        "password: \u0000incorrect",
+                        "password: \u0000Retype",
+                        "password: \u0000Passwords",
+                        "Password: \u0000aa\u0000bad"
+                    ],
+                    "count": 4
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/sbin/hwclock",
+                    "pattern": "Hardcoded Username",
                     "severity": "HIGH",
                     "matches": [
-                        "mqtt_username: mqtt_user"
+                        "login: \u0000/dev/loop%u\u0000set"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/sbin/ifconfig",
+                    "pattern": "Hardcoded Password",
+                    "severity": "CRITICAL",
+                    "matches": [
+                        "password: \u0000incorrect",
+                        "password: \u0000Retype",
+                        "password: \u0000Passwords",
+                        "Password: \u0000aa\u0000bad"
+                    ],
+                    "count": 4
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/sbin/ifconfig",
+                    "pattern": "Hardcoded Username",
+                    "severity": "HIGH",
+                    "matches": [
+                        "login: \u0000/dev/loop%u\u0000set"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/sbin/reboot",
+                    "pattern": "Hardcoded Password",
+                    "severity": "CRITICAL",
+                    "matches": [
+                        "password: \u0000incorrect",
+                        "password: \u0000Retype",
+                        "password: \u0000Passwords",
+                        "Password: \u0000aa\u0000bad"
+                    ],
+                    "count": 4
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/sbin/reboot",
+                    "pattern": "Hardcoded Username",
+                    "severity": "HIGH",
+                    "matches": [
+                        "login: \u0000/dev/loop%u\u0000set"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/sbin/start-stop-daemon",
+                    "pattern": "Hardcoded Password",
+                    "severity": "CRITICAL",
+                    "matches": [
+                        "password: \u0000incorrect",
+                        "password: \u0000Retype",
+                        "password: \u0000Passwords",
+                        "Password: \u0000aa\u0000bad"
+                    ],
+                    "count": 4
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/sbin/start-stop-daemon",
+                    "pattern": "Hardcoded Username",
+                    "severity": "HIGH",
+                    "matches": [
+                        "login: \u0000/dev/loop%u\u0000set"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/sbin/route",
+                    "pattern": "Hardcoded Password",
+                    "severity": "CRITICAL",
+                    "matches": [
+                        "password: \u0000incorrect",
+                        "password: \u0000Retype",
+                        "password: \u0000Passwords",
+                        "Password: \u0000aa\u0000bad"
+                    ],
+                    "count": 4
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/sbin/route",
+                    "pattern": "Hardcoded Username",
+                    "severity": "HIGH",
+                    "matches": [
+                        "login: \u0000/dev/loop%u\u0000set"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/sbin/pivot_root",
+                    "pattern": "Hardcoded Password",
+                    "severity": "CRITICAL",
+                    "matches": [
+                        "password: \u0000incorrect",
+                        "password: \u0000Retype",
+                        "password: \u0000Passwords",
+                        "Password: \u0000aa\u0000bad"
+                    ],
+                    "count": 4
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/sbin/pivot_root",
+                    "pattern": "Hardcoded Username",
+                    "severity": "HIGH",
+                    "matches": [
+                        "login: \u0000/dev/loop%u\u0000set"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/sbin/hotplug-call",
+                    "pattern": "Hardcoded Username",
+                    "severity": "HIGH",
+                    "matches": [
+                        "USER: root"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/sbin/switch_root",
+                    "pattern": "Hardcoded Password",
+                    "severity": "CRITICAL",
+                    "matches": [
+                        "password: \u0000incorrect",
+                        "password: \u0000Retype",
+                        "password: \u0000Passwords",
+                        "Password: \u0000aa\u0000bad"
+                    ],
+                    "count": 4
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/sbin/switch_root",
+                    "pattern": "Hardcoded Username",
+                    "severity": "HIGH",
+                    "matches": [
+                        "login: \u0000/dev/loop%u\u0000set"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/sbin/halt",
+                    "pattern": "Hardcoded Password",
+                    "severity": "CRITICAL",
+                    "matches": [
+                        "password: \u0000incorrect",
+                        "password: \u0000Retype",
+                        "password: \u0000Passwords",
+                        "Password: \u0000aa\u0000bad"
+                    ],
+                    "count": 4
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/sbin/halt",
+                    "pattern": "Hardcoded Username",
+                    "severity": "HIGH",
+                    "matches": [
+                        "login: \u0000/dev/loop%u\u0000set"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/sbin/mkswap",
+                    "pattern": "Hardcoded Password",
+                    "severity": "CRITICAL",
+                    "matches": [
+                        "password: \u0000incorrect",
+                        "password: \u0000Retype",
+                        "password: \u0000Passwords",
+                        "Password: \u0000aa\u0000bad"
+                    ],
+                    "count": 4
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/sbin/mkswap",
+                    "pattern": "Hardcoded Username",
+                    "severity": "HIGH",
+                    "matches": [
+                        "login: \u0000/dev/loop%u\u0000set"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/sbin/poweroff",
+                    "pattern": "Hardcoded Password",
+                    "severity": "CRITICAL",
+                    "matches": [
+                        "password: \u0000incorrect",
+                        "password: \u0000Retype",
+                        "password: \u0000Passwords",
+                        "Password: \u0000aa\u0000bad"
+                    ],
+                    "count": 4
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/sbin/poweroff",
+                    "pattern": "Hardcoded Username",
+                    "severity": "HIGH",
+                    "matches": [
+                        "login: \u0000/dev/loop%u\u0000set"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/sbin/sysctl",
+                    "pattern": "Hardcoded Password",
+                    "severity": "CRITICAL",
+                    "matches": [
+                        "password: \u0000incorrect",
+                        "password: \u0000Retype",
+                        "password: \u0000Passwords",
+                        "Password: \u0000aa\u0000bad"
+                    ],
+                    "count": 4
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/sbin/sysctl",
+                    "pattern": "Hardcoded Username",
+                    "severity": "HIGH",
+                    "matches": [
+                        "login: \u0000/dev/loop%u\u0000set"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/sbin/udhcpc",
+                    "pattern": "Hardcoded Password",
+                    "severity": "CRITICAL",
+                    "matches": [
+                        "password: \u0000incorrect",
+                        "password: \u0000Retype",
+                        "password: \u0000Passwords",
+                        "Password: \u0000aa\u0000bad"
+                    ],
+                    "count": 4
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/sbin/udhcpc",
+                    "pattern": "Hardcoded Username",
+                    "severity": "HIGH",
+                    "matches": [
+                        "login: \u0000/dev/loop%u\u0000set"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/bin/sed",
+                    "pattern": "Hardcoded Password",
+                    "severity": "CRITICAL",
+                    "matches": [
+                        "password: \u0000incorrect",
+                        "password: \u0000Retype",
+                        "password: \u0000Passwords",
+                        "Password: \u0000aa\u0000bad"
+                    ],
+                    "count": 4
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/bin/sed",
+                    "pattern": "Hardcoded Username",
+                    "severity": "HIGH",
+                    "matches": [
+                        "login: \u0000/dev/loop%u\u0000set"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/bin/rmdir",
+                    "pattern": "Hardcoded Password",
+                    "severity": "CRITICAL",
+                    "matches": [
+                        "password: \u0000incorrect",
+                        "password: \u0000Retype",
+                        "password: \u0000Passwords",
+                        "Password: \u0000aa\u0000bad"
+                    ],
+                    "count": 4
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/bin/rmdir",
+                    "pattern": "Hardcoded Username",
+                    "severity": "HIGH",
+                    "matches": [
+                        "login: \u0000/dev/loop%u\u0000set"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/bin/login",
+                    "pattern": "Hardcoded Password",
+                    "severity": "CRITICAL",
+                    "matches": [
+                        "password: \u0000incorrect",
+                        "password: \u0000Retype",
+                        "password: \u0000Passwords",
+                        "Password: \u0000aa\u0000bad"
+                    ],
+                    "count": 4
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/bin/login",
+                    "pattern": "Hardcoded Username",
+                    "severity": "HIGH",
+                    "matches": [
+                        "login: \u0000/dev/loop%u\u0000set"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/bin/sh",
+                    "pattern": "Hardcoded Password",
+                    "severity": "CRITICAL",
+                    "matches": [
+                        "password: \u0000incorrect",
+                        "password: \u0000Retype",
+                        "password: \u0000Passwords",
+                        "Password: \u0000aa\u0000bad"
+                    ],
+                    "count": 4
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/bin/sh",
+                    "pattern": "Hardcoded Username",
+                    "severity": "HIGH",
+                    "matches": [
+                        "login: \u0000/dev/loop%u\u0000set"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/bin/netstat",
+                    "pattern": "Hardcoded Password",
+                    "severity": "CRITICAL",
+                    "matches": [
+                        "password: \u0000incorrect",
+                        "password: \u0000Retype",
+                        "password: \u0000Passwords",
+                        "Password: \u0000aa\u0000bad"
+                    ],
+                    "count": 4
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/bin/netstat",
+                    "pattern": "Hardcoded Username",
+                    "severity": "HIGH",
+                    "matches": [
+                        "login: \u0000/dev/loop%u\u0000set"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/bin/lock",
+                    "pattern": "Hardcoded Password",
+                    "severity": "CRITICAL",
+                    "matches": [
+                        "password: \u0000incorrect",
+                        "password: \u0000Retype",
+                        "password: \u0000Passwords",
+                        "Password: \u0000aa\u0000bad"
+                    ],
+                    "count": 4
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/bin/lock",
+                    "pattern": "Hardcoded Username",
+                    "severity": "HIGH",
+                    "matches": [
+                        "login: \u0000/dev/loop%u\u0000set"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/bin/chmod",
+                    "pattern": "Hardcoded Password",
+                    "severity": "CRITICAL",
+                    "matches": [
+                        "password: \u0000incorrect",
+                        "password: \u0000Retype",
+                        "password: \u0000Passwords",
+                        "Password: \u0000aa\u0000bad"
+                    ],
+                    "count": 4
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/bin/chmod",
+                    "pattern": "Hardcoded Username",
+                    "severity": "HIGH",
+                    "matches": [
+                        "login: \u0000/dev/loop%u\u0000set"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/bin/egrep",
+                    "pattern": "Hardcoded Password",
+                    "severity": "CRITICAL",
+                    "matches": [
+                        "password: \u0000incorrect",
+                        "password: \u0000Retype",
+                        "password: \u0000Passwords",
+                        "Password: \u0000aa\u0000bad"
+                    ],
+                    "count": 4
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/bin/egrep",
+                    "pattern": "Hardcoded Username",
+                    "severity": "HIGH",
+                    "matches": [
+                        "login: \u0000/dev/loop%u\u0000set"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/bin/mkdir",
+                    "pattern": "Hardcoded Password",
+                    "severity": "CRITICAL",
+                    "matches": [
+                        "password: \u0000incorrect",
+                        "password: \u0000Retype",
+                        "password: \u0000Passwords",
+                        "Password: \u0000aa\u0000bad"
+                    ],
+                    "count": 4
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/bin/mkdir",
+                    "pattern": "Hardcoded Username",
+                    "severity": "HIGH",
+                    "matches": [
+                        "login: \u0000/dev/loop%u\u0000set"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/bin/ash",
+                    "pattern": "Hardcoded Password",
+                    "severity": "CRITICAL",
+                    "matches": [
+                        "password: \u0000incorrect",
+                        "password: \u0000Retype",
+                        "password: \u0000Passwords",
+                        "Password: \u0000aa\u0000bad"
+                    ],
+                    "count": 4
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/bin/ash",
+                    "pattern": "Hardcoded Username",
+                    "severity": "HIGH",
+                    "matches": [
+                        "login: \u0000/dev/loop%u\u0000set"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/bin/mknod",
+                    "pattern": "Hardcoded Password",
+                    "severity": "CRITICAL",
+                    "matches": [
+                        "password: \u0000incorrect",
+                        "password: \u0000Retype",
+                        "password: \u0000Passwords",
+                        "Password: \u0000aa\u0000bad"
+                    ],
+                    "count": 4
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/bin/mknod",
+                    "pattern": "Hardcoded Username",
+                    "severity": "HIGH",
+                    "matches": [
+                        "login: \u0000/dev/loop%u\u0000set"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/bin/fsync",
+                    "pattern": "Hardcoded Password",
+                    "severity": "CRITICAL",
+                    "matches": [
+                        "password: \u0000incorrect",
+                        "password: \u0000Retype",
+                        "password: \u0000Passwords",
+                        "Password: \u0000aa\u0000bad"
+                    ],
+                    "count": 4
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/bin/fsync",
+                    "pattern": "Hardcoded Username",
+                    "severity": "HIGH",
+                    "matches": [
+                        "login: \u0000/dev/loop%u\u0000set"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/bin/mount",
+                    "pattern": "Hardcoded Password",
+                    "severity": "CRITICAL",
+                    "matches": [
+                        "password: \u0000incorrect",
+                        "password: \u0000Retype",
+                        "password: \u0000Passwords",
+                        "Password: \u0000aa\u0000bad"
+                    ],
+                    "count": 4
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/bin/mount",
+                    "pattern": "Hardcoded Username",
+                    "severity": "HIGH",
+                    "matches": [
+                        "login: \u0000/dev/loop%u\u0000set"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/bin/uclient-fetch",
+                    "pattern": "Hardcoded Password",
+                    "severity": "CRITICAL",
+                    "matches": [
+                        "password: <password>"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/bin/uclient-fetch",
+                    "pattern": "Hardcoded Username",
+                    "severity": "HIGH",
+                    "matches": [
+                        "user: <user>"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/bin/chown",
+                    "pattern": "Hardcoded Password",
+                    "severity": "CRITICAL",
+                    "matches": [
+                        "password: \u0000incorrect",
+                        "password: \u0000Retype",
+                        "password: \u0000Passwords",
+                        "Password: \u0000aa\u0000bad"
+                    ],
+                    "count": 4
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/bin/chown",
+                    "pattern": "Hardcoded Username",
+                    "severity": "HIGH",
+                    "matches": [
+                        "login: \u0000/dev/loop%u\u0000set"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/bin/busybox",
+                    "pattern": "Hardcoded Password",
+                    "severity": "CRITICAL",
+                    "matches": [
+                        "password: \u0000incorrect",
+                        "password: \u0000Retype",
+                        "password: \u0000Passwords",
+                        "Password: \u0000aa\u0000bad"
+                    ],
+                    "count": 4
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/bin/busybox",
+                    "pattern": "Hardcoded Username",
+                    "severity": "HIGH",
+                    "matches": [
+                        "login: \u0000/dev/loop%u\u0000set"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/bin/mv",
+                    "pattern": "Hardcoded Password",
+                    "severity": "CRITICAL",
+                    "matches": [
+                        "password: \u0000incorrect",
+                        "password: \u0000Retype",
+                        "password: \u0000Passwords",
+                        "Password: \u0000aa\u0000bad"
+                    ],
+                    "count": 4
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/bin/mv",
+                    "pattern": "Hardcoded Username",
+                    "severity": "HIGH",
+                    "matches": [
+                        "login: \u0000/dev/loop%u\u0000set"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/bin/wget",
+                    "pattern": "Hardcoded Password",
+                    "severity": "CRITICAL",
+                    "matches": [
+                        "password: <password>"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/bin/wget",
+                    "pattern": "Hardcoded Username",
+                    "severity": "HIGH",
+                    "matches": [
+                        "user: <user>"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/bin/echo",
+                    "pattern": "Hardcoded Password",
+                    "severity": "CRITICAL",
+                    "matches": [
+                        "password: \u0000incorrect",
+                        "password: \u0000Retype",
+                        "password: \u0000Passwords",
+                        "Password: \u0000aa\u0000bad"
+                    ],
+                    "count": 4
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/bin/echo",
+                    "pattern": "Hardcoded Username",
+                    "severity": "HIGH",
+                    "matches": [
+                        "login: \u0000/dev/loop%u\u0000set"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/bin/date",
+                    "pattern": "Hardcoded Password",
+                    "severity": "CRITICAL",
+                    "matches": [
+                        "password: \u0000incorrect",
+                        "password: \u0000Retype",
+                        "password: \u0000Passwords",
+                        "Password: \u0000aa\u0000bad"
+                    ],
+                    "count": 4
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/bin/date",
+                    "pattern": "Hardcoded Username",
+                    "severity": "HIGH",
+                    "matches": [
+                        "login: \u0000/dev/loop%u\u0000set"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/bin/ping6",
+                    "pattern": "Hardcoded Password",
+                    "severity": "CRITICAL",
+                    "matches": [
+                        "password: \u0000incorrect",
+                        "password: \u0000Retype",
+                        "password: \u0000Passwords",
+                        "Password: \u0000aa\u0000bad"
+                    ],
+                    "count": 4
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/bin/ping6",
+                    "pattern": "Hardcoded Username",
+                    "severity": "HIGH",
+                    "matches": [
+                        "login: \u0000/dev/loop%u\u0000set"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/bin/passwd",
+                    "pattern": "Hardcoded Password",
+                    "severity": "CRITICAL",
+                    "matches": [
+                        "password: \u0000incorrect",
+                        "password: \u0000Retype",
+                        "password: \u0000Passwords",
+                        "Password: \u0000aa\u0000bad"
+                    ],
+                    "count": 4
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/bin/passwd",
+                    "pattern": "Hardcoded Username",
+                    "severity": "HIGH",
+                    "matches": [
+                        "login: \u0000/dev/loop%u\u0000set"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/bin/grep",
+                    "pattern": "Hardcoded Password",
+                    "severity": "CRITICAL",
+                    "matches": [
+                        "password: \u0000incorrect",
+                        "password: \u0000Retype",
+                        "password: \u0000Passwords",
+                        "Password: \u0000aa\u0000bad"
+                    ],
+                    "count": 4
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/bin/grep",
+                    "pattern": "Hardcoded Username",
+                    "severity": "HIGH",
+                    "matches": [
+                        "login: \u0000/dev/loop%u\u0000set"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/bin/df",
+                    "pattern": "Hardcoded Password",
+                    "severity": "CRITICAL",
+                    "matches": [
+                        "password: \u0000incorrect",
+                        "password: \u0000Retype",
+                        "password: \u0000Passwords",
+                        "Password: \u0000aa\u0000bad"
+                    ],
+                    "count": 4
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/bin/df",
+                    "pattern": "Hardcoded Username",
+                    "severity": "HIGH",
+                    "matches": [
+                        "login: \u0000/dev/loop%u\u0000set"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/bin/fgrep",
+                    "pattern": "Hardcoded Password",
+                    "severity": "CRITICAL",
+                    "matches": [
+                        "password: \u0000incorrect",
+                        "password: \u0000Retype",
+                        "password: \u0000Passwords",
+                        "Password: \u0000aa\u0000bad"
+                    ],
+                    "count": 4
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/bin/fgrep",
+                    "pattern": "Hardcoded Username",
+                    "severity": "HIGH",
+                    "matches": [
+                        "login: \u0000/dev/loop%u\u0000set"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/bin/cat",
+                    "pattern": "Hardcoded Password",
+                    "severity": "CRITICAL",
+                    "matches": [
+                        "password: \u0000incorrect",
+                        "password: \u0000Retype",
+                        "password: \u0000Passwords",
+                        "Password: \u0000aa\u0000bad"
+                    ],
+                    "count": 4
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/bin/cat",
+                    "pattern": "Hardcoded Username",
+                    "severity": "HIGH",
+                    "matches": [
+                        "login: \u0000/dev/loop%u\u0000set"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/bin/ping",
+                    "pattern": "Hardcoded Password",
+                    "severity": "CRITICAL",
+                    "matches": [
+                        "password: \u0000incorrect",
+                        "password: \u0000Retype",
+                        "password: \u0000Passwords",
+                        "Password: \u0000aa\u0000bad"
+                    ],
+                    "count": 4
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/bin/ping",
+                    "pattern": "Hardcoded Username",
+                    "severity": "HIGH",
+                    "matches": [
+                        "login: \u0000/dev/loop%u\u0000set"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/bin/ls",
+                    "pattern": "Hardcoded Password",
+                    "severity": "CRITICAL",
+                    "matches": [
+                        "password: \u0000incorrect",
+                        "password: \u0000Retype",
+                        "password: \u0000Passwords",
+                        "Password: \u0000aa\u0000bad"
+                    ],
+                    "count": 4
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/bin/ls",
+                    "pattern": "Hardcoded Username",
+                    "severity": "HIGH",
+                    "matches": [
+                        "login: \u0000/dev/loop%u\u0000set"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/bin/gunzip",
+                    "pattern": "Hardcoded Password",
+                    "severity": "CRITICAL",
+                    "matches": [
+                        "password: \u0000incorrect",
+                        "password: \u0000Retype",
+                        "password: \u0000Passwords",
+                        "Password: \u0000aa\u0000bad"
+                    ],
+                    "count": 4
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/bin/gunzip",
+                    "pattern": "Hardcoded Username",
+                    "severity": "HIGH",
+                    "matches": [
+                        "login: \u0000/dev/loop%u\u0000set"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/bin/rm",
+                    "pattern": "Hardcoded Password",
+                    "severity": "CRITICAL",
+                    "matches": [
+                        "password: \u0000incorrect",
+                        "password: \u0000Retype",
+                        "password: \u0000Passwords",
+                        "Password: \u0000aa\u0000bad"
+                    ],
+                    "count": 4
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/bin/rm",
+                    "pattern": "Hardcoded Username",
+                    "severity": "HIGH",
+                    "matches": [
+                        "login: \u0000/dev/loop%u\u0000set"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/bin/mktemp",
+                    "pattern": "Hardcoded Password",
+                    "severity": "CRITICAL",
+                    "matches": [
+                        "password: \u0000incorrect",
+                        "password: \u0000Retype",
+                        "password: \u0000Passwords",
+                        "Password: \u0000aa\u0000bad"
+                    ],
+                    "count": 4
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/bin/mktemp",
+                    "pattern": "Hardcoded Username",
+                    "severity": "HIGH",
+                    "matches": [
+                        "login: \u0000/dev/loop%u\u0000set"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/bin/uname",
+                    "pattern": "Hardcoded Password",
+                    "severity": "CRITICAL",
+                    "matches": [
+                        "password: \u0000incorrect",
+                        "password: \u0000Retype",
+                        "password: \u0000Passwords",
+                        "Password: \u0000aa\u0000bad"
+                    ],
+                    "count": 4
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/bin/uname",
+                    "pattern": "Hardcoded Username",
+                    "severity": "HIGH",
+                    "matches": [
+                        "login: \u0000/dev/loop%u\u0000set"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/bin/touch",
+                    "pattern": "Hardcoded Password",
+                    "severity": "CRITICAL",
+                    "matches": [
+                        "password: \u0000incorrect",
+                        "password: \u0000Retype",
+                        "password: \u0000Passwords",
+                        "Password: \u0000aa\u0000bad"
+                    ],
+                    "count": 4
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/bin/touch",
+                    "pattern": "Hardcoded Username",
+                    "severity": "HIGH",
+                    "matches": [
+                        "login: \u0000/dev/loop%u\u0000set"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/bin/gzip",
+                    "pattern": "Hardcoded Password",
+                    "severity": "CRITICAL",
+                    "matches": [
+                        "password: \u0000incorrect",
+                        "password: \u0000Retype",
+                        "password: \u0000Passwords",
+                        "Password: \u0000aa\u0000bad"
+                    ],
+                    "count": 4
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/bin/gzip",
+                    "pattern": "Hardcoded Username",
+                    "severity": "HIGH",
+                    "matches": [
+                        "login: \u0000/dev/loop%u\u0000set"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/bin/netmsg",
+                    "pattern": "Hardcoded Password",
+                    "severity": "CRITICAL",
+                    "matches": [
+                        "password: \u0000incorrect",
+                        "password: \u0000Retype",
+                        "password: \u0000Passwords",
+                        "Password: \u0000aa\u0000bad"
+                    ],
+                    "count": 4
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/bin/netmsg",
+                    "pattern": "Hardcoded Username",
+                    "severity": "HIGH",
+                    "matches": [
+                        "login: \u0000/dev/loop%u\u0000set"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/bin/chgrp",
+                    "pattern": "Hardcoded Password",
+                    "severity": "CRITICAL",
+                    "matches": [
+                        "password: \u0000incorrect",
+                        "password: \u0000Retype",
+                        "password: \u0000Passwords",
+                        "Password: \u0000aa\u0000bad"
+                    ],
+                    "count": 4
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/bin/chgrp",
+                    "pattern": "Hardcoded Username",
+                    "severity": "HIGH",
+                    "matches": [
+                        "login: \u0000/dev/loop%u\u0000set"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/bin/umount",
+                    "pattern": "Hardcoded Password",
+                    "severity": "CRITICAL",
+                    "matches": [
+                        "password: \u0000incorrect",
+                        "password: \u0000Retype",
+                        "password: \u0000Passwords",
+                        "Password: \u0000aa\u0000bad"
+                    ],
+                    "count": 4
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/bin/umount",
+                    "pattern": "Hardcoded Username",
+                    "severity": "HIGH",
+                    "matches": [
+                        "login: \u0000/dev/loop%u\u0000set"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/bin/vi",
+                    "pattern": "Hardcoded Password",
+                    "severity": "CRITICAL",
+                    "matches": [
+                        "password: \u0000incorrect",
+                        "password: \u0000Retype",
+                        "password: \u0000Passwords",
+                        "Password: \u0000aa\u0000bad"
+                    ],
+                    "count": 4
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/bin/vi",
+                    "pattern": "Hardcoded Username",
+                    "severity": "HIGH",
+                    "matches": [
+                        "login: \u0000/dev/loop%u\u0000set"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/bin/sync",
+                    "pattern": "Hardcoded Password",
+                    "severity": "CRITICAL",
+                    "matches": [
+                        "password: \u0000incorrect",
+                        "password: \u0000Retype",
+                        "password: \u0000Passwords",
+                        "Password: \u0000aa\u0000bad"
+                    ],
+                    "count": 4
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/bin/sync",
+                    "pattern": "Hardcoded Username",
+                    "severity": "HIGH",
+                    "matches": [
+                        "login: \u0000/dev/loop%u\u0000set"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/bin/dd",
+                    "pattern": "Hardcoded Password",
+                    "severity": "CRITICAL",
+                    "matches": [
+                        "password: \u0000incorrect",
+                        "password: \u0000Retype",
+                        "password: \u0000Passwords",
+                        "Password: \u0000aa\u0000bad"
+                    ],
+                    "count": 4
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/bin/dd",
+                    "pattern": "Hardcoded Username",
+                    "severity": "HIGH",
+                    "matches": [
+                        "login: \u0000/dev/loop%u\u0000set"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/bin/sleep",
+                    "pattern": "Hardcoded Password",
+                    "severity": "CRITICAL",
+                    "matches": [
+                        "password: \u0000incorrect",
+                        "password: \u0000Retype",
+                        "password: \u0000Passwords",
+                        "Password: \u0000aa\u0000bad"
+                    ],
+                    "count": 4
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/bin/sleep",
+                    "pattern": "Hardcoded Username",
+                    "severity": "HIGH",
+                    "matches": [
+                        "login: \u0000/dev/loop%u\u0000set"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/bin/traceroute",
+                    "pattern": "Hardcoded Password",
+                    "severity": "CRITICAL",
+                    "matches": [
+                        "password: \u0000incorrect",
+                        "password: \u0000Retype",
+                        "password: \u0000Passwords",
+                        "Password: \u0000aa\u0000bad"
+                    ],
+                    "count": 4
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/bin/traceroute",
+                    "pattern": "Hardcoded Username",
+                    "severity": "HIGH",
+                    "matches": [
+                        "login: \u0000/dev/loop%u\u0000set"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/bin/zcat",
+                    "pattern": "Hardcoded Password",
+                    "severity": "CRITICAL",
+                    "matches": [
+                        "password: \u0000incorrect",
+                        "password: \u0000Retype",
+                        "password: \u0000Passwords",
+                        "Password: \u0000aa\u0000bad"
+                    ],
+                    "count": 4
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/bin/zcat",
+                    "pattern": "Hardcoded Username",
+                    "severity": "HIGH",
+                    "matches": [
+                        "login: \u0000/dev/loop%u\u0000set"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/bin/dmesg",
+                    "pattern": "Hardcoded Password",
+                    "severity": "CRITICAL",
+                    "matches": [
+                        "password: \u0000incorrect",
+                        "password: \u0000Retype",
+                        "password: \u0000Passwords",
+                        "Password: \u0000aa\u0000bad"
+                    ],
+                    "count": 4
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/bin/dmesg",
+                    "pattern": "Hardcoded Username",
+                    "severity": "HIGH",
+                    "matches": [
+                        "login: \u0000/dev/loop%u\u0000set"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/bin/tar",
+                    "pattern": "Hardcoded Password",
+                    "severity": "CRITICAL",
+                    "matches": [
+                        "password: \u0000incorrect",
+                        "password: \u0000Retype",
+                        "password: \u0000Passwords",
+                        "Password: \u0000aa\u0000bad"
+                    ],
+                    "count": 4
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/bin/tar",
+                    "pattern": "Hardcoded Username",
+                    "severity": "HIGH",
+                    "matches": [
+                        "login: \u0000/dev/loop%u\u0000set"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/bin/pidof",
+                    "pattern": "Hardcoded Password",
+                    "severity": "CRITICAL",
+                    "matches": [
+                        "password: \u0000incorrect",
+                        "password: \u0000Retype",
+                        "password: \u0000Passwords",
+                        "Password: \u0000aa\u0000bad"
+                    ],
+                    "count": 4
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/bin/pidof",
+                    "pattern": "Hardcoded Username",
+                    "severity": "HIGH",
+                    "matches": [
+                        "login: \u0000/dev/loop%u\u0000set"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/bin/nice",
+                    "pattern": "Hardcoded Password",
+                    "severity": "CRITICAL",
+                    "matches": [
+                        "password: \u0000incorrect",
+                        "password: \u0000Retype",
+                        "password: \u0000Passwords",
+                        "Password: \u0000aa\u0000bad"
+                    ],
+                    "count": 4
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/bin/nice",
+                    "pattern": "Hardcoded Username",
+                    "severity": "HIGH",
+                    "matches": [
+                        "login: \u0000/dev/loop%u\u0000set"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/bin/cp",
+                    "pattern": "Hardcoded Password",
+                    "severity": "CRITICAL",
+                    "matches": [
+                        "password: \u0000incorrect",
+                        "password: \u0000Retype",
+                        "password: \u0000Passwords",
+                        "Password: \u0000aa\u0000bad"
+                    ],
+                    "count": 4
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/bin/cp",
+                    "pattern": "Hardcoded Username",
+                    "severity": "HIGH",
+                    "matches": [
+                        "login: \u0000/dev/loop%u\u0000set"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/bin/config_generate",
+                    "pattern": "Hardcoded Password",
+                    "severity": "CRITICAL",
+                    "matches": [
+                        "password: password"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/bin/config_generate",
+                    "pattern": "Hardcoded Username",
+                    "severity": "HIGH",
+                    "matches": [
+                        "username: username"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/bin/traceroute6",
+                    "pattern": "Hardcoded Password",
+                    "severity": "CRITICAL",
+                    "matches": [
+                        "password: \u0000incorrect",
+                        "password: \u0000Retype",
+                        "password: \u0000Passwords",
+                        "Password: \u0000aa\u0000bad"
+                    ],
+                    "count": 4
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/bin/traceroute6",
+                    "pattern": "Hardcoded Username",
+                    "severity": "HIGH",
+                    "matches": [
+                        "login: \u0000/dev/loop%u\u0000set"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/bin/true",
+                    "pattern": "Hardcoded Password",
+                    "severity": "CRITICAL",
+                    "matches": [
+                        "password: \u0000incorrect",
+                        "password: \u0000Retype",
+                        "password: \u0000Passwords",
+                        "Password: \u0000aa\u0000bad"
+                    ],
+                    "count": 4
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/bin/true",
+                    "pattern": "Hardcoded Username",
+                    "severity": "HIGH",
+                    "matches": [
+                        "login: \u0000/dev/loop%u\u0000set"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/bin/ln",
+                    "pattern": "Hardcoded Password",
+                    "severity": "CRITICAL",
+                    "matches": [
+                        "password: \u0000incorrect",
+                        "password: \u0000Retype",
+                        "password: \u0000Passwords",
+                        "Password: \u0000aa\u0000bad"
+                    ],
+                    "count": 4
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/bin/ln",
+                    "pattern": "Hardcoded Username",
+                    "severity": "HIGH",
+                    "matches": [
+                        "login: \u0000/dev/loop%u\u0000set"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/bin/false",
+                    "pattern": "Hardcoded Password",
+                    "severity": "CRITICAL",
+                    "matches": [
+                        "password: \u0000incorrect",
+                        "password: \u0000Retype",
+                        "password: \u0000Passwords",
+                        "Password: \u0000aa\u0000bad"
+                    ],
+                    "count": 4
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/bin/false",
+                    "pattern": "Hardcoded Username",
+                    "severity": "HIGH",
+                    "matches": [
+                        "login: \u0000/dev/loop%u\u0000set"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/bin/pwd",
+                    "pattern": "Hardcoded Password",
+                    "severity": "CRITICAL",
+                    "matches": [
+                        "password: \u0000incorrect",
+                        "password: \u0000Retype",
+                        "password: \u0000Passwords",
+                        "Password: \u0000aa\u0000bad"
+                    ],
+                    "count": 4
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/bin/pwd",
+                    "pattern": "Hardcoded Username",
+                    "severity": "HIGH",
+                    "matches": [
+                        "login: \u0000/dev/loop%u\u0000set"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/lib/functions.sh",
+                    "pattern": "Hardcoded Username",
+                    "severity": "HIGH",
+                    "matches": [
+                        "User: *//p"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/lib/netifd/hostapd.sh",
+                    "pattern": "Hardcoded Password",
+                    "severity": "CRITICAL",
+                    "matches": [
+                        "password: wpakey"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/lib/netifd/proto/ppp.sh",
+                    "pattern": "Hardcoded Username",
+                    "severity": "HIGH",
+                    "matches": [
+                        "username: +user"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/etc/shadow",
+                    "pattern": "Hardcoded Username",
+                    "severity": "HIGH",
+                    "matches": [
+                        "user: $1$79bz0K8z$Ii6Q/if83F1QodGmkb4Ah.:18145:0:99999:7:::"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/etc/passwd",
+                    "pattern": "Hardcoded Username",
+                    "severity": "HIGH",
+                    "matches": [
+                        "user: x:1000:1000::/root:/bin/ash"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/etc/profile",
+                    "pattern": "Hardcoded Username",
+                    "severity": "HIGH",
+                    "matches": [
+                        "USER: -root}:"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/etc/uci-defaults/10_migrate-shadow",
+                    "pattern": "Hardcoded Password",
+                    "severity": "CRITICAL",
+                    "matches": [
+                        "pwd: $(sed",
+                        "pwd: $(sed"
+                    ],
+                    "count": 2
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/etc/rc.d/K50dropbear",
+                    "pattern": "Hardcoded Username",
+                    "severity": "HIGH",
+                    "matches": [
+                        "Login: bool:1"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/etc/rc.d/S19dropbear",
+                    "pattern": "Hardcoded Username",
+                    "severity": "HIGH",
+                    "matches": [
+                        "Login: bool:1"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/etc/init.d/dropbear",
+                    "pattern": "Hardcoded Username",
+                    "severity": "HIGH",
+                    "matches": [
+                        "Login: bool:1"
                     ],
                     "count": 1
                 }
             ],
-            "files_scanned": 5,
-            "finding": "Found 8 hardcoded credential pattern(s) \u2014 6 CRITICAL",
+            "files_scanned": 1219,
+            "finding": "Found 279 hardcoded credential pattern(s) \u2014 146 CRITICAL",
             "severity": "CRITICAL"
         },
         {
             "analysis": "Private Key Scanner",
-            "target": "lab/fake_firmware",
+            "target": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root",
             "keys_found": [
                 {
-                    "file": "lab/fake_firmware/etc/server.key",
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/usr/lib/libmbedx509.so.2.14.1",
+                    "pattern": "Certificate",
+                    "severity": "MEDIUM",
+                    "matches": [
+                        "-----BEGIN CERTIFICATE-----",
+                        "-----BEGIN CERTIFICATE-----"
+                    ],
+                    "count": 2,
+                    "file_hash": "a2dfb2235f397e44aa875279b69ba6d762c841bdb43abd8f855da9650b49d63a"
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/usr/lib/libmbedx509.so",
+                    "pattern": "Certificate",
+                    "severity": "MEDIUM",
+                    "matches": [
+                        "-----BEGIN CERTIFICATE-----",
+                        "-----BEGIN CERTIFICATE-----"
+                    ],
+                    "count": 2,
+                    "file_hash": "a2dfb2235f397e44aa875279b69ba6d762c841bdb43abd8f855da9650b49d63a"
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/usr/lib/libmbedcrypto.so",
                     "pattern": "RSA Private Key",
                     "severity": "CRITICAL",
                     "matches": [
+                        "-----BEGIN RSA PRIVATE KEY-----",
                         "-----BEGIN RSA PRIVATE KEY-----"
                     ],
+                    "count": 2,
+                    "file_hash": "5c09078cfcb7c4348299781a4b428877414939dcfb3f1a70798d90c98c95f169"
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/usr/lib/libmbedcrypto.so",
+                    "pattern": "EC Private Key",
+                    "severity": "CRITICAL",
+                    "matches": [
+                        "-----BEGIN EC PRIVATE KEY-----",
+                        "-----BEGIN EC PRIVATE KEY-----"
+                    ],
+                    "count": 2,
+                    "file_hash": "5c09078cfcb7c4348299781a4b428877414939dcfb3f1a70798d90c98c95f169"
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/usr/lib/libmbedcrypto.so",
+                    "pattern": "Private Key (Generic)",
+                    "severity": "CRITICAL",
+                    "matches": [
+                        "-----BEGIN PRIVATE KEY-----"
+                    ],
                     "count": 1,
-                    "file_hash": "06cbc556ce8980005be4c56b13f212752c562b871f21a4a3296df1ad99d3d2d3"
+                    "file_hash": "5c09078cfcb7c4348299781a4b428877414939dcfb3f1a70798d90c98c95f169"
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/usr/lib/libmbedcrypto.so.1",
+                    "pattern": "RSA Private Key",
+                    "severity": "CRITICAL",
+                    "matches": [
+                        "-----BEGIN RSA PRIVATE KEY-----",
+                        "-----BEGIN RSA PRIVATE KEY-----"
+                    ],
+                    "count": 2,
+                    "file_hash": "5c09078cfcb7c4348299781a4b428877414939dcfb3f1a70798d90c98c95f169"
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/usr/lib/libmbedcrypto.so.1",
+                    "pattern": "EC Private Key",
+                    "severity": "CRITICAL",
+                    "matches": [
+                        "-----BEGIN EC PRIVATE KEY-----",
+                        "-----BEGIN EC PRIVATE KEY-----"
+                    ],
+                    "count": 2,
+                    "file_hash": "5c09078cfcb7c4348299781a4b428877414939dcfb3f1a70798d90c98c95f169"
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/usr/lib/libmbedcrypto.so.1",
+                    "pattern": "Private Key (Generic)",
+                    "severity": "CRITICAL",
+                    "matches": [
+                        "-----BEGIN PRIVATE KEY-----"
+                    ],
+                    "count": 1,
+                    "file_hash": "5c09078cfcb7c4348299781a4b428877414939dcfb3f1a70798d90c98c95f169"
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/usr/lib/libmbedcrypto.so.2.12.0",
+                    "pattern": "RSA Private Key",
+                    "severity": "CRITICAL",
+                    "matches": [
+                        "-----BEGIN RSA PRIVATE KEY-----",
+                        "-----BEGIN RSA PRIVATE KEY-----"
+                    ],
+                    "count": 2,
+                    "file_hash": "5c09078cfcb7c4348299781a4b428877414939dcfb3f1a70798d90c98c95f169"
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/usr/lib/libmbedcrypto.so.2.12.0",
+                    "pattern": "EC Private Key",
+                    "severity": "CRITICAL",
+                    "matches": [
+                        "-----BEGIN EC PRIVATE KEY-----",
+                        "-----BEGIN EC PRIVATE KEY-----"
+                    ],
+                    "count": 2,
+                    "file_hash": "5c09078cfcb7c4348299781a4b428877414939dcfb3f1a70798d90c98c95f169"
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/usr/lib/libmbedcrypto.so.2.12.0",
+                    "pattern": "Private Key (Generic)",
+                    "severity": "CRITICAL",
+                    "matches": [
+                        "-----BEGIN PRIVATE KEY-----"
+                    ],
+                    "count": 1,
+                    "file_hash": "5c09078cfcb7c4348299781a4b428877414939dcfb3f1a70798d90c98c95f169"
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/usr/lib/libmbedx509.so.0",
+                    "pattern": "Certificate",
+                    "severity": "MEDIUM",
+                    "matches": [
+                        "-----BEGIN CERTIFICATE-----",
+                        "-----BEGIN CERTIFICATE-----"
+                    ],
+                    "count": 2,
+                    "file_hash": "a2dfb2235f397e44aa875279b69ba6d762c841bdb43abd8f855da9650b49d63a"
                 }
             ],
-            "finding": "Found 1 private key/certificate(s) embedded in firmware \u2014 all devices share the same key",
+            "finding": "Found 12 private key/certificate(s) embedded in firmware \u2014 all devices share the same key",
             "severity": "CRITICAL"
         },
         {
             "analysis": "Dangerous Configuration Scanner",
-            "target": "lab/fake_firmware",
+            "target": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root",
             "configs_found": [
                 {
-                    "file": "lab/fake_firmware/etc/config.conf",
-                    "pattern": "Telnet Enabled",
-                    "severity": "CRITICAL",
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/dnsmasq_setup.sh",
+                    "pattern": "Unencrypted Protocol",
+                    "severity": "MEDIUM",
                     "matches": [
-                        "telnet_enabled: true"
+                        "http://"
                     ],
                     "count": 1
                 },
                 {
-                    "file": "lab/fake_firmware/etc/config.conf",
-                    "pattern": "Debug Mode Enabled",
-                    "severity": "HIGH",
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/usr/sbin/iw",
+                    "pattern": "Unencrypted Protocol",
+                    "severity": "MEDIUM",
                     "matches": [
-                        "debug_mode: true"
+                        "http://"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/usr/sbin/miniupnpd",
+                    "pattern": "Unencrypted Protocol",
+                    "severity": "MEDIUM",
+                    "matches": [
+                        "http://",
+                        "http://",
+                        "http://",
+                        "http://",
+                        "http://"
+                    ],
+                    "count": 18
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/usr/bin/jsonfilter",
+                    "pattern": "Unencrypted Protocol",
+                    "severity": "MEDIUM",
+                    "matches": [
+                        "http://"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/usr/lib/libuclient.so",
+                    "pattern": "Unencrypted Protocol",
+                    "severity": "MEDIUM",
+                    "matches": [
+                        "http://"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/usr/lib/lua/luci/util.lua",
+                    "pattern": "Unencrypted Protocol",
+                    "severity": "MEDIUM",
+                    "matches": [
+                        "http://"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/usr/lib/lua/luci/ltn12.lua",
+                    "pattern": "Unencrypted Protocol",
+                    "severity": "MEDIUM",
+                    "matches": [
+                        "http://"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/usr/lib/lua/luci/model/cbi/admin_network/dhcp.lua",
+                    "pattern": "Hardcoded IP Address",
+                    "severity": "MEDIUM",
+                    "matches": [
+                        "10.1.2"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/usr/lib/lua/luci/model/cbi/upnp/upnp.lua",
+                    "pattern": "Unencrypted Protocol",
+                    "severity": "MEDIUM",
+                    "matches": [
+                        "http://"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/usr/lib/lua/luci/view/admin_status/connections.htm",
+                    "pattern": "Unencrypted Protocol",
+                    "severity": "MEDIUM",
+                    "matches": [
+                        "http://",
+                        "http://"
+                    ],
+                    "count": 2
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/usr/lib/lua/luci/view/admin_status/bandwidth.htm",
+                    "pattern": "Unencrypted Protocol",
+                    "severity": "MEDIUM",
+                    "matches": [
+                        "http://",
+                        "http://"
+                    ],
+                    "count": 2
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/usr/lib/lua/luci/view/admin_status/wireless.htm",
+                    "pattern": "Unencrypted Protocol",
+                    "severity": "MEDIUM",
+                    "matches": [
+                        "http://",
+                        "http://",
+                        "http://",
+                        "http://"
+                    ],
+                    "count": 4
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/usr/lib/lua/luci/view/admin_status/load.htm",
+                    "pattern": "Unencrypted Protocol",
+                    "severity": "MEDIUM",
+                    "matches": [
+                        "http://",
+                        "http://"
+                    ],
+                    "count": 2
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/usr/lib/lua/luci/view/admin_system/applyreboot.htm",
+                    "pattern": "Unencrypted Protocol",
+                    "severity": "MEDIUM",
+                    "matches": [
+                        "http://"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/usr/lib/lua/luci/view/cbi/filebrowser.htm",
+                    "pattern": "Unencrypted Protocol",
+                    "severity": "MEDIUM",
+                    "matches": [
+                        "http://",
+                        "http://"
+                    ],
+                    "count": 2
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/usr/lib/lua/nixio/fs.lua",
+                    "pattern": "Unencrypted Protocol",
+                    "severity": "MEDIUM",
+                    "matches": [
+                        "http://"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/usr/lib/lua/nixio/util.lua",
+                    "pattern": "Unencrypted Protocol",
+                    "severity": "MEDIUM",
+                    "matches": [
+                        "http://"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/usr/lib/opkg/info/libgmp.list",
+                    "pattern": "Hardcoded IP Address",
+                    "severity": "MEDIUM",
+                    "matches": [
+                        "10.3.2"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/www/index.html",
+                    "pattern": "Unencrypted Protocol",
+                    "severity": "MEDIUM",
+                    "matches": [
+                        "http://",
+                        "http://"
+                    ],
+                    "count": 2
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/www/luci-static/bootstrap/cascade.css",
+                    "pattern": "Unencrypted Protocol",
+                    "severity": "MEDIUM",
+                    "matches": [
+                        "http://"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/www/luci-static/resources/bandwidth.svg",
+                    "pattern": "Unencrypted Protocol",
+                    "severity": "MEDIUM",
+                    "matches": [
+                        "http://",
+                        "http://"
+                    ],
+                    "count": 2
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/www/luci-static/resources/wifirate.svg",
+                    "pattern": "Unencrypted Protocol",
+                    "severity": "MEDIUM",
+                    "matches": [
+                        "http://",
+                        "http://"
+                    ],
+                    "count": 2
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/www/luci-static/resources/load.svg",
+                    "pattern": "Unencrypted Protocol",
+                    "severity": "MEDIUM",
+                    "matches": [
+                        "http://",
+                        "http://"
+                    ],
+                    "count": 2
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/www/luci-static/resources/wireless.svg",
+                    "pattern": "Unencrypted Protocol",
+                    "severity": "MEDIUM",
+                    "matches": [
+                        "http://",
+                        "http://"
+                    ],
+                    "count": 2
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/www/luci-static/resources/connections.svg",
+                    "pattern": "Unencrypted Protocol",
+                    "severity": "MEDIUM",
+                    "matches": [
+                        "http://",
+                        "http://"
+                    ],
+                    "count": 2
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/www/luci-static/resources/cbi.js",
+                    "pattern": "Unencrypted Protocol",
+                    "severity": "MEDIUM",
+                    "matches": [
+                        "http://"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/sbin/sysupgrade",
+                    "pattern": "Unencrypted Protocol",
+                    "severity": "MEDIUM",
+                    "matches": [
+                        "http://"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/bin/opkg",
+                    "pattern": "Unencrypted Protocol",
+                    "severity": "MEDIUM",
+                    "matches": [
+                        "http://",
+                        "ftp://"
+                    ],
+                    "count": 2
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/lib/firmware/brcm/brcmfmac43143.bin",
+                    "pattern": "Hardcoded IP Address",
+                    "severity": "MEDIUM",
+                    "matches": [
+                        "10.198.66",
+                        "10.198.66"
+                    ],
+                    "count": 2
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/etc/device_info",
+                    "pattern": "Unencrypted Protocol",
+                    "severity": "MEDIUM",
+                    "matches": [
+                        "http://"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/etc/protocols",
+                    "pattern": "Unencrypted Protocol",
+                    "severity": "MEDIUM",
+                    "matches": [
+                        "http://"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/etc/opkg/distfeeds.conf",
+                    "pattern": "Unencrypted Protocol",
+                    "severity": "MEDIUM",
+                    "matches": [
+                        "http://",
+                        "http://",
+                        "http://",
+                        "http://",
+                        "http://"
+                    ],
+                    "count": 6
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/etc/opkg/customfeeds.conf",
+                    "pattern": "Unencrypted Protocol",
+                    "severity": "MEDIUM",
+                    "matches": [
+                        "http://"
                     ],
                     "count": 1
                 }
             ],
-            "finding": "Found 2 dangerous configuration(s)",
-            "severity": "CRITICAL"
+            "finding": "Found 33 dangerous configuration(s)",
+            "severity": "HIGH"
         },
         {
             "analysis": "Sensitive File Finder",
-            "target": "lab/fake_firmware",
+            "target": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root",
             "files_found": [
                 {
-                    "path": "lab/fake_firmware/etc/shadow",
-                    "description": "Hashed password file",
-                    "severity": "CRITICAL",
-                    "size": 62,
-                    "hash": "7dc05c426d290fb1c171ada4b31f0c84d664f0e1ef68bbcf829fd8cf7af8d5e0"
+                    "path": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/usr/sbin/wpa_supplicant",
+                    "description": "WiFi credentials",
+                    "severity": "HIGH",
+                    "size": 522772,
+                    "hash": "f3f4eba0fb1f8456cf4a6849cd1dde4902f65a54f492992c367dc2fac991935f"
                 },
                 {
-                    "path": "lab/fake_firmware/etc/passwd",
+                    "path": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/bin/passwd",
                     "description": "System password file",
                     "severity": "HIGH",
-                    "size": 141,
-                    "hash": "ec753c5897f2bf285b6da1fbbe2364fa9f2e1357fdea45769f9f16cc61fce921"
+                    "size": 394485,
+                    "hash": "736f1a9f666ced28b86bf92018954595e4a4e8f7cbcdaffce308a82673030f15"
                 },
                 {
-                    "path": "lab/fake_firmware/etc/server.key",
-                    "description": "SSL server key",
+                    "path": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/etc/shadow",
+                    "description": "Hashed password file",
                     "severity": "CRITICAL",
-                    "size": 127,
-                    "hash": "06cbc556ce8980005be4c56b13f212752c562b871f21a4a3296df1ad99d3d2d3"
+                    "size": 269,
+                    "hash": "149e2e049c65dbcd97863125d8ec99ae2256d3e68d77d0bbc864eef7a44029d2"
                 },
                 {
-                    "path": "lab/fake_firmware/etc/config.conf",
-                    "description": "Device configuration",
+                    "path": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/etc/passwd",
+                    "description": "System password file",
                     "severity": "HIGH",
-                    "size": 396,
-                    "hash": "a85a4d93256c75bef14142d4ff4ca95b9bd118cf94a3b835b6fe374452971839"
+                    "size": 284,
+                    "hash": "6e6affe616607768f81e9135304d78642255293277a22b727dd8d41f3fc7ccca"
+                },
+                {
+                    "path": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/etc/shadow.bak",
+                    "description": "Hashed password file",
+                    "severity": "CRITICAL",
+                    "size": 178,
+                    "hash": "515f43bd29bf3ce7d9daa62b888e75e3691c1ced6255e85d26fb89dddbeef338"
                 }
             ],
-            "finding": "Found 4 sensitive file(s) in firmware",
+            "finding": "Found 5 sensitive file(s) in firmware",
             "severity": "CRITICAL"
         },
         {
             "analysis": "Vulnerable Component Scanner",
-            "target": "lab/fake_firmware",
+            "target": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root",
             "components_found": [
                 {
-                    "file": "lab/fake_firmware/bin/firmware.bin",
-                    "pattern": "OpenSSL 1.0.x (Heartbleed vulnerable)",
-                    "severity": "CRITICAL",
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/usr/sbin/crond",
+                    "pattern": "BusyBox (Check version for CVEs)",
+                    "severity": "MEDIUM",
                     "matches": [
-                        "OpenSSL 1.0.1"
+                        "BusyBox v1.28"
                     ],
                     "count": 1
                 },
                 {
-                    "file": "lab/fake_firmware/bin/firmware.bin",
-                    "pattern": "OpenSSH < 7.4 (Multiple CVEs)",
-                    "severity": "HIGH",
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/usr/sbin/telnetd",
+                    "pattern": "BusyBox (Check version for CVEs)",
+                    "severity": "MEDIUM",
                     "matches": [
-                        "OpenSSH_7.2"
+                        "BusyBox v1.28"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/usr/sbin/ftpd",
+                    "pattern": "BusyBox (Check version for CVEs)",
+                    "severity": "MEDIUM",
+                    "matches": [
+                        "BusyBox v1.28"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/usr/sbin/brctl",
+                    "pattern": "BusyBox (Check version for CVEs)",
+                    "severity": "MEDIUM",
+                    "matches": [
+                        "BusyBox v1.28"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/usr/sbin/ntpd",
+                    "pattern": "BusyBox (Check version for CVEs)",
+                    "severity": "MEDIUM",
+                    "matches": [
+                        "BusyBox v1.28"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/usr/sbin/chroot",
+                    "pattern": "BusyBox (Check version for CVEs)",
+                    "severity": "MEDIUM",
+                    "matches": [
+                        "BusyBox v1.28"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/usr/bin/yes",
+                    "pattern": "BusyBox (Check version for CVEs)",
+                    "severity": "MEDIUM",
+                    "matches": [
+                        "BusyBox v1.28"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/usr/bin/which",
+                    "pattern": "BusyBox (Check version for CVEs)",
+                    "severity": "MEDIUM",
+                    "matches": [
+                        "BusyBox v1.28"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/usr/bin/tee",
+                    "pattern": "BusyBox (Check version for CVEs)",
+                    "severity": "MEDIUM",
+                    "matches": [
+                        "BusyBox v1.28"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/usr/bin/du",
+                    "pattern": "BusyBox (Check version for CVEs)",
+                    "severity": "MEDIUM",
+                    "matches": [
+                        "BusyBox v1.28"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/usr/bin/cut",
+                    "pattern": "BusyBox (Check version for CVEs)",
+                    "severity": "MEDIUM",
+                    "matches": [
+                        "BusyBox v1.28"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/usr/bin/awk",
+                    "pattern": "BusyBox (Check version for CVEs)",
+                    "severity": "MEDIUM",
+                    "matches": [
+                        "BusyBox v1.28"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/usr/bin/nc",
+                    "pattern": "BusyBox (Check version for CVEs)",
+                    "severity": "MEDIUM",
+                    "matches": [
+                        "BusyBox v1.28"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/usr/bin/bunzip2",
+                    "pattern": "BusyBox (Check version for CVEs)",
+                    "severity": "MEDIUM",
+                    "matches": [
+                        "BusyBox v1.28"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/usr/bin/strings",
+                    "pattern": "BusyBox (Check version for CVEs)",
+                    "severity": "MEDIUM",
+                    "matches": [
+                        "BusyBox v1.28"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/usr/bin/expr",
+                    "pattern": "BusyBox (Check version for CVEs)",
+                    "severity": "MEDIUM",
+                    "matches": [
+                        "BusyBox v1.28"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/usr/bin/tail",
+                    "pattern": "BusyBox (Check version for CVEs)",
+                    "severity": "MEDIUM",
+                    "matches": [
+                        "BusyBox v1.28"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/usr/bin/dirname",
+                    "pattern": "BusyBox (Check version for CVEs)",
+                    "severity": "MEDIUM",
+                    "matches": [
+                        "BusyBox v1.28"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/usr/bin/killall",
+                    "pattern": "BusyBox (Check version for CVEs)",
+                    "severity": "MEDIUM",
+                    "matches": [
+                        "BusyBox v1.28"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/usr/bin/tr",
+                    "pattern": "BusyBox (Check version for CVEs)",
+                    "severity": "MEDIUM",
+                    "matches": [
+                        "BusyBox v1.28"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/usr/bin/basename",
+                    "pattern": "BusyBox (Check version for CVEs)",
+                    "severity": "MEDIUM",
+                    "matches": [
+                        "BusyBox v1.28"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/usr/bin/[",
+                    "pattern": "BusyBox (Check version for CVEs)",
+                    "severity": "MEDIUM",
+                    "matches": [
+                        "BusyBox v1.28"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/usr/bin/md5sum",
+                    "pattern": "BusyBox (Check version for CVEs)",
+                    "severity": "MEDIUM",
+                    "matches": [
+                        "BusyBox v1.28"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/usr/bin/sort",
+                    "pattern": "BusyBox (Check version for CVEs)",
+                    "severity": "MEDIUM",
+                    "matches": [
+                        "BusyBox v1.28"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/usr/bin/less",
+                    "pattern": "BusyBox (Check version for CVEs)",
+                    "severity": "MEDIUM",
+                    "matches": [
+                        "BusyBox v1.28"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/usr/bin/logger",
+                    "pattern": "BusyBox (Check version for CVEs)",
+                    "severity": "MEDIUM",
+                    "matches": [
+                        "BusyBox v1.28"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/usr/bin/crontab",
+                    "pattern": "BusyBox (Check version for CVEs)",
+                    "severity": "MEDIUM",
+                    "matches": [
+                        "BusyBox v1.28"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/usr/bin/nslookup",
+                    "pattern": "BusyBox (Check version for CVEs)",
+                    "severity": "MEDIUM",
+                    "matches": [
+                        "BusyBox v1.28"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/usr/bin/cmp",
+                    "pattern": "BusyBox (Check version for CVEs)",
+                    "severity": "MEDIUM",
+                    "matches": [
+                        "BusyBox v1.28"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/usr/bin/[[",
+                    "pattern": "BusyBox (Check version for CVEs)",
+                    "severity": "MEDIUM",
+                    "matches": [
+                        "BusyBox v1.28"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/usr/bin/readlink",
+                    "pattern": "BusyBox (Check version for CVEs)",
+                    "severity": "MEDIUM",
+                    "matches": [
+                        "BusyBox v1.28"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/usr/bin/clear",
+                    "pattern": "BusyBox (Check version for CVEs)",
+                    "severity": "MEDIUM",
+                    "matches": [
+                        "BusyBox v1.28"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/usr/bin/wc",
+                    "pattern": "BusyBox (Check version for CVEs)",
+                    "severity": "MEDIUM",
+                    "matches": [
+                        "BusyBox v1.28"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/usr/bin/hexdump",
+                    "pattern": "BusyBox (Check version for CVEs)",
+                    "severity": "MEDIUM",
+                    "matches": [
+                        "BusyBox v1.28"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/usr/bin/head",
+                    "pattern": "BusyBox (Check version for CVEs)",
+                    "severity": "MEDIUM",
+                    "matches": [
+                        "BusyBox v1.28"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/usr/bin/test",
+                    "pattern": "BusyBox (Check version for CVEs)",
+                    "severity": "MEDIUM",
+                    "matches": [
+                        "BusyBox v1.28"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/usr/bin/telnet",
+                    "pattern": "BusyBox (Check version for CVEs)",
+                    "severity": "MEDIUM",
+                    "matches": [
+                        "BusyBox v1.28"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/usr/bin/bzcat",
+                    "pattern": "BusyBox (Check version for CVEs)",
+                    "severity": "MEDIUM",
+                    "matches": [
+                        "BusyBox v1.28"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/usr/bin/seq",
+                    "pattern": "BusyBox (Check version for CVEs)",
+                    "severity": "MEDIUM",
+                    "matches": [
+                        "BusyBox v1.28"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/usr/bin/reset",
+                    "pattern": "BusyBox (Check version for CVEs)",
+                    "severity": "MEDIUM",
+                    "matches": [
+                        "BusyBox v1.28"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/usr/bin/id",
+                    "pattern": "BusyBox (Check version for CVEs)",
+                    "severity": "MEDIUM",
+                    "matches": [
+                        "BusyBox v1.28"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/usr/bin/xargs",
+                    "pattern": "BusyBox (Check version for CVEs)",
+                    "severity": "MEDIUM",
+                    "matches": [
+                        "BusyBox v1.28"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/usr/bin/mkfifo",
+                    "pattern": "BusyBox (Check version for CVEs)",
+                    "severity": "MEDIUM",
+                    "matches": [
+                        "BusyBox v1.28"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/usr/bin/time",
+                    "pattern": "BusyBox (Check version for CVEs)",
+                    "severity": "MEDIUM",
+                    "matches": [
+                        "BusyBox v1.28"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/usr/bin/uniq",
+                    "pattern": "BusyBox (Check version for CVEs)",
+                    "severity": "MEDIUM",
+                    "matches": [
+                        "BusyBox v1.28"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/usr/bin/printf",
+                    "pattern": "BusyBox (Check version for CVEs)",
+                    "severity": "MEDIUM",
+                    "matches": [
+                        "BusyBox v1.28"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/usr/bin/sha256sum",
+                    "pattern": "BusyBox (Check version for CVEs)",
+                    "severity": "MEDIUM",
+                    "matches": [
+                        "BusyBox v1.28"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/usr/bin/env",
+                    "pattern": "BusyBox (Check version for CVEs)",
+                    "severity": "MEDIUM",
+                    "matches": [
+                        "BusyBox v1.28"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/usr/bin/find",
+                    "pattern": "BusyBox (Check version for CVEs)",
+                    "severity": "MEDIUM",
+                    "matches": [
+                        "BusyBox v1.28"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/sbin/hwclock",
+                    "pattern": "BusyBox (Check version for CVEs)",
+                    "severity": "MEDIUM",
+                    "matches": [
+                        "BusyBox v1.28"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/sbin/ifconfig",
+                    "pattern": "BusyBox (Check version for CVEs)",
+                    "severity": "MEDIUM",
+                    "matches": [
+                        "BusyBox v1.28"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/sbin/reboot",
+                    "pattern": "BusyBox (Check version for CVEs)",
+                    "severity": "MEDIUM",
+                    "matches": [
+                        "BusyBox v1.28"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/sbin/start-stop-daemon",
+                    "pattern": "BusyBox (Check version for CVEs)",
+                    "severity": "MEDIUM",
+                    "matches": [
+                        "BusyBox v1.28"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/sbin/route",
+                    "pattern": "BusyBox (Check version for CVEs)",
+                    "severity": "MEDIUM",
+                    "matches": [
+                        "BusyBox v1.28"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/sbin/pivot_root",
+                    "pattern": "BusyBox (Check version for CVEs)",
+                    "severity": "MEDIUM",
+                    "matches": [
+                        "BusyBox v1.28"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/sbin/switch_root",
+                    "pattern": "BusyBox (Check version for CVEs)",
+                    "severity": "MEDIUM",
+                    "matches": [
+                        "BusyBox v1.28"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/sbin/halt",
+                    "pattern": "BusyBox (Check version for CVEs)",
+                    "severity": "MEDIUM",
+                    "matches": [
+                        "BusyBox v1.28"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/sbin/mkswap",
+                    "pattern": "BusyBox (Check version for CVEs)",
+                    "severity": "MEDIUM",
+                    "matches": [
+                        "BusyBox v1.28"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/sbin/poweroff",
+                    "pattern": "BusyBox (Check version for CVEs)",
+                    "severity": "MEDIUM",
+                    "matches": [
+                        "BusyBox v1.28"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/sbin/sysctl",
+                    "pattern": "BusyBox (Check version for CVEs)",
+                    "severity": "MEDIUM",
+                    "matches": [
+                        "BusyBox v1.28"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/sbin/udhcpc",
+                    "pattern": "BusyBox (Check version for CVEs)",
+                    "severity": "MEDIUM",
+                    "matches": [
+                        "BusyBox v1.28"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/bin/sed",
+                    "pattern": "BusyBox (Check version for CVEs)",
+                    "severity": "MEDIUM",
+                    "matches": [
+                        "BusyBox v1.28"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/bin/rmdir",
+                    "pattern": "BusyBox (Check version for CVEs)",
+                    "severity": "MEDIUM",
+                    "matches": [
+                        "BusyBox v1.28"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/bin/login",
+                    "pattern": "BusyBox (Check version for CVEs)",
+                    "severity": "MEDIUM",
+                    "matches": [
+                        "BusyBox v1.28"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/bin/sh",
+                    "pattern": "BusyBox (Check version for CVEs)",
+                    "severity": "MEDIUM",
+                    "matches": [
+                        "BusyBox v1.28"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/bin/netstat",
+                    "pattern": "BusyBox (Check version for CVEs)",
+                    "severity": "MEDIUM",
+                    "matches": [
+                        "BusyBox v1.28"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/bin/lock",
+                    "pattern": "BusyBox (Check version for CVEs)",
+                    "severity": "MEDIUM",
+                    "matches": [
+                        "BusyBox v1.28"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/bin/chmod",
+                    "pattern": "BusyBox (Check version for CVEs)",
+                    "severity": "MEDIUM",
+                    "matches": [
+                        "BusyBox v1.28"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/bin/egrep",
+                    "pattern": "BusyBox (Check version for CVEs)",
+                    "severity": "MEDIUM",
+                    "matches": [
+                        "BusyBox v1.28"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/bin/mkdir",
+                    "pattern": "BusyBox (Check version for CVEs)",
+                    "severity": "MEDIUM",
+                    "matches": [
+                        "BusyBox v1.28"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/bin/ash",
+                    "pattern": "BusyBox (Check version for CVEs)",
+                    "severity": "MEDIUM",
+                    "matches": [
+                        "BusyBox v1.28"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/bin/mknod",
+                    "pattern": "BusyBox (Check version for CVEs)",
+                    "severity": "MEDIUM",
+                    "matches": [
+                        "BusyBox v1.28"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/bin/fsync",
+                    "pattern": "BusyBox (Check version for CVEs)",
+                    "severity": "MEDIUM",
+                    "matches": [
+                        "BusyBox v1.28"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/bin/mount",
+                    "pattern": "BusyBox (Check version for CVEs)",
+                    "severity": "MEDIUM",
+                    "matches": [
+                        "BusyBox v1.28"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/bin/chown",
+                    "pattern": "BusyBox (Check version for CVEs)",
+                    "severity": "MEDIUM",
+                    "matches": [
+                        "BusyBox v1.28"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/bin/busybox",
+                    "pattern": "BusyBox (Check version for CVEs)",
+                    "severity": "MEDIUM",
+                    "matches": [
+                        "BusyBox v1.28"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/bin/mv",
+                    "pattern": "BusyBox (Check version for CVEs)",
+                    "severity": "MEDIUM",
+                    "matches": [
+                        "BusyBox v1.28"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/bin/echo",
+                    "pattern": "BusyBox (Check version for CVEs)",
+                    "severity": "MEDIUM",
+                    "matches": [
+                        "BusyBox v1.28"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/bin/date",
+                    "pattern": "BusyBox (Check version for CVEs)",
+                    "severity": "MEDIUM",
+                    "matches": [
+                        "BusyBox v1.28"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/bin/ping6",
+                    "pattern": "BusyBox (Check version for CVEs)",
+                    "severity": "MEDIUM",
+                    "matches": [
+                        "BusyBox v1.28"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/bin/passwd",
+                    "pattern": "BusyBox (Check version for CVEs)",
+                    "severity": "MEDIUM",
+                    "matches": [
+                        "BusyBox v1.28"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/bin/grep",
+                    "pattern": "BusyBox (Check version for CVEs)",
+                    "severity": "MEDIUM",
+                    "matches": [
+                        "BusyBox v1.28"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/bin/df",
+                    "pattern": "BusyBox (Check version for CVEs)",
+                    "severity": "MEDIUM",
+                    "matches": [
+                        "BusyBox v1.28"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/bin/fgrep",
+                    "pattern": "BusyBox (Check version for CVEs)",
+                    "severity": "MEDIUM",
+                    "matches": [
+                        "BusyBox v1.28"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/bin/cat",
+                    "pattern": "BusyBox (Check version for CVEs)",
+                    "severity": "MEDIUM",
+                    "matches": [
+                        "BusyBox v1.28"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/bin/ping",
+                    "pattern": "BusyBox (Check version for CVEs)",
+                    "severity": "MEDIUM",
+                    "matches": [
+                        "BusyBox v1.28"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/bin/ls",
+                    "pattern": "BusyBox (Check version for CVEs)",
+                    "severity": "MEDIUM",
+                    "matches": [
+                        "BusyBox v1.28"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/bin/gunzip",
+                    "pattern": "BusyBox (Check version for CVEs)",
+                    "severity": "MEDIUM",
+                    "matches": [
+                        "BusyBox v1.28"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/bin/rm",
+                    "pattern": "BusyBox (Check version for CVEs)",
+                    "severity": "MEDIUM",
+                    "matches": [
+                        "BusyBox v1.28"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/bin/mktemp",
+                    "pattern": "BusyBox (Check version for CVEs)",
+                    "severity": "MEDIUM",
+                    "matches": [
+                        "BusyBox v1.28"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/bin/uname",
+                    "pattern": "BusyBox (Check version for CVEs)",
+                    "severity": "MEDIUM",
+                    "matches": [
+                        "BusyBox v1.28"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/bin/touch",
+                    "pattern": "BusyBox (Check version for CVEs)",
+                    "severity": "MEDIUM",
+                    "matches": [
+                        "BusyBox v1.28"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/bin/gzip",
+                    "pattern": "BusyBox (Check version for CVEs)",
+                    "severity": "MEDIUM",
+                    "matches": [
+                        "BusyBox v1.28"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/bin/netmsg",
+                    "pattern": "BusyBox (Check version for CVEs)",
+                    "severity": "MEDIUM",
+                    "matches": [
+                        "BusyBox v1.28"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/bin/chgrp",
+                    "pattern": "BusyBox (Check version for CVEs)",
+                    "severity": "MEDIUM",
+                    "matches": [
+                        "BusyBox v1.28"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/bin/umount",
+                    "pattern": "BusyBox (Check version for CVEs)",
+                    "severity": "MEDIUM",
+                    "matches": [
+                        "BusyBox v1.28"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/bin/vi",
+                    "pattern": "BusyBox (Check version for CVEs)",
+                    "severity": "MEDIUM",
+                    "matches": [
+                        "BusyBox v1.28"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/bin/sync",
+                    "pattern": "BusyBox (Check version for CVEs)",
+                    "severity": "MEDIUM",
+                    "matches": [
+                        "BusyBox v1.28"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/bin/dd",
+                    "pattern": "BusyBox (Check version for CVEs)",
+                    "severity": "MEDIUM",
+                    "matches": [
+                        "BusyBox v1.28"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/bin/sleep",
+                    "pattern": "BusyBox (Check version for CVEs)",
+                    "severity": "MEDIUM",
+                    "matches": [
+                        "BusyBox v1.28"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/bin/traceroute",
+                    "pattern": "BusyBox (Check version for CVEs)",
+                    "severity": "MEDIUM",
+                    "matches": [
+                        "BusyBox v1.28"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/bin/zcat",
+                    "pattern": "BusyBox (Check version for CVEs)",
+                    "severity": "MEDIUM",
+                    "matches": [
+                        "BusyBox v1.28"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/bin/dmesg",
+                    "pattern": "BusyBox (Check version for CVEs)",
+                    "severity": "MEDIUM",
+                    "matches": [
+                        "BusyBox v1.28"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/bin/tar",
+                    "pattern": "BusyBox (Check version for CVEs)",
+                    "severity": "MEDIUM",
+                    "matches": [
+                        "BusyBox v1.28"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/bin/pidof",
+                    "pattern": "BusyBox (Check version for CVEs)",
+                    "severity": "MEDIUM",
+                    "matches": [
+                        "BusyBox v1.28"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/bin/nice",
+                    "pattern": "BusyBox (Check version for CVEs)",
+                    "severity": "MEDIUM",
+                    "matches": [
+                        "BusyBox v1.28"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/bin/cp",
+                    "pattern": "BusyBox (Check version for CVEs)",
+                    "severity": "MEDIUM",
+                    "matches": [
+                        "BusyBox v1.28"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/bin/traceroute6",
+                    "pattern": "BusyBox (Check version for CVEs)",
+                    "severity": "MEDIUM",
+                    "matches": [
+                        "BusyBox v1.28"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/bin/true",
+                    "pattern": "BusyBox (Check version for CVEs)",
+                    "severity": "MEDIUM",
+                    "matches": [
+                        "BusyBox v1.28"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/bin/ln",
+                    "pattern": "BusyBox (Check version for CVEs)",
+                    "severity": "MEDIUM",
+                    "matches": [
+                        "BusyBox v1.28"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/bin/false",
+                    "pattern": "BusyBox (Check version for CVEs)",
+                    "severity": "MEDIUM",
+                    "matches": [
+                        "BusyBox v1.28"
+                    ],
+                    "count": 1
+                },
+                {
+                    "file": "lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root/bin/pwd",
+                    "pattern": "BusyBox (Check version for CVEs)",
+                    "severity": "MEDIUM",
+                    "matches": [
+                        "BusyBox v1.28"
                     ],
                     "count": 1
                 }
             ],
-            "finding": "Found 2 potentially vulnerable component(s)",
-            "severity": "CRITICAL"
+            "finding": "Found 112 potentially vulnerable component(s)",
+            "severity": "HIGH"
         }
     ],
     "summary": {
-        "critical": 5,
-        "high": 0,
+        "critical": 3,
+        "high": 2,
         "medium": 0,
         "info": 1
     }

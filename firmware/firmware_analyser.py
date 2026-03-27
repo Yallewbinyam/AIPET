@@ -881,5 +881,5 @@ def run_firmware_analysis(firmware_path):
 
 
 if __name__ == "__main__":
-    # Run against our simulated firmware directory
-    run_firmware_analysis("lab/fake_firmware")
+    run_firmware_analysis("lab/_IoTGoat-raspberry-pi2.img.extracted/squashfs-root")# Run against our simulated firmware directory
+    
