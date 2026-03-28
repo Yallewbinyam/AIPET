@@ -1,0 +1,22 @@
+[Unit]
+Description=AIPET Cloud — AI-Powered IoT Penetration Testing
+After=network.target postgresql.service
+
+[Service]
+User=binyam
+Group=binyam
+WorkingDirectory=/home/binyam/AIPET
+Environment="PATH=/home/binyam/AIPET/venv/bin"
+Environment="FLASK_ENV=production"
+ExecStart=/home/binyam/AIPET/venv/bin/gunicorn \
+    --config dashboard/backend/gunicorn_config.py \
+    "dashboard.backend.app_cloud:app"
+ExecReload=/bin/kill -s HUP $MAINPID
+Restart=always
+RestartSec=5
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=aipet-cloud
+
+[Install]
+WantedBy=multi-user.target
