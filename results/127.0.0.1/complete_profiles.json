@@ -1,0 +1,53 @@
+[
+    {
+        "ip": "127.0.0.1",
+        "scan_time": "2026-03-28 07:28:49",
+        "hostname": "localhost",
+        "state": "up",
+        "ports": [
+            22,
+            8080
+        ],
+        "services": {
+            "22": {
+                "protocol": "tcp",
+                "state": "open",
+                "name": "ssh",
+                "product": "OpenSSH",
+                "version": "10.2p1 Debian 5",
+                "extrainfo": "protocol 2.0"
+            },
+            "8080": {
+                "protocol": "tcp",
+                "state": "open",
+                "name": "http",
+                "product": "BaseHTTPServer",
+                "version": "0.6",
+                "extrainfo": "Python 3.13.12"
+            }
+        },
+        "device_type": "embedded_linux_device",
+        "confidence": 27.8,
+        "risk_indicators": [
+            {
+                "port": 8080,
+                "risk": "MEDIUM \u2014 Alternative HTTP open: check for admin interfaces"
+            }
+        ],
+        "risk_score": 30,
+        "risk_label": "LOW",
+        "recommended_modules": [
+            {
+                "module": "Module 4 \u2014 HTTP/Web IoT Suite",
+                "reason": "Alternative HTTP interface on port 8080",
+                "priority": "HIGH"
+            },
+            {
+                "module": "Module 5 \u2014 Firmware Analyser",
+                "reason": "embedded_linux_device detected \u2014 firmware analysis recommended",
+                "priority": "MEDIUM"
+            }
+        ],
+        "profile_built": "2026-03-28 07:28:49"
+    }
+]

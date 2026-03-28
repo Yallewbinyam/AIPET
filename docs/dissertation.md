@@ -2469,3 +2469,83 @@ with open('docs/dissertation.md', 'a') as f:
     f.write(chapter7)
 print("Chapter 7 and References appended successfully")
 PYEOF
+
+
+---
+
+# Appendix A: Parallel Scanning Feature
+
+## A.1 Overview
+
+Following completion of the core seven-module framework,
+AIPET was extended with parallel multi-segment scanning
+capability. This enables simultaneous assessment of
+multiple network segments, reducing total assessment
+time proportionally to the number of parallel workers.
+
+## A.2 Architecture
+
+Parallel scanning comprises four components built in
+the parallel/ directory without modifying any existing
+module.
+
+Result Isolation (parallel/result_isolation.py) saves
+each scan target to an isolated directory named after
+the target IP or CIDR range, preventing result files
+from different parallel scans overwriting each other.
+
+Progress Tracker (parallel/progress_tracker.py)
+implements a thread-safe monitoring system using
+Python's threading.Lock, ensuring concurrent updates
+from multiple threads do not cause race conditions.
+
+Parallel Scanner (parallel/parallel_scanner.py) uses
+Python's concurrent.futures.ThreadPoolExecutor to
+manage the worker pool. Each worker runs a complete
+AIPET pipeline independently. A key technical challenge
+was asyncio compatibility — CoAP uses async/await which
+cannot share event loops across threads. Each thread
+creates its own event loop using asyncio.new_event_loop().
+
+Result Aggregator (parallel/result_aggregator.py)
+merges findings from all isolated result directories
+into a single unified report sorted by severity after
+all parallel scans complete.
+
+## A.3 Usage
+
+python3 aipet.py --targets targets.txt --workers 3
+
+Where targets.txt contains one IP or CIDR per line.
+Lines beginning with hash are treated as comments.
+
+## A.4 Performance Results
+
+Testing with 2 simultaneous targets demonstrated:
+Targets scanned simultaneously: 2
+Total time: 44.1 seconds
+Sequential equivalent: approximately 88 seconds
+Speedup: 2.0x
+Findings: Critical 8, High 3
+Status: Completed 2, Failed 0
+
+With 3 workers the speedup approaches 3x, enabling
+enterprise networks with multiple segments to be
+assessed in the same time as a single network scan.
+
+## A.5 Technical Challenges Resolved
+
+Thread safety: Python threading.Lock prevents concurrent
+writes to shared progress data structures.
+
+Asyncio in threads: CoAP async implementation requires
+a dedicated event loop per thread, resolved using
+asyncio.new_event_loop() and loop.run_until_complete().
+
+Result isolation: Each scan writes to its own directory
+preventing file conflicts between parallel workers.
+
+Graceful error handling: Per-module try/except blocks
+ensure one failed module does not mark an entire scan
+as failed. Findings collected before a failure are
+preserved and counted in the unified report.

@@ -1,0 +1,136 @@
+{
+    "target": "localhost",
+    "port": 1883,
+    "scan_time": "2026-03-28 07:28:49",
+    "attacks": [
+        {
+            "attack": "Connection Test",
+            "host": "localhost",
+            "port": 1883,
+            "connected": true,
+            "auth_required": false,
+            "finding": "BROKER ACCEPTS ANONYMOUS CONNECTIONS \u2014 No authentication required",
+            "severity": "CRITICAL"
+        },
+        {
+            "attack": "Authentication Bypass",
+            "host": "localhost",
+            "credentials_tried": 17,
+            "bypass_found": true,
+            "valid_credentials": [
+                {
+                    "username": "",
+                    "password": ""
+                },
+                {
+                    "username": "admin",
+                    "password": "admin"
+                },
+                {
+                    "username": "admin",
+                    "password": "password"
+                },
+                {
+                    "username": "admin",
+                    "password": "1234"
+                },
+                {
+                    "username": "admin",
+                    "password": ""
+                },
+                {
+                    "username": "root",
+                    "password": "root"
+                },
+                {
+                    "username": "root",
+                    "password": "password"
+                },
+                {
+                    "username": "root",
+                    "password": ""
+                },
+                {
+                    "username": "mqtt",
+                    "password": "mqtt"
+                },
+                {
+                    "username": "mqtt",
+                    "password": "password"
+                },
+                {
+                    "username": "guest",
+                    "password": "guest"
+                },
+                {
+                    "username": "user",
+                    "password": "user"
+                },
+                {
+                    "username": "test",
+                    "password": "test"
+                },
+                {
+                    "username": "pi",
+                    "password": "raspberry"
+                },
+                {
+                    "username": "ubnt",
+                    "password": "ubnt"
+                },
+                {
+                    "username": "admin",
+                    "password": "admin123"
+                },
+                {
+                    "username": "support",
+                    "password": "support"
+                }
+            ],
+            "finding": "Authentication bypass successful \u2014 17 valid credential set(s) found",
+            "severity": "CRITICAL"
+        },
+        {
+            "attack": "Topic Enumeration",
+            "host": "localhost",
+            "topics_found": [
+                "test/aipet",
+                "home/control",
+                "device/command",
+                "sensor/data"
+            ],
+            "message_count": 4,
+            "finding": "Discovered 4 topic(s), captured 4 message(s)",
+            "severity": "HIGH"
+        },
+        {
+            "attack": "Message Injection",
+            "host": "localhost",
+            "injections_attempted": 4,
+            "injections_successful": 4,
+            "finding": "Message injection successful \u2014 4 message(s) injected without authorisation",
+            "severity": "HIGH"
+        },
+        {
+            "attack": "Sensitive Data Harvest",
+            "host": "localhost",
+            "sensitive_found": [],
+            "finding": "No sensitive patterns detected",
+            "severity": "INFO"
+        },
+        {
+            "attack": "Retained Message Scanner",
+            "target": "localhost:1883",
+            "retained_messages": [],
+            "sensitive_found": false,
+            "finding": "No retained messages found",
+            "severity": "INFO"
+        }
+    ],
+    "summary": {
+        "critical": 2,
+        "high": 2,
+        "medium": 0,
+        "info": 2
+    }
+}

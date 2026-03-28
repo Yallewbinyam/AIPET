@@ -1,0 +1,150 @@
+{
+    "target": "127.0.0.1",
+    "port": 1883,
+    "scan_time": "2026-03-28 07:28:49",
+    "attacks": [
+        {
+            "attack": "Connection Test",
+            "host": "127.0.0.1",
+            "port": 1883,
+            "connected": true,
+            "auth_required": false,
+            "finding": "BROKER ACCEPTS ANONYMOUS CONNECTIONS \u2014 No authentication required",
+            "severity": "CRITICAL"
+        },
+        {
+            "attack": "Authentication Bypass",
+            "host": "127.0.0.1",
+            "credentials_tried": 17,
+            "bypass_found": true,
+            "valid_credentials": [
+                {
+                    "username": "",
+                    "password": ""
+                },
+                {
+                    "username": "admin",
+                    "password": "admin"
+                },
+                {
+                    "username": "admin",
+                    "password": "password"
+                },
+                {
+                    "username": "admin",
+                    "password": "1234"
+                },
+                {
+                    "username": "admin",
+                    "password": ""
+                },
+                {
+                    "username": "root",
+                    "password": "root"
+                },
+                {
+                    "username": "root",
+                    "password": "password"
+                },
+                {
+                    "username": "root",
+                    "password": ""
+                },
+                {
+                    "username": "mqtt",
+                    "password": "mqtt"
+                },
+                {
+                    "username": "mqtt",
+                    "password": "password"
+                },
+                {
+                    "username": "guest",
+                    "password": "guest"
+                },
+                {
+                    "username": "user",
+                    "password": "user"
+                },
+                {
+                    "username": "test",
+                    "password": "test"
+                },
+                {
+                    "username": "pi",
+                    "password": "raspberry"
+                },
+                {
+                    "username": "ubnt",
+                    "password": "ubnt"
+                },
+                {
+                    "username": "admin",
+                    "password": "admin123"
+                },
+                {
+                    "username": "support",
+                    "password": "support"
+                }
+            ],
+            "finding": "Authentication bypass successful \u2014 17 valid credential set(s) found",
+            "severity": "CRITICAL"
+        },
+        {
+            "attack": "Topic Enumeration",
+            "host": "127.0.0.1",
+            "topics_found": [],
+            "message_count": 0,
+            "finding": "No messages captured in window",
+            "severity": "INFO"
+        },
+        {
+            "attack": "Message Injection",
+            "host": "127.0.0.1",
+            "injections_attempted": 4,
+            "injections_successful": 4,
+            "finding": "Message injection successful \u2014 4 message(s) injected without authorisation",
+            "severity": "HIGH"
+        },
+        {
+            "attack": "Sensitive Data Harvest",
+            "host": "127.0.0.1",
+            "sensitive_found": [
+                {
+                    "topic": "test/aipet",
+                    "pattern": "auth",
+                    "payload": "{\"source\": \"AIPET_security_test\", \"message\": \"AIPET unauthorised injection test\", \"timestamp\": \"2026-03-28 07:29:17\", \"warning\": \"Broker does not validate message sources\"}",
+                    "timestamp": "2026-03-28 07:29:17"
+                },
+                {
+                    "topic": "home/control",
+                    "pattern": "auth",
+                    "payload": "{\"source\": \"AIPET_security_test\", \"message\": \"AIPET unauthorised injection test\", \"timestamp\": \"2026-03-28 07:29:17\", \"warning\": \"Broker does not validate message sources\"}",
+                    "timestamp": "2026-03-28 07:29:17"
+                },
+                {
+                    "topic": "device/command",
+                    "pattern": "auth",
+                    "payload": "{\"source\": \"AIPET_security_test\", \"message\": \"AIPET unauthorised injection test\", \"timestamp\": \"2026-03-28 07:29:17\", \"warning\": \"Broker does not validate message sources\"}",
+                    "timestamp": "2026-03-28 07:29:17"
+                }
+            ],
+            "finding": "3 sensitive data pattern(s) found in MQTT traffic",
+            "severity": "CRITICAL"
+        },
+        {
+            "attack": "Retained Message Scanner",
+            "target": "127.0.0.1:1883",
+            "retained_messages": [],
+            "sensitive_found": false,
+            "finding": "No retained messages found",
+            "severity": "INFO"
+        }
+    ],
+    "summary": {
+        "critical": 3,
+        "high": 1,
+        "medium": 0,
+        "info": 2
+    }
+}
