@@ -132,25 +132,87 @@ def save_json(data, filepath):
 
 
 # ── Demo Mode ─────────────────────────────────────────────────
+def start_demo_servers():
+    """
+    Automatically start all required demo servers.
+    Starts Mosquitto, CoAP test server, and HTTP test
+    server in background so the user does not need to
+    open multiple terminals.
+
+    Returns:
+        list: Started subprocess objects
+    """
+    import subprocess
+    import time
+
+    processes = []
+    python = os.path.join(
+        os.path.dirname(os.path.abspath(__file__)),
+        "venv/bin/python3"
+    )
+
+    print_status("Auto-starting demo servers...")
+
+    # Start Mosquitto MQTT broker
+    try:
+        result = subprocess.run(
+            ["sudo", "systemctl", "start", "mosquitto"],
+            capture_output=True, text=True
+        )
+        if result.returncode == 0:
+            print_status("Mosquitto MQTT broker started", "success")
+        else:
+            print_status("Mosquitto may already be running", "warning")
+    except Exception as e:
+        print_status(f"Could not start Mosquitto: {e}", "warning")
+
+    # Start CoAP test server
+    try:
+        coap_proc = subprocess.Popen(
+            [python, "lab/coap_test_server.py"],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            cwd=os.path.dirname(os.path.abspath(__file__))
+        )
+        processes.append(coap_proc)
+        print_status("CoAP test server started", "success")
+    except Exception as e:
+        print_status(f"Could not start CoAP server: {e}", "warning")
+
+    # Start HTTP test server
+    try:
+        http_proc = subprocess.Popen(
+            [python, "lab/http_test_server.py"],
+            stdout=subprocess.DEVNULL,
+            stderr=subprocess.DEVNULL,
+            cwd=os.path.dirname(os.path.abspath(__file__))
+        )
+        processes.append(http_proc)
+        print_status("HTTP test server started", "success")
+    except Exception as e:
+        print_status(f"Could not start HTTP server: {e}", "warning")
+
+    # Wait for servers to initialise
+    print_status("Waiting for servers to initialise...")
+    time.sleep(3)
+    print_status("All demo servers ready", "success")
+    print()
+
+    return processes
+
+
 def run_demo():
     """
     Run AIPET in demo mode against local test servers.
-
-    Demo mode starts all three test servers and runs
-    the complete pipeline against them — perfect for
-    demonstrating AIPET without a real IoT network.
-
-    Requires:
-    - Mosquitto MQTT broker running (sudo systemctl start mosquitto)
-    - CoAP test server running (python3 lab/coap_test_server.py)
-    - HTTP test server running (python3 lab/http_test_server.py)
+    Automatically starts all required servers.
+    No manual setup needed - perfect for new users.
     """
-    print_status("Running in DEMO mode against local test servers")
-    print_status("Make sure test servers are running:")
-    print_status("  Terminal 1: sudo systemctl start mosquitto")
-    print_status("  Terminal 2: python3 lab/coap_test_server.py")
-    print_status("  Terminal 3: python3 lab/http_test_server.py")
+    print_status("Running in DEMO mode")
+    print_status("Auto-starting all required servers...")
     print()
+
+    # Auto-start all demo servers
+    processes = start_demo_servers()
 
     # Run with localhost as target, all modules enabled
     run_pipeline(
