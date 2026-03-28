@@ -48,6 +48,57 @@ def load_json(filepath):
         return None
 
 
+def load_parallel_results(filename):
+    """
+    Load and combine results from all parallel scan
+    directories under results/.
+    Returns combined list of results from all targets.
+    """
+    results_dir = os.path.join(RESULTS_DIR, "results")
+    if not os.path.exists(results_dir):
+        return None
+
+    combined = []
+    for target_dir in os.listdir(results_dir):
+        target_path = os.path.join(results_dir, target_dir)
+        if not os.path.isdir(target_path):
+            continue
+        filepath = os.path.join(target_path, filename)
+        if os.path.exists(filepath):
+            try:
+                with open(filepath) as f:
+                    data = json.load(f)
+                combined.append(data)
+            except Exception:
+                pass
+
+    return combined if combined else None
+
+
+def merge_module_results(filename):
+    """
+    Load results from both single scan and parallel scans.
+    Merges them into one combined result.
+    """
+    # Try single scan first
+    single = load_json(filename)
+
+    # Try parallel scans
+    parallel = load_parallel_results(filename)
+
+    if not single and not parallel:
+        return None
+
+    if single and not parallel:
+        return single
+
+    if parallel and not single:
+        # Return first parallel result for compatibility
+        return parallel[0] if len(parallel) == 1 else parallel[0]
+
+    return single
+
+
 # ── API: Health check ─────────────────────────────────────────
 @app.route('/api/health', methods=['GET'])
 def health():
@@ -63,7 +114,7 @@ def health():
 def get_summary():
     """Return overall dashboard summary."""
 
-    # Load all result files
+    # Load all result files — single scan and parallel scans
     profiles  = load_json("recon/complete_profiles.json")
     mqtt      = load_json("mqtt/mqtt_results.json")
     coap      = load_json("coap/coap_results.json")
@@ -71,6 +122,56 @@ def get_summary():
     firmware  = load_json("firmware/firmware_results.json")
     ai        = load_json("ai_engine/ai_results.json")
     pipeline  = load_json("aipet_pipeline_results.json")
+
+    # Also load from parallel scan directories
+    parallel_dir = os.path.join(RESULTS_DIR, "results")
+    if os.path.exists(parallel_dir):
+        for target_dir in os.listdir(parallel_dir):
+            target_path = os.path.join(
+                parallel_dir, target_dir
+            )
+            if not os.path.isdir(target_path):
+                continue
+
+            # Merge profiles
+            p = os.path.join(
+                target_path, "complete_profiles.json"
+            )
+            if os.path.exists(p):
+                try:
+                    with open(p) as f:
+                        data = json.load(f)
+                    if not profiles:
+                        profiles = data
+                    elif isinstance(profiles, list):
+                        if isinstance(data, list):
+                            profiles.extend(data)
+                        else:
+                            profiles.append(data)
+                except Exception:
+                    pass
+
+            # Merge mqtt
+            m = os.path.join(
+                target_path, "mqtt_results.json"
+            )
+            if os.path.exists(m) and not mqtt:
+                try:
+                    with open(m) as f:
+                        mqtt = json.load(f)
+                except Exception:
+                    pass
+
+            # Merge http
+            h = os.path.join(
+                target_path, "http_results.json"
+            )
+            if os.path.exists(h) and not http:
+                try:
+                    with open(h) as f:
+                        http = json.load(f)
+                except Exception:
+                    pass
 
     # Count findings
     critical = 0
