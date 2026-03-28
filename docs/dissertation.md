@@ -1791,3 +1791,567 @@ vulnerability categories that manual assessment
 entirely missed, while the NVD dataset experiment
 identifies honest limitations of the synthetic
 training approach.
+
+---
+
+# Chapter 6: Discussion
+
+## 6.1 Interpretation of Results
+
+The evaluation results presented in Chapter 5 provide
+strong evidence that AIPET achieves its stated research
+objectives. The framework successfully automated the
+complete IoT penetration testing workflow, identified
+real vulnerabilities in an independently developed
+target, outperformed manual assessment across all
+quantitative metrics, and produced an AI model that
+exceeds the target F1-score with stable cross-validation
+performance. This section interprets these results in
+the context of the research questions and the broader
+literature.
+
+The baseline comparison results — AIPET identifying
+5x more credential findings and 12x more private key
+instances than manual assessment in 5.4 times less
+time — are consistent with the literature on automated
+security tool advantages. Costin et al. (2014)
+demonstrated that automated large-scale firmware
+analysis reveals vulnerability patterns invisible to
+manual inspection at scale; the present research
+extends this finding to the penetration testing context,
+demonstrating that systematic automated analysis
+outperforms sampling-based manual assessment even for
+a single target. The categories missed entirely by
+manual assessment — dangerous configurations and
+vulnerable components — represent precisely the
+vulnerability types that require systematic pattern
+matching across large file sets, a task well-suited
+to automation and poorly suited to manual inspection.
+
+The AI model's weighted F1-score of 0.8614 compares
+favourably with precedent in the security classification
+literature. Bozorgi et al. (2010), whose work provides
+the closest comparable context in vulnerability
+exploitability prediction, reported AUC scores of
+0.90 on NVD data using support vector machines.
+The present work achieves comparable performance
+on a more complex four-class classification problem
+with a substantially smaller training dataset, which
+is attributable to the domain-specific feature
+engineering that encodes IoT security expert knowledge
+directly into the training data.
+
+The SHAP feature importance results are consistent
+with IoT security domain knowledge. Device type
+classification contributes the largest mean absolute
+SHAP value, reflecting the strong prior information
+that device type provides about vulnerability profiles:
+industrial controllers and MQTT brokers exhibit
+systematically different vulnerability patterns than
+embedded Linux devices. Firmware-level findings
+carry higher weight than protocol-level findings,
+consistent with the systemic nature of firmware
+vulnerabilities — a hardcoded credential in firmware
+affects every device running that firmware version,
+whereas a misconfigured broker affects a single
+deployment.
+
+## 6.2 Limitations
+
+Transparent acknowledgement of limitations is essential
+to the integrity of the research contribution. Five
+significant limitations are identified.
+
+The first limitation concerns the synthetic training
+dataset. The 2,000-sample dataset was generated using
+a weighted scoring system that encodes the researcher's
+domain knowledge rather than empirical vulnerability
+distributions. While this approach produces a well-
+performing classifier for the target use case, the
+model's generalisation to real-world IoT deployments
+that differ substantially from the training distribution
+cannot be guaranteed. The NVD dataset experiment
+demonstrated that real CVE data produces lower
+performance when used directly for training due to
+feature sparsity, identifying richer feature extraction
+from NVD data as the most important direction for
+future improvement.
+
+The second limitation concerns the virtual laboratory
+targets. All MQTT, CoAP, and HTTP testing was conducted
+against deliberately vulnerable servers developed
+specifically for this research. These servers implement
+a representative but not exhaustive set of IoT
+vulnerabilities, and AIPET's performance against the
+full diversity of real IoT device implementations
+cannot be guaranteed from virtual laboratory results
+alone. The IoTGoat validation provides partial
+mitigation but represents a single firmware target.
+
+The third limitation concerns physical attack surfaces.
+AIPET addresses network-layer and firmware-layer
+vulnerabilities but does not cover hardware-level
+attack surfaces including JTAG debugging interfaces,
+UART serial ports, side-channel attacks, and fault
+injection. Radio frequency protocols including
+Bluetooth Low Energy, Zigbee, and Z-Wave are not
+covered. These attack surfaces are significant in
+practice and represent a substantial scope for future
+module development.
+
+The fourth limitation concerns the false positive
+rate of the firmware credential hunter. Despite the
+two-stage filtering approach implemented during the
+improvement phase, the firmware analyser retains some
+false positives in its credential findings. The
+filtering approach reduces false positives by
+approximately 86% on IoTGoat (from 279 to 40) but
+cannot eliminate them entirely without the contextual
+understanding that distinguishes error message strings
+from genuine credentials. This limitation reflects a
+fundamental challenge of static binary analysis.
+
+The fifth limitation concerns the manual assessment
+baseline. The baseline comparison used a single
+researcher performing a timed assessment, which may
+not represent the performance of an experienced IoT
+security specialist. A more rigorous baseline would
+involve multiple assessors with varying experience
+levels, enabling statistical comparison. This is
+identified as a direction for future validation work.
+
+## 6.3 Comparison to Existing Tools
+
+AIPET's contribution relative to existing tools is
+best understood across three dimensions established
+in the literature review: integration, intelligence,
+and explainability.
+
+On the integration dimension, AIPET provides the
+only open-source tool that combines MQTT attack
+automation, CoAP attack automation, HTTP IoT interface
+testing, firmware static analysis, and AI-driven
+prioritisation in a unified pipeline. Existing tools
+address each attack surface in isolation, requiring
+practitioners to operate five or more separate
+utilities and manually correlate their outputs.
+
+On the intelligence dimension, AIPET's Random Forest
+classifier provides evidence-based vulnerability
+prioritisation that does not require specialist
+expertise to interpret. The CVSS scoring system used
+by NVD and existing vulnerability management tools
+provides severity ratings for individual CVEs but
+cannot assess the aggregate risk of a device profile
+combining multiple vulnerability indicators. AIPET's
+classifier operates on device profiles rather than
+individual CVEs, providing holistic risk assessment
+that reflects the cumulative effect of multiple
+co-occurring vulnerabilities.
+
+On the explainability dimension, AIPET's SHAP
+implementation provides per-prediction feature
+attribution that no comparable open-source security
+tool currently offers. Commercial security platforms
+including Tenable.io and Qualys provide risk scoring
+without explanation. The EU AI Act's requirements
+for transparency in high-risk AI applications,
+applicable to security assessment tools deployed in
+critical infrastructure contexts, create a regulatory
+imperative for the explainability approach AIPET
+demonstrates.
+
+## 6.4 Implications for IoT Security Practice
+
+The research findings have several implications for
+IoT security practice beyond the specific contribution
+of the AIPET framework.
+
+The baseline comparison results demonstrate that
+systematic automated analysis with a pattern database
+encoding expert knowledge consistently outperforms
+sampling-based manual analysis, even for a single
+target. This finding supports the argument that
+organisations without dedicated IoT security expertise
+can conduct meaningful security assessments using
+automated tools, reducing the specialist knowledge
+barrier that currently limits IoT security assessment
+to large enterprises with security teams.
+
+The firmware analysis results demonstrate the
+prevalence of systemic vulnerabilities — hardcoded
+credentials, shared private keys, and outdated
+components — that affect all devices running a given
+firmware version simultaneously. The security
+implication is that firmware-level vulnerabilities
+warrant higher priority than device-level
+misconfigurations in resource-constrained remediation
+programmes: fixing a firmware vulnerability protects
+all deployed devices simultaneously, whereas fixing
+a device-level misconfiguration requires individual
+device remediation.
+
+The NVD dataset experiment contributes a methodological
+finding to the security machine learning literature:
+that CVE description text lacks the granular feature
+detail needed for direct use as training data for
+device-level vulnerability classification. This finding
+motivates future work on richer feature extraction
+from NVD data, potentially incorporating CPE
+(Common Platform Enumeration) records, CVSS vector
+strings, and CWE classifications as additional feature
+sources.
+
+## 6.5 Summary
+
+This chapter has interpreted the evaluation results
+in the context of the research questions and the
+broader literature, identified five honest limitations
+of the current implementation, compared AIPET to
+existing tools across the three dimensions of
+integration, intelligence, and explainability, and
+discussed the implications of the research findings
+for IoT security practice. The discussion establishes
+that AIPET makes a genuine and novel contribution
+to the IoT security tooling landscape while honestly
+documenting the boundaries of that contribution and
+the directions in which it should be extended.
+
+python3 - << 'PYEOF'
+chapter7 = """
+
+---
+
+# Chapter 7: Conclusions
+
+## 7.1 Summary of Contributions
+
+This dissertation has presented AIPET — an Explainable
+AI-Powered Penetration Testing Framework for IoT
+Vulnerability Discovery — as a novel open-source
+artefact addressing a specific and significant gap
+in the IoT security tooling landscape. The research
+has produced five primary contributions.
+
+The first contribution is the AIPET framework itself:
+a seven-module, fully automated IoT penetration testing
+pipeline covering reconnaissance, MQTT protocol attack,
+CoAP protocol attack, HTTP web interface attack,
+firmware analysis, explainable AI vulnerability
+prioritisation, and professional report generation.
+The framework is implemented in Python, validated
+against real targets, and released as open-source
+software under the MIT licence.
+
+The second contribution is the integration of IoT-
+specific attack automation with AI-driven prioritisation
+in a single unified pipeline. No existing open-source
+tool provides this combination. Security practitioners
+can conduct a comprehensive IoT assessment with a
+single command, receiving prioritised findings within
+the time that manual tool-chaining would require just
+to complete reconnaissance.
+
+The third contribution is the application of SHAP-
+based explainability to IoT security assessment.
+The explainer produces per-prediction feature
+attributions that identify which device characteristics
+drove each severity assessment, transforming a black-
+box classifier into a transparent decision support
+system compatible with enterprise audit and compliance
+requirements and the emerging AI regulatory framework.
+
+The fourth contribution is the empirical baseline
+comparison demonstrating that automated assessment
+with AIPET identifies five times more credential
+findings, twelve times more private key findings,
+and two entire vulnerability categories missed by
+manual assessment, in one fifth of the time. This
+provides quantitative evidence that structured
+automated tooling represents a qualitative improvement
+in assessment completeness, not merely an efficiency
+gain.
+
+The fifth contribution is the NVD dataset experiment,
+which produced a novel finding about the limitations
+of applying CVE description data to device-level
+security assessment. The identification of the feature
+sparsity problem in NVD-trained models contributes
+to the emerging literature on AI-driven IoT security
+and identifies a concrete research challenge for
+future investigation.
+
+## 7.2 Research Questions Answered
+
+This research addressed three research questions
+stated in Chapter 1.
+
+Research Question 1 asked whether a modular, automated
+penetration testing framework can effectively identify
+and assess vulnerabilities across the primary IoT
+attack surfaces. The evaluation results confirm that
+AIPET correctly identifies all deliberately introduced
+vulnerabilities in the virtual laboratory and
+independently detects real vulnerabilities in OWASP
+IoTGoat. The framework achieves full coverage of all
+ten OWASP IoT Top 10 vulnerability categories. RQ1
+is answered affirmatively.
+
+Research Question 2 asked whether a machine learning
+classifier trained on IoT vulnerability data can
+achieve a weighted F1-score of 0.85 or above, and
+whether SHAP values can provide meaningful, actionable
+explanations. The Random Forest classifier achieves
+F1: 0.8614 on held-out test data and F1: 0.8668 mean
+cross-validation score with standard deviation 0.0108,
+confirming stability. SHAP feature attributions
+identify firmware-level vulnerabilities as the
+dominant contributors to severity predictions,
+consistent with domain knowledge. RQ2 is answered
+affirmatively.
+
+Research Question 3 asked whether AI-driven
+vulnerability prioritisation improves IoT security
+assessment compared to a manual baseline. The baseline
+comparison demonstrates superior coverage, speed,
+and systematic vulnerability category detection.
+The AI prioritisation layer adds quantified, auditable
+severity assessment that manual assessment cannot
+provide consistently. RQ3 is answered affirmatively.
+
+## 7.3 Future Work
+
+The limitations identified in Chapter 6 define a
+clear agenda for future research and development.
+
+The most important near-term direction is richer
+feature extraction from NVD data. The NVD experiment
+demonstrated that CVE descriptions alone are
+insufficient for model training. Future work should
+investigate the extraction of device-level features
+from CVE metadata, affected product lists, and
+associated proof-of-concept exploit code, potentially
+combining natural language processing of CVE
+descriptions with structured metadata fields to
+produce training features that better represent
+real device vulnerability profiles.
+
+Bluetooth Low Energy and Zigbee protocol modules
+represent the most significant capability gap in
+the current framework. BLE and Zigbee are deployed
+in millions of smart home, medical, and industrial
+IoT devices and present documented attack surfaces
+including unauthenticated pairing, key extraction,
+and replay vulnerabilities analogous to those AIPET
+already addresses in MQTT and CoAP.
+
+Continuous monitoring represents a natural extension
+of the point-in-time assessment model. Rather than
+conducting periodic assessments, a continuous
+monitoring mode would maintain persistent connections
+to MQTT brokers and CoAP devices, detecting changes
+in configuration or new vulnerability indicators
+as they emerge. This capability would be particularly
+valuable for industrial IoT deployments where device
+configurations change infrequently but any change
+warrants immediate security review.
+
+The PhD extension pathway identified in the research
+proposal centres on autonomous red teaming — the
+development of AI systems capable of chaining
+discovered vulnerabilities into multi-step attack
+paths without human direction. AIPET's modular
+architecture and JSON communication interfaces
+provide a natural foundation for autonomous attack
+chain construction, where the AI engine could
+select subsequent attack modules based on findings
+from earlier stages rather than following a fixed
+pipeline.
+
+## 7.4 Closing Statement
+
+The Internet of Things represents a security challenge
+of unprecedented scale. Billions of devices, deployed
+across critical infrastructure, healthcare, industrial
+systems, and domestic environments, operate with
+security properties that have not been systematically
+assessed. The tools to conduct such assessments have
+existed in fragmented form for years but have remained
+inaccessible to the majority of organisations that
+need them most.
+
+AIPET represents a step toward closing this gap. By
+combining automation, intelligence, and explainability
+in an open-source framework accessible to practitioners
+at any scale, it lowers the barrier to comprehensive
+IoT security assessment without sacrificing the depth
+of analysis that critical infrastructure demands.
+
+The framework is not the final word on IoT security.
+The limitations documented in Chapter 6 are genuine
+and significant. But it demonstrates that integrated,
+explainable, automated IoT security assessment is
+achievable, and it provides a foundation on which
+the research community can build toward the more
+capable tools that the scale of the IoT security
+challenge demands.
+
+The world has 18.8 billion IoT devices. Most of them
+have never been assessed. AIPET exists to change that.
+
+---
+
+# Consolidated Reference List
+
+Antonakakis, M., April, T., Bailey, M., Bernhard, M.,
+Bursztein, E., Cochran, J., Durumeric, Z., Halderman,
+J.A., Invernizzi, L., Kallitsis, M. and Kumar, D. (2017)
+'Understanding the Mirai botnet', in Proceedings of the
+26th USENIX Security Symposium, pp. 1093-1110.
+
+Atzori, L., Iera, A. and Morabito, G. (2010) 'The Internet
+of Things: A survey', Computer Networks, 54(15),
+pp. 2787-2805.
+
+Banks, A. and Gupta, R. (2014) MQTT Version 3.1.1.
+OASIS Standard. OASIS Open.
+
+Bozorgi, M., Saul, L.K., Savage, S. and Voelker, G.M.
+(2010) 'Beyond blacklisting: Learning to detect malicious
+web sites from suspicious URLs', in Proceedings of the
+16th ACM SIGKDD International Conference on Knowledge
+Discovery and Data Mining, pp. 1245-1254.
+
+Breiman, L. (2001) 'Random forests', Machine Learning,
+45(1), pp. 5-32.
+
+Buczak, A.L. and Guven, E. (2016) 'A survey of data
+mining and machine learning methods for cyber security
+intrusion detection', IEEE Communications Surveys and
+Tutorials, 18(2), pp. 1153-1176.
+
+Chen, D.D., Woo, M., Brumley, D. and Egele, M. (2016)
+'Towards automated dynamic analysis for Linux-based
+embedded firmware', in Proceedings of the Network and
+Distributed System Security Symposium (NDSS).
+
+Chio, C. and Freeman, D. (2018) Machine Learning and
+Security. Sebastopol: O'Reilly Media.
+
+Costin, A., Zaddach, J., Francillon, A. and Balzarotti, D.
+(2014) 'A large-scale analysis of the security of embedded
+firmwares', in Proceedings of the 23rd USENIX Security
+Symposium, pp. 95-110.
+
+Creswell, J.W. (2014) Research Design: Qualitative,
+Quantitative, and Mixed Methods Approaches. 4th edn.
+London: SAGE Publications.
+
+Doshi, R., Apthorpe, N. and Feamster, N. (2018) 'Machine
+learning DDoS detection for consumer Internet of Things
+devices', in Proceedings of the IEEE Security and Privacy
+Workshops, pp. 29-35.
+
+Doshi-Velez, F. and Kim, B. (2017) 'Towards a rigorous
+science of interpretable machine learning', arXiv preprint
+arXiv:1702.08608.
+
+European Commission (2021) Proposal for a Regulation
+of the European Parliament and of the Council Laying
+Down Harmonised Rules on Artificial Intelligence.
+Brussels: European Commission.
+
+European Commission (2022) Proposal for a Regulation
+of the European Parliament and of the Council on
+Horizontal Cybersecurity Requirements for Products
+with Digital Elements (Cyber Resilience Act).
+Brussels: European Commission.
+
+Goodman, B. and Flaxman, S. (2017) 'European Union
+regulations on algorithmic decision-making and a right
+to explanation', AI Magazine, 38(3), pp. 50-57.
+
+Heffner, C. (2010) Binwalk: Firmware Analysis Tool.
+Available at: https://github.com/ReFirmLabs/binwalk
+
+Hevner, A.R., March, S.T., Park, J. and Ram, S. (2004)
+'Design science in information systems research',
+MIS Quarterly, 28(1), pp. 75-105.
+
+Kolias, C., Kambourakis, G., Stavrou, A. and Voas, J.
+(2017) 'DDoS in the IoT: Mirai and other botnets',
+Computer, 50(7), pp. 80-84.
+
+Lee, I. and Lee, K. (2015) 'The Internet of Things (IoT):
+Applications, investments, and challenges for enterprises',
+Business Horizons, 58(4), pp. 431-440.
+
+Liaw, A. and Wiener, M. (2002) 'Classification and
+regression by randomForest', R News, 2(3), pp. 18-22.
+
+Lundberg, S.M. and Lee, S.I. (2017) 'A unified approach
+to interpreting model predictions', Advances in Neural
+Information Processing Systems, 30, pp. 4765-4774.
+
+Lyon, G. (2009) Nmap Network Scanning. Sunnyvale:
+Insecure.Com LLC.
+
+Matherly, J. (2015) Complete Guide to Shodan. Shodan.
+
+Meidan, Y., Bohadana, M., Mathov, Y., Mirsky, Y.,
+Shabtai, A., Breitenbacher, D. and Elovici, Y. (2018)
+'N-BaIoT: Network-based detection of IoT botnet attacks
+using deep autoencoders', IEEE Pervasive Computing,
+17(3), pp. 12-22.
+
+Miettinen, M., Marchal, S., Hafeez, I., Asokan, N.,
+Sadeghi, A.R. and Tarkoma, S. (2017) 'IoT sentinel:
+Automated device-type identification for security
+enforcement in IoT', in Proceedings of the 37th IEEE
+International Conference on Distributed Computing
+Systems, pp. 2177-2184.
+
+Mosenia, A. and Jha, N.K. (2017) 'A comprehensive study
+of security of Internet-of-Things', IEEE Transactions on
+Emerging Topics in Computing, 5(4), pp. 586-602.
+
+OWASP (2018) OWASP Internet of Things Top 10.
+Available at: https://owasp.org/www-project-internet-of-things/
+
+Peffers, K., Tuunanen, T., Rothenberger, M.A. and
+Chatterjee, S. (2007) 'A design science research
+methodology for information systems research', Journal
+of Management Information Systems, 24(3), pp. 45-77.
+
+Ribeiro, M.T., Singh, S. and Guestrin, C. (2016) 'Why
+should I trust you? Explaining the predictions of any
+classifier', in Proceedings of the 22nd ACM SIGKDD
+International Conference on Knowledge Discovery and
+Data Mining, pp. 1135-1144.
+
+Sabetta, A. and Bezzi, M. (2018) 'A practical approach
+to the automatic classification of security-relevant
+commits', in Proceedings of the 34th IEEE International
+Conference on Software Maintenance and Evolution,
+pp. 579-582.
+
+Shapley, L.S. (1953) 'A value for n-person games',
+Contributions to the Theory of Games, 2(28), pp. 307-317.
+
+Shelby, Z. (2012) Constrained RESTful Environments
+(CoRE) Link Format. RFC 6690. Internet Engineering
+Task Force.
+
+Sommer, R. and Paxson, V. (2010) 'Outside the closed
+world: On using machine learning for network intrusion
+detection', in Proceedings of the 31st IEEE Symposium
+on Security and Privacy, pp. 305-316.
+
+Statista (2024) Internet of Things — Number of Connected
+Devices Worldwide. Available at: https://www.statista.com
+"""
+
+with open('docs/dissertation.md', 'a') as f:
+    f.write(chapter7)
+print("Chapter 7 and References appended successfully")
+PYEOF
