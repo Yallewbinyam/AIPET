@@ -947,3 +947,416 @@ Peffers, K., Tuunanen, T., Rothenberger, M.A. and
 Chatterjee, S. (2007) 'A design science research
 methodology for information systems research', Journal
 of Management Information Systems, 24(3), pp. 45-77.
+
+---
+
+# Chapter 4: Framework Design and Implementation
+
+## 4.1 AIPET Architecture Overview
+
+AIPET is implemented as a seven-module Python framework
+organised around a central orchestrator that coordinates
+the complete penetration testing pipeline. The framework
+is developed in Python 3.11 on Kali Linux 2024, selected
+for its comprehensive ecosystem of security and machine
+learning libraries and its status as the industry-standard
+penetration testing platform. The framework totals
+approximately 3,500 lines of code across fourteen source
+files, with an additional test suite of thirty unit tests
+providing verification of core functionality.
+
+The architectural pattern follows a pipeline design in
+which each module reads the JSON output of its predecessor,
+performs its analysis, and writes enriched JSON output
+for the next module. This loose coupling provides three
+practical benefits: individual modules can be executed
+independently for targeted assessments, the output of
+any module can be inspected directly for debugging and
+verification, and new modules can be added without
+modifying existing components. Figure 4.1 illustrates
+the complete pipeline architecture.
+```
+Target IoT Network
+        ↓
+Module 1: Recon Engine
+        ↓ complete_profiles.json
+Modules 2-5: Attack Modules
+        ↓ mqtt/coap/http/firmware_results.json
+Module 6: Explainable AI Engine
+        ↓ ai_results.json
+Module 7: Report Generator
+        ↓ aipet_report.md / aipet_report.json
+Security Team
+```
+
+The main orchestrator `aipet.py` provides a command-line
+interface through Python's argparse module and coordinates
+module execution through direct Python function calls.
+Automatic module selection — determining which attack
+modules to run based on open ports discovered during
+reconnaissance — reduces unnecessary scanning and
+ensures assessments are targeted to the actual attack
+surface of each device.
+
+## 4.2 Module 1: Reconnaissance Engine
+
+The reconnaissance engine provides the entry point to
+the AIPET pipeline, answering three questions about
+the target network: what devices are present, what
+services are they running, and what type of IoT device
+is each one.
+
+The scanner component (`recon/scanner.py`) wraps the
+Nmap network scanning utility through the python-nmap
+library. A two-stage scanning approach is employed:
+an initial ping scan (`-sn` flag) rapidly identifies
+live hosts across the target network without port
+probing, followed by a service version detection scan
+(`-sV -T4 --top-ports 1000`) against each live host.
+The `-sV` flag enables service version detection, which
+identifies not only which ports are open but what
+software is running on each port and its version number.
+This version information is critical for the firmware
+analysis module's vulnerable component detection.
+
+The fingerprinting component (`recon/fingerprint.py`)
+implements a signature-based IoT device identification
+system. A SIGNATURES database of ten device categories
+— including MQTT brokers, CoAP devices, IP cameras,
+IoT gateways, smart home hubs, and industrial controllers
+— defines characteristic port combinations, service
+name patterns, and banner text signatures for each
+category. A weighted scoring algorithm compares each
+device's observed characteristics against all signatures
+and selects the best match, reporting a confidence
+percentage. Port 1883 (MQTT) is the most distinctive
+IoT indicator in the signature database, reliably
+identifying MQTT broker deployments.
+
+The profile builder (`recon/profiles.py`) enriches
+fingerprinted device profiles with two intelligence
+layers. A risk score from 0 to 100 is calculated by
+combining port risk scores — port 23 (Telnet) contributes
+40 points, port 502 (Modbus) 35 points, port 1883
+(MQTT) 25 points — with device type risk modifiers.
+A ranked list of recommended attack modules is generated
+based on open ports, providing the orchestrator with
+the information needed for automatic module selection.
+
+## 4.3 Module 2: MQTT Attack Suite
+
+The MQTT attack suite (`mqtt/mqtt_attacker.py`) provides
+comprehensive offensive assessment of MQTT brokers
+through six sequential attacks implemented using the
+paho-mqtt library version 2.0 with CallbackAPIVersion.
+VERSION2 callbacks. The upgrade to VERSION2 from the
+deprecated VERSION1 API was a deliberate design decision
+to ensure forward compatibility as paho-mqtt removes
+support for the legacy callback interface.
+
+Attack 1 tests anonymous broker access by establishing
+an MQTT connection without credentials. The paho-mqtt
+on_connect callback receives a reason_code object in
+VERSION2, enabling precise failure diagnosis beyond the
+binary success/failure indication of the legacy integer
+return code. Anonymous access, found on the majority
+of default MQTT broker configurations, represents an
+immediate critical vulnerability as it permits any
+network-connected party to subscribe to all topics
+and inject arbitrary messages.
+
+Attack 2 enumerates topics through subscription to the
+MQTT wildcard topic '#', which matches all topics on
+the broker recursively. This legitimate monitoring
+capability becomes a critical attack vector on brokers
+without access control lists, exposing the complete
+message space of all connected IoT devices.
+
+Attack 3 tests authentication bypass through systematic
+testing of seventeen common default credential pairs
+covering standard IoT device credentials including
+admin/admin, root/root, pi/raspberry, and ubnt/ubnt.
+Each attempt creates a fresh MQTT client connection,
+as some brokers implement lockout policies that require
+separate connections per attempt.
+
+Attacks 4 and 5 test message injection and sensitive
+data harvesting respectively. Message injection
+publishes structured JSON payloads to all discovered
+topics without authorisation, testing whether the
+broker validates message sources. Sensitive data
+harvesting monitors all topics for a configurable
+duration and applies pattern matching against
+twenty-eight sensitive keyword patterns covering
+passwords, API keys, location data, and medical
+information.
+
+Attack 6, added during the improvement phase, scans
+for MQTT retained messages — messages stored
+permanently by the broker and delivered immediately
+to any new subscriber. Retained messages represent
+a frequently overlooked attack vector, as a broker
+may hold sensitive device state data published hours
+or days previously even when no device is currently
+active.
+
+## 4.4 Module 3: CoAP Attack Suite
+
+The CoAP attack suite (`coap/coap_attacker.py`)
+implements four attacks against CoAP devices using
+the aiocoap 0.4.17 library's asynchronous client
+interface. The selection of aiocoap's async/await
+implementation over synchronous alternatives reflects
+the UDP transport characteristics of CoAP: without
+connection state, packets may be lost or delayed,
+and synchronous blocking calls would cause
+unacceptable latency on unresponsive targets. The
+asyncio.wait_for() function provides configurable
+per-request timeouts that prevent hanging on
+non-responsive resources.
+
+Attack 1 exploits CoAP's resource discovery mechanism
+defined in RFC 6690 (Shelby, 2012). A GET request
+to the well-known URI `/.well-known/core` returns a
+CoRE Link Format document listing all resources
+exposed by the device. This standard discovery
+mechanism, intended to facilitate legitimate device
+integration, provides attackers with a complete map
+of the device's attack surface in a single request.
+
+Attack 2 tests unauthenticated access to each
+discovered resource through both GET and PUT requests.
+CoAP provides no built-in authentication mechanism;
+security is the responsibility of the device
+manufacturer. The majority of deployed CoAP devices
+rely on network-layer security assumptions that are
+invalid in adversarial environments.
+
+Attack 3 tests replay vulnerability by sending
+identical PUT requests twice to each resource and
+comparing responses. A device that accepts both
+requests without nonce or timestamp validation is
+vulnerable to replay attacks, which can be used to
+repeat control commands to IoT actuators.
+
+Attack 4 tests device robustness through three
+malformed packet scenarios: an oversized 10KB payload
+testing buffer handling, an empty payload testing
+null input validation, and a rapid flood of ten
+requests testing rate limiting. Information disclosed
+in error responses is recorded as a potential
+information disclosure vulnerability.
+
+## 4.5 Module 4: HTTP/Web IoT Suite
+
+The HTTP attack suite (`http_attack/http_attacker.py`)
+addresses the web management interfaces that IoT devices
+expose for configuration and administration. The module
+is implemented using the Python requests library with
+SSL certificate verification disabled through the
+`verify=False` parameter, necessary because IoT web
+interfaces universally employ self-signed certificates
+that would cause verification failures. The module
+folder was renamed from `http` to `http_attack` during
+development to resolve a naming conflict with Python's
+standard library `http` module, which prevented
+successful import of paho-mqtt's urllib dependency.
+
+Attack 1 tests default credentials through systematic
+testing against all discovered administrative endpoints
+using both form-based POST authentication and HTTP
+Basic Authentication. Sixteen credential pairs are
+tested across multiple field name combinations,
+reflecting the inconsistent field naming conventions
+of different IoT manufacturers.
+
+Attack 2 discovers hidden administrative interfaces
+by requesting thirty known IoT administrative paths
+and analysing responses for sensitive content using
+pattern matching against credential and configuration
+keywords. Backup files, diagnostic pages, and
+firmware update endpoints are specifically targeted
+as commonly exposed sensitive interfaces.
+
+Attack 3 tests API security by requesting twelve
+common REST API paths and testing both read access
+through GET requests and write access through POST
+requests with structured JSON payloads. API responses
+are analysed for sensitive data exposure.
+
+Attack 4 conducts a vulnerability scan covering HTTP
+method enumeration, directory traversal testing,
+security header presence checking, and server version
+disclosure detection. Server version disclosure,
+identified on the test server through the
+`BaseHTTP/0.6 Python/3.13.12` Server header, enables
+targeted exploitation by revealing the exact software
+version to potential attackers.
+
+## 4.6 Module 5: Firmware Analyser
+
+The firmware analyser (`firmware/firmware_analyser.py`)
+provides static analysis of IoT firmware images and
+extracted filesystems through six analyses. The module
+calls binwalk 2.4.3 as a system subprocess rather than
+through its Python API, a design decision motivated
+by the unreliability of binwalk's Python interface
+across different installation configurations.
+
+Analysis 1 executes binwalk's signature scanning mode
+(`-B` flag) against firmware binaries, identifying
+embedded filesystems, compression algorithms, and
+known file signatures. Against the OWASP IoTGoat
+image, binwalk identified a Squashfs filesystem,
+ARM ELF executables, and multiple device tree blobs.
+
+Analysis 2 searches the firmware for hardcoded
+credentials using seven regular expression patterns
+targeting password fields, username fields, API keys,
+AWS credentials, WiFi passwords, and MQTT credentials.
+A significant implementation challenge was the high
+false positive rate produced by BusyBox binaries,
+which contain error message strings such as "password:
+incorrect" that match credential patterns. This was
+addressed through a two-stage filtering approach:
+binary files are assessed for text content by
+measuring the proportion of non-printable bytes,
+and matched strings are filtered against a list of
+known false positive patterns before being recorded
+as findings. This filtering reduced false positives
+on IoTGoat from 279 raw matches to 40 genuine
+credential findings.
+
+Analyses 3 through 6 scan for private keys using
+PEM header detection, dangerous configurations using
+service and setting pattern matching, sensitive files
+using path-based matching, and vulnerable software
+components using version string pattern matching
+against known CVE-associated version patterns.
+
+## 4.7 Module 6: Explainable AI Engine
+
+The explainable AI engine comprises three components:
+a dataset generator, a model trainer, and a SHAP
+explainer.
+
+The dataset generator (`ai_engine/generate_dataset.py`)
+produces a 2,000-sample synthetic training dataset
+with 26 features corresponding to the outputs of
+Modules 1 through 5. Labels are generated using a
+weighted scoring system encoding domain knowledge:
+open Telnet contributes 40 points, anonymous MQTT
+access 35 points, embedded private keys 35 points,
+and hardcoded credentials 30 points to the total
+risk score, which is then mapped to a four-class
+severity label. An additional 1,118 real IoT CVE
+records were downloaded from the NVD API using fifteen
+IoT-specific search keywords, providing external
+validation of the feature coverage and vulnerability
+category distribution.
+
+The model trainer (`ai_engine/model_trainer.py`)
+implements a Random Forest classifier with 200
+estimators, maximum depth of 15, and class_weight=
+'balanced' to compensate for class imbalance — 79%
+of synthetic training samples are labelled Critical,
+reflecting the scoring system's sensitivity to
+combinations of severe vulnerabilities. Training
+uses a stratified 70/15/15 split and is evaluated
+through five-fold stratified cross-validation. The
+trained model is serialised using Python's pickle
+module for deployment in the explainer.
+
+The SHAP explainer (`ai_engine/explainer.py`)
+implements TreeExplainer, which computes exact SHAP
+values by traversing the Random Forest's decision
+trees rather than approximating them through sampling.
+A significant implementation challenge was the format
+change introduced in SHAP 0.51.0, which returns SHAP
+values as a three-dimensional array of shape
+(n_samples, n_features, n_classes) rather than the
+list of two-dimensional arrays returned by earlier
+versions. The correct indexing for the predicted
+class is `shap_values[0, :, predicted_class]`.
+
+The plain-English explanation generator converts
+SHAP values into human-readable summaries identifying
+the top contributing features and their directional
+influence on the prediction. This component represents
+AIPET's primary contribution to the explainability
+literature: the systematic translation of game-
+theoretic feature attribution into actionable security
+guidance.
+
+## 4.8 Module 7: Report Generator
+
+The report generator (`reporting/report_generator.py`)
+aggregates the JSON outputs of all preceding modules
+into a professional penetration testing report in
+both Markdown and JSON formats. The report structure
+follows industry conventions for penetration testing
+reports, comprising an executive summary, device
+profiles, detailed findings sorted by severity, AI
+analysis with SHAP explanations, and prioritised
+recommendations.
+
+The executive summary is generated programmatically
+from the aggregated findings, providing overall risk
+rating, finding counts by severity, and the top three
+priority actions derived from the most critical
+findings. Recommendations are drawn from a curated
+library of IoT-specific remediation guidance mapped
+to finding types, ensuring that every reported
+vulnerability is accompanied by specific, actionable
+remediation steps.
+
+## 4.9 Web Dashboard
+
+A React-based web dashboard provides a graphical
+interface for non-technical users who may find the
+command-line output inaccessible. The dashboard
+comprises a Flask REST API backend that serves AIPET's
+JSON result files to a React frontend featuring five
+views: a summary dashboard with risk gauge and severity
+pie chart, a device profile viewer with AI explanation
+display, a findings browser with severity filtering,
+an AI analysis view with SHAP value visualisation
+through horizontal bar charts, and a reports manager
+with direct download capability.
+
+The dashboard was implemented as a post-core
+improvement to address the accessibility requirement
+identified during the research design phase: that
+AIPET should be usable by security managers and IT
+administrators without specialist command-line
+knowledge, not only by penetration testing experts.
+
+## 4.10 Summary
+
+This chapter has documented the design and
+implementation of all seven AIPET modules and the
+supporting web dashboard, covering architectural
+decisions, implementation details, and the technical
+challenges encountered and resolved during development.
+Key technical contributions include the paho-mqtt
+VERSION2 callback implementation, the binary file
+false positive filtering approach for firmware
+analysis, the SHAP 0.51.0 three-dimensional array
+handling, and the plain-English explanation generation
+system. Chapter 5 presents the evaluation results
+demonstrating the framework's effectiveness against
+both virtual laboratory targets and the independently
+developed OWASP IoTGoat firmware.
+
+## References for Chapter 4
+
+Shelby, Z. (2012) Constrained RESTful Environments
+(CoRE) Link Format. RFC 6690. Internet Engineering
+Task Force.
+
+Fette, I. and Melnikov, A. (2011) The WebSocket
+Protocol. RFC 6455. Internet Engineering Task Force.
+
+Banks, A. and Gupta, R. (2014) MQTT Version 3.1.1.
+OASIS Standard. OASIS Open.
+
