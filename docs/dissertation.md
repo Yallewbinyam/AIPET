@@ -1,3 +1,117 @@
+# AIPET: An Explainable AI-Powered Penetration Testing Framework for IoT Vulnerability Discovery
+
+---
+
+**Student:** Binyam  
+**Programme:** MSc Cyber Security (Ethical Hacking)  
+**Institution:** Coventry University  
+**Supervisor:** [Supervisor Name]  
+**Date:** September 2025  
+**Word Count:** 13,384  
+
+---
+
+## Abstract
+
+The proliferation of Internet of Things devices has
+created an attack surface of unprecedented scale, with
+an estimated 18.8 billion connected devices deployed
+globally by 2024. Despite the severity of documented
+IoT security failures — most notably the Mirai botnet
+of 2016, which exploited hardcoded credentials in IoT
+firmware to compromise over 600,000 devices — the tools
+available for assessing IoT system security remain
+fragmented, inconsistent, and inaccessible to the
+majority of organisations that deploy IoT technology.
+No existing open-source tool combines IoT-specific
+protocol attack automation with AI-driven vulnerability
+prioritisation and explainable output.
+
+This dissertation presents AIPET (AI-Powered Penetration
+Testing Framework for IoT), a novel open-source framework
+that addresses this gap through seven integrated modules
+covering network reconnaissance, MQTT protocol attack,
+CoAP protocol attack, HTTP web interface attack, firmware
+analysis, explainable AI vulnerability prioritisation,
+and automated report generation. AIPET automates the
+complete IoT penetration testing workflow from device
+discovery to professional report through a single command,
+reducing the expertise and time required for comprehensive
+IoT security assessment.
+
+The framework's AI engine employs a Random Forest
+classifier trained on a synthetic IoT vulnerability
+dataset of 2,000 samples with 26 features derived from
+AIPET's attack module outputs. The classifier achieves
+a weighted F1-score of 0.8614 on held-out test data,
+exceeding the research target of 0.85, with a cross-
+validation mean of 0.8668 and standard deviation of
+0.0108 confirming model stability. SHAP (SHapley
+Additive exPlanations) values provide per-prediction
+feature attribution, identifying which device
+characteristics drove each severity assessment and
+producing plain-English explanations accessible to
+non-specialist security practitioners.
+
+Evaluation against OWASP IoTGoat v1.0 — an independently
+developed deliberately vulnerable IoT firmware image —
+confirmed that AIPET identifies real vulnerabilities
+including 40 credential patterns, 12 embedded private
+keys, 33 dangerous configurations, and 112 vulnerable
+component instances. A baseline comparison against
+manual assessment on the same target demonstrated that
+AIPET identifies five times more credential findings,
+twelve times more private key findings, and two entire
+vulnerability categories missed by manual assessment,
+in one fifth of the time. The framework achieves full
+coverage of all ten OWASP IoT Top 10 vulnerability
+categories across its seven modules.
+
+AIPET is released as open-source software under the
+MIT licence, contributing a validated, documented, and
+immediately deployable IoT security assessment framework
+to the global security community. The research
+additionally produces a novel finding about the
+limitations of NVD CVE data for device-level ML model
+training, identifying feature sparsity as a fundamental
+challenge for AI-driven IoT security research.
+
+---
+
+## Acknowledgements
+
+I would like to thank my supervisor at Coventry
+University for their guidance, trust, and encouragement
+throughout this research. Their confidence in the
+direction of this work provided the freedom to build
+something genuinely innovative rather than merely
+academically adequate.
+
+I would also like to acknowledge the open-source
+security community whose tools, frameworks, and
+published research made this work possible. AIPET
+stands on the shoulders of Nmap, binwalk, paho-mqtt,
+aiocoap, scikit-learn, and SHAP — each representing
+years of dedicated open-source development.
+
+---
+
+## Table of Contents
+
+1. Introduction
+2. Literature Review
+3. Research Methodology
+4. Framework Design and Implementation
+5. Results and Evaluation
+6. Discussion
+7. Conclusions
+
+Appendix A: AIPET GitHub Repository  
+Appendix B: Virtual Laboratory Configuration  
+Appendix C: Model Training Metrics  
+
+---
+
 # AIPET: An Explainable AI-Powered Penetration Testing 
 # Framework for IoT Vulnerability Discovery
 
