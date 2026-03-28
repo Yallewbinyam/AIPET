@@ -625,6 +625,18 @@ Documentation:
         version=f"AIPET v{VERSION}"
     )
 
+    parser.add_argument(
+        "--targets",
+        type=str,
+        default=None,
+        help="Path to file with multiple targets for parallel scanning"
+    )
+    parser.add_argument(
+        "--workers",
+        type=int,
+        default=3,
+        help="Maximum parallel scans (default: 3)"
+    )
     return parser.parse_args()
 
 
@@ -633,17 +645,89 @@ if __name__ == "__main__":
     args = parse_arguments()
 
     # Validate arguments
-    if not args.target and not args.demo:
+    if not args.target and not args.demo and not args.targets:
         print(BANNER)
-        print("Error: Please specify --target or --demo")
+        print("Error: Please specify --target, --targets, or --demo")
         print()
         print("Examples:")
         print("  python3 aipet.py --target 192.168.1.0/24")
+        print("  python3 aipet.py --targets targets.txt --workers 3")
         print("  python3 aipet.py --demo")
         sys.exit(1)
 
+    # Run parallel scanning across multiple targets
+    if args.targets:
+        from parallel.parallel_scanner import (
+            ParallelScanner,
+            load_targets_from_file
+        )
+        from parallel.result_aggregator import (
+            aggregate_findings,
+            generate_unified_report
+        )
+
+        print(BANNER)
+
+        # Load targets from file
+        try:
+            targets = load_targets_from_file(args.targets)
+        except FileNotFoundError as e:
+            print(f"Error: {e}")
+            sys.exit(1)
+        except ValueError as e:
+            print(f"Error: {e}")
+            sys.exit(1)
+
+        print_status(
+            f"Parallel mode: {len(targets)} targets, "
+            f"{args.workers} workers"
+        )
+
+        # Run parallel scans
+        scanner = ParallelScanner(
+            max_workers=args.workers,
+            base_dir="results"
+        )
+        results = scanner.scan(
+            targets,
+            run_mqtt=True,
+            run_coap=True,
+            run_http=True,
+            run_firmware=bool(args.firmware_path),
+            firmware_path=args.firmware_path,
+            mqtt_port=args.mqtt_port,
+            coap_port=args.coap_port,
+            http_port=args.http_port,
+        )
+
+        # Aggregate all results
+        print_status("Aggregating results from all scans...")
+        aggregated = aggregate_findings(
+            targets, base_dir="results"
+        )
+
+        # Generate unified report
+        report_path = generate_unified_report(aggregated)
+        print_status(
+            f"Unified report: {report_path}", "success"
+        )
+
+        summary = aggregated["summary"]
+        print()
+        print("=" * 60)
+        print("  PARALLEL SCAN SUMMARY")
+        print("=" * 60)
+        print(f"  Networks:  {aggregated['target_count']}")
+        print(f"  Devices:   {aggregated['device_count']}")
+        print(f"  Critical:  {summary['critical']}")
+        print(f"  High:      {summary['high']}")
+        print(f"  Medium:    {summary['medium']}")
+        print(f"  Overall:   {summary['overall_risk']}")
+        print(f"  Report:    {report_path}")
+        print("=" * 60)
+
     # Run in demo mode
-    if args.demo:
+    elif args.demo:
         run_demo()
 
     # Run against specified target

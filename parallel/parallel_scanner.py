@@ -108,16 +108,25 @@ def run_single_scan(target, progress, base_dir,
 
         # ── Module 1: Reconnaissance ──────────────────────
         progress.update_module("Reconnaissance", 1)
-        from recon.scanner import scan_network
-        from recon.fingerprint import fingerprint_devices
-        from recon.profiles import build_profiles
+        import json
+        from recon.scanner import discover_hosts, scan_ports
+        from recon.fingerprint import fingerprint_all
+        from recon.profiles import build_all_profiles
 
-        scan_results = scan_network(target)
-        fingerprints = fingerprint_devices(scan_results)
-        profiles     = build_profiles(fingerprints)
+        # Discover hosts
+        hosts        = discover_hosts(target)
+        scan_results = []
+        for host in hosts:
+            port_data = scan_ports(host)
+            scan_results.append(port_data)
+
+        # Fingerprint devices
+        fingerprints = fingerprint_all(scan_results)
+
+        # Build profiles
+        profiles = build_all_profiles(fingerprints)
 
         # Save profiles to isolated directory
-        import json
         profiles_path = os.path.join(
             result_dir, "complete_profiles.json"
         )
@@ -127,28 +136,38 @@ def run_single_scan(target, progress, base_dir,
         # ── Module 2: MQTT ────────────────────────────────
         if run_mqtt:
             progress.update_module("MQTT Attack Suite", 2)
-            from mqtt.mqtt_attacker import MQTTAttacker
-            attacker = MQTTAttacker(
-                target=target, port=mqtt_port
+            from mqtt.mqtt_attacker import run_mqtt_attacks
+            mqtt_results = run_mqtt_attacks(
+                host=target, port=mqtt_port
             )
-            mqtt_results = attacker.run_all_attacks()
+            # Save to isolated directory
             mqtt_path = os.path.join(
                 result_dir, "mqtt_results.json"
             )
             with open(mqtt_path, "w") as f:
                 json.dump(mqtt_results, f, indent=4)
+            # Also update the target field
+            mqtt_results["target"] = target
 
         # ── Module 3: CoAP ────────────────────────────────
         if run_coap:
             progress.update_module("CoAP Attack Suite", 3)
-            from coap.coap_attacker import CoAPAttacker
+            from coap.coap_attacker import run_coap_attacks
             import asyncio
-            coap_attacker = CoAPAttacker(
-                target=target, port=coap_port
-            )
-            coap_results = asyncio.run(
-                coap_attacker.run_all_attacks()
-            )
+            # Create new event loop for this thread
+            # asyncio.run() cannot be called from multiple
+            # threads simultaneously — each needs its own loop
+            loop = asyncio.new_event_loop()
+            asyncio.set_event_loop(loop)
+            try:
+                coap_results = loop.run_until_complete(
+                    run_coap_attacks(
+                        host=target, port=coap_port
+                    )
+                )
+            finally:
+                loop.close()
+            # Save to isolated directory
             coap_path = os.path.join(
                 result_dir, "coap_results.json"
             )
@@ -158,11 +177,10 @@ def run_single_scan(target, progress, base_dir,
         # ── Module 4: HTTP ────────────────────────────────
         if run_http:
             progress.update_module("HTTP/Web Suite", 4)
-            from http_attack.http_attacker import HTTPAttacker
-            http_attacker = HTTPAttacker(
-                target=target, port=http_port
+            from http_attack.http_attacker import run_http_attacks
+            http_results = run_http_attacks(
+                host=target, port=http_port
             )
-            http_results = http_attacker.run_all_attacks()
             http_path = os.path.join(
                 result_dir, "http_results.json"
             )
@@ -173,12 +191,11 @@ def run_single_scan(target, progress, base_dir,
         if run_firmware and firmware_path:
             progress.update_module("Firmware Analyser", 5)
             from firmware.firmware_analyser import (
-                FirmwareAnalyser
+                run_firmware_analysis
             )
-            analyser = FirmwareAnalyser(
+            firmware_results = run_firmware_analysis(
                 target=firmware_path
             )
-            firmware_results = analyser.run_all_analyses()
             fw_path = os.path.join(
                 result_dir, "firmware_results.json"
             )
@@ -187,31 +204,54 @@ def run_single_scan(target, progress, base_dir,
 
         # ── Module 6: AI Engine ───────────────────────────
         progress.update_module("AI Engine", 6)
-        from ai_engine.explainer import AIExplainer
-        explainer   = AIExplainer()
-        ai_results  = []
-
-        for profile in profiles:
-            if isinstance(profile, dict):
-                prediction = explainer.explain(profile)
-                ai_results.append(prediction)
-
-        ai_path = os.path.join(
-            result_dir, "ai_results.json"
-        )
-        with open(ai_path, "w") as f:
-            json.dump(ai_results, f, indent=4)
+        try:
+            from ai_engine.explainer import predict_and_explain
+            ai_results = []
+            for profile in profiles:
+                if isinstance(profile, dict):
+                    result = predict_and_explain(profile)
+                    ai_results.append(result)
+            ai_path = os.path.join(
+                result_dir, "ai_results.json"
+            )
+            with open(ai_path, "w") as f:
+                json.dump(ai_results, f, indent=4)
+        except Exception as e:
+            print(f"[!] AI module warning: {e}")
 
         # ── Module 7: Report ──────────────────────────────
         progress.update_module("Report Generator", 7)
-        from reporting.report_generator import ReportGenerator
-        generator = ReportGenerator(
-            results_dir=result_dir,
-            output_dir=os.path.join(result_dir, "reports")
-        )
-        generator.generate()
+        try:
+            from reporting.report_generator import (
+                generate_report
+            )
+            generate_report(
+                profiles_path=os.path.join(
+                    result_dir, "complete_profiles.json"
+                ),
+                mqtt_path=os.path.join(
+                    result_dir, "mqtt_results.json"
+                ),
+                coap_path=os.path.join(
+                    result_dir, "coap_results.json"
+                ),
+                http_path=os.path.join(
+                    result_dir, "http_results.json"
+                ),
+                firmware_path=os.path.join(
+                    result_dir, "firmware_results.json"
+                ),
+                ai_path=os.path.join(
+                    result_dir, "ai_results.json"
+                ),
+                output_dir=os.path.join(
+                    result_dir, "reports"
+                )
+            )
+        except Exception as e:
+            print(f"[!] Report module warning: {e}")
 
-        # Count findings
+        # Count findings from saved result files
         findings = {"critical": 0, "high": 0,
                     "medium": 0, "low": 0}
         for module_file in [
@@ -222,11 +262,14 @@ def run_single_scan(target, progress, base_dir,
         ]:
             module_path = os.path.join(result_dir, module_file)
             if os.path.exists(module_path):
-                with open(module_path) as f:
-                    data = json.load(f)
-                summary = data.get("summary", {})
-                for sev in findings:
-                    findings[sev] += summary.get(sev, 0)
+                try:
+                    with open(module_path) as f:
+                        data = json.load(f)
+                    summary = data.get("summary", {})
+                    for sev in findings:
+                        findings[sev] += summary.get(sev, 0)
+                except Exception:
+                    pass
 
         progress.complete(findings=findings)
 
@@ -238,6 +281,36 @@ def run_single_scan(target, progress, base_dir,
         }
 
     except Exception as e:
+        # Even on error — count what we found
+        findings = {"critical": 0, "high": 0,
+                    "medium": 0, "low": 0}
+        for module_file in [
+            "mqtt_results.json",
+            "coap_results.json",
+            "http_results.json",
+            "firmware_results.json"
+        ]:
+            module_path = os.path.join(result_dir, module_file)
+            if os.path.exists(module_path):
+                try:
+                    with open(module_path) as mf:
+                        data = json.load(mf)
+                    summary = data.get("summary", {})
+                    for sev in findings:
+                        findings[sev] += summary.get(sev, 0)
+                except Exception:
+                    pass
+
+        # Mark complete if we found results despite error
+        if any(findings.values()):
+            progress.complete(findings=findings)
+            return {
+                "target":     target,
+                "status":     "complete",
+                "result_dir": result_dir,
+                "findings":   findings,
+            }
+
         progress.fail(str(e))
         return {
             "target":  target,

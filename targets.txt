@@ -1,0 +1,4 @@
+# AIPET Parallel Scan Targets
+# Test with 3 localhost targets
+localhost
+127.0.0.1
