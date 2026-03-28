@@ -73,6 +73,12 @@ python3 aipet.py --version
 
 # Demo
 python3 aipet.py --demo
+
+# Scan a single network
+python3 aipet.py --target 192.168.1.0/24
+
+# Scan multiple networks simultaneously
+python3 aipet.py --targets targets.txt --workers 3
 ```
 
 See [INSTALL.md](INSTALL.md) for full installation guide.
