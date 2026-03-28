@@ -1,7 +1,7 @@
 {
     "target": "localhost",
     "port": 1883,
-    "scan_time": "2026-03-20 21:23:37",
+    "scan_time": "2026-03-28 07:37:30",
     "attacks": [
         {
             "attack": "Connection Test",
@@ -93,60 +93,39 @@
         {
             "attack": "Topic Enumeration",
             "host": "localhost",
-            "topics_found": [
-                "home/temperature",
-                "home/camera/status",
-                "device/sensor1"
-            ],
-            "message_count": 6,
-            "finding": "Discovered 3 topic(s), captured 6 message(s)",
-            "severity": "HIGH"
+            "topics_found": [],
+            "message_count": 0,
+            "finding": "No messages captured in window",
+            "severity": "INFO"
         },
         {
             "attack": "Message Injection",
             "host": "localhost",
-            "injections_attempted": 3,
-            "injections_successful": 3,
-            "finding": "Message injection successful \u2014 3 message(s) injected without authorisation",
+            "injections_attempted": 4,
+            "injections_successful": 4,
+            "finding": "Message injection successful \u2014 4 message(s) injected without authorisation",
             "severity": "HIGH"
         },
         {
             "attack": "Sensitive Data Harvest",
             "host": "localhost",
-            "sensitive_found": [
-                {
-                    "topic": "home/camera/status",
-                    "pattern": "location",
-                    "payload": "{\"status\": \"recording\", \"location\": \"front_door\"}",
-                    "timestamp": "2026-03-20 21:24:06"
-                },
-                {
-                    "topic": "device/sensor1",
-                    "pattern": "password",
-                    "payload": "{\"password\": \"sensor123\", \"data\": \"reading\"}",
-                    "timestamp": "2026-03-20 21:24:06"
-                },
-                {
-                    "topic": "home/camera/status",
-                    "pattern": "location",
-                    "payload": "{\"status\": \"recording\", \"location\": \"front_door\"}",
-                    "timestamp": "2026-03-20 21:24:08"
-                },
-                {
-                    "topic": "device/sensor1",
-                    "pattern": "password",
-                    "payload": "{\"password\": \"sensor123\", \"data\": \"reading\"}",
-                    "timestamp": "2026-03-20 21:24:08"
-                }
-            ],
-            "finding": "4 sensitive data pattern(s) found in MQTT traffic",
-            "severity": "CRITICAL"
+            "sensitive_found": [],
+            "finding": "No sensitive patterns detected",
+            "severity": "INFO"
+        },
+        {
+            "attack": "Retained Message Scanner",
+            "target": "localhost:1883",
+            "retained_messages": [],
+            "sensitive_found": false,
+            "finding": "No retained messages found",
+            "severity": "INFO"
         }
     ],
     "summary": {
-        "critical": 3,
-        "high": 2,
+        "critical": 2,
+        "high": 1,
         "medium": 0,
-        "info": 0
+        "info": 3
     }
 }

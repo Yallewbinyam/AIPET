@@ -1,6 +1,6 @@
 {
     "target": "localhost",
-    "start_time": "2026-03-27 02:55:16",
+    "start_time": "2026-03-28 07:37:30",
     "modules_run": [
         "Module 1: Recon",
         "Module 2: MQTT",
@@ -11,12 +11,12 @@
         "Module 7: Report"
     ],
     "summary": {},
-    "devices_found": 1,
+    "devices_found": 4,
     "mqtt_summary": {
         "critical": 2,
         "high": 1,
         "medium": 0,
-        "info": 2
+        "info": 3
     },
     "coap_summary": {
         "critical": 1,
@@ -36,8 +36,8 @@
         "medium": 0,
         "info": 1
     },
-    "ai_predictions": 1,
-    "report_path": "reporting/aipet_report_20260327_025620.md",
-    "end_time": "2026-03-27 02:56:20",
-    "elapsed_seconds": 63.92
+    "ai_predictions": 4,
+    "report_path": "reporting/aipet_report_20260328_073810.md",
+    "end_time": "2026-03-28 07:38:10",
+    "elapsed_seconds": 40.76
 }

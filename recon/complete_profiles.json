@@ -1,11 +1,89 @@
 [
     {
-        "ip": "10.0.2.15",
-        "scan_time": "2026-03-20 15:27:25",
+        "ip": "10.0.2.1",
+        "scan_time": "2026-03-28 01:42:41",
         "hostname": "unknown",
         "state": "up",
         "ports": [
-            22
+            53
+        ],
+        "services": {
+            "53": {
+                "protocol": "tcp",
+                "state": "open",
+                "name": "domain",
+                "product": "Unbound",
+                "version": "",
+                "extrainfo": ""
+            }
+        },
+        "device_type": "unknown_device",
+        "confidence": 0.0,
+        "risk_indicators": [],
+        "risk_score": 20,
+        "risk_label": "LOW",
+        "recommended_modules": [],
+        "profile_built": "2026-03-28 01:43:28"
+    },
+    {
+        "ip": "10.0.2.2",
+        "scan_time": "2026-03-28 01:43:08",
+        "hostname": "unknown",
+        "state": "up",
+        "ports": [
+            135,
+            445
+        ],
+        "services": {
+            "135": {
+                "protocol": "tcp",
+                "state": "open",
+                "name": "msrpc",
+                "product": "Microsoft Windows RPC",
+                "version": "",
+                "extrainfo": ""
+            },
+            "445": {
+                "protocol": "tcp",
+                "state": "open",
+                "name": "microsoft-ds",
+                "product": "",
+                "version": "",
+                "extrainfo": ""
+            }
+        },
+        "device_type": "unknown_device",
+        "confidence": 0.0,
+        "risk_indicators": [],
+        "risk_score": 20,
+        "risk_label": "LOW",
+        "recommended_modules": [],
+        "profile_built": "2026-03-28 01:43:28"
+    },
+    {
+        "ip": "10.0.2.3",
+        "scan_time": "2026-03-28 01:43:13",
+        "hostname": "unknown",
+        "state": "up",
+        "ports": [],
+        "services": {},
+        "device_type": "unknown_device",
+        "confidence": 0.0,
+        "risk_indicators": [],
+        "risk_score": 20,
+        "risk_label": "LOW",
+        "recommended_modules": [],
+        "profile_built": "2026-03-28 01:43:28"
+    },
+    {
+        "ip": "10.0.2.4",
+        "scan_time": "2026-03-28 01:43:28",
+        "hostname": "unknown",
+        "state": "up",
+        "ports": [
+            22,
+            3000,
+            5000
         ],
         "services": {
             "22": {
@@ -15,6 +93,22 @@
                 "product": "OpenSSH",
                 "version": "10.2p1 Debian 5",
                 "extrainfo": "protocol 2.0"
+            },
+            "3000": {
+                "protocol": "tcp",
+                "state": "open",
+                "name": "tcpwrapped",
+                "product": "",
+                "version": "",
+                "extrainfo": ""
+            },
+            "5000": {
+                "protocol": "tcp",
+                "state": "open",
+                "name": "tcpwrapped",
+                "product": "",
+                "version": "",
+                "extrainfo": ""
             }
         },
         "device_type": "embedded_linux_device",
@@ -29,6 +123,6 @@
                 "priority": "MEDIUM"
             }
         ],
-        "profile_built": "2026-03-20 18:44:08"
+        "profile_built": "2026-03-28 01:43:28"
     }
 ]

@@ -1,0 +1,317 @@
+{
+    "targets": [
+        "localhost",
+        "127.0.0.1"
+    ],
+    "target_count": 2,
+    "devices": [
+        {
+            "ip": "127.0.0.1",
+            "scan_time": "2026-03-28 07:15:09",
+            "hostname": "localhost",
+            "state": "up",
+            "ports": [
+                22,
+                8080
+            ],
+            "services": {
+                "22": {
+                    "protocol": "tcp",
+                    "state": "open",
+                    "name": "ssh",
+                    "product": "OpenSSH",
+                    "version": "10.2p1 Debian 5",
+                    "extrainfo": "protocol 2.0"
+                },
+                "8080": {
+                    "protocol": "tcp",
+                    "state": "open",
+                    "name": "http",
+                    "product": "BaseHTTPServer",
+                    "version": "0.6",
+                    "extrainfo": "Python 3.13.12"
+                }
+            },
+            "device_type": "embedded_linux_device",
+            "confidence": 27.8,
+            "risk_indicators": [
+                {
+                    "port": 8080,
+                    "risk": "MEDIUM \u2014 Alternative HTTP open: check for admin interfaces"
+                }
+            ],
+            "risk_score": 30,
+            "risk_label": "LOW",
+            "recommended_modules": [
+                {
+                    "module": "Module 4 \u2014 HTTP/Web IoT Suite",
+                    "reason": "Alternative HTTP interface on port 8080",
+                    "priority": "HIGH"
+                },
+                {
+                    "module": "Module 5 \u2014 Firmware Analyser",
+                    "reason": "embedded_linux_device detected \u2014 firmware analysis recommended",
+                    "priority": "MEDIUM"
+                }
+            ],
+            "profile_built": "2026-03-28 07:15:09"
+        },
+        {
+            "ip": "127.0.0.1",
+            "scan_time": "2026-03-28 07:15:09",
+            "hostname": "localhost",
+            "state": "up",
+            "ports": [
+                22,
+                8080
+            ],
+            "services": {
+                "22": {
+                    "protocol": "tcp",
+                    "state": "open",
+                    "name": "ssh",
+                    "product": "OpenSSH",
+                    "version": "10.2p1 Debian 5",
+                    "extrainfo": "protocol 2.0"
+                },
+                "8080": {
+                    "protocol": "tcp",
+                    "state": "open",
+                    "name": "http",
+                    "product": "BaseHTTPServer",
+                    "version": "0.6",
+                    "extrainfo": "Python 3.13.12"
+                }
+            },
+            "device_type": "embedded_linux_device",
+            "confidence": 27.8,
+            "risk_indicators": [
+                {
+                    "port": 8080,
+                    "risk": "MEDIUM \u2014 Alternative HTTP open: check for admin interfaces"
+                }
+            ],
+            "risk_score": 30,
+            "risk_label": "LOW",
+            "recommended_modules": [
+                {
+                    "module": "Module 4 \u2014 HTTP/Web IoT Suite",
+                    "reason": "Alternative HTTP interface on port 8080",
+                    "priority": "HIGH"
+                },
+                {
+                    "module": "Module 5 \u2014 Firmware Analyser",
+                    "reason": "embedded_linux_device detected \u2014 firmware analysis recommended",
+                    "priority": "MEDIUM"
+                }
+            ],
+            "profile_built": "2026-03-28 07:15:09"
+        }
+    ],
+    "device_count": 2,
+    "findings": [
+        {
+            "module": "MQTT",
+            "target": "localhost",
+            "attack": "Connection Test",
+            "severity": "CRITICAL",
+            "finding": "BROKER ACCEPTS ANONYMOUS CONNECTIONS \u2014 No authentication required"
+        },
+        {
+            "module": "MQTT",
+            "target": "localhost",
+            "attack": "Authentication Bypass",
+            "severity": "CRITICAL",
+            "finding": "Authentication bypass successful \u2014 17 valid credential set(s) found"
+        },
+        {
+            "module": "MQTT",
+            "target": "localhost",
+            "attack": "Sensitive Data Harvest",
+            "severity": "CRITICAL",
+            "finding": "4 sensitive data pattern(s) found in MQTT traffic"
+        },
+        {
+            "module": "HTTP",
+            "target": "localhost",
+            "attack": "Default Credential Testing",
+            "severity": "CRITICAL",
+            "finding": "Default credentials valid \u2014 24 credential set(s) found"
+        },
+        {
+            "module": "HTTP",
+            "target": "localhost",
+            "attack": "Admin Interface Discovery",
+            "severity": "CRITICAL",
+            "finding": "8 interface(s) found \u2014 8 exposing sensitive data"
+        },
+        {
+            "module": "HTTP",
+            "target": "localhost",
+            "attack": "API Security Testing",
+            "severity": "CRITICAL",
+            "finding": "2 API(s) found \u2014 2 exposing sensitive data without authentication"
+        },
+        {
+            "module": "MQTT",
+            "target": "127.0.0.1",
+            "attack": "Connection Test",
+            "severity": "CRITICAL",
+            "finding": "BROKER ACCEPTS ANONYMOUS CONNECTIONS \u2014 No authentication required"
+        },
+        {
+            "module": "MQTT",
+            "target": "127.0.0.1",
+            "attack": "Authentication Bypass",
+            "severity": "CRITICAL",
+            "finding": "Authentication bypass successful \u2014 17 valid credential set(s) found"
+        },
+        {
+            "module": "MQTT",
+            "target": "localhost",
+            "attack": "Message Injection",
+            "severity": "HIGH",
+            "finding": "Message injection successful \u2014 4 message(s) injected without authorisation"
+        },
+        {
+            "module": "MQTT",
+            "target": "127.0.0.1",
+            "attack": "Topic Enumeration",
+            "severity": "HIGH",
+            "finding": "Discovered 4 topic(s), captured 4 message(s)"
+        },
+        {
+            "module": "MQTT",
+            "target": "127.0.0.1",
+            "attack": "Message Injection",
+            "severity": "HIGH",
+            "finding": "Message injection successful \u2014 4 message(s) injected without authorisation"
+        },
+        {
+            "module": "HTTP",
+            "target": "localhost",
+            "attack": "Common Vulnerability Scan",
+            "severity": "LOW",
+            "finding": "2 vulnerability/vulnerabilities found"
+        },
+        {
+            "module": "MQTT",
+            "target": "localhost",
+            "attack": "Topic Enumeration",
+            "severity": "INFO",
+            "finding": "No messages captured in window"
+        },
+        {
+            "module": "MQTT",
+            "target": "localhost",
+            "attack": "Retained Message Scanner",
+            "severity": "INFO",
+            "finding": "No retained messages found"
+        },
+        {
+            "module": "MQTT",
+            "target": "127.0.0.1",
+            "attack": "Sensitive Data Harvest",
+            "severity": "INFO",
+            "finding": "No sensitive patterns detected"
+        },
+        {
+            "module": "MQTT",
+            "target": "127.0.0.1",
+            "attack": "Retained Message Scanner",
+            "severity": "INFO",
+            "finding": "No retained messages found"
+        }
+    ],
+    "ai_results": [
+        {
+            "ip": "127.0.0.1",
+            "device_type": "embedded_linux_device",
+            "prediction": {
+                "predicted_class": 0,
+                "predicted_severity": "Low",
+                "confidence": 0.738,
+                "probabilities": {
+                    "Low": 0.738,
+                    "Medium": 0.2266,
+                    "High": 0.0301,
+                    "Critical": 0.0052
+                },
+                "shap_contributions": {
+                    "firmware_vulnerable_component": 0.1196987097758318,
+                    "device_type": 0.1022338762205065,
+                    "firmware_hardcoded_creds": 0.07361557132472518,
+                    "open_port_count": 0.0418526034694129,
+                    "http_default_creds": 0.031599711650384714,
+                    "mqtt_anonymous": 0.02631658502210035,
+                    "http_admin_exposed": 0.022901947150550942,
+                    "port_22": -0.017825930428614748,
+                    "port_80": 0.01747610639379208,
+                    "firmware_private_key": 0.017170028448642828,
+                    "http_sensitive_data": 0.0168288432597952,
+                    "firmware_telnet": 0.01553253585085815,
+                    "firmware_debug": 0.0152325985635277,
+                    "port_8080": -0.012281599947711526,
+                    "port_443": -0.009642897069756112,
+                    "port_23": 0.008347447382871418,
+                    "coap_unauth_read": 0.007874779180483227,
+                    "port_8883": 0.004338269037076052,
+                    "mqtt_sensitive_data": 0.0033637081158638814,
+                    "port_5683": 0.0029703161281219672,
+                    "port_1883": 0.0022411901826170553,
+                    "coap_unauth_write": 0.001918158692533861,
+                    "mqtt_default_creds": 0.0015708030918950725,
+                    "port_502": 0.0004433937357306616,
+                    "firmware_version_risk": 0.00018701008896569157,
+                    "coap_replay": -5.933491934114557e-05
+                },
+                "expected_value": 0.2441269216342618
+            },
+            "explanation": "Predicted Severity: Low (confidence: 73.8%)\n\nKey factors driving this prediction:\n\n  Increasing severity:\n  + Device type classification (impact: 10.2%)\n  + Total number of open ports (impact: 4.2%)\n\n  Reducing severity:\n  - SSH service (port 22) (impact: 1.8%)\n  - Alternative HTTP interface (port 8080) (impact: 1.2%)\n\nSeverity probability breakdown:\n  Low         73.8%  \u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\u2588\n  Medium      22.7%  \u2588\u2588\u2588\u2588\n  High         3.0%  \n  Critical     0.5%  ",
+            "feature_vector": {
+                "device_type": 7,
+                "open_port_count": 2,
+                "port_22": 1,
+                "port_23": 0,
+                "port_80": 0,
+                "port_443": 0,
+                "port_502": 0,
+                "port_1883": 0,
+                "port_5683": 0,
+                "port_8080": 1,
+                "port_8883": 0,
+                "mqtt_anonymous": 0,
+                "mqtt_default_creds": 0,
+                "mqtt_sensitive_data": 0,
+                "coap_unauth_read": 0,
+                "coap_unauth_write": 0,
+                "coap_replay": 0,
+                "http_default_creds": 0,
+                "http_admin_exposed": 0,
+                "http_sensitive_data": 0,
+                "firmware_hardcoded_creds": 0,
+                "firmware_private_key": 0,
+                "firmware_telnet": 0,
+                "firmware_vulnerable_component": 0,
+                "firmware_debug": 0,
+                "firmware_version_risk": 1
+            },
+            "predicted_at": "2026-03-28 07:09:45"
+        }
+    ],
+    "modules_run": [
+        "Module 2: MQTT",
+        "Module 4: HTTP",
+        "Module 6: AI Engine"
+    ],
+    "summary": {
+        "overall_risk": "CRITICAL",
+        "risk_color": "#ef4444",
+        "critical": 8,
+        "high": 3,
+        "medium": 0,
+        "low": 0,
+        "total": 11
+    },
+    "generated_at": "2026-03-28 07:15:48"
+}
