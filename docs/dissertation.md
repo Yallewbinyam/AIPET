@@ -661,3 +661,289 @@ on Security and Privacy, pp. 305-316.
 
 Statista (2024) Internet of Things — Number of Connected
 Devices Worldwide. Available at: https://www.statista.com
+
+---
+
+# Chapter 3: Research Methodology
+
+## 3.1 Research Approach
+
+This research adopts a Design Science Research (DSR)
+methodology, as formalised by Hevner et al. (2004) and
+subsequently refined by Peffers et al. (2007). Design
+Science Research is the methodological framework most
+appropriate for research that produces an artefact —
+in this case the AIPET framework — as its primary
+contribution. Unlike empirical research methodologies
+that seek to explain existing phenomena, DSR explicitly
+aims to create and evaluate novel artefacts that solve
+identified problems. The AIPET framework constitutes
+what Hevner et al. (2004) classify as a design artefact
+of the instantiation type — a working implementation
+that demonstrates the feasibility and utility of the
+design concepts it embodies.
+
+The DSR process followed in this research comprises
+six phases aligned with the Peffers et al. (2007)
+model: problem identification and motivation, definition
+of objectives, design and development, demonstration,
+evaluation, and communication. Problem identification
+was conducted through the literature review presented
+in Chapter 2, which established the absence of an
+integrated, AI-driven IoT penetration testing framework
+as a specific and significant gap. Objectives were
+defined as the seven research objectives stated in
+Chapter 1. Design and development produced the AIPET
+framework documented in Chapter 4. Demonstration was
+conducted through operation of the framework against
+virtual laboratory targets. Evaluation was conducted
+through validation against OWASP IoTGoat and comparison
+against a manual assessment baseline, as documented
+in Chapter 5. Communication is provided through this
+dissertation and the open-source GitHub release.
+
+This research operates within a pragmatist philosophical
+paradigm, consistent with the design science tradition.
+Pragmatism, as described by Creswell (2014), holds that
+research questions rather than philosophical assumptions
+drive the choice of methods, and that what works in
+practice provides the primary criterion for evaluation.
+This paradigm is appropriate for security tool research
+where practical utility — the ability to discover
+real vulnerabilities efficiently — is the primary
+measure of success.
+
+## 3.2 Ethical Considerations
+
+All penetration testing conducted during this research
+was performed exclusively within an isolated virtual
+laboratory environment under the researcher's own
+administrative control. No testing was conducted against
+production systems, third-party infrastructure, or
+any network or device for which explicit authorisation
+was not held. The research received ethical approval
+from Coventry University's research ethics committee
+prior to commencement.
+
+The OWASP IoTGoat firmware image used for independent
+validation is a deliberately vulnerable target created
+and distributed by the Open Web Application Security
+Project specifically for security research and education.
+Its use for vulnerability discovery testing requires
+no additional authorisation and is the intended use
+case for the artefact.
+
+The AIPET framework is released under the MIT open-
+source licence with an accompanying Responsible Use
+Policy that explicitly prohibits use against systems
+without written authorisation. The policy documents
+the legal frameworks applicable to unauthorised
+computer access including the Computer Misuse Act
+1990 (UK) and equivalent legislation in other
+jurisdictions. These measures reflect the researcher's
+commitment to ensuring that AIPET is used exclusively
+for authorised security improvement rather than
+malicious exploitation.
+
+## 3.3 System Design Philosophy
+
+AIPET's architecture reflects three overarching design
+principles derived from the analysis of existing tool
+limitations presented in Chapter 2.
+
+The first principle is modularity. Each of AIPET's
+seven modules operates independently and communicates
+through standardised JSON interfaces. This loose coupling
+allows individual modules to be tested, extended, or
+replaced without affecting the broader pipeline. It
+also enables security practitioners to run individual
+modules against specific targets rather than requiring
+the full pipeline for every assessment. The JSON
+communication format was selected over alternatives
+including SQLite databases and in-memory objects
+because JSON is human-readable, universally supported,
+and enables independent operation of each module.
+
+The second principle is automation. AIPET automates
+the complete penetration testing workflow from
+reconnaissance to report generation through a single
+command-line entry point. This design decision reflects
+the research finding that the primary barrier to IoT
+security assessment is not the availability of
+individual tools but the expertise and time required
+to operate them in combination. Automation reduces
+this barrier without requiring the practitioner to
+relinquish control — every automated decision can be
+examined through AIPET's detailed output and JSON
+results files.
+
+The third principle is explainability by design. The
+explainability layer was not added to AIPET after the
+fact but designed as a core requirement from the
+outset. This contrasts with the common pattern of
+adding post-hoc explanation to existing tools.
+Designing for explainability from the beginning
+ensures that the feature engineering, model selection,
+and output format all support the production of
+meaningful, actionable explanations rather than
+technically valid but practically useless attribution.
+
+## 3.4 Virtual Laboratory Design
+
+All testing conducted during this research used an
+isolated virtual laboratory environment running on
+Kali Linux 2024. The laboratory comprises three
+categories of target:
+
+**Simulated protocol servers** developed specifically
+for this research provide realistic IoT protocol
+behaviour with deliberately introduced vulnerabilities
+matching known IoT attack patterns. The MQTT test
+server runs Mosquitto 2.0 configured with anonymous
+access enabled and no topic-level access control,
+reflecting the default configuration of the majority
+of deployed MQTT brokers. The CoAP test server
+implements aiocoap 0.4.17 with resources exposing
+credential data, accepting unauthenticated write
+access, and lacking replay protection. The HTTP test
+server implements a Python BaseHTTP server simulating
+an IoT web management interface with default
+credentials, exposed configuration endpoints, and
+missing security headers.
+
+**Simulated firmware** provides a directory structure
+representing an extracted IoT firmware image containing
+deliberately introduced vulnerabilities: hardcoded
+credentials in configuration files, an embedded RSA
+private key, telnet enabled in device configuration,
+and binary components identifying vulnerable software
+versions including OpenSSL 1.0.1 (CVE-2014-0160).
+
+**OWASP IoTGoat v1.0** provides an independently
+developed vulnerable IoT firmware image for external
+validation. IoTGoat is a Raspberry Pi firmware image
+created by the Open Web Application Security Project
+for IoT security research and education. Its use as
+a validation target ensures that AIPET's findings
+reflect genuine vulnerability detection capability
+rather than performance optimised to known test fixtures.
+
+The virtual laboratory design reflects the reproducibility
+requirements of academic research. All laboratory
+components are documented in the AIPET repository,
+enabling independent researchers to recreate the
+experimental environment and verify the results
+presented in Chapter 5.
+
+## 3.5 AI Model Development Methodology
+
+The AIPET AI engine employs a supervised classification
+approach using the Random Forest algorithm. The
+methodology for model development follows the standard
+machine learning pipeline: dataset construction, feature
+engineering, model selection, training, evaluation,
+and validation.
+
+**Dataset construction** produced a synthetic training
+dataset of 2,000 samples representing IoT device
+vulnerability profiles. Each sample encodes 26 binary
+and ordinal features derived from the outputs of
+AIPET's five attack modules, capturing port
+configurations, protocol-level vulnerability indicators,
+and firmware analysis findings. Labels representing
+four severity classes — Low, Medium, High, and Critical
+— were assigned using a weighted scoring system
+encoding domain knowledge about the relative risk
+of each vulnerability indicator. A parallel dataset
+of 1,118 real IoT CVE records was downloaded from
+the NVD API and used to validate feature coverage,
+as documented in Section 5.4.
+
+**Feature engineering** was guided by the principle
+that every feature must be directly observable through
+AIPET's existing modules. This constraint ensures that
+the trained model can be applied to real scan results
+without requiring data sources unavailable during a
+standard assessment. The 26 features span device
+profile data from Module 1, protocol vulnerability
+indicators from Modules 2-4, and firmware analysis
+indicators from Module 5.
+
+**Model selection** favoured Random Forest over
+alternative approaches including neural networks and
+support vector machines for three reasons: native
+compatibility with SHAP TreeExplainer enabling exact
+rather than approximate SHAP values; robustness to
+the class imbalance present in the training dataset
+through the class_weight='balanced' parameter; and
+strong out-of-the-box performance on mixed binary
+and ordinal feature sets without normalisation.
+
+**Evaluation** employed a stratified 70/15/15
+train/validation/test split and five-fold stratified
+cross-validation to assess model stability. The
+primary evaluation metric is weighted F1-score,
+selected for its appropriateness to imbalanced
+classification problems. The research target of
+F1 ≥ 0.85 was established in the project proposal
+based on precedent from comparable security
+classification literature.
+
+## 3.6 Evaluation Framework
+
+AIPET's evaluation addresses three research questions
+through four evaluation activities:
+
+**Virtual laboratory evaluation** assesses whether
+AIPET correctly identifies and reports the deliberately
+introduced vulnerabilities in the simulated test
+environment. This provides a controlled baseline
+confirming that each module functions as designed.
+
+**Independent firmware validation** assesses whether
+AIPET identifies real vulnerabilities in an externally
+developed target — OWASP IoTGoat — that was not used
+during development. This provides evidence that AIPET
+generalises beyond its test fixtures.
+
+**Baseline comparison** assesses whether AIPET
+improves upon manual assessment in terms of coverage,
+speed, and consistency. The comparison was conducted
+by performing a timed manual assessment of IoTGoat
+using standard Linux command-line tools, then comparing
+the findings and time taken against AIPET's automated
+assessment of the same target.
+
+**AI model evaluation** assesses whether the Random
+Forest classifier meets the F1 ≥ 0.85 target and
+whether SHAP values provide meaningful feature
+attribution for security decisions.
+
+## 3.7 Summary
+
+This chapter has described the Design Science Research
+methodology underpinning this work, the ethical
+framework governing all testing activities, the system
+design principles informing AIPET's architecture, the
+virtual laboratory environment used for development
+and validation, the AI model development methodology,
+and the evaluation framework applied in Chapter 5.
+The methodological choices reflect the pragmatist
+research paradigm and the practical requirements of
+producing a usable, validated, and ethically sound
+IoT security assessment framework.
+
+## References for Chapter 3
+
+Creswell, J.W. (2014) Research Design: Qualitative,
+Quantitative, and Mixed Methods Approaches. 4th edn.
+London: SAGE Publications.
+
+Hevner, A.R., March, S.T., Park, J. and Ram, S. (2004)
+'Design science in information systems research',
+MIS Quarterly, 28(1), pp. 75-105.
+
+Peffers, K., Tuunanen, T., Rothenberger, M.A. and
+Chatterjee, S. (2007) 'A design science research
+methodology for information systems research', Journal
+of Management Information Systems, 24(3), pp. 45-77.
