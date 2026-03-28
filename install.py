@@ -170,6 +170,11 @@ Scan a target:
 
 Run tests:
   python3 -m pytest tests/ -v
+
+Documentation:
+  cat USER_MANUAL.md        (User Manual)
+  cat INSTALL.md            (Install Guide)
+  cat RESPONSIBLE_USE.md    (Responsible Use Policy)
 """)
     else:
         print(f"  INSTALLATION PARTIAL ({passed}/{len(steps)} steps)")

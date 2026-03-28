@@ -77,6 +77,10 @@ python3 aipet.py --demo
 
 See [INSTALL.md](INSTALL.md) for full installation guide.
 
+📖 **[User Manual](USER_MANUAL.md)** — Complete guide for all users
+
+📋 **[Responsible Use Policy](RESPONSIBLE_USE.md)** — Legal and ethical guidelines
+
 ---
 
 ## Sample Output

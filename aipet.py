@@ -494,6 +494,12 @@ Examples:
   python3 aipet.py --target localhost --mqtt-port 1883
   python3 aipet.py --demo
   python3 aipet.py --target 10.0.0.1 --firmware --firmware-path /path/to/firmware.bin
+
+Documentation:
+  User Manual:     cat USER_MANUAL.md
+  Install Guide:   cat INSTALL.md
+  Responsible Use: cat RESPONSIBLE_USE.md
+  GitHub:          https://github.com/YOUR_USERNAME/AIPET
         """
     )
 
