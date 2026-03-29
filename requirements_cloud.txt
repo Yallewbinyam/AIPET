@@ -1,0 +1,40 @@
+# =============================================================
+# AIPET Cloud — Production Requirements
+# =============================================================
+# What this file does:
+#   Lists all Python packages needed for AIPET Cloud.
+#   These are installed inside the Docker container.
+#
+# Install locally:
+#   pip install -r requirements_cloud.txt
+# =============================================================
+
+# Core Flask
+flask==3.1.0
+flask-cors==6.0.0
+flask-jwt-extended==4.7.1
+flask-sqlalchemy==3.1.1
+flask-migrate==4.1.0
+flask-limiter==4.1.0
+
+# Database
+psycopg2-binary==2.9.11
+sqlalchemy==2.0.40
+
+# Security
+bcrypt==4.3.0
+python-dotenv==1.1.0
+
+# Production server
+gunicorn==23.0.0
+
+# Background tasks (Week 5)
+celery==5.4.0
+redis==6.2.0
+
+# Payments (Week 6)
+stripe==12.1.0
+
+# Utilities
+requests==2.32.3
+python-dateutil==2.9.0

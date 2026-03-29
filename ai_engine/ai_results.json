@@ -71,7 +71,7 @@
             "firmware_debug": 0,
             "firmware_version_risk": 0
         },
-        "predicted_at": "2026-03-28 07:38:10"
+        "predicted_at": "2026-03-29 05:38:50"
     },
     {
         "ip": "10.0.2.2",
@@ -145,7 +145,7 @@
             "firmware_debug": 0,
             "firmware_version_risk": 0
         },
-        "predicted_at": "2026-03-28 07:38:10"
+        "predicted_at": "2026-03-29 05:38:51"
     },
     {
         "ip": "10.0.2.3",
@@ -219,7 +219,7 @@
             "firmware_debug": 0,
             "firmware_version_risk": 0
         },
-        "predicted_at": "2026-03-28 07:38:10"
+        "predicted_at": "2026-03-29 05:38:51"
     },
     {
         "ip": "10.0.2.4",
@@ -293,6 +293,6 @@
             "firmware_debug": 0,
             "firmware_version_risk": 0
         },
-        "predicted_at": "2026-03-28 07:38:10"
+        "predicted_at": "2026-03-29 05:38:52"
     }
 ]
