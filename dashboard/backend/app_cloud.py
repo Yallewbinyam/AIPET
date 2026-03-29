@@ -23,6 +23,7 @@ sys.path.insert(0, '/home/binyam/AIPET')
 from dashboard.backend.models import db, User, Scan, Finding
 from dashboard.backend.auth.routes import auth_bp
 from dashboard.backend.config import config
+from dashboard.backend.celery_app import celery
 
 BASE_DIR = '/home/binyam/AIPET'
 
@@ -247,7 +248,6 @@ def create_app(config_name="development"):
     @jwt_required()
     @limiter.limit("10 per hour")
     def start_scan():
-        global scan_status
         user_id = get_jwt_identity()
         user    = User.query.get(int(user_id))
 
@@ -257,67 +257,101 @@ def create_app(config_name="development"):
                          "Upgrade to Professional."
             }), 403
 
-        if scan_status["running"]:
-            return jsonify({
-                "error": "Scan already running"
-            }), 400
+        data          = request.json or {}
+        target        = data.get("target", "localhost")
+        mode          = data.get("mode", "demo")
+        mqtt_port     = data.get("mqtt_port", 1883)
+        coap_port     = data.get("coap_port", 5683)
+        http_port     = data.get("http_port", 80)
+        firmware_path = data.get("firmware_path", None)
 
-        data   = request.json or {}
-        target = data.get("target", "localhost")
-        mode   = data.get("mode", "demo")
+        # Create scan record in database
+        scan = Scan(
+            user_id    = user.id,
+            target     = target,
+            mode       = mode,
+            status     = "queued",
+            created_at = datetime.now()
+        )
+        db.session.add(scan)
+        db.session.commit()
 
-        def run_scan():
-            global scan_status
-            scan_status["running"]  = True
-            scan_status["progress"] = 10
-            scan_status["message"]  = "Running AIPET scan..."
-            scan_status["started"]  = datetime.now().strftime(
-                "%Y-%m-%d %H:%M:%S"
+        # Increment user scan counter
+        user.increment_scan()
+
+        # Submit scan to Celery queue — non-blocking
+        try:
+            # Import here to avoid circular imports
+            from dashboard.backend.tasks import run_scan_task
+            run_scan_task.delay(
+                scan_id       = scan.id,
+                user_id       = user.id,
+                target        = target,
+                mode          = mode,
+                mqtt_port     = mqtt_port,
+                coap_port     = coap_port,
+                http_port     = http_port,
+                firmware_path = firmware_path,
             )
-            try:
+            queued_via = "celery"
+        except Exception as celery_err:
+            # Log the actual Celery error
+            import traceback
+            print(f"CELERY ERROR: {celery_err}")
+            traceback.print_exc()
+            # Celery not available — fall back to threading
+            import threading
+            import subprocess
+
+            def run_scan_thread():
                 python = os.path.join(
                     BASE_DIR, "venv/bin/python3"
                 )
-                aipet  = os.path.join(BASE_DIR, "aipet.py")
-                cmd    = (
+                if not os.path.exists(python):
+                    python = sys.executable
+                aipet = os.path.join(BASE_DIR, "aipet.py")
+                cmd   = (
                     [python, aipet, "--demo"]
                     if mode == "demo"
                     else [python, aipet, "--target", target]
                 )
-                subprocess.run(
-                    cmd, cwd=BASE_DIR,
-                    capture_output=True, text=True,
-                    timeout=300
-                )
-                scan_status["progress"] = 100
-                scan_status["message"]  = "Scan complete"
-                user.increment_scan()
+                try:
+                    subprocess.run(
+                        cmd, cwd=BASE_DIR,
+                        capture_output=True,
+                        text=True, timeout=300
+                    )
+                    # Use app context for database update
+                    with app.app_context():
+                        from dashboard.backend.models import (
+                            db, Scan
+                        )
+                        s = Scan.query.get(scan.id)
+                        if s:
+                            s.status       = "complete"
+                            s.completed_at = datetime.now()
+                            db.session.commit()
+                except Exception as e:
+                    with app.app_context():
+                        from dashboard.backend.models import (
+                            db, Scan
+                        )
+                        s = Scan.query.get(scan.id)
+                        if s:
+                            s.status = "failed"
+                            db.session.commit()
 
-                scan = Scan(
-                    user_id      = user.id,
-                    target       = target,
-                    mode         = mode,
-                    status       = "complete",
-                    started_at   = datetime.now(),
-                    completed_at = datetime.now()
-                )
-                db.session.add(scan)
-                db.session.commit()
-
-            except Exception as e:
-                scan_status["message"] = f"Error: {str(e)}"
-            finally:
-                scan_status["running"]   = False
-                scan_status["completed"] = datetime.now(
-                ).strftime("%Y-%m-%d %H:%M:%S")
-
-        thread = threading.Thread(target=run_scan)
-        thread.daemon = True
-        thread.start()
+            t = threading.Thread(target=run_scan_thread)
+            t.daemon = True
+            t.start()
+            queued_via = "thread"
 
         return jsonify({
-            "status": "started",
-            "target": target
+            "status":     "queued",
+            "scan_id":    scan.id,
+            "target":     target,
+            "mode":       mode,
+            "queued_via": queued_via,
         })
 
     @app.route("/api/scan/status", methods=["GET"])
@@ -380,4 +414,5 @@ if __name__ == "__main__":
     print("  AIPET Cloud Backend v2")
     print("  Running at: http://localhost:5001")
     print("=" * 60)
-    app.run(host="0.0.0.0", port=5001, debug=True)
+    app.run(host="0.0.0.0", port=5001,
+            debug=True, use_reloader=False)
