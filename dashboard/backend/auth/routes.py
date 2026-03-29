@@ -12,9 +12,9 @@ from flask_jwt_extended import (
     get_jwt_identity
 )
 
-sys.path.insert(0, os.path.dirname(
-    os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-))
+import os as _os
+_base = '/app' if _os.path.exists('/app') else '/home/binyam/AIPET'
+sys.path.insert(0, _base)
 
 from dashboard.backend.models import db, User
 

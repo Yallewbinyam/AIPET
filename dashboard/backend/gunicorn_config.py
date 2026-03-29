@@ -17,9 +17,15 @@ bind    = "0.0.0.0:5001"
 backlog = 2048
 
 # Worker processes
-# Formula: (2 x CPU cores) + 1
-# This gives best performance on most servers
-workers = multiprocessing.cpu_count() * 2 + 1
+# Use 2 workers in containers to avoid resource issues
+# Scale with docker-compose --scale aipet-worker=N
+import os
+if os.path.exists('/app'):
+    # Inside Docker container
+    workers = 2
+else:
+    # On bare metal — use full CPU count
+    workers = multiprocessing.cpu_count() * 2 + 1
 worker_class = "sync"
 worker_connections = 1000
 timeout  = 120

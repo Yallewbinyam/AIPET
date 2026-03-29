@@ -1,0 +1,27 @@
+# =============================================================
+# AIPET Cloud — Docker Requirements
+# Only what the cloud API needs — no scanning libraries
+# =============================================================
+
+flask==3.1.0
+flask-cors==6.0.0
+flask-jwt-extended==4.7.1
+flask-sqlalchemy==3.1.1
+flask-migrate==4.1.0
+flask-limiter==4.1.0
+psycopg2-binary==2.9.11
+sqlalchemy==2.0.40
+bcrypt==4.3.0
+python-dotenv==1.1.0
+gunicorn==23.0.0
+celery==5.4.0
+redis==6.2.0
+stripe==12.1.0
+scikit-learn==1.6.1
+shap==0.46.0
+pandas==2.2.3
+numpy==2.2.4
+joblib==1.4.2
+python-nmap==0.7.1
+paho-mqtt==2.1.0
+requests==2.32.3

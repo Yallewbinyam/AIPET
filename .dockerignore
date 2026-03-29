@@ -1,0 +1,63 @@
+# =============================================================
+# AIPET Cloud — Docker Ignore
+# =============================================================
+# What this file does:
+#   Tells Docker which files to EXCLUDE when building
+#   the container. This makes builds faster and smaller.
+#   Similar to .gitignore but for Docker.
+# =============================================================
+
+# Python cache files — not needed in container
+__pycache__/
+*.py[cod]
+*$py.class
+*.pyc
+*.pyo
+
+# Virtual environment — container has its own
+venv/
+env/
+.env
+
+# Git files — not needed in container
+.git/
+.gitignore
+
+# Test files — not needed in production
+tests/
+*.test.py
+
+# Development files
+*.md
+docs/
+lab/
+
+# Large files — IoTGoat firmware
+lab/_IoTGoat-raspberry-pi2.img
+lab/_IoTGoat-raspberry-pi2.img.extracted/
+
+# Node modules — built fresh in container
+dashboard/frontend/aipet-dashboard/node_modules/
+
+# Local results and reports — mounted as volumes
+results/
+reporting/
+
+# IDE files
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+/tmp/
+
+# Docker files themselves
+Dockerfile
+docker-compose.yml
+.dockerignore
