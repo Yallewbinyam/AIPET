@@ -8,28 +8,33 @@ db = SQLAlchemy()
 
 class User(db.Model):
     __tablename__ = "users"
-    id            = db.Column(db.Integer, primary_key=True)
-    email         = db.Column(db.String(255), unique=True, nullable=False, index=True)
-    password_hash = db.Column(db.String(255), nullable=False)
-    name          = db.Column(db.String(255), nullable=False)
-    plan          = db.Column(db.String(50),  default="free")
-    scans_used    = db.Column(db.Integer,     default=0)
-    scans_limit   = db.Column(db.Integer,     default=5)
-    created_at    = db.Column(db.DateTime,    default=lambda: datetime.now(timezone.utc))
-    last_login    = db.Column(db.DateTime,    nullable=True)
-    is_active     = db.Column(db.Boolean,     default=True)
-    scans         = db.relationship("Scan",   backref="user", lazy=True)
-    api_keys      = db.relationship("APIKey", backref="user", lazy=True)
+    id                     = db.Column(db.Integer, primary_key=True)
+    email                  = db.Column(db.String(255), unique=True, nullable=False, index=True)
+    password_hash          = db.Column(db.String(255), nullable=False)
+    name                   = db.Column(db.String(255), nullable=False)
+    plan                   = db.Column(db.String(50),  default="free")
+    scans_used             = db.Column(db.Integer,     default=0)
+    scans_limit            = db.Column(db.Integer,     default=5)
+    created_at             = db.Column(db.DateTime,    default=lambda: datetime.now(timezone.utc))
+    last_login             = db.Column(db.DateTime,    nullable=True)
+    is_active              = db.Column(db.Boolean,     default=True)
+    stripe_customer_id     = db.Column(db.String(100), unique=True, nullable=True)
+    stripe_subscription_id = db.Column(db.String(100), unique=True, nullable=True)
+    plan_expires_at        = db.Column(db.DateTime,    nullable=True)
+    scans                  = db.relationship("Scan",   backref="user", lazy=True)
+    api_keys               = db.relationship("APIKey", backref="user", lazy=True)
 
     def to_dict(self):
         return {
-            "id":          self.id,
-            "email":       self.email,
-            "name":        self.name,
-            "plan":        self.plan,
-            "scans_used":  self.scans_used,
-            "scans_limit": self.scans_limit,
-            "created_at":  str(self.created_at),
+            "id":                    self.id,
+            "email":                 self.email,
+            "name":                  self.name,
+            "plan":                  self.plan,
+            "scans_used":            self.scans_used,
+            "scans_limit":           self.scans_limit,
+            "created_at":            str(self.created_at),
+            "stripe_customer_id":    self.stripe_customer_id,
+            "plan_expires_at":       str(self.plan_expires_at) if self.plan_expires_at else None,
         }
 
     def can_scan(self):
@@ -40,6 +45,19 @@ class User(db.Model):
     def increment_scan(self):
         self.scans_used += 1
         db.session.commit()
+
+    @property
+    def scan_limit(self):
+        limits = {'free': 5, 'professional': None, 'enterprise': None}
+        return limits.get(self.plan, 5)
+
+    @property
+    def has_api_access(self):
+        return self.plan == 'enterprise'
+
+    @property
+    def is_paid(self):
+        return self.plan in ('professional', 'enterprise')
 
 
 class Scan(db.Model):

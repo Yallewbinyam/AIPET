@@ -57,6 +57,8 @@ def create_app(config_name="development"):
 
     # Register blueprints
     app.register_blueprint(auth_bp)
+    from dashboard.backend.payments.routes import payments_bp
+    app.register_blueprint(payments_bp, url_prefix='/payments')
 
     # Create tables
     with app.app_context():
