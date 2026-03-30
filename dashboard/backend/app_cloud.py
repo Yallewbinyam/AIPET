@@ -41,11 +41,24 @@ def create_app(config_name="development"):
     app = Flask(__name__)
     app.config.from_object(config[config_name])
 
-    # Extensions
-    CORS(app)
+    # Bind extensions to this app instance before first DB use.
     db.init_app(app)
-    Migrate(app, db)
     JWTManager(app)
+    Migrate(app, db)
+
+    # Extensions
+    CORS(app, resources={
+        r"/*": {
+            "origins": [
+                "http://localhost:3000",
+                "http://localhost:3001",
+                "https://aipet.io",
+                "https://www.aipet.io",
+            ],
+            "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+            "allow_headers": ["Content-Type", "Authorization"],
+        }
+    })
 
     # Rate limiter
     limiter = Limiter(

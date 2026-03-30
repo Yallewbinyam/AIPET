@@ -18,6 +18,21 @@ const API      = "http://localhost:5001/api";
 const AUTH_API = "http://localhost:5001/api/auth";
 const PAY_API  = "http://localhost:5001/payments";
 
+// Axios interceptor — automatically logs out user if token expires.
+// This runs globally on every API response. If we get a 401 (Unauthorized),
+// it means the token has expired. We clear localStorage and reload the page
+// which sends the user back to the login screen.
+axios.interceptors.response.use(
+  response => response,
+  error => {
+    if (error.response?.status === 401) {
+      localStorage.removeItem("aipet_token");
+      window.location.reload();
+    }
+    return Promise.reject(error);
+  }
+);
+
 const COLORS = {
   critical: "#ef4444",
   high:     "#f97316",
@@ -333,7 +348,7 @@ function LoginPage({ onLogin }) {
     </div>
   );
 }
-function PricingPage({ currentPlan, onUpgrade }) {
+function PricingPage({ currentPlan, onUpgrade, usageLoaded }) {
   const plans = [
     {
       id:       "free",
@@ -735,6 +750,7 @@ export default function App() {
   const [searchText, setSearchText] = useState("");
   const [usage,      setUsage]      = useState(null);
   const [token, setToken] = useState(localStorage.getItem("aipet_token") || "");
+  const usageLoaded = usage !== null;
 
   const handleLogin = (jwt) => {
     setToken(jwt);
@@ -835,10 +851,28 @@ export default function App() {
     }
   };
 
-  const startScan = async (mode, target) => {
+ const startScan = async (mode, target) => {
+    // Check scan limit before starting
+    if (usage && usage.plan === "free" && usage.scans_used >= 5) {
+      setActiveTab("pricing");
+      return;
+    }
+
     setScanning(true);
-    await axios.post(`${API}/scan/start`, { mode, target });
-    setTimeout(fetchAll, 3000);
+    try {
+      await axios.post(`${API}/scan/start`, { mode, target }, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      setTimeout(fetchAll, 3000);
+      // Refresh usage after scan
+      setTimeout(fetchUsage, 3000);
+    } catch (e) {
+      if (e.response?.status === 403) {
+        // Backend blocked the scan — redirect to pricing
+        setActiveTab("pricing");
+      }
+      setScanning(false);
+    }
   };
 
   const { summary, devices=[], findings=[], aiResults=[], reports=[], scanStatus } = data;
@@ -1326,12 +1360,21 @@ export default function App() {
               ))}
             </div>
       )}
+      {/* Loading state */}
+      {!usageLoaded && (
+        <div className="text-center py-4">
+          <p className="text-sm" style={{ color: COLORS.muted }}>
+            Loading your plan details...
+          </p>
+        </div>
+      )}
 
           {/* PRICING */}
           {activeTab === "pricing" && (
             <PricingPage
               currentPlan={usage?.plan || "free"}
               onUpgrade={handleUpgrade}
+              usageLoaded={usage !== null}
             />
           )}
 
