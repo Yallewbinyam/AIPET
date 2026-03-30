@@ -15,8 +15,9 @@ payments_bp = Blueprint('payments', __name__)
 def create_checkout_session():
     stripe = get_stripe()
 
-    current_user_email = get_jwt_identity()
-    user = User.query.filter_by(email=current_user_email).first()
+    user_id = get_jwt_identity()
+    user = User.query.get(int(user_id))
+    
 
     if not user:
         return jsonify({'error': 'User not found'}), 404
@@ -157,8 +158,8 @@ def _handle_subscription_deleted(subscription):
 @payments_bp.route('/subscription', methods=['GET'])
 @jwt_required()
 def get_subscription():
-    current_user_email = get_jwt_identity()
-    user = User.query.filter_by(email=current_user_email).first()
+    user_id = get_jwt_identity()
+    user = User.query.get(int(user_id))
 
     if not user:
         return jsonify({'error': 'User not found'}), 404
