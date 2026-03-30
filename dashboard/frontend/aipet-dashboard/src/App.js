@@ -576,7 +576,7 @@ export default function App() {
   const [filter,     setFilter]     = useState("ALL");
   const [searchText, setSearchText] = useState("");
   const [usage,      setUsage]      = useState(null);
-  const [token,      setToken]      = useState(localStorage.getItem("aipet_token") || "");
+  const [token, setToken] = useState(localStorage.getItem("aipet_token") || "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJmcmVzaCI6ZmFsc2UsImlhdCI6MTc3NDgzNzU2NCwianRpIjoiMjA0N2I3MTUtNGQ3MC00NjE0LTk4MTAtMmFkYTE1MWNjNWNlIiwidHlwZSI6ImFjY2VzcyIsInN1YiI6IjEiLCJuYmYiOjE3NzQ4Mzc1NjQsImNzcmYiOiI3NDVlMmJlMy00YWFlLTRmNzItOGM2OS0zYTlmYTA0ZTlhMzIiLCJleHAiOjE3NzQ4Mzg0NjR9.sRWElGWB0pCR9DnXGwwLNdiPSgKxqnByGlbW4QpNy6A");
 
   const fetchAll = useCallback(async () => {
     try {
