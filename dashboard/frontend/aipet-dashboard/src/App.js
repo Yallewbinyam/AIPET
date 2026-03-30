@@ -10,7 +10,8 @@ import {
   Activity, Download, Play, RefreshCw,
   ChevronDown, ChevronUp, Cpu, Lock,
   Wifi, Globe, FileText, Zap, Eye,
-  TrendingUp, AlertOctagon, Info
+  TrendingUp, AlertOctagon, Info, CreditCard,
+  Star, Check, X
 } from "lucide-react";
 
 const API = "http://localhost:5000/api";
@@ -174,6 +175,324 @@ function ShapBar({ feature, value }) {
   );
 }
 
+function PricingPage({ currentPlan, onUpgrade }) {
+  const plans = [
+    {
+      id:       "free",
+      name:     "Free",
+      price:    "£0",
+      period:   "forever",
+      color:    COLORS.muted,
+      features: [
+        "5 scans per month",
+        "Single network scanning",
+        "Basic AI analysis",
+        "PDF reports",
+        "Community support",
+      ],
+      cta:      "Current Plan",
+      disabled: true,
+    },
+    {
+      id:       "professional",
+      name:     "Professional",
+      price:    "£49",
+      period:   "per month",
+      color:    COLORS.blue,
+      popular:  true,
+      features: [
+        "Unlimited scans",
+        "Parallel scanning (3 networks)",
+        "Full SHAP AI explanations",
+        "All report formats",
+        "Email support",
+        "Priority queue",
+      ],
+      cta:      "Upgrade to Pro",
+      disabled: false,
+    },
+    {
+      id:       "enterprise",
+      name:     "Enterprise",
+      price:    "£499",
+      period:   "per month",
+      color:    COLORS.purple,
+      features: [
+        "Unlimited scans",
+        "Parallel scanning (10 networks)",
+        "Full AI analysis + SHAP",
+        "API access",
+        "Priority support",
+        "SLA guarantee",
+        "Custom integrations",
+      ],
+      cta:      "Upgrade to Enterprise",
+      disabled: false,
+    },
+  ];
+
+  return (
+    <div className="space-y-8">
+      {/* Header */}
+      <div className="text-center">
+        <h2 className="text-3xl font-black mb-2" style={{ color: COLORS.text }}>
+          Choose Your Plan
+        </h2>
+        <p className="text-sm" style={{ color: COLORS.muted }}>
+          Upgrade anytime. Cancel anytime. No hidden fees.
+        </p>
+      </div>
+
+      {/* Plan cards */}
+      <div className="grid grid-cols-3 gap-6">
+        {plans.map((plan) => {
+          const isCurrentPlan = currentPlan === plan.id;
+          return (
+            <div key={plan.id}
+              className="rounded-2xl border flex flex-col relative overflow-hidden transition-all duration-200"
+              style={{
+                backgroundColor: COLORS.card,
+                borderColor: isCurrentPlan ? plan.color : plan.popular ? plan.color + "50" : COLORS.border,
+                boxShadow: plan.popular ? `0 0 30px ${plan.color}20` : "none",
+              }}>
+
+              {/* Popular badge */}
+              {plan.popular && (
+                <div className="absolute top-0 right-0 px-3 py-1 text-xs font-bold rounded-bl-xl"
+                  style={{ backgroundColor: plan.color, color: "white" }}>
+                  POPULAR
+                </div>
+              )}
+
+              {/* Current plan badge */}
+              {isCurrentPlan && (
+                <div className="absolute top-0 left-0 px-3 py-1 text-xs font-bold rounded-br-xl"
+                  style={{ backgroundColor: plan.color + "30", color: plan.color }}>
+                  YOUR PLAN
+                </div>
+              )}
+
+              <div className="p-6 flex flex-col flex-1">
+                {/* Plan name and price */}
+                <div className="mb-6 mt-4">
+                  <h3 className="text-lg font-black mb-3" style={{ color: plan.color }}>
+                    {plan.name}
+                  </h3>
+                  <div className="flex items-baseline gap-1">
+                    <span className="text-4xl font-black" style={{ color: COLORS.text }}>
+                      {plan.price}
+                    </span>
+                    <span className="text-sm" style={{ color: COLORS.muted }}>
+                      /{plan.period}
+                    </span>
+                  </div>
+                </div>
+
+                {/* Features */}
+                <div className="flex-1 space-y-3 mb-6">
+                  {plan.features.map((feature, i) => (
+                    <div key={i} className="flex items-center gap-3">
+                      <div className="w-5 h-5 rounded-full flex items-center justify-center flex-shrink-0"
+                        style={{ backgroundColor: plan.color + "20" }}>
+                        <Check size={12} style={{ color: plan.color }} />
+                      </div>
+                      <span className="text-sm" style={{ color: COLORS.muted }}>
+                        {feature}
+                      </span>
+                    </div>
+                  ))}
+                </div>
+
+                {/* CTA button */}
+                <button
+                  onClick={() => !plan.disabled && !isCurrentPlan && onUpgrade(plan.id)}
+                  disabled={plan.disabled || isCurrentPlan}
+                  className="w-full py-3 rounded-xl font-bold text-sm transition-all duration-200"
+                  style={{
+                    backgroundColor: isCurrentPlan
+                      ? plan.color + "20"
+                      : plan.disabled
+                      ? COLORS.border
+                      : plan.color,
+                    color: isCurrentPlan
+                      ? plan.color
+                      : plan.disabled
+                      ? COLORS.muted
+                      : "white",
+                    cursor: plan.disabled || isCurrentPlan ? "default" : "pointer",
+                  }}>
+                  {isCurrentPlan ? "Current Plan" : plan.cta}
+                </button>
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+function BillingPage({ usage, onUpgrade, onCancel, onPortal }) {
+  if (!usage) return (
+    <div className="flex items-center justify-center h-64">
+      <div className="text-sm" style={{ color: COLORS.muted }}>Loading billing info...</div>
+    </div>
+  );
+
+  const isFreePlan   = usage.plan === "free";
+  const scansPercent = isFreePlan && usage.scans_limit
+    ? (usage.scans_used / usage.scans_limit) * 100
+    : 0;
+
+  const planColors = {
+    free:         COLORS.muted,
+    professional: COLORS.blue,
+    enterprise:   COLORS.purple,
+  };
+  const planColor = planColors[usage.plan] || COLORS.muted;
+
+  return (
+    <div className="space-y-6 max-w-2xl">
+
+      {/* Current plan card */}
+      <div className="rounded-2xl border p-6"
+        style={{ backgroundColor: COLORS.card, borderColor: planColor + "50" }}>
+        <div className="flex items-center justify-between mb-6">
+          <div className="flex items-center gap-4">
+            <div className="w-12 h-12 rounded-xl flex items-center justify-center"
+              style={{ backgroundColor: planColor + "20" }}>
+              <CreditCard size={22} style={{ color: planColor }} />
+            </div>
+            <div>
+              <div className="text-xs font-bold uppercase tracking-wider mb-1"
+                style={{ color: COLORS.muted }}>Current Plan</div>
+              <div className="text-2xl font-black capitalize" style={{ color: planColor }}>
+                {usage.plan}
+              </div>
+            </div>
+          </div>
+          {usage.is_paid && (
+            <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg"
+              style={{ backgroundColor: COLORS.low + "20" }}>
+              <div className="w-2 h-2 rounded-full" style={{ backgroundColor: COLORS.low }} />
+              <span className="text-xs font-bold" style={{ color: COLORS.low }}>Active</span>
+            </div>
+          )}
+        </div>
+
+        {/* Scan usage */}
+        <div className="mb-4">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-sm font-semibold" style={{ color: COLORS.text }}>
+              Scans this month
+            </span>
+            <span className="text-sm font-bold" style={{ color: COLORS.text }}>
+              {usage.scans_used}
+              {usage.scans_limit ? ` / ${usage.scans_limit}` : " / Unlimited"}
+            </span>
+          </div>
+
+          {isFreePlan && (
+            <div className="h-2 rounded-full overflow-hidden"
+              style={{ backgroundColor: COLORS.border }}>
+              <div className="h-full rounded-full transition-all duration-700"
+                style={{
+                  width: `${Math.min(scansPercent, 100)}%`,
+                  backgroundColor: scansPercent >= 100
+                    ? COLORS.critical
+                    : scansPercent >= 80
+                    ? COLORS.high
+                    : COLORS.blue,
+                }} />
+            </div>
+          )}
+
+          {!isFreePlan && (
+            <div className="h-2 rounded-full"
+              style={{ backgroundColor: COLORS.blue + "40" }}>
+              <div className="h-full rounded-full w-full"
+                style={{ backgroundColor: COLORS.blue }} />
+            </div>
+          )}
+        </div>
+
+        {/* Days until reset */}
+        <div className="flex items-center gap-2 text-xs" style={{ color: COLORS.muted }}>
+          <RefreshCw size={12} />
+          <span>Resets in {usage.days_until_reset} days</span>
+        </div>
+      </div>
+
+      {/* Upgrade prompt for free users */}
+      {isFreePlan && (
+        <div className="rounded-2xl border p-6"
+          style={{ backgroundColor: COLORS.blue + "08", borderColor: COLORS.blue + "30" }}>
+          <div className="flex items-center gap-3 mb-4">
+            <Star size={20} style={{ color: COLORS.blue }} />
+            <h3 className="font-bold" style={{ color: COLORS.text }}>
+              Upgrade to Professional
+            </h3>
+          </div>
+          <p className="text-sm mb-4" style={{ color: COLORS.muted }}>
+            Get unlimited scans, parallel scanning, and full AI analysis for £49/month.
+          </p>
+          <button onClick={() => onUpgrade("professional")}
+            className="w-full py-3 rounded-xl font-bold text-sm transition-all"
+            style={{ backgroundColor: COLORS.blue, color: "white" }}>
+            Upgrade Now — £49/month
+          </button>
+        </div>
+      )}
+
+      {/* Paid plan actions */}
+      {usage.is_paid && (
+        <div className="rounded-2xl border p-6 space-y-3"
+          style={{ backgroundColor: COLORS.card, borderColor: COLORS.border }}>
+          <h3 className="font-bold mb-4" style={{ color: COLORS.text }}>
+            Manage Subscription
+          </h3>
+
+          <button onClick={onPortal}
+            className="w-full py-3 rounded-xl font-semibold text-sm transition-all border"
+            style={{
+              backgroundColor: "transparent",
+              borderColor: COLORS.border,
+              color: COLORS.text,
+            }}>
+            Open Billing Portal
+          </button>
+
+          <button onClick={onCancel}
+            className="w-full py-3 rounded-xl font-semibold text-sm transition-all border"
+            style={{
+              backgroundColor: "transparent",
+              borderColor: COLORS.critical + "40",
+              color: COLORS.critical,
+            }}>
+            Cancel Subscription
+          </button>
+        </div>
+      )}
+
+      {/* API access badge */}
+      {usage.has_api_access && (
+        <div className="rounded-2xl border p-4 flex items-center gap-3"
+          style={{ backgroundColor: COLORS.purple + "10", borderColor: COLORS.purple + "30" }}>
+          <Lock size={18} style={{ color: COLORS.purple }} />
+          <div>
+            <div className="text-sm font-bold" style={{ color: COLORS.purple }}>
+              API Access Enabled
+            </div>
+            <div className="text-xs" style={{ color: COLORS.muted }}>
+              Enterprise plan includes full API access
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function ScanModal({ onClose, onScan, scanning }) {
   const [target, setTarget] = useState("");
   const [mode, setMode] = useState("demo");
@@ -244,6 +563,8 @@ const NAV_ITEMS = [
   { id: "findings",  label: "Findings",    icon: AlertTriangle },
   { id: "ai",        label: "AI Analysis", icon: Shield        },
   { id: "reports",   label: "Reports",     icon: FileText      },
+  { id: "pricing",   label: "Pricing",     icon: Zap           },
+  { id: "billing",   label: "Billing",     icon: Lock          },
 ];
 
 export default function App() {
@@ -254,6 +575,8 @@ export default function App() {
   const [scanning,   setScanning]   = useState(false);
   const [filter,     setFilter]     = useState("ALL");
   const [searchText, setSearchText] = useState("");
+  const [usage,      setUsage]      = useState(null);
+  const [token,      setToken]      = useState(localStorage.getItem("aipet_token") || "");
 
   const fetchAll = useCallback(async () => {
     try {
@@ -286,6 +609,63 @@ export default function App() {
     const interval = setInterval(fetchAll, 5000);
     return () => clearInterval(interval);
   }, [fetchAll]);
+
+  const fetchUsage = useCallback(async () => {
+    if (!token) return;
+    try {
+      const res = await axios.get(`http://localhost:5001/api/user/usage`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      setUsage(res.data);
+    } catch (e) {
+      console.error("Usage fetch failed:", e);
+    }
+  }, [token]);
+
+  useEffect(() => {
+    fetchUsage();
+  }, [fetchUsage]);
+
+  const handleUpgrade = async (plan) => {
+    try {
+      const res = await axios.post(
+        `http://localhost:5001/payments/create-checkout-session`,
+        { plan },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      window.location.href = res.data.checkout_url;
+    } catch (e) {
+      alert("Payment error. Please try again.");
+    }
+  };
+
+  const handlePortal = async () => {
+    try {
+      const res = await axios.post(
+        `http://localhost:5001/payments/portal`,
+        {},
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      window.location.href = res.data.portal_url;
+    } catch (e) {
+      alert("Could not open billing portal.");
+    }
+  };
+
+  const handleCancel = async () => {
+    if (!window.confirm("Are you sure you want to cancel your subscription?")) return;
+    try {
+      await axios.post(
+        `http://localhost:5001/payments/cancel`,
+        {},
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      alert("Subscription cancelled. You keep access until the end of your billing period.");
+      fetchUsage();
+    } catch (e) {
+      alert("Could not cancel subscription.");
+    }
+  };
 
   const startScan = async (mode, target) => {
     setScanning(true);
@@ -765,11 +1145,28 @@ export default function App() {
                 </div>
               ))}
             </div>
+      )}
+
+          {/* PRICING */}
+          {activeTab === "pricing" && (
+            <PricingPage
+              currentPlan={usage?.plan || "free"}
+              onUpgrade={handleUpgrade}
+            />
+          )}
+
+          {/* BILLING */}
+          {activeTab === "billing" && (
+            <BillingPage
+              usage={usage}
+              onUpgrade={handleUpgrade}
+              onCancel={handleCancel}
+              onPortal={handlePortal}
+            />
           )}
 
         </div>
       </div>
-
       {showScan && <ScanModal onClose={() => setShowScan(false)} onScan={startScan} scanning={scanning} />}
     </div>
   );

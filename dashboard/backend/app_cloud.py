@@ -360,6 +360,33 @@ def create_app(config_name="development"):
     @jwt_required()
     def get_scan_status():
         return jsonify(scan_status)
+    @app.route("/api/user/usage", methods=["GET"])
+    @jwt_required()
+    def get_usage():
+        user_id = get_jwt_identity()
+        user = User.query.get(int(user_id))
+
+        from datetime import datetime, timezone
+        now = datetime.now(timezone.utc)
+        month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+        next_month = month_start.replace(month=month_start.month % 12 + 1)
+        days_remaining = (next_month - now).days
+
+        scans_this_month = Scan.query.filter(
+            Scan.user_id == user.id,
+            Scan.created_at >= month_start
+        ).count()
+
+        return jsonify({
+            "plan":             user.plan,
+            "scans_used":       scans_this_month,
+            "scans_limit":      user.scans_limit if user.plan == "free" else None,
+            "days_until_reset": max(0, days_remaining),
+            "has_api_access":   user.plan == "enterprise",
+            "is_paid":          user.plan in ["professional", "enterprise"],
+            "stripe_customer_id": user.stripe_customer_id,
+        })
+
 
     @app.route("/api/scan/history", methods=["GET"])
     @jwt_required()
