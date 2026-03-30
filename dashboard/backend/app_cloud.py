@@ -24,6 +24,17 @@ from dashboard.backend.models import db, User, Scan, Finding
 from dashboard.backend.auth.routes import auth_bp
 from dashboard.backend.config import config
 from dashboard.backend.celery_app import celery
+from dashboard.backend.monitoring.logger import (
+    setup_logging,
+    log_user_action,
+    log_scan_event,
+    log_payment_event,
+    log_error,
+    log_security_event,
+    get_logger
+)
+
+logger = get_logger("aipet.api")
 
 BASE_DIR = '/home/binyam/AIPET'
 
@@ -73,6 +84,12 @@ def create_app(config_name="development"):
     from dashboard.backend.payments.routes import payments_bp
     app.register_blueprint(payments_bp, url_prefix='/payments')
 
+    # Setup logging
+    setup_logging(
+        app=app,
+        log_level=os.environ.get("LOG_LEVEL", "INFO")
+    )
+
     # Create tables
     with app.app_context():
         db.create_all()
@@ -91,6 +108,23 @@ def create_app(config_name="development"):
             "error": "Unauthorized",
             "message": "Valid JWT token required"
         }), 401
+    @app.errorhandler(500)
+    def internal_error_handler(e):
+        from dashboard.backend.monitoring.alerting import alert_unhandled_exception
+        try:
+            user_id = get_jwt_identity()
+        except Exception:
+            user_id = "unauthenticated"
+        alert_unhandled_exception(
+            request_path=request.path,
+            user_id=user_id,
+            error=e
+        )
+        return jsonify({
+            "error": "Internal server error",
+            "message": "Something went wrong. Our team has been notified."
+        }), 500 
+
 
     # ── Public routes ─────────────────────────────────────
     @app.route("/api/health", methods=["GET"])
@@ -99,8 +133,9 @@ def create_app(config_name="development"):
         try:
             db.session.execute(db.text("SELECT 1"))
             db_status = "connected"
-        except Exception:
+        except Exception as e:
             db_status = "disconnected"
+            log_error(e, context="health_check")
 
         return jsonify({
             "status":   "online",
@@ -293,6 +328,14 @@ def create_app(config_name="development"):
 
         # Increment user scan counter
         user.increment_scan()
+
+        # Log scan event
+        log_scan_event(
+            scan_id = scan.id,
+            user_id = user.id,
+            event   = "queued",
+            details = f"target:{target} mode:{mode}"
+        )
 
         # Submit scan to Celery queue — non-blocking
         try:
