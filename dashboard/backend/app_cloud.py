@@ -24,6 +24,7 @@ from dashboard.backend.models import db, User, Scan, Finding
 from dashboard.backend.auth.routes import auth_bp
 from dashboard.backend.config import config
 from dashboard.backend.celery_app import celery
+from dashboard.backend.monitoring.logger import setup_logging, get_logger
 from dashboard.backend.monitoring.logger import (
     setup_logging,
     log_user_action,
@@ -52,6 +53,10 @@ def create_app(config_name="development"):
     app = Flask(__name__)
     app.config.from_object(config[config_name])
 
+    # Initialise logging — must be done before any routes are called
+    setup_logging(app)
+    logger = get_logger('app')
+
     # Bind extensions to this app instance before first DB use.
     db.init_app(app)
     JWTManager(app)
@@ -78,11 +83,12 @@ def create_app(config_name="development"):
         default_limits=["200 per day", "50 per hour"],
         storage_uri="memory://"
     )
-
     # Register blueprints
     app.register_blueprint(auth_bp)
     from dashboard.backend.payments.routes import payments_bp
     app.register_blueprint(payments_bp, url_prefix='/payments')
+    from dashboard.backend.api_keys.routes import api_keys_bp
+    app.register_blueprint(api_keys_bp, url_prefix='/api/keys')
 
     # Setup logging
     setup_logging(
@@ -199,6 +205,7 @@ def create_app(config_name="development"):
     def get_summary():
         user_id = get_jwt_identity()
         user    = User.query.get(int(user_id))
+        logger.info(f"[dashboard] User {user.email} loaded dashboard")
 
         def load_json(filepath):
             full_path = os.path.join(BASE_DIR, filepath)
@@ -328,6 +335,9 @@ def create_app(config_name="development"):
 
         # Increment user scan counter
         user.increment_scan()
+
+        # Log the scan event
+        logger.info(f"[scan] User {user.email} started scan — target: {target} mode: {mode} scan_id: {scan.id}")
 
         # Log scan event
         log_scan_event(

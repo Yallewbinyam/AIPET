@@ -191,6 +191,257 @@ function ShapBar({ feature, value }) {
     </div>
   );
 }
+function ApiKeysPage({ token, userPlan }) {
+  const [keys,     setKeys]     = useState([]);
+  const [loading,  setLoading]  = useState(true);
+  const [newKey,   setNewKey]   = useState(null);
+  const [keyName,  setKeyName]  = useState("");
+  const [creating, setCreating] = useState(false);
+  const [error,    setError]    = useState("");
+
+  // Fetch all API keys on load
+  useEffect(() => {
+    fetchKeys();
+  }, []);
+
+  const fetchKeys = async () => {
+    setLoading(true);
+    try {
+      const res = await axios.get("http://localhost:5001/api/keys", {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      setKeys(res.data.keys);
+    } catch (e) {
+      setError("Failed to load API keys.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const createKey = async () => {
+    if (!keyName.trim()) {
+      setError("Please enter a name for your API key.");
+      return;
+    }
+    setCreating(true);
+    setError("");
+    try {
+      const res = await axios.post(
+        "http://localhost:5001/api/keys",
+        { name: keyName },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      setNewKey(res.data.key);
+      setKeyName("");
+      fetchKeys();
+    } catch (e) {
+      setError(e.response?.data?.error || "Failed to create API key.");
+    } finally {
+      setCreating(false);
+    }
+  };
+
+  const revokeKey = async (keyId, keyName) => {
+    if (!window.confirm(`Revoke API key "${keyName}"? This cannot be undone.`)) return;
+    try {
+      await axios.delete(`http://localhost:5001/api/keys/${keyId}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      fetchKeys();
+    } catch (e) {
+      setError("Failed to revoke API key.");
+    }
+  };
+
+  // Non-enterprise users see upgrade prompt
+  if (userPlan !== "enterprise") {
+    return (
+      <div className="rounded-2xl border p-8 text-center max-w-lg mx-auto"
+        style={{ backgroundColor: COLORS.card, borderColor: COLORS.border }}>
+        <Lock size={48} style={{ color: COLORS.purple }} className="mx-auto mb-4" />
+        <h3 className="text-xl font-black mb-2" style={{ color: COLORS.text }}>
+          API Access — Enterprise Only
+        </h3>
+        <p className="text-sm mb-6" style={{ color: COLORS.muted }}>
+          API keys allow you to integrate AIPET into your own systems,
+          CI/CD pipelines, and security tools. Available on the Enterprise plan.
+        </p>
+        <button
+          onClick={() => window.location.href = "/pricing"}
+          className="px-6 py-3 rounded-xl font-bold text-sm"
+          style={{ backgroundColor: COLORS.purple, color: "white" }}>
+          Upgrade to Enterprise — £499/month
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6 max-w-3xl">
+
+      {/* Header */}
+      <div className="rounded-2xl border p-6"
+        style={{ backgroundColor: COLORS.card, borderColor: COLORS.border }}>
+        <h3 className="font-black text-lg mb-1" style={{ color: COLORS.text }}>
+          API Keys
+        </h3>
+        <p className="text-sm" style={{ color: COLORS.muted }}>
+          Use API keys to authenticate programmatic access to AIPET.
+          Keep your keys secret — treat them like passwords.
+        </p>
+      </div>
+
+      {/* New key revealed — show once */}
+      {newKey && (
+        <div className="rounded-2xl border p-6"
+          style={{
+            backgroundColor: COLORS.low + "10",
+            borderColor: COLORS.low + "40"
+          }}>
+          <div className="flex items-center gap-2 mb-3">
+            <CheckCircle size={18} style={{ color: COLORS.low }} />
+            <span className="font-bold text-sm" style={{ color: COLORS.low }}>
+              API key created — copy it now, it will not be shown again
+            </span>
+          </div>
+          <div className="p-3 rounded-xl font-mono text-xs break-all"
+            style={{ backgroundColor: COLORS.darker, color: COLORS.text }}>
+            {newKey}
+          </div>
+          <button
+            onClick={() => { navigator.clipboard.writeText(newKey); }}
+            className="mt-3 px-4 py-2 rounded-xl text-xs font-bold"
+            style={{ backgroundColor: COLORS.low, color: "white" }}>
+            Copy to clipboard
+          </button>
+          <button
+            onClick={() => setNewKey(null)}
+            className="mt-3 ml-2 px-4 py-2 rounded-xl text-xs font-bold"
+            style={{ backgroundColor: COLORS.border, color: COLORS.muted }}>
+            I have copied it
+          </button>
+        </div>
+      )}
+
+      {/* Error message */}
+      {error && (
+        <div className="p-3 rounded-xl text-sm"
+          style={{
+            backgroundColor: COLORS.critical + "15",
+            borderColor: COLORS.critical + "40",
+            color: COLORS.critical,
+            border: "1px solid"
+          }}>
+          {error}
+        </div>
+      )}
+
+      {/* Create new key */}
+      <div className="rounded-2xl border p-6"
+        style={{ backgroundColor: COLORS.card, borderColor: COLORS.border }}>
+        <h4 className="font-bold mb-4" style={{ color: COLORS.text }}>
+          Generate new API key
+        </h4>
+        <div className="flex gap-3">
+          <input
+            type="text"
+            value={keyName}
+            onChange={e => setKeyName(e.target.value)}
+            placeholder="e.g. Production CI/CD, SIEM Integration"
+            className="flex-1 px-4 py-3 rounded-xl text-sm outline-none"
+            style={{
+              backgroundColor: COLORS.darker,
+              color: COLORS.text,
+              border: `1px solid ${COLORS.border}`
+            }}
+          />
+          <button
+            onClick={createKey}
+            disabled={creating}
+            className="px-6 py-3 rounded-xl font-bold text-sm transition-all"
+            style={{
+              backgroundColor: creating ? COLORS.border : COLORS.blue,
+              color: creating ? COLORS.muted : "white"
+            }}>
+            {creating ? "Creating..." : "Generate"}
+          </button>
+        </div>
+      </div>
+
+      {/* List of keys */}
+      <div className="rounded-2xl border overflow-hidden"
+        style={{ backgroundColor: COLORS.card, borderColor: COLORS.border }}>
+        <div className="p-4 border-b flex items-center justify-between"
+          style={{ borderColor: COLORS.border }}>
+          <span className="font-bold text-sm" style={{ color: COLORS.text }}>
+            Active API keys ({keys.length}/10)
+          </span>
+        </div>
+
+        {loading ? (
+          <div className="p-8 text-center">
+            <p className="text-sm" style={{ color: COLORS.muted }}>Loading...</p>
+          </div>
+        ) : keys.length === 0 ? (
+          <div className="p-8 text-center">
+            <p className="text-sm" style={{ color: COLORS.muted }}>
+              No API keys yet. Generate your first key above.
+            </p>
+          </div>
+        ) : (
+          <div className="divide-y" style={{ borderColor: COLORS.border }}>
+            {keys.map(key => (
+              <div key={key.id}
+                className="p-4 flex items-center justify-between">
+                <div>
+                  <div className="font-semibold text-sm mb-1"
+                    style={{ color: COLORS.text }}>
+                    {key.name}
+                  </div>
+                  <div className="text-xs font-mono mb-1"
+                    style={{ color: COLORS.muted }}>
+                    {key.key_preview}
+                  </div>
+                  <div className="text-xs" style={{ color: COLORS.muted }}>
+                    Created {key.created_at?.split("T")[0]} · Last used: {key.last_used === "Never" ? "Never" : key.last_used?.split("T")[0]}
+                  </div>
+                </div>
+                <button
+                  onClick={() => revokeKey(key.id, key.name)}
+                  className="px-4 py-2 rounded-xl text-xs font-bold transition-all border"
+                  style={{
+                    backgroundColor: "transparent",
+                    borderColor: COLORS.critical + "40",
+                    color: COLORS.critical
+                  }}>
+                  Revoke
+                </button>
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* Usage example */}
+      <div className="rounded-2xl border p-6"
+        style={{ backgroundColor: COLORS.card, borderColor: COLORS.border }}>
+        <h4 className="font-bold mb-3" style={{ color: COLORS.text }}>
+          How to use your API key
+        </h4>
+        <p className="text-xs mb-3" style={{ color: COLORS.muted }}>
+          Include your API key in the request header:
+        </p>
+        <div className="p-3 rounded-xl font-mono text-xs"
+          style={{ backgroundColor: COLORS.darker, color: COLORS.low }}>
+          {`curl https://aipet.io/api/scan/start \\`}<br/>
+          {`  -H "X-API-Key: aipet_ent_your_key_here" \\`}<br/>
+          {`  -d '{"target": "192.168.1.0/24", "mode": "live"}'`}
+        </div>
+      </div>
+
+    </div>
+  );
+}
 function LoginPage({ onLogin }) {
   const [isRegister, setIsRegister] = useState(false);
   const [email,      setEmail]      = useState("");
@@ -738,6 +989,7 @@ const NAV_ITEMS = [
   { id: "reports",   label: "Reports",     icon: FileText      },
   { id: "pricing",   label: "Pricing",     icon: Zap           },
   { id: "billing",   label: "Billing",     icon: Lock          },
+  { id: "apikeys",   label: "API Keys",    icon: CreditCard    },
 ];
 
 export default function App() {
@@ -1385,6 +1637,13 @@ export default function App() {
               onUpgrade={handleUpgrade}
               onCancel={handleCancel}
               onPortal={handlePortal}
+            />
+          )}
+          {/* API KEYS */}
+          {activeTab === "apikeys" && (
+            <ApiKeysPage
+              token={token}
+              userPlan={usage?.plan || "free"}
             />
           )}
 
