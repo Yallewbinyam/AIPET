@@ -14,7 +14,9 @@ import {
   Star, Check, X
 } from "lucide-react";
 
-const API = "http://localhost:5000/api";
+const API      = "http://localhost:5001/api";
+const AUTH_API = "http://localhost:5001/api/auth";
+const PAY_API  = "http://localhost:5001/payments";
 
 const COLORS = {
   critical: "#ef4444",
@@ -174,7 +176,163 @@ function ShapBar({ feature, value }) {
     </div>
   );
 }
+function LoginPage({ onLogin }) {
+  const [isRegister, setIsRegister] = useState(false);
+  const [email,      setEmail]      = useState("");
+  const [password,   setPassword]   = useState("");
+  const [name,       setName]       = useState("");
+  const [error,      setError]      = useState("");
+  const [loading,    setLoading]    = useState(false);
 
+  const handleSubmit = async () => {
+    setError("");
+    if (!email || !password) { setError("Email and password are required"); return; }
+    if (isRegister && !name) { setError("Name is required"); return; }
+
+    setLoading(true);
+    try {
+      const endpoint = isRegister ? `${AUTH_API}/register` : `${AUTH_API}/login`;
+      const payload  = isRegister
+        ? { email, password, name }
+        : { email, password };
+
+      const res = await axios.post(endpoint, payload);
+      const jwt = res.data.token;
+
+      // Save token to localStorage so it persists across page refreshes
+      localStorage.setItem("aipet_token", jwt);
+      onLogin(jwt);
+    } catch (e) {
+      setError(e.response?.data?.error || "Something went wrong. Try again.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <div className="min-h-screen flex items-center justify-center"
+      style={{ backgroundColor: COLORS.darker }}>
+      <div className="w-full max-w-md">
+
+        {/* Logo */}
+        <div className="text-center mb-8">
+          <div className="w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4"
+            style={{ backgroundColor: COLORS.blue }}>
+            <Shield size={32} color="white" />
+          </div>
+          <h1 className="text-3xl font-black" style={{ color: COLORS.text }}>AIPET</h1>
+          <p className="text-sm mt-1" style={{ color: COLORS.muted }}>
+            AI-Powered IoT Security Platform
+          </p>
+        </div>
+
+        {/* Form card */}
+        <div className="rounded-2xl border p-8"
+          style={{ backgroundColor: COLORS.card, borderColor: COLORS.border }}>
+
+          <h2 className="text-xl font-black mb-6" style={{ color: COLORS.text }}>
+            {isRegister ? "Create your account" : "Sign in to AIPET"}
+          </h2>
+
+          {/* Error message */}
+          {error && (
+            <div className="mb-4 p-3 rounded-xl border text-sm"
+              style={{
+                backgroundColor: COLORS.critical + "15",
+                borderColor: COLORS.critical + "40",
+                color: COLORS.critical
+              }}>
+              {error}
+            </div>
+          )}
+
+          {/* Name field (register only) */}
+          {isRegister && (
+            <div className="mb-4">
+              <label className="block text-xs font-bold uppercase tracking-wider mb-2"
+                style={{ color: COLORS.muted }}>Full Name</label>
+              <input
+                type="text"
+                value={name}
+                onChange={e => setName(e.target.value)}
+                placeholder="John Smith"
+                className="w-full px-4 py-3 rounded-xl text-sm outline-none"
+                style={{
+                  backgroundColor: COLORS.darker,
+                  color: COLORS.text,
+                  border: `1px solid ${COLORS.border}`
+                }}
+              />
+            </div>
+          )}
+
+          {/* Email field */}
+          <div className="mb-4">
+            <label className="block text-xs font-bold uppercase tracking-wider mb-2"
+              style={{ color: COLORS.muted }}>Email</label>
+            <input
+              type="email"
+              value={email}
+              onChange={e => setEmail(e.target.value)}
+              placeholder="you@example.com"
+              className="w-full px-4 py-3 rounded-xl text-sm outline-none"
+              style={{
+                backgroundColor: COLORS.darker,
+                color: COLORS.text,
+                border: `1px solid ${COLORS.border}`
+              }}
+            />
+          </div>
+
+          {/* Password field */}
+          <div className="mb-6">
+            <label className="block text-xs font-bold uppercase tracking-wider mb-2"
+              style={{ color: COLORS.muted }}>Password</label>
+            <input
+              type="password"
+              value={password}
+              onChange={e => setPassword(e.target.value)}
+              placeholder="Minimum 8 characters"
+              className="w-full px-4 py-3 rounded-xl text-sm outline-none"
+              style={{
+                backgroundColor: COLORS.darker,
+                color: COLORS.text,
+                border: `1px solid ${COLORS.border}`
+              }}
+            />
+          </div>
+
+          {/* Submit button */}
+          <button
+            onClick={handleSubmit}
+            disabled={loading}
+            className="w-full py-3 rounded-xl font-bold text-sm transition-all"
+            style={{
+              backgroundColor: loading ? COLORS.border : COLORS.blue,
+              color: loading ? COLORS.muted : "white",
+              cursor: loading ? "not-allowed" : "pointer"
+            }}>
+            {loading
+              ? "Please wait..."
+              : isRegister ? "Create Account" : "Sign In"}
+          </button>
+
+          {/* Toggle login/register */}
+          <div className="mt-4 text-center">
+            <button
+              onClick={() => { setIsRegister(!isRegister); setError(""); }}
+              className="text-sm transition-all"
+              style={{ color: COLORS.blue }}>
+              {isRegister
+                ? "Already have an account? Sign in"
+                : "Don't have an account? Register"}
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
 function PricingPage({ currentPlan, onUpgrade }) {
   const plans = [
     {
@@ -576,8 +734,18 @@ export default function App() {
   const [filter,     setFilter]     = useState("ALL");
   const [searchText, setSearchText] = useState("");
   const [usage,      setUsage]      = useState(null);
-  const [token, setToken] = useState(localStorage.getItem("aipet_token") || "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJmcmVzaCI6ZmFsc2UsImlhdCI6MTc3NDgzNzU2NCwianRpIjoiMjA0N2I3MTUtNGQ3MC00NjE0LTk4MTAtMmFkYTE1MWNjNWNlIiwidHlwZSI6ImFjY2VzcyIsInN1YiI6IjEiLCJuYmYiOjE3NzQ4Mzc1NjQsImNzcmYiOiI3NDVlMmJlMy00YWFlLTRmNzItOGM2OS0zYTlmYTA0ZTlhMzIiLCJleHAiOjE3NzQ4Mzg0NjR9.sRWElGWB0pCR9DnXGwwLNdiPSgKxqnByGlbW4QpNy6A");
+  const [token, setToken] = useState(localStorage.getItem("aipet_token") || "");
 
+  const handleLogin = (jwt) => {
+    setToken(jwt);
+  };
+
+  const handleLogout = () => {
+    localStorage.removeItem("aipet_token");
+    setToken("");
+    setUsage(null);
+  };
+  
   const fetchAll = useCallback(async () => {
     try {
       const [s, d, f, a, r, sc] = await Promise.all([
@@ -694,6 +862,9 @@ export default function App() {
     return matchSev && matchText;
   });
 
+  // If no token, show login page
+  if (!token) return <LoginPage onLogin={handleLogin} />;
+
   if (loading) return (
     <div className="min-h-screen flex items-center justify-center"
       style={{ backgroundColor: COLORS.darker }}>
@@ -763,6 +934,15 @@ export default function App() {
             );
           })}
         </nav>
+        {/* Logout button */}
+        <div className="px-4 pb-2">
+          <button onClick={handleLogout}
+            className="w-full flex items-center justify-center gap-2 py-2 rounded-xl text-xs font-medium transition-all"
+            style={{ color: COLORS.critical, backgroundColor: COLORS.critical + "10" }}>
+            <X size={12} />
+            Sign Out
+          </button>
+        </div>
 
         {/* Scan button */}
         <div className="p-4 border-t" style={{ borderColor: COLORS.border }}>
