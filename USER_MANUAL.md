@@ -1,224 +1,263 @@
-# AIPET — User Manual
-## AI-Powered Penetration Testing Framework for IoT
-### Version 1.0.0
+# AIPET Cloud — User Manual
+## AI-Powered IoT Security Platform
+### Version 2.0.0
 
-**Author:** Binyam  
+**Author:** Binyam Yallew  
 **Institution:** Coventry University — MSc Cyber Security (Ethical Hacking)  
-**Date:** March 2025  
+**Date:** 2025  
 
 ---
 
 ## Table of Contents
 
-1. Introduction
-2. Installation
-3. Running Your First Scan
-4. Understanding the Dashboard
-5. Understanding Scan Results
-6. Understanding AI Explanations
-7. Generating Reports
-8. Command Line Reference
-9. Frequently Asked Questions
-10. Responsible Use
+1. [Introduction](#1-introduction)
+2. [Platform Overview](#2-platform-overview)
+3. [Getting Started — Cloud Platform](#3-getting-started--cloud-platform)
+4. [Account Management](#4-account-management)
+5. [Subscription Plans](#5-subscription-plans)
+6. [Running Scans](#6-running-scans)
+7. [Understanding the Dashboard](#7-understanding-the-dashboard)
+8. [Understanding Scan Results](#8-understanding-scan-results)
+9. [Understanding AI Explanations](#9-understanding-ai-explanations)
+10. [Billing and Payments](#10-billing-and-payments)
+11. [API Keys (Enterprise)](#11-api-keys-enterprise)
+12. [Generating Reports](#12-generating-reports)
+13. [Command Line Reference (CLI Tool)](#13-command-line-reference-cli-tool)
+14. [Local Development Setup](#14-local-development-setup)
+15. [Frequently Asked Questions](#15-frequently-asked-questions)
+16. [Responsible Use](#16-responsible-use)
 
 ---
 
 ## 1. Introduction
 
-AIPET (AI-Powered Penetration Testing Framework for IoT)
-is an automated security assessment tool designed to find
-vulnerabilities in IoT devices and networks. It combines
-seven specialist attack modules with an explainable AI
-engine that tells you not just what is vulnerable —
-but exactly why it matters and what to fix first.
+AIPET (AI-Powered Penetration Testing Framework for IoT) is a production-ready SaaS platform that automates the discovery, testing, and intelligent prioritisation of vulnerabilities across IoT devices and networks.
+
+AIPET combines seven specialist attack modules with an explainable AI engine that tells you not just what is vulnerable — but exactly why it matters and what to fix first. It delivers everything through a professional cloud dashboard with subscription billing, API access, and automated reporting.
 
 ### Who is AIPET for?
 
-**Security Consultants**
-Run complete IoT assessments in minutes instead of days.
-AIPET automates the technical work so you can focus on
-analysis and client communication.
+**Security Consultants**  
+Run complete IoT assessments in minutes instead of days. AIPET automates the technical work so you can focus on analysis and client communication.
 
-**IT Administrators**
-Assess your organisation's IoT devices without needing
-specialist penetration testing knowledge. The dashboard
-shows results in plain English with clear priority order.
+**IT Administrators**  
+Assess your organisation's IoT devices without needing specialist penetration testing knowledge. The dashboard shows results in plain English with clear priority order.
 
-**Security Researchers**
-Use AIPET as a platform for IoT security research.
-All modules are open source and extensible.
+**Security Researchers**  
+Use AIPET as a platform for IoT security research. All modules are open source and extensible.
 
-**Students**
-Learn IoT security techniques hands-on. AIPET's demo
-mode runs against safe local targets so you can see
-real attack techniques without any risk.
+**Students**  
+Learn IoT security techniques hands-on. AIPET's demo mode runs against safe local targets so you can see real attack techniques without any risk.
+
+**Enterprise Security Teams**  
+Integrate AIPET into your CI/CD pipelines, SIEM platforms, and security automation workflows using the Enterprise API.
+
+---
+
+## 2. Platform Overview
+
+AIPET v2.0.0 is a full cloud SaaS platform consisting of:
+
+| Component | Technology | Purpose |
+|---|---|---|
+| Web Dashboard | React 18 | User interface |
+| Backend API | Flask 3.0 | Business logic and scan management |
+| Database | PostgreSQL 17 | Users, scans, findings, API keys |
+| Scan Queue | Celery + Redis | Background scan processing |
+| Payment Processing | Stripe | Subscription billing |
+| Health Monitor | systemd service | Auto-restart and email alerts |
+| Database Backups | cron + pg_dump | Daily automated backups |
 
 ### What AIPET tests
 
 AIPET covers all 10 categories of the OWASP IoT Top 10:
 
 | Module | What it tests |
-|--------|--------------|
+|---|---|
 | Recon Engine | Device discovery, port scanning, service identification |
-| MQTT Attack Suite | MQTT broker authentication, data exposure |
-| CoAP Attack Suite | CoAP device access control, replay attacks |
-| HTTP/Web Suite | Web interface credentials, admin panel exposure |
+| MQTT Attack Suite | Broker authentication, data exposure, credential brute force |
+| CoAP Attack Suite | Access control, replay attacks, unencrypted endpoints |
+| HTTP/Web Suite | Web interface credentials, admin panel exposure, CVE scanning |
 | Firmware Analyser | Hardcoded credentials, private keys, vulnerable components |
 | AI Engine | Vulnerability prioritisation with SHAP explanations |
 | Report Generator | Professional PDF and JSON reports |
 
 ---
 
-## 2. Installation
+## 3. Getting Started — Cloud Platform
 
-### Quick Install (Recommended)
-```bash
-git clone https://github.com/YOUR_USERNAME/AIPET.git
-cd AIPET
-python3 install.py
+### Step 1 — Open the dashboard
+
+Open your browser and navigate to:
+
+```
+http://localhost:3000
 ```
 
-The install script will:
-- Check your Python version
-- Create a virtual environment
-- Install all dependencies
-- Install system tools (nmap, binwalk, mosquitto)
-- Verify everything works
-- Print confirmation when ready
+In production, this will be:
 
-### Manual Install
-
-If the install script fails on any step:
-```bash
-# Create virtual environment
-python3 -m venv venv
-source venv/bin/activate
-
-# Install Python dependencies
-pip install -r requirements.txt
-
-# Install system tools (Kali Linux / Debian / Ubuntu)
-sudo apt install nmap binwalk mosquitto -y
+```
+https://aipet.io
 ```
 
-### System Requirements
+### Step 2 — Create an account
 
-| Component | Minimum |
-|-----------|---------|
-| Operating System | Kali Linux 2023+ (recommended) |
-| Python | 3.11 or higher |
-| RAM | 4GB |
-| Disk Space | 2GB free |
-| Network | Required for scanning |
+Click **"Don't have an account? Register"** on the login page.
+
+Fill in:
+- **Full Name** — your name
+- **Email** — your email address
+- **Password** — minimum 8 characters
+
+Click **Create Account**.
+
+### Step 3 — Sign in
+
+Enter your email and password, then click **Sign In**.
+
+You will be taken to the main dashboard.
+
+### Step 4 — Run your first scan
+
+Click the **New Scan** button at the bottom of the left sidebar.
+
+Choose:
+- **Demo Mode** — safe test scan using local test servers (recommended for first time)
+- **Live Scan** — scan a real network (requires authorisation)
+
+Click **Launch Scan**.
 
 ---
 
-## 3. Running Your First Scan
+## 4. Account Management
 
-### Option A — Demo Mode (safest, recommended for beginners)
+### Changing your password
 
-Demo mode runs AIPET against safe local test servers
-that are included with the tool. No real network or
-devices are involved. Perfect for learning and testing.
+1. Click the **Settings** option in the sidebar
+2. Enter your current password
+3. Enter and confirm your new password
+4. Click **Change Password**
 
-**Step 1 — Start the test servers**
+Passwords must be at least 8 characters long.
 
-Open three terminals and run one command in each:
+### Signing out
 
-Terminal 1:
-```bash
-sudo systemctl start mosquitto
-```
+Click the **Sign Out** button at the bottom of the left sidebar. Your session will be ended and you will be returned to the login page.
 
-Terminal 2:
-```bash
-cd AIPET
-source venv/bin/activate
-python3 lab/coap_test_server.py
-```
+### Session security
 
-Terminal 3:
-```bash
-cd AIPET
-source venv/bin/activate
-python3 lab/http_test_server.py
-```
-
-**Step 2 — Run AIPET**
-
-In a fourth terminal:
-```bash
-cd AIPET
-source venv/bin/activate
-python3 aipet.py --demo
-```
-
-**Step 3 — View results**
-
-AIPET will run all 7 modules and produce a report.
-The full pipeline takes approximately 60-90 seconds.
-
-### Option B — Scan a real network
-
-Only do this if you have written permission to test
-the target network and all devices on it.
-```bash
-# Scan a single device
-python3 aipet.py --target 192.168.1.105
-
-# Scan a network range
-python3 aipet.py --target 192.168.1.0/24
-
-# Scan with specific modules
-python3 aipet.py --target 192.168.1.105 --mqtt --http
-```
-
-### Option C — Use the web dashboard
-```bash
-# Start the backend API
-source venv/bin/activate
-nohup python3 dashboard/backend/app.py > /tmp/aipet.log 2>&1 &
-
-# Start the frontend
-cd dashboard/frontend/aipet-dashboard
-npm start
-```
-
-Open your browser at http://localhost:3000
+AIPET uses JWT (JSON Web Token) authentication. Your session token expires after 15 minutes of inactivity. You will be automatically redirected to the login page when your session expires.
 
 ---
 
-## 4. Understanding the Dashboard
+## 5. Subscription Plans
 
-The AIPET dashboard has five sections accessible
-from the left sidebar.
+AIPET offers three subscription tiers:
+
+| Feature | Free | Professional | Enterprise |
+|---|---|---|---|
+| **Price** | £0/month | £49/month | £499/month |
+| **Scans per month** | 5 | Unlimited | Unlimited |
+| **Parallel networks** | 1 | 3 | 10 |
+| **AI analysis** | Basic | Full SHAP | Full SHAP |
+| **Report formats** | PDF | All formats | All formats |
+| **API access** | No | No | Yes |
+| **Support** | Community | Email | Priority + SLA |
+
+### Upgrading your plan
+
+1. Click **Pricing** in the left sidebar
+2. Choose your desired plan
+3. Click the **Upgrade** button
+4. Enter your payment details on the Stripe checkout page
+5. Your plan is activated immediately after payment
+
+### Free plan scan limit
+
+Free plan users are limited to 5 scans per calendar month. The limit resets on the 1st of each month.
+
+When you reach the limit, you will be automatically redirected to the Pricing page where you can upgrade to Professional for unlimited scans.
+
+---
+
+## 6. Running Scans
+
+### Starting a scan from the dashboard
+
+1. Click **New Scan** at the bottom of the left sidebar
+2. Choose your scan mode:
+   - **Demo Mode** — runs against safe local test servers included with AIPET
+   - **Live Scan** — scans a real IP address or network range
+3. If Live Scan is selected, enter the target IP or CIDR range (e.g. `192.168.1.0/24`)
+4. Click **Launch Scan**
+
+### Scan modes
+
+**Demo Mode**  
+Runs AIPET against safe local test servers that are included with the tool. No real network or devices are involved. Perfect for learning and testing the platform.
+
+**Live Scan**  
+Scans a real network or device. Only use this against systems you own or have explicit written permission to test.
+
+### Scan status
+
+While a scan is running, the sidebar shows a blue pulsing indicator: **Scan in progress...**
+
+The scan runs in the background — you can navigate to other tabs while it completes.
+
+### Scan history
+
+Click **Reports** in the sidebar to see all completed scans and download reports.
+
+### Starting a scan via API (Enterprise)
+
+Enterprise users can trigger scans programmatically:
+
+```bash
+curl -X POST https://aipet.io/api/scan/start \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: aipet_ent_your_key_here" \
+  -d '{
+    "target": "192.168.1.0/24",
+    "mode": "live"
+  }'
+```
+
+Response:
+```json
+{
+  "status": "queued",
+  "scan_id": 42,
+  "target": "192.168.1.0/24",
+  "mode": "live"
+}
+```
+
+---
+
+## 7. Understanding the Dashboard
+
+The AIPET dashboard has seven sections accessible from the left sidebar.
 
 ### Dashboard (Home)
 
 The main overview screen showing:
 
-**Risk Gauge** — The circular dial in the top left shows
-your overall risk score from 0-100. The colour tells you
-the severity:
-- Red (80-100) = CRITICAL — immediate action required
-- Orange (60-79) = HIGH — urgent attention needed
-- Yellow (40-59) = MEDIUM — address promptly
-- Green (0-39) = LOW — monitor and maintain
+**Risk Gauge** — The circular dial shows your overall risk score from 0-100. The colour indicates severity:
+- 🔴 Red (80-100) = CRITICAL — immediate action required
+- 🟠 Orange (60-79) = HIGH — urgent attention needed
+- 🟡 Yellow (40-59) = MEDIUM — address promptly
+- 🟢 Green (0-39) = LOW — monitor and maintain
 
-**Devices Found** — Number of IoT devices discovered
-on the scanned network.
+**Devices Found** — Number of IoT devices discovered on the scanned network.
 
-**Critical Findings** — Number of vulnerabilities
-rated Critical severity.
+**Critical Findings** — Number of vulnerabilities rated Critical severity.
 
-**Total Findings** — All vulnerabilities found across
-all modules.
+**Total Findings** — All vulnerabilities found across all modules.
 
-**Findings by Severity** — Pie chart showing the
-proportion of findings at each severity level.
+**Findings by Severity** — Pie chart showing the proportion of findings at each severity level.
 
-**Modules Executed** — List of all AIPET modules
-that ran, each with a green checkmark when complete.
+**Modules Executed** — List of all AIPET modules that ran, each with a green checkmark when complete.
 
 ### Devices Tab
 
@@ -227,117 +266,106 @@ Shows every IoT device discovered, with:
 - Open ports
 - Risk score and label
 - AI severity prediction and confidence percentage
-- Full AI explanation of why the device received
-  that severity rating
+- Full AI explanation of why the device received that severity rating
 - Severity probability breakdown
 
 ### Findings Tab
 
-Shows all vulnerabilities found, sorted by severity
-(Critical first). Each finding shows:
+Shows all vulnerabilities found, sorted by severity (Critical first). Each finding shows:
 - Severity badge (colour coded)
 - Name of the attack that found it
 - Which module found it and the target
-- Click any finding to expand it and see the full
-  description of what was found
+- Click any finding to expand it and read the full description
+
+Use the filter buttons to show only Critical, High, Medium, or Low findings. Use the search box to find specific findings by keyword.
 
 ### AI Analysis Tab
 
 Shows the explainable AI predictions for each device:
-- Predicted severity and confidence
-- SHAP feature contribution bars — red bars increase
-  severity, green bars reduce it
-- The length of each bar shows how much that feature
-  contributed to the prediction
-- Probability breakdown showing likelihood of each
-  severity level
+- Predicted severity and confidence percentage
+- SHAP feature contribution bars — red bars increase severity, green bars reduce it
+- The length of each bar shows how much that feature contributed
+- Probability breakdown showing likelihood of each severity level
 
 ### Reports Tab
 
-Lists all generated reports with:
-- Report filename and timestamp
-- File size
-- Download button for each report
+Lists all generated reports. Click **Download** to save any report to your computer.
+
+### Pricing Tab
+
+Shows the three subscription plans with features and pricing. Click **Upgrade** to change your plan.
+
+### Billing Tab
+
+Shows your current subscription status:
+- Current plan name and status
+- Scans used this month vs your limit
+- Days until monthly reset
+- **Open Billing Portal** — manage your payment method and view invoices
+- **Cancel Subscription** — cancel at end of current billing period
+
+### API Keys Tab (Enterprise only)
+
+Generate and manage API keys for programmatic access. See [Section 11](#11-api-keys-enterprise) for full details.
 
 ---
 
-## 5. Understanding Scan Results
+## 8. Understanding Scan Results
 
 ### Severity Levels
 
-| Level | Meaning | Action |
-|-------|---------|--------|
+| Level | Meaning | Recommended Action |
+|---|---|---|
 | CRITICAL | Immediately exploitable, severe impact | Fix within 24 hours |
 | HIGH | Significant risk, likely exploitable | Fix within 1 week |
-| MEDIUM | Moderate risk, may require conditions | Fix within 1 month |
+| MEDIUM | Moderate risk, may require specific conditions | Fix within 1 month |
 | LOW | Minor risk, limited impact | Fix at next maintenance |
 | INFO | Informational, no immediate risk | Monitor |
 
 ### Common Findings Explained
 
-**MQTT Anonymous Access (CRITICAL)**
-The MQTT broker accepts connections without a username
-or password. Anyone who can reach the broker can read
-all IoT messages and inject commands.
-Fix: Configure authentication in mosquitto.conf
+**MQTT Anonymous Access (CRITICAL)**  
+The MQTT broker accepts connections without a username or password. Anyone who can reach the broker can read all IoT messages and inject commands.  
+*Fix: Configure authentication in mosquitto.conf*
 
-**Hardcoded Credentials Found (CRITICAL)**
-Username and password combinations were found hard-coded
-in device firmware or configuration files. These cannot
-be changed by the user and affect every device running
-that firmware.
-Fix: Issue firmware update, replace affected devices
+**Hardcoded Credentials Found (CRITICAL)**  
+Username and password combinations were found hard-coded in device firmware or configuration files. These cannot be changed by the user and affect every device running that firmware.  
+*Fix: Issue firmware update, replace affected devices*
 
-**Private Key in Firmware (CRITICAL)**
-A cryptographic private key was found embedded in the
-firmware. Every device running this firmware shares the
-same key, allowing traffic decryption and device
-impersonation.
-Fix: Revoke key, generate unique keys per device,
-issue firmware update
+**Private Key in Firmware (CRITICAL)**  
+A cryptographic private key was found embedded in the firmware. Every device running this firmware shares the same key, allowing traffic decryption and device impersonation.  
+*Fix: Revoke key, generate unique keys per device, issue firmware update*
 
-**Telnet Enabled (CRITICAL)**
-Telnet service is running on the device. Telnet sends
-all data including passwords in plain text across the
-network where it can be captured.
-Fix: Disable Telnet, enable SSH instead
+**Telnet Enabled (CRITICAL)**  
+Telnet service is running on the device. Telnet sends all data including passwords in plain text across the network.  
+*Fix: Disable Telnet, enable SSH instead*
 
-**Default Credentials (CRITICAL)**
-The device accepts default username/password combinations
-such as admin/admin or admin/password.
-Fix: Change all default credentials immediately
+**Default Credentials (CRITICAL)**  
+The device accepts default username/password combinations such as admin/admin.  
+*Fix: Change all default credentials immediately*
 
-**Vulnerable Component (HIGH)**
-The firmware contains a software component with known
-vulnerabilities — for example OpenSSL 1.0.1 which is
-vulnerable to Heartbleed (CVE-2014-0160).
-Fix: Update firmware to version with patched components
+**Vulnerable Component (HIGH)**  
+The firmware contains a software component with known vulnerabilities.  
+*Fix: Update firmware to version with patched components*
 
 ---
 
-## 6. Understanding AI Explanations
+## 9. Understanding AI Explanations
 
-AIPET uses explainable AI to justify every prediction.
-This section explains how to read the AI output.
+AIPET uses explainable AI to justify every prediction. This section explains how to read the AI output.
 
 ### What SHAP values mean
 
-SHAP (SHapley Additive exPlanations) values show which
-features of a device contributed to its risk prediction.
+SHAP (SHapley Additive exPlanations) values show which features of a device contributed to its risk prediction.
 
-**Positive values (red bars)** — This feature increased
-the predicted severity. For example, having port 1883
-open (MQTT) pushes the prediction toward higher severity.
+**Positive values (red bars)** — This feature increased the predicted severity. For example, having port 1883 open (MQTT) pushes the prediction toward higher severity.
 
-**Negative values (green bars)** — This feature reduced
-the predicted severity. For example, having an up-to-date
-SSH version pushes the prediction toward lower severity.
+**Negative values (green bars)** — This feature reduced the predicted severity. For example, having an up-to-date SSH version pushes the prediction toward lower severity.
 
-**Bar length** — How much impact this feature had. A
-longer bar means this feature was more important in
-making the prediction.
+**Bar length** — How much impact this feature had. A longer bar means this feature was more important in making the prediction.
 
 ### Example interpretation
+
 ```
 firmware vulnerable component    +12.6%
 device type                       +9.4%
@@ -345,22 +373,116 @@ firmware hardcoded creds          +7.6%
 open port count                   +5.9%
 ```
 
-Reading this: The device was predicted HIGH risk
-primarily because a vulnerable firmware component was
-found (contributing 12.6% to the severity score),
-the device type (IoT gateway) carries inherent risk
-(9.4%), and hardcoded credentials were detected (7.6%).
+Reading this: The device was predicted HIGH risk primarily because a vulnerable firmware component was found (contributing 12.6% to the severity score), the device type (IoT gateway) carries inherent risk (9.4%), and hardcoded credentials were detected (7.6%).
 
 ### Confidence score
 
-The percentage next to the severity prediction shows
-how confident the AI model is. 80%+ is high confidence.
-Below 60% means the prediction is less certain and
-manual review is recommended.
+The percentage next to the severity prediction shows how confident the AI model is. 80%+ is high confidence. Below 60% means the prediction is less certain and manual review is recommended.
+
+### AI Performance
+
+| Metric | Value |
+|---|---|
+| Weighted F1-Score | 0.8614 |
+| CV Mean F1 | 0.8668 |
+| Critical Class F1 | 0.9440 |
 
 ---
 
-## 7. Generating Reports
+## 10. Billing and Payments
+
+### How payments work
+
+AIPET uses Stripe for all payment processing. Your card details are entered directly on Stripe's secure hosted page — they never pass through AIPET's servers.
+
+### Upgrading your plan
+
+1. Click **Pricing** in the sidebar
+2. Click the upgrade button on your chosen plan
+3. You are redirected to Stripe's checkout page
+4. Enter your card details and click Subscribe
+5. Your plan is activated immediately
+
+### Managing your subscription
+
+Click **Billing** in the sidebar, then **Open Billing Portal** to:
+- Update your payment method
+- View and download invoices
+- See your billing history
+- Change your plan
+
+### Cancelling your subscription
+
+1. Click **Billing** in the sidebar
+2. Click **Cancel Subscription**
+3. Confirm the cancellation
+
+Your subscription will cancel at the end of the current billing period. You keep full access until then. After the period ends, your account reverts to the Free plan.
+
+### Payment security
+
+- Card data is processed entirely by Stripe — AIPET never sees your card number
+- All payment events are verified using Stripe's webhook signature system
+- Stripe is PCI DSS Level 1 certified — the highest level of payment security
+
+### Refunds
+
+Contact support at the GitHub repository to request a refund within 14 days of payment.
+
+---
+
+## 11. API Keys (Enterprise)
+
+Enterprise plan users can generate API keys to integrate AIPET into their own systems, CI/CD pipelines, SIEM platforms, and security automation workflows.
+
+### Generating an API key
+
+1. Click **API Keys** in the left sidebar
+2. Enter a descriptive name for the key (e.g. "Production CI/CD" or "SIEM Integration")
+3. Click **Generate**
+4. **Copy the key immediately** — it is shown only once and cannot be recovered
+
+If you lose a key, revoke it and generate a new one.
+
+### Using an API key
+
+Include the key in the `X-API-Key` header of every request:
+
+```bash
+curl -X POST https://aipet.io/api/scan/start \
+  -H "Content-Type: application/json" \
+  -H "X-API-Key: aipet_ent_your_key_here" \
+  -d '{"target": "192.168.1.0/24", "mode": "live"}'
+```
+
+### API key limits
+
+| Limit | Value |
+|---|---|
+| Maximum active keys | 10 per account |
+| Requests per hour | 10 |
+| Requests per day | 100 |
+
+### Revoking an API key
+
+1. Click **API Keys** in the sidebar
+2. Find the key you want to revoke
+3. Click **Revoke**
+4. Confirm the revocation
+
+Revoked keys stop working immediately. The key record is kept for audit purposes but can no longer be used.
+
+### Security best practices
+
+- Never share API keys or commit them to version control
+- Use a different key for each integration (CI/CD, SIEM, etc.)
+- Revoke keys immediately if they are compromised
+- Rotate keys regularly (every 90 days recommended)
+- Use the minimum permissions necessary for each integration
+
+---
+
+## 12. Generating Reports
 
 AIPET automatically generates a report after every scan.
 
@@ -373,26 +495,20 @@ Every AIPET report contains:
 4. AI Analysis — SHAP explanations for each device
 5. Recommendations — prioritised remediation steps
 
+### Downloading reports from the dashboard
+
+1. Click **Reports** in the sidebar
+2. Find the report you want
+3. Click the **Download** button
+
 ### Report formats
 
-**Markdown (.md)** — Human readable, renders on GitHub,
-easily converted to PDF or Word document.
+**Markdown (.md)** — Human readable, renders on GitHub, easily converted to PDF or Word document.
 
-**JSON (.json)** — Machine readable, can be imported
-into other security tools or SIEM platforms.
-
-### Downloading reports
-
-**From the dashboard:** Click Reports tab, then
-Download button next to any report.
-
-**From the command line:**
-```bash
-ls reporting/
-cat reporting/aipet_report_*.md
-```
+**JSON (.json)** — Machine readable, can be imported into other security tools or SIEM platforms.
 
 ### Converting to PDF
+
 ```bash
 # Install pandoc
 sudo apt install pandoc -y
@@ -403,7 +519,10 @@ pandoc reporting/aipet_report_*.md -o aipet_report.pdf
 
 ---
 
-## 8. Command Line Reference
+## 13. Command Line Reference (CLI Tool)
+
+The original AIPET CLI tool is still available for direct command-line use.
+
 ```
 python3 aipet.py [OPTIONS]
 
@@ -430,59 +549,127 @@ Examples:
 
 ---
 
-## 9. Frequently Asked Questions
+## 14. Local Development Setup
 
-**Q: AIPET is not finding any devices**
-A: Check that you have permission to scan the target
-network. Try running with sudo for Nmap permissions:
-sudo python3 aipet.py --target 192.168.1.0/24
+### Prerequisites
 
-**Q: MQTT attack says connection refused**
-A: The Mosquitto broker is not running. Start it with:
-sudo systemctl start mosquitto
+| Component | Version |
+|---|---|
+| Python | 3.11+ |
+| Node.js | 18+ |
+| PostgreSQL | 17 |
+| Redis | 7+ |
 
-**Q: The AI prediction says Low but I know the device is vulnerable**
-A: The AI model was trained on synthetic data and may
-not perfectly classify all real-world scenarios. Always
-review findings manually alongside the AI prediction.
-The AI is a prioritisation aid, not a replacement for
-human analysis.
+### Step 1 — Clone the repository
 
-**Q: Can I test my own home router?**
-A: Yes — you own it. Run:
-python3 aipet.py --target 192.168.1.1 --http
-Replace 192.168.1.1 with your router's IP address.
+```bash
+git clone https://github.com/Yallewbinyam/AIPET.git
+cd AIPET
+```
 
-**Q: How do I update AIPET?**
-A: Pull the latest version from GitHub:
-cd AIPET && git pull && pip install -r requirements.txt
+### Step 2 — Create virtual environment
 
-**Q: Can I add my own attack modules?**
-A: Yes. See CONTRIBUTING.md for the module template
-and how to add new protocol modules.
+```bash
+python3 -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
+```
+
+### Step 3 — Configure environment
+
+```bash
+cp .env.example .env
+```
+
+Edit `.env` with your values — see `.env.example` for all required variables including your Stripe API keys.
+
+### Step 4 — Start PostgreSQL
+
+```bash
+sudo pg_ctlcluster 17 main start
+sudo -u postgres psql -p 5433 -c "CREATE USER aipet_user WITH PASSWORD 'aipet_password';"
+sudo -u postgres psql -p 5433 -c "CREATE DATABASE aipet_db OWNER aipet_user;"
+```
+
+### Step 5 — Start the backend
+
+```bash
+export DATABASE_URL=postgresql://aipet_user:aipet_password@localhost:5433/aipet_db
+export STRIPE_SECRET_KEY=$(grep STRIPE_SECRET_KEY .env | cut -d= -f2)
+python dashboard/backend/app_cloud.py
+```
+
+### Step 6 — Start the frontend
+
+```bash
+cd dashboard/frontend/aipet-dashboard
+npm install
+npm start
+```
+
+### Step 7 — Open the dashboard
+
+```
+http://localhost:3000
+```
 
 ---
 
-## 10. Responsible Use
+## 15. Frequently Asked Questions
 
-AIPET is a penetration testing tool. Using it against
-systems you do not own or have explicit written
-permission to test is illegal in most jurisdictions.
+**Q: I forgot my password. How do I reset it?**  
+A: Currently, contact support via GitHub Issues. A self-service password reset feature is planned for a future release.
+
+**Q: AIPET is not finding any devices**  
+A: Check that you have permission to scan the target network. Try running with sudo for Nmap permissions: `sudo python3 aipet.py --target 192.168.1.0/24`
+
+**Q: My scan limit says 5 but I am on the Professional plan**  
+A: Sign out and sign back in to refresh your session token with the updated plan information.
+
+**Q: The AI prediction says Low but I know the device is vulnerable**  
+A: The AI model was trained on synthetic data and may not perfectly classify all real-world scenarios. Always review findings manually alongside the AI prediction. The AI is a prioritisation aid, not a replacement for human analysis.
+
+**Q: I lost my API key. Can I recover it?**  
+A: No — API keys are shown only once and the raw key is never stored. Revoke the lost key and generate a new one.
+
+**Q: Can I have multiple API keys?**  
+A: Yes — Enterprise users can have up to 10 active API keys simultaneously. We recommend one key per integration.
+
+**Q: How do I cancel my subscription?**  
+A: Click Billing in the sidebar, then Cancel Subscription. You keep access until the end of your current billing period.
+
+**Q: Is my payment data secure?**  
+A: Yes — AIPET uses Stripe for all payment processing. Your card details never touch AIPET's servers. Stripe is PCI DSS Level 1 certified.
+
+**Q: Can I test my own home router?**  
+A: Yes — you own it. Run: `python3 aipet.py --target 192.168.1.1 --http`  
+Replace 192.168.1.1 with your router's IP address.
+
+**Q: How do I update AIPET?**  
+A: `cd AIPET && git pull && pip install -r requirements.txt`
+
+---
+
+## 16. Responsible Use
+
+AIPET is a penetration testing tool. Using it against systems you do not own or have explicit written permission to test is illegal in most jurisdictions.
 
 **Always:**
-- Obtain written permission before scanning any network
+- Obtain written permission before scanning any network or device
 - Test in an isolated lab environment when learning
 - Follow responsible disclosure if you find real vulnerabilities
 - Comply with your organisation's security testing policy
+- Keep API keys secret and rotate them regularly
 
 **Never:**
 - Scan networks or devices without permission
 - Use findings to damage or disrupt systems
 - Share scan results without the owner's consent
+- Commit API keys or credentials to version control
 
-See RESPONSIBLE_USE.md for the full policy.
+See [RESPONSIBLE_USE.md](RESPONSIBLE_USE.md) for the full policy.
 
 ---
 
-*AIPET v1.0.0 — Coventry University MSc Cyber Security Research*  
-*For support open a GitHub issue at the project repository*
+*AIPET v2.0.0 — Coventry University MSc Cyber Security Research*  
+*For support, open a GitHub issue at: https://github.com/Yallewbinyam/AIPET/issues*
