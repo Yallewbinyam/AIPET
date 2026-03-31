@@ -302,11 +302,36 @@ def create_app(config_name="development"):
         })
 
     @app.route("/api/scan/start", methods=["POST"])
-    @jwt_required()
     @limiter.limit("10 per hour")
+    @limiter.limit("100 per day")
     def start_scan():
-        user_id = get_jwt_identity()
-        user    = User.query.get(int(user_id))
+        # Accept either JWT token or API key authentication
+        # This allows Enterprise users to call the API programmatically
+        from dashboard.backend.api_keys.routes import authenticate_api_key
+
+        user = None
+
+        # Try API key first (X-API-Key header)
+        api_key_header = request.headers.get('X-API-Key')
+        if api_key_header:
+            user = authenticate_api_key(api_key_header)
+            if not user:
+                return jsonify({'error': 'Invalid API key'}), 401
+
+        # Fall back to JWT token
+        if not user:
+            from flask_jwt_extended import verify_jwt_in_request
+            try:
+                verify_jwt_in_request()
+                user_id = get_jwt_identity()
+                user    = User.query.get(int(user_id))
+            except Exception:
+                return jsonify({
+                    'error': 'Authentication required. Provide a JWT token or API key.'
+                }), 401
+
+        if not user:
+            return jsonify({'error': 'User not found'}), 404
 
         if not user.can_scan():
             return jsonify({
