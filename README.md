@@ -204,6 +204,10 @@ Built as an MSc Cyber Security dissertation project at Coventry University, AIPE
 - Redis
 - Docker (optional)
 
+> 📖 For the complete step-by-step installation guide including Docker, Stripe configuration, and troubleshooting, see **[INSTALL.md](INSTALL.md)**
+
+---
+
 ### Clone the repository
 
 ```bash
