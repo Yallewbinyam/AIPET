@@ -4,7 +4,7 @@
 import os
 import sys
 import bcrypt
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from flask import Blueprint, request, jsonify
 from flask_jwt_extended import (
     create_access_token,
@@ -19,6 +19,10 @@ sys.path.insert(0, _base)
 from dashboard.backend.models import db, User
 
 auth_bp = Blueprint("auth", __name__)
+
+# In-memory store for tracking failed login attempts
+# Format: {email: {"count": int, "locked_until": datetime|None}}
+_login_attempts = {}
 
 
 @auth_bp.route("/api/auth/register", methods=["POST"])
@@ -69,15 +73,52 @@ def login():
     if not email or not password:
         return jsonify({"error": "Email and password are required"}), 400
 
+    now     = datetime.now(timezone.utc)
+    attempt = _login_attempts.get(email, {"count": 0, "locked_until": None})
+
+    # Check if account is currently locked
+    if attempt["locked_until"] and now < attempt["locked_until"]:
+        remaining = int((attempt["locked_until"] - now).total_seconds() / 60)
+        return jsonify({
+            "error": f"Account temporarily locked. Try again in {remaining} minute(s)."
+        }), 429
+
     user = User.query.filter_by(email=email).first()
+
     if not user:
+        # Increment failure counter even for non-existent users
+        # This prevents user enumeration attacks
+        new_count = attempt["count"] + 1
+        _login_attempts[email] = {
+            "count": new_count,
+            "locked_until": now + timedelta(minutes=15) if new_count >= 5 else None
+        }
         return jsonify({"error": "Invalid email or password"}), 401
 
     if not bcrypt.checkpw(
         password.encode("utf-8"),
         user.password_hash.encode("utf-8")
     ):
-        return jsonify({"error": "Invalid email or password"}), 401
+        new_count = attempt["count"] + 1
+        locked_until = now + timedelta(minutes=15) if new_count >= 5 else None
+
+        _login_attempts[email] = {
+            "count": new_count,
+            "locked_until": locked_until
+        }
+
+        if locked_until:
+            return jsonify({
+                "error": "Too many failed attempts. Account locked for 15 minutes."
+            }), 429
+
+        remaining_attempts = 5 - new_count
+        return jsonify({
+            "error": f"Invalid email or password. {remaining_attempts} attempt(s) remaining."
+        }), 401
+
+    # Successful login — reset failure counter
+    _login_attempts.pop(email, None)
 
     user.last_login = datetime.now(timezone.utc)
     db.session.commit()

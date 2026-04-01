@@ -25,6 +25,7 @@ from dashboard.backend.auth.routes import auth_bp
 from dashboard.backend.config import config
 from dashboard.backend.celery_app import celery
 from dashboard.backend.monitoring.logger import setup_logging, get_logger
+from dashboard.backend.security import init_security
 from dashboard.backend.monitoring.logger import (
     setup_logging,
     log_user_action,
@@ -56,6 +57,9 @@ def create_app(config_name="development"):
     # Initialise logging — must be done before any routes are called
     setup_logging(app)
     logger = get_logger('app')
+
+    # Initialise security headers
+    init_security(app)
 
     # Bind extensions to this app instance before first DB use.
     db.init_app(app)
@@ -346,6 +350,27 @@ def create_app(config_name="development"):
         coap_port     = data.get("coap_port", 5683)
         http_port     = data.get("http_port", 80)
         firmware_path = data.get("firmware_path", None)
+
+        # ── Input validation ───────────────────────────────────
+        # Validate mode
+        if mode not in ("demo", "live"):
+            return jsonify({"error": "Invalid mode. Use 'demo' or 'live'"}), 400
+
+        # Validate ports are integers in valid range
+        for port_name, port_val in [
+            ("mqtt_port", mqtt_port),
+            ("coap_port", coap_port),
+            ("http_port", http_port)
+        ]:
+            if not isinstance(port_val, int) or not (1 <= port_val <= 65535):
+                return jsonify({
+                    "error": f"Invalid {port_name}. Must be integer between 1 and 65535"
+                }), 400
+
+        # Validate target length to prevent buffer overflow attempts
+        if len(str(target)) > 255:
+            return jsonify({"error": "Target address too long"}), 400
+        
 
         # Create scan record in database
         scan = Scan(
