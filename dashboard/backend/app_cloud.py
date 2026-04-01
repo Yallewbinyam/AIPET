@@ -9,7 +9,7 @@ import json
 import subprocess
 import threading
 from datetime import datetime, timedelta
-from flask import Flask, jsonify, request, send_file
+from flask import Flask, jsonify, request, send_file, redirect
 from flask_cors import CORS
 from flask_jwt_extended import (
     JWTManager, jwt_required, get_jwt_identity
@@ -60,6 +60,14 @@ def create_app(config_name="development"):
 
     # Initialise security headers
     init_security(app)
+    
+    # Force HTTPS in production
+    # In development this is skipped automatically
+    @app.before_request
+    def force_https():
+        if not app.debug and not request.is_secure:
+            url = request.url.replace("http://", "https://", 1)
+            return redirect(url, code=301)
 
     # Bind extensions to this app instance before first DB use.
     db.init_app(app)
