@@ -9,7 +9,9 @@ load_dotenv()
 
 class Config:
     SECRET_KEY                    = os.environ.get("SECRET_KEY", "aipet-change-in-production")
-    JWT_SECRET_KEY                = os.environ.get("JWT_SECRET_KEY", "aipet-jwt-change-in-production")
+    JWT_SECRET_KEY                = os.environ.get("JWT_SECRET_KEY")
+    JWT_ACCESS_TOKEN_EXPIRES      = 900    # 15 minutes
+    JWT_REFRESH_TOKEN_EXPIRES     = 86400  # 24 hours
     SQLALCHEMY_TRACK_MODIFICATIONS = False
     RATELIMIT_STORAGE_URI         = "memory://"
 

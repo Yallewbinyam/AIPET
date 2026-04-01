@@ -26,16 +26,16 @@ class User(db.Model):
 
     def to_dict(self):
         return {
-            "id":                    self.id,
-            "email":                 self.email,
-            "name":                  self.name,
-            "plan":                  self.plan,
-            "scans_used":            self.scans_used,
-            "scans_limit":           self.scans_limit,
-            "created_at":            str(self.created_at),
-            "stripe_customer_id":    self.stripe_customer_id,
-            "plan_expires_at":       str(self.plan_expires_at) if self.plan_expires_at else None,
+            "id":            self.id,
+            "email":         self.email,
+            "name":          self.name,
+            "plan":          self.plan,
+            "scans_used":    self.scans_used,
+            "scans_limit":   None if self.plan in ("professional", "enterprise") else self.scans_limit,
+            "created_at":    str(self.created_at),
+            "plan_expires_at": str(self.plan_expires_at) if self.plan_expires_at else None,
         }
+        
 
     def can_scan(self):
         if self.plan in ["professional", "enterprise"]:
