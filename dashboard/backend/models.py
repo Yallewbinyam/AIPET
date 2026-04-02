@@ -127,6 +127,20 @@ class APIKey(db.Model):
     last_used  = db.Column(db.DateTime,    nullable=True)
     created_at = db.Column(db.DateTime,    default=lambda: datetime.now(timezone.utc))
     is_active  = db.Column(db.Boolean,     default=True)
+    
+class RemediationKB(db.Model):
+    __tablename__ = "remediation_kb"
+
+    id                     = db.Column(db.Integer, primary_key=True)
+    attack_type            = db.Column(db.String(255), nullable=False, unique=True)
+    title                  = db.Column(db.String(255), nullable=False)
+    severity               = db.Column(db.String(50),  nullable=False)
+    explanation            = db.Column(db.Text,         nullable=False)
+    fix_commands           = db.Column(db.Text,         nullable=False)
+    time_estimate_minutes  = db.Column(db.Integer,      nullable=False)
+    difficulty             = db.Column(db.String(50),   nullable=False)
+    source                 = db.Column(db.String(255),  nullable=True)
+    created_at             = db.Column(db.DateTime,     default=lambda: datetime.now(timezone.utc))
 
     def to_dict(self):
         return {
