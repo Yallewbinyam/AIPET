@@ -454,13 +454,17 @@ def create_app(config_name="development"):
             import subprocess
 
             def run_scan_thread():
-                python = os.path.join(
-                    BASE_DIR, "venv/bin/python3"
-                )
+                global scan_status
+                scan_status["running"] = True
+                scan_status["progress"] = 0
+                scan_status["message"] = "Scan in progress..."
+                scan_status["started"] = datetime.now().isoformat()
+
+                python = os.path.join(BASE_DIR, "venv/bin/python3")
                 if not os.path.exists(python):
                     python = sys.executable
                 aipet = os.path.join(BASE_DIR, "aipet.py")
-                cmd   = (
+                cmd = (
                     [python, aipet, "--demo"]
                     if mode == "demo"
                     else [python, aipet, "--target", target]
@@ -471,16 +475,26 @@ def create_app(config_name="development"):
                         capture_output=True,
                         text=True, timeout=300
                     )
-                    # Use app context for database update
                     with app.app_context():
-                        from dashboard.backend.models import (
-                            db, Scan
-                        )
+                        from dashboard.backend.models import db, Scan
                         s = Scan.query.get(scan.id)
                         if s:
                             s.status       = "complete"
                             s.completed_at = datetime.now()
                             db.session.commit()
+                    scan_status["running"]   = False
+                    scan_status["progress"]  = 100
+                    scan_status["message"]   = "Scan complete"
+                    scan_status["completed"] = datetime.now().isoformat()
+                except Exception as e:
+                    with app.app_context():
+                        from dashboard.backend.models import db, Scan
+                        s = Scan.query.get(scan.id)
+                        if s:
+                            s.status = "failed"
+                            db.session.commit()
+                    scan_status["running"] = False
+                    scan_status["message"] = "Scan failed"
                 except Exception as e:
                     with app.app_context():
                         from dashboard.backend.models import (
