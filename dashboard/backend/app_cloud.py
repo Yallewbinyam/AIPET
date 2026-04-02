@@ -135,6 +135,21 @@ def create_app(config_name="development"):
             "error": "Unauthorized",
             "message": "Valid JWT token required"
         }), 401
+    @app.errorhandler(404)
+    def not_found_handler(e):
+        return jsonify({
+            "error": "Not found",
+            "message": "The requested endpoint does not exist.",
+            "status": 404
+        }), 404
+
+    @app.errorhandler(405)
+    def method_not_allowed_handler(e):
+        return jsonify({
+            "error": "Method not allowed",
+            "message": "This HTTP method is not allowed on this endpoint.",
+            "status": 405
+        }), 405
     @app.errorhandler(500)
     def internal_error_handler(e):
         from dashboard.backend.monitoring.alerting import alert_unhandled_exception

@@ -212,7 +212,7 @@ function ApiKeysPage({ token, userPlan }) {
       });
       setKeys(res.data.keys);
     } catch (e) {
-      setError("Failed to load API keys.");
+      setError(e.response?.data?.error || "Failed to create API key.");
     } finally {
       setLoading(false);
     }
@@ -439,6 +439,268 @@ function ApiKeysPage({ token, userPlan }) {
         </div>
       </div>
 
+    </div>
+  );
+}
+function Toast({ toast }) {
+  if (!toast) return null;
+
+  const colors = {
+    success: { bg: COLORS.low + "20", border: COLORS.low + "40", text: COLORS.low },
+    error:   { bg: COLORS.critical + "20", border: COLORS.critical + "40", text: COLORS.critical },
+    info:    { bg: COLORS.blue + "20", border: COLORS.blue + "40", text: COLORS.blue },
+  };
+
+  const style = colors[toast.type] || colors.info;
+
+  return (
+    <div
+      style={{
+        position: "fixed",
+        bottom: "24px",
+        right: "24px",
+        zIndex: 9999,
+        padding: "14px 20px",
+        borderRadius: "12px",
+        border: `1px solid ${style.border}`,
+        backgroundColor: style.bg,
+        color: style.text,
+        fontSize: "14px",
+        fontWeight: "600",
+        maxWidth: "360px",
+        boxShadow: "0 4px 24px rgba(0,0,0,0.4)",
+      }}>
+      {toast.message}
+    </div>
+  );
+}
+function LandingPage({ onGetStarted, onLogin }) {
+  return (
+    <div className="min-h-screen" style={{ backgroundColor: COLORS.darker }}>
+
+      {/* Navigation */}
+      <nav className="flex items-center justify-between px-8 py-5 border-b"
+        style={{ borderColor: COLORS.border }}>
+        <div className="flex items-center gap-3">
+          <div className="w-9 h-9 rounded-xl flex items-center justify-center"
+            style={{ backgroundColor: COLORS.blue }}>
+            <Shield size={18} color="white" />
+          </div>
+          <span className="font-black text-xl" style={{ color: COLORS.text }}>AIPET</span>
+        </div>
+        <div className="flex items-center gap-4">
+          <button onClick={onLogin}
+            className="text-sm font-semibold px-4 py-2 rounded-xl transition-all"
+            style={{ color: COLORS.muted }}>
+            Sign In
+          </button>
+          <button onClick={onGetStarted}
+            className="text-sm font-bold px-5 py-2 rounded-xl transition-all"
+            style={{ backgroundColor: COLORS.blue, color: "white" }}>
+            Get Started Free
+          </button>
+        </div>
+      </nav>
+
+      {/* Hero section */}
+      <div className="max-w-5xl mx-auto px-8 py-24 text-center">
+        <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full border mb-8"
+          style={{
+            backgroundColor: COLORS.blue + "15",
+            borderColor: COLORS.blue + "40"
+          }}>
+          <div className="w-2 h-2 rounded-full animate-pulse"
+            style={{ backgroundColor: COLORS.blue }} />
+          <span className="text-xs font-bold" style={{ color: COLORS.blue }}>
+            MSc Cyber Security Research — Coventry University
+          </span>
+        </div>
+
+        <h1 className="text-5xl font-black mb-6 leading-tight"
+          style={{ color: COLORS.text }}>
+          AI-Powered IoT Security
+          <br />
+          <span style={{ color: COLORS.blue }}>for the Modern Enterprise</span>
+        </h1>
+
+        <p className="text-lg mb-10 max-w-2xl mx-auto leading-relaxed"
+          style={{ color: COLORS.muted }}>
+          AIPET automates the discovery, testing, and prioritisation of
+          vulnerabilities across your IoT devices — with explainable AI
+          that tells you not just what is vulnerable, but exactly why.
+        </p>
+
+        <div className="flex items-center justify-center gap-4">
+          <button onClick={onGetStarted}
+            className="px-8 py-4 rounded-xl font-bold text-base transition-all"
+            style={{ backgroundColor: COLORS.blue, color: "white" }}>
+            Start for Free — No Card Required
+          </button>
+          <button onClick={onLogin}
+            className="px-8 py-4 rounded-xl font-bold text-base border transition-all"
+            style={{
+              backgroundColor: "transparent",
+              borderColor: COLORS.border,
+              color: COLORS.muted
+            }}>
+            Sign In
+          </button>
+        </div>
+      </div>
+
+      {/* Feature grid */}
+      <div className="max-w-5xl mx-auto px-8 pb-20">
+        <div className="grid grid-cols-3 gap-6 mb-20">
+          {[
+            {
+              icon: Shield,
+              color: COLORS.blue,
+              title: "7 Attack Modules",
+              desc: "MQTT, CoAP, HTTP, Firmware, Recon — full IoT coverage out of the box."
+            },
+            {
+              icon: Zap,
+              color: COLORS.critical,
+              title: "Explainable AI",
+              desc: "SHAP-powered predictions tell you exactly why each device is at risk."
+            },
+            {
+              icon: Lock,
+              color: COLORS.low,
+              title: "OWASP IoT Top 10",
+              desc: "Complete coverage of all 10 OWASP IoT vulnerability categories."
+            },
+            {
+              icon: Activity,
+              color: COLORS.purple,
+              title: "Real-time Dashboard",
+              desc: "Live scan status, findings, and AI analysis in one place."
+            },
+            {
+              icon: CreditCard,
+              color: COLORS.high,
+              title: "Enterprise API",
+              desc: "Integrate AIPET into your CI/CD pipelines with API key access."
+            },
+            {
+              icon: FileText,
+              color: COLORS.muted,
+              title: "PDF Reports",
+              desc: "Professional assessment reports ready to share with clients."
+            },
+          ].map((feature, i) => (
+            <div key={i} className="rounded-2xl border p-6 transition-all"
+              style={{ backgroundColor: COLORS.card, borderColor: COLORS.border }}>
+              <div className="w-10 h-10 rounded-xl flex items-center justify-center mb-4"
+                style={{ backgroundColor: feature.color + "20" }}>
+                <feature.icon size={20} style={{ color: feature.color }} />
+              </div>
+              <h3 className="font-bold mb-2" style={{ color: COLORS.text }}>
+                {feature.title}
+              </h3>
+              <p className="text-sm leading-relaxed" style={{ color: COLORS.muted }}>
+                {feature.desc}
+              </p>
+            </div>
+          ))}
+        </div>
+
+        {/* Pricing section */}
+        <div className="text-center mb-12">
+          <h2 className="text-3xl font-black mb-3" style={{ color: COLORS.text }}>
+            Simple, transparent pricing
+          </h2>
+          <p className="text-sm" style={{ color: COLORS.muted }}>
+            Start free. Upgrade when you need more.
+          </p>
+        </div>
+
+        <div className="grid grid-cols-3 gap-6 mb-20">
+          {[
+            {
+              name: "Free",
+              price: "£0",
+              period: "forever",
+              color: COLORS.muted,
+              features: ["5 scans/month", "Basic AI analysis", "PDF reports"],
+              cta: "Get Started",
+            },
+            {
+              name: "Professional",
+              price: "£49",
+              period: "per month",
+              color: COLORS.blue,
+              popular: true,
+              features: ["Unlimited scans", "Full SHAP AI", "All report formats", "Email support"],
+              cta: "Start Free Trial",
+            },
+            {
+              name: "Enterprise",
+              price: "£499",
+              period: "per month",
+              color: COLORS.purple,
+              features: ["Unlimited scans", "API access", "Priority support", "SLA guarantee"],
+              cta: "Contact Sales",
+            },
+          ].map((plan, i) => (
+            <div key={i}
+              className="rounded-2xl border p-6 flex flex-col relative overflow-hidden"
+              style={{
+                backgroundColor: COLORS.card,
+                borderColor: plan.popular ? plan.color : COLORS.border,
+                boxShadow: plan.popular ? `0 0 30px ${plan.color}20` : "none"
+              }}>
+              {plan.popular && (
+                <div className="absolute top-0 right-0 px-3 py-1 text-xs font-bold rounded-bl-xl"
+                  style={{ backgroundColor: plan.color, color: "white" }}>
+                  POPULAR
+                </div>
+              )}
+              <h3 className="font-black text-lg mb-2" style={{ color: plan.color }}>
+                {plan.name}
+              </h3>
+              <div className="flex items-baseline gap-1 mb-6">
+                <span className="text-3xl font-black" style={{ color: COLORS.text }}>
+                  {plan.price}
+                </span>
+                <span className="text-sm" style={{ color: COLORS.muted }}>
+                  /{plan.period}
+                </span>
+              </div>
+              <div className="flex-1 space-y-2 mb-6">
+                {plan.features.map((f, j) => (
+                  <div key={j} className="flex items-center gap-2">
+                    <Check size={14} style={{ color: plan.color }} />
+                    <span className="text-sm" style={{ color: COLORS.muted }}>{f}</span>
+                  </div>
+                ))}
+              </div>
+              <button onClick={onGetStarted}
+                className="w-full py-3 rounded-xl font-bold text-sm transition-all"
+                style={{
+                  backgroundColor: plan.popular ? plan.color : "transparent",
+                  color: plan.popular ? "white" : plan.color,
+                  border: `1px solid ${plan.color}`
+                }}>
+                {plan.cta}
+              </button>
+            </div>
+          ))}
+        </div>
+
+        {/* Footer */}
+        <div className="text-center border-t pt-8"
+          style={{ borderColor: COLORS.border }}>
+          <p className="text-xs" style={{ color: COLORS.muted }}>
+            AIPET Cloud v2.0.0 — Developed as part of MSc Cyber Security research
+            at Coventry University · MIT Licence ·{" "}
+            <a href="https://github.com/Yallewbinyam/AIPET"
+              style={{ color: COLORS.blue }}>
+              GitHub
+            </a>
+          </p>
+        </div>
+      </div>
     </div>
   );
 }
@@ -756,7 +1018,7 @@ function PricingPage({ currentPlan, onUpgrade, usageLoaded }) {
   );
 }
 
-function BillingPage({ usage, onUpgrade, onCancel, onPortal }) {
+function BillingPage({ usage, onUpgrade, onCancel, onPortal, showToast }) {
   if (!usage) return (
     <div className="flex items-center justify-center h-64">
       <div className="text-sm" style={{ color: COLORS.muted }}>Loading billing info...</div>
@@ -886,15 +1148,8 @@ function BillingPage({ usage, onUpgrade, onCancel, onPortal }) {
             Open Billing Portal
           </button>
 
-          <button onClick={onCancel}
-            className="w-full py-3 rounded-xl font-semibold text-sm transition-all border"
-            style={{
-              backgroundColor: "transparent",
-              borderColor: COLORS.critical + "40",
-              color: COLORS.critical,
-            }}>
-            Cancel Subscription
-          </button>
+          
+            
         </div>
       )}
 
@@ -1002,6 +1257,13 @@ export default function App() {
   const [searchText, setSearchText] = useState("");
   const [usage,      setUsage]      = useState(null);
   const [token, setToken] = useState(localStorage.getItem("aipet_token") || "");
+  const [showLanding, setShowLanding] = useState(!localStorage.getItem("aipet_token"));
+  const [toast, setToast] = useState(null);
+
+  const showToast = (message, type = "success") => {
+    setToast({ message, type });
+    setTimeout(() => setToast(null), 4000);
+  };
   const usageLoaded = usage !== null;
 
   const handleLogin = (jwt) => {
@@ -1070,8 +1332,8 @@ export default function App() {
         { headers: { Authorization: `Bearer ${token}` } }
       );
       window.location.href = res.data.checkout_url;
-    } catch (e) {
-      alert("Payment error. Please try again.");
+       } catch (e) {
+      showToast("Payment error. Please try again.", "error");
     }
   };
 
@@ -1083,8 +1345,8 @@ export default function App() {
         { headers: { Authorization: `Bearer ${token}` } }
       );
       window.location.href = res.data.portal_url;
-    } catch (e) {
-      alert("Could not open billing portal.");
+      } catch (e) {
+      showToast("Could not open billing portal.", "error");
     }
   };
 
@@ -1093,13 +1355,14 @@ export default function App() {
     try {
       await axios.post(
         `http://localhost:5001/payments/cancel`,
-        {},
+        {
+
+        },
         { headers: { Authorization: `Bearer ${token}` } }
       );
-      alert("Subscription cancelled. You keep access until the end of your billing period.");
-      fetchUsage();
-    } catch (e) {
-      alert("Could not cancel subscription.");
+      showToast("Subscription cancelled. You keep access until the end of your billing period.", "info");;
+     } catch (e) {
+      showToast("Could not cancel subscription.", "error");
     }
   };
 
@@ -1149,7 +1412,18 @@ export default function App() {
   });
 
   // If no token, show login page
-  if (!token) return <LoginPage onLogin={handleLogin} />;
+  // If no token, show landing page or login page
+  if (!token) {
+    if (showLanding) {
+      return (
+        <LandingPage
+          onGetStarted={() => setShowLanding(false)}
+          onLogin={() => setShowLanding(false)}
+        />
+      );
+    }
+    return <LoginPage onLogin={handleLogin} />;
+  }
 
   if (loading) return (
     <div className="min-h-screen flex items-center justify-center"
@@ -1266,6 +1540,20 @@ export default function App() {
             </p>
           </div>
           <div className="flex items-center gap-3">
+            {/* Plan badge */}
+            {usage && (
+              <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg border"
+                style={{
+                  borderColor: (usage.plan === 'enterprise' ? COLORS.purple : usage.plan === 'professional' ? COLORS.blue : COLORS.muted) + "40",
+                  backgroundColor: (usage.plan === 'enterprise' ? COLORS.purple : usage.plan === 'professional' ? COLORS.blue : COLORS.muted) + "15"
+                }}>
+                <span className="text-xs font-bold capitalize"
+                  style={{ color: usage.plan === 'enterprise' ? COLORS.purple : usage.plan === 'professional' ? COLORS.blue : COLORS.muted }}>
+                  {usage.plan}
+                </span>
+              </div>
+            )}
+            {/* Risk badge */}
             {summary && (
               <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg border"
                 style={{ borderColor: riskColor + "40", backgroundColor: riskColor + "10" }}>
@@ -1273,6 +1561,12 @@ export default function App() {
                 <span className="text-xs font-bold" style={{ color: riskColor }}>
                   {summary.overall_risk}
                 </span>
+              </div>
+            )}
+            {/* User greeting */}
+            {summary?.user && (
+              <div className="text-xs font-semibold" style={{ color: COLORS.muted }}>
+                {summary.user.name}
               </div>
             )}
           </div>
@@ -1649,7 +1943,8 @@ export default function App() {
 
         </div>
       </div>
-      {showScan && <ScanModal onClose={() => setShowScan(false)} onScan={startScan} scanning={scanning} />}
+    {showScan && <ScanModal onClose={() => setShowScan(false)} onScan={startScan} scanning={scanning} />}
+      <Toast toast={toast} />
     </div>
   );
 }
