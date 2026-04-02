@@ -442,6 +442,180 @@ function ApiKeysPage({ token, userPlan }) {
     </div>
   );
 }
+function LegalPage({ page, onBack }) {
+  const content = {
+    privacy: {
+      title: "Privacy Policy",
+      lastUpdated: "April 2026",
+      body: `
+AIPET Cloud ("we", "our", "us") is committed to protecting your privacy.
+This policy explains how we collect, use, and protect your personal data
+in accordance with the UK GDPR and Data Protection Act 2018.
+
+1. DATA WE COLLECT
+We collect the following personal data when you use AIPET Cloud:
+- Name and email address (registration)
+- Payment information (processed by Stripe — we never store card details)
+- Scan targets and results (IoT network data you submit for scanning)
+- Usage data (login times, scan history, API key usage)
+- Technical data (IP address, browser type, device information)
+
+2. HOW WE USE YOUR DATA
+We use your data to:
+- Provide and improve the AIPET Cloud service
+- Process payments via Stripe
+- Send security alerts and service notifications
+- Comply with legal obligations
+
+3. DATA SHARING
+We share your data only with:
+- Stripe (payment processing) — https://stripe.com/privacy
+- DigitalOcean (hosting) — https://www.digitalocean.com/legal/privacy-policy
+We never sell your data to third parties.
+
+4. DATA RETENTION
+We retain your data for as long as your account is active.
+You can request deletion of your account and data at any time
+by contacting us via GitHub Issues.
+
+5. YOUR RIGHTS (UK GDPR)
+You have the right to:
+- Access your personal data
+- Correct inaccurate data
+- Request deletion of your data
+- Object to processing
+- Data portability
+
+6. COOKIES
+We use essential cookies only. See our Cookie Policy for details.
+
+7. CONTACT
+For data protection enquiries, open a GitHub issue at:
+https://github.com/Yallewbinyam/AIPET/issues
+
+This policy was last updated: April 2026.
+      `
+    },
+    terms: {
+      title: "Terms of Service",
+      lastUpdated: "April 2026",
+      body: `
+By using AIPET Cloud, you agree to these Terms of Service.
+
+1. ACCEPTABLE USE
+AIPET Cloud is a penetration testing tool. You must only use it
+against systems you own or have explicit written permission to test.
+Using AIPET against systems without authorisation is illegal and
+violates these terms.
+
+2. ACCOUNT RESPONSIBILITIES
+You are responsible for:
+- Keeping your login credentials secure
+- All activity under your account
+- Ensuring your use complies with applicable laws
+
+3. SUBSCRIPTIONS AND PAYMENTS
+- Free plan: 5 scans per month, no payment required
+- Professional: £49/month, billed monthly via Stripe
+- Enterprise: £499/month, billed monthly via Stripe
+- Subscriptions renew automatically until cancelled
+- Cancellation takes effect at the end of the billing period
+
+4. REFUNDS
+Refund requests made within 14 days of payment will be considered.
+Contact us via GitHub Issues with your request.
+
+5. INTELLECTUAL PROPERTY
+AIPET Cloud is open source under the MIT Licence.
+The core engine is available at https://github.com/Yallewbinyam/AIPET
+
+6. DISCLAIMER
+AIPET Cloud is provided "as is". We make no warranties about
+completeness, reliability, or accuracy of security assessments.
+Security testing should always be performed by qualified professionals.
+
+7. LIMITATION OF LIABILITY
+To the maximum extent permitted by law, AIPET Cloud shall not be
+liable for any indirect, incidental, or consequential damages
+arising from use of the service.
+
+8. GOVERNING LAW
+These terms are governed by the laws of England and Wales.
+
+Last updated: April 2026.
+      `
+    },
+    cookies: {
+      title: "Cookie Policy",
+      lastUpdated: "April 2026",
+      body: `
+AIPET Cloud uses cookies to provide a secure and functional service.
+
+1. WHAT ARE COOKIES
+Cookies are small text files stored on your device when you visit
+a website. They help websites remember your preferences and
+keep you logged in.
+
+2. COOKIES WE USE
+
+Essential Cookies (required for the service to work):
+- Authentication token: Keeps you logged in during your session.
+  Duration: 15 minutes (expires automatically)
+  Cannot be disabled — required for security
+
+3. COOKIES WE DO NOT USE
+We do not use:
+- Advertising or tracking cookies
+- Social media cookies
+- Analytics cookies
+- Third-party marketing cookies
+
+4. MANAGING COOKIES
+You can clear cookies at any time through your browser settings.
+Clearing the authentication cookie will log you out of AIPET Cloud.
+
+5. STRIPE COOKIES
+Our payment processor Stripe may set cookies when you visit the
+checkout page. These are subject to Stripe's cookie policy:
+https://stripe.com/cookies-policy/legal
+
+6. CHANGES TO THIS POLICY
+We will update this policy if we change how we use cookies.
+The date at the top of this page shows when it was last updated.
+
+Last updated: April 2026.
+      `
+    }
+  };
+
+  const current = content[page];
+  if (!current) return null;
+
+  return (
+    <div className="min-h-screen" style={{ backgroundColor: COLORS.darker }}>
+      <div className="max-w-3xl mx-auto px-8 py-12">
+        <button onClick={onBack}
+          className="flex items-center gap-2 text-sm mb-8 transition-all"
+          style={{ color: COLORS.muted }}>
+          ← Back
+        </button>
+        <h1 className="text-3xl font-black mb-2" style={{ color: COLORS.text }}>
+          {current.title}
+        </h1>
+        <p className="text-sm mb-8" style={{ color: COLORS.muted }}>
+          Last updated: {current.lastUpdated}
+        </p>
+        <div className="rounded-2xl border p-8"
+          style={{ backgroundColor: COLORS.card, borderColor: COLORS.border }}>
+          <pre className="text-sm leading-relaxed whitespace-pre-wrap"
+            style={{ color: COLORS.muted, fontFamily: "inherit" }}>
+            {current.body.trim()}
+          </pre>
+        </div>
+      </div>
+    </div>
+  );
+}
 function Toast({ toast }) {
   if (!toast) return null;
 
@@ -474,7 +648,7 @@ function Toast({ toast }) {
     </div>
   );
 }
-function LandingPage({ onGetStarted, onLogin }) {
+function LandingPage({ onGetStarted, onLogin, setLegalPage }) {
   return (
     <div className="min-h-screen" style={{ backgroundColor: COLORS.darker }}>
 
@@ -691,13 +865,31 @@ function LandingPage({ onGetStarted, onLogin }) {
         {/* Footer */}
         <div className="text-center border-t pt-8"
           style={{ borderColor: COLORS.border }}>
-          <p className="text-xs" style={{ color: COLORS.muted }}>
-            AIPET Cloud v2.0.0 — Developed as part of MSc Cyber Security research
-            at Coventry University · MIT Licence ·{" "}
+          <div className="flex items-center justify-center gap-6 mb-4">
+            <button onClick={() => setLegalPage('privacy')}
+              className="text-xs transition-all"
+              style={{ color: COLORS.muted }}>
+              Privacy Policy
+            </button>
+            <button onClick={() => setLegalPage('terms')}
+              className="text-xs transition-all"
+              style={{ color: COLORS.muted }}>
+              Terms of Service
+            </button>
+            <button onClick={() => setLegalPage('cookies')}
+              className="text-xs transition-all"
+              style={{ color: COLORS.muted }}>
+              Cookie Policy
+            </button>
             <a href="https://github.com/Yallewbinyam/AIPET"
+              className="text-xs"
               style={{ color: COLORS.blue }}>
               GitHub
             </a>
+          </div>
+          <p className="text-xs" style={{ color: COLORS.muted }}>
+            AIPET Cloud v2.0.0 — Developed as part of MSc Cyber Security research
+            at Coventry University · MIT Licence
           </p>
         </div>
       </div>
@@ -1258,6 +1450,7 @@ export default function App() {
   const [usage,      setUsage]      = useState(null);
   const [token, setToken] = useState(localStorage.getItem("aipet_token") || "");
   const [showLanding, setShowLanding] = useState(!localStorage.getItem("aipet_token"));
+  const [legalPage, setLegalPage] = useState(null);
   const [toast, setToast] = useState(null);
 
   const showToast = (message, type = "success") => {
@@ -1411,14 +1604,22 @@ export default function App() {
     return matchSev && matchText;
   });
 
-  // If no token, show login page
   // If no token, show landing page or login page
   if (!token) {
+    if (legalPage) {
+      return (
+        <LegalPage
+          page={legalPage}
+          onBack={() => setLegalPage(null)}
+        />
+      );
+    }
     if (showLanding) {
       return (
         <LandingPage
           onGetStarted={() => setShowLanding(false)}
           onLogin={() => setShowLanding(false)}
+          setLegalPage={setLegalPage}
         />
       );
     }
@@ -1575,6 +1776,27 @@ export default function App() {
         <div className="p-8">
 
           {/* DASHBOARD */}
+          {activeTab === "dashboard" && !summary && !loading && (
+            <div className="flex flex-col items-center justify-center h-96 text-center">
+              <div className="w-20 h-20 rounded-2xl flex items-center justify-center mb-6"
+                style={{ backgroundColor: COLORS.blue + "20" }}>
+                <Shield size={40} style={{ color: COLORS.blue }} />
+              </div>
+              <h2 className="text-2xl font-black mb-3" style={{ color: COLORS.text }}>
+                Welcome to AIPET Cloud
+              </h2>
+              <p className="text-sm mb-8 max-w-md" style={{ color: COLORS.muted }}>
+                Run your first IoT security scan to see your risk dashboard,
+                discovered devices, and AI-powered vulnerability analysis.
+              </p>
+              <button onClick={() => setShowScan(true)}
+                className="flex items-center gap-2 px-8 py-4 rounded-xl font-bold text-sm transition-all"
+                style={{ backgroundColor: COLORS.blue, color: "white" }}>
+                <Play size={16} />
+                Run Your First Scan
+              </button>
+            </div>
+          )}
           {activeTab === "dashboard" && summary && (
             <div className="space-y-6">
               <div className="grid grid-cols-4 gap-4">

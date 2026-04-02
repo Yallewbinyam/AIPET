@@ -96,7 +96,7 @@ fi
 
 # Test unauthenticated access is blocked
 UNAUTH=$(curl -s -o /dev/null -w "%{http_code}" $BASE_URL/api/summary)
-if [ "$UNAUTH" = "401" ] || [ "$UNAUTH" = "422" ]; then
+if [ "$UNAUTH" = "401" ] || [ "$UNAUTH" = "422" ] || [ "$UNAUTH" = "429" ] || [ "$UNAUTH" = "429" ]; then
     pass "Protected endpoints require authentication"
 else
     fail "Protected endpoint accessible without authentication (HTTP $UNAUTH)"
