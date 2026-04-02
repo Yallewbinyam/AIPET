@@ -106,6 +106,8 @@ class Finding(db.Model):
     description = db.Column(db.Text,        nullable=True)
     target      = db.Column(db.String(255), nullable=True)
     created_at  = db.Column(db.DateTime,    default=lambda: datetime.now(timezone.utc))
+    fix_status  = db.Column(db.String(50),  default="open")
+    fix_notes   = db.Column(db.Text,        nullable=True)
 
     def to_dict(self):
         return {
@@ -127,7 +129,7 @@ class APIKey(db.Model):
     last_used  = db.Column(db.DateTime,    nullable=True)
     created_at = db.Column(db.DateTime,    default=lambda: datetime.now(timezone.utc))
     is_active  = db.Column(db.Boolean,     default=True)
-    
+
 class RemediationKB(db.Model):
     __tablename__ = "remediation_kb"
 
