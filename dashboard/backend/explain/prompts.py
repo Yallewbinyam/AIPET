@@ -139,6 +139,9 @@ Rules:
 - No technical jargon — if you must use a technical term, explain it in brackets
 - Be honest about severity — do not downplay critical risks
 - Keep the entire report under 400 words
-- Do not use markdown formatting — plain text only"""
+- Do NOT use any markdown formatting whatsoever
+- Do NOT use asterisks, hashes, underscores, or any special characters for formatting
+- Write in plain text only — no **bold**, no *italic*, no # headers
+- Section headings should be plain text in ALL CAPS only"""
 
     return prompt
