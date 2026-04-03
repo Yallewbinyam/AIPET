@@ -551,3 +551,30 @@ Developed as part of MSc Cyber Security (Ethical Hacking) research at Coventry U
 **[aipet.io](https://aipet.io)** · [GitHub](https://github.com/Yallewbinyam/AIPET) · [Report Issues](https://github.com/Yallewbinyam/AIPET/issues)
 
 </div>
+
+---
+
+## Phase 2 — Intelligence Layer
+
+Phase 2 transforms AIPET from a scanner into an AI-powered security advisor. Each module adds a new layer of intelligence on top of the core platform.
+
+### AIPET Fix ✅ Complete
+
+Every finding now includes exact remediation guidance:
+
+- **Remediation Knowledge Base** — 30 IoT-specific fixes mapped to attack types, sourced from OWASP IoT Top 10, NIST SP 800-213, and CIS Benchmarks
+- **Fix Panel** — slide-out panel showing why the vulnerability is dangerous, exact copy-paste terminal commands, time estimate, and difficulty rating
+- **Fix Status Tracking** — mark findings as Open, In Progress, Fixed, or Accepted Risk
+- **Risk Reduction Score** — weighted calculation showing percentage of risk resolved, updated in real time as findings are marked fixed
+- **Fix API** — three production-ready endpoints: `GET /api/remediation/<finding_id>`, `PATCH /api/findings/<id>/status`, `GET /api/scans/<id>/fix-summary`
+
+### Coming Soon
+
+| Module | Description | Status |
+|---|---|---|
+| AIPET Explain | Natural language AI explanations via Claude API | 🔄 Month 2 |
+| AIPET Score | Financial business impact calculation | 📅 Month 3 |
+| AIPET Map | Visual attack path mapping with D3.js | 📅 Month 4 |
+| AIPET Predict | CVE monitoring via NVD API | 📅 Month 5 |
+| AIPET Watch | Passive 24/7 network anomaly detection | 📅 Month 6 |
+| AIPET Ask | Natural language AI security assistant | 📅 Month 7 |

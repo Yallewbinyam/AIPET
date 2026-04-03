@@ -673,3 +673,68 @@ See [RESPONSIBLE_USE.md](RESPONSIBLE_USE.md) for the full policy.
 
 *AIPET v2.0.0 — Coventry University MSc Cyber Security Research*  
 *For support, open a GitHub issue at: https://github.com/Yallewbinyam/AIPET/issues*
+
+---
+
+## 17. AIPET Fix — Remediation Guide
+
+AIPET Fix helps you act on every finding immediately. Instead of just telling you what is wrong, AIPET now tells you exactly how to fix it.
+
+### Viewing a Fix
+
+1. Go to the **Findings** tab in the dashboard
+2. Find any vulnerability in the list
+3. Click the **View Fix** button on the right side of the finding
+4. The Fix Panel will open on the right side of the screen
+
+### The Fix Panel
+
+The Fix Panel shows you everything you need to remediate the vulnerability:
+
+- **Why This Is Dangerous** — a plain English explanation of the risk
+- **Time to Fix** — realistic estimate in minutes
+- **Difficulty** — Quick Win, Moderate, or Complex
+- **Source** — the security standard this fix is based on (OWASP, NIST, CIS)
+- **Fix Commands** — exact terminal commands to run on the affected device
+- **Copy Commands** — one click to copy all commands to your clipboard
+- **Notes** — add your own notes about what you did to fix it
+
+### Running the Fix Commands
+
+The fix commands are designed to be run directly on the affected IoT device. To do this:
+
+1. Copy the commands using the **Copy Commands** button
+2. Open a terminal on your computer
+3. SSH into the affected device: `ssh admin@<device-ip>`
+4. Paste and run the commands
+5. Verify the fix worked
+6. Return to AIPET and mark the finding as Fixed
+
+For devices with a web admin panel (routers, cameras), the fix instructions describe steps to follow in the browser instead of terminal commands.
+
+### Tracking Fix Status
+
+Each finding has a status that you can update:
+
+| Status | Meaning |
+|---|---|
+| **Open** | Vulnerability has not been addressed yet |
+| **In Progress** | You are currently working on the fix |
+| **Fixed** | The vulnerability has been remediated |
+| **Accepted Risk** | You have acknowledged the risk and chosen not to fix it |
+
+To update the status, open the Fix Panel and click one of the four status buttons at the bottom.
+
+### Risk Reduction Score
+
+At the top of the Findings tab you will see the **Risk Reduction Score**. This shows:
+
+- How many findings have been resolved
+- What percentage of overall risk has been reduced
+- A breakdown by status (Open, In Progress, Fixed, Accepted)
+
+The score is weighted by severity — fixing a Critical finding reduces your risk score more than fixing a Low finding. As you fix more vulnerabilities, watch the percentage climb toward 100%.
+
+### Important Note
+
+AIPET Fix provides guidance based on industry standards. Always test fixes in a non-production environment first. Some fixes (such as disabling services) may affect device functionality. Consult your security team before applying fixes to production systems.
