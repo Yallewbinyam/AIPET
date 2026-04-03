@@ -45,10 +45,9 @@ AIPET Cloud is a production-ready SaaS IoT security platform that automates the 
 Built as an MSc Cyber Security dissertation project at Coventry University, AIPET is designed to compete with enterprise tools like Claroty, Armis, and Nozomi Networks — at a fraction of the cost.
 
 ```
-╔══════════════════════════════════════════════════════════════╗
-║         AIPET — Explainable AI-Powered IoT Pentest          ║
-║                    Platform v2.0.0                           ║
-╚══════════════════════════════════════════════════════════════╝
+
+         AIPET — Explainable AI-Powered IoT Pentest          
+                    Platform v2.0.0                           
 
 [Module 1] Reconnaissance .............. 3 devices found
 [Module 2] MQTT Attack Suite ........... CRITICAL: anonymous access
@@ -57,9 +56,9 @@ Built as an MSc Cyber Security dissertation project at Coventry University, AIPE
 [Module 5] Firmware Analyser ........... 12 private keys found
 [Module 6] Explainable AI Engine ....... 91.3% confidence CRITICAL
 
-╔══════════════════════════════════════════════════════════════╗
-║  Duration: 63.9s  |  Critical: 6  |  High: 3  |  Medium: 4  ║
-╚══════════════════════════════════════════════════════════════╝
+
+  Duration: 63.9s  |  Critical: 6  |  High: 3  |  Medium: 4  
+
 ```
 
 ---
@@ -95,11 +94,11 @@ Built as an MSc Cyber Security dissertation project at Coventry University, AIPE
 │  • Billing      │  • Rate Limiting  │  • Email Alerts       │
 │  • API Keys     │  • CORS           │                       │
 ├─────────────────┴───────────────────┴───────────────────────┤
-│                    PostgreSQL Database                       │
-│              (Users · Scans · Findings · API Keys)          │
-├─────────────────────────────────────────────────────────────┤
-│                    AIPET Scan Engine                         │
-│   Recon · MQTT · CoAP · HTTP · Firmware · AI (SHAP)        │
+│                    PostgreSQL Database                       
+│              (Users · Scans · Findings · API Keys)          
+├─────────────────────────────────────────────────────────────
+│                    AIPET Scan Engine                         
+│   Recon · MQTT · CoAP · HTTP · Firmware · AI (SHAP)        
 └─────────────────────────────────────────────────────────────┘
 ```
 
@@ -501,9 +500,9 @@ python dashboard/backend/monitoring/backup.py restore /path/to/backup.sql.gz
 | 7 | Pricing + Billing UI | ✅ Complete |
 | 8 | Monitoring + Logging + Backups | ✅ Complete |
 | 9 | API Keys for Enterprise | ✅ Complete |
-| 10 | Cloud Deployment (aipet.io) | ⏳ Planned |
-| 11 | Security Hardening | ⏳ Planned |
-| 12 | Final Polish + Launch | ⏳ Planned |
+| 10 | Cloud Deployment (aipet.io) | ⏳ Pending (bank card) |
+| 11 | Security Hardening | ✅ Complete |
+| 12 | Final Polish + Launch | ✅ Complete |
 
 ---
 
