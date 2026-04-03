@@ -94,7 +94,7 @@ def create_app(config_name="development"):
     limiter = Limiter(
         get_remote_address,
         app=app,
-        default_limits=["200 per day", "50 per hour"],
+        default_limits=[],
         storage_uri="memory://"
     )
 
@@ -554,6 +554,14 @@ def create_app(config_name="development"):
         })
 
     @app.route("/api/scan/history", methods=["GET"])
+    @app.route("/api/scans", methods=["GET"])
+    @jwt_required()
+    def get_scans():
+            current_user_id = get_jwt_identity()
+            scans = Scan.query.filter_by(
+                user_id=current_user_id
+            ).order_by(Scan.id.desc()).all()
+            return jsonify([s.to_dict() for s in scans]), 200
     @app.route("/api/findings", methods=["GET"])
     @jwt_required()
     def get_findings():
