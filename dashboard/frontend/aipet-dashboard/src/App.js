@@ -354,6 +354,63 @@ function FixPanel({ finding, token, onClose, onStatusUpdate }) {
   );
 }
 
+function RiskReductionBar({ findings, token }) {
+  const fixed       = findings.filter(f => f.fix_status === "fixed").length;
+  const accepted    = findings.filter(f => f.fix_status === "accepted_risk").length;
+  const inProgress  = findings.filter(f => f.fix_status === "in_progress").length;
+  const total       = findings.length;
+  const resolved    = fixed + accepted;
+
+  const severityWeights = { Critical: 20, High: 10, Medium: 5, Low: 2 };
+  const totalRisk    = findings.reduce((sum, f) => sum + (severityWeights[f.severity] || 5), 0);
+  const reducedRisk  = findings
+    .filter(f => f.fix_status === "fixed" || f.fix_status === "accepted_risk")
+    .reduce((sum, f) => sum + (severityWeights[f.severity] || 5), 0);
+  const pct = totalRisk > 0 ? Math.round((reducedRisk / totalRisk) * 100) : 0;
+
+  if (total === 0) return null;
+
+  const barColor = pct >= 75 ? COLORS.low : pct >= 40 ? COLORS.high : COLORS.critical;
+
+  return (
+    <div className="rounded-xl p-4 border" style={{ backgroundColor: COLORS.card, borderColor: COLORS.border }}>
+      <div className="flex items-center justify-between mb-3">
+        <div>
+          <div className="text-sm font-bold" style={{ color: COLORS.text }}>
+            Risk Reduction
+          </div>
+          <div className="text-xs mt-0.5" style={{ color: COLORS.muted }}>
+            {resolved} of {total} findings resolved
+            {inProgress > 0 && ` · ${inProgress} in progress`}
+          </div>
+        </div>
+        <div className="text-2xl font-black" style={{ color: barColor }}>
+          {pct}%
+        </div>
+      </div>
+      <div className="w-full h-2 rounded-full overflow-hidden" style={{ backgroundColor: COLORS.border }}>
+        <div className="h-full rounded-full transition-all duration-700"
+          style={{ width: `${pct}%`, backgroundColor: barColor }} />
+      </div>
+      <div className="flex items-center gap-4 mt-3">
+        {[
+          { label: "Open",        value: findings.filter(f => f.fix_status === "open").length,          color: COLORS.critical },
+          { label: "In Progress", value: inProgress,                                                     color: COLORS.high     },
+          { label: "Fixed",       value: fixed,                                                          color: COLORS.low      },
+          { label: "Accepted",    value: accepted,                                                       color: COLORS.muted    },
+        ].map(item => (
+          <div key={item.label} className="flex items-center gap-1.5">
+            <div className="w-2 h-2 rounded-full" style={{ backgroundColor: item.color }} />
+            <span className="text-xs" style={{ color: COLORS.muted }}>
+              {item.label}: <span style={{ color: COLORS.text }}>{item.value}</span>
+            </span>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function FindingRow({ finding, token, onStatusUpdate }) {
   const [open, setOpen]           = useState(false);
   const [showFix, setShowFix]     = useState(false);
@@ -2212,6 +2269,8 @@ export default function App() {
           {/* FINDINGS */}
           {activeTab === "findings" && (
             <div className="space-y-4">
+              {/* Risk Reduction Score */}
+              <RiskReductionBar findings={findings} token={token} />
               {/* Controls */}
               <div className="flex items-center gap-3">
                 <input
