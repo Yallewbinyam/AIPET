@@ -93,7 +93,7 @@ def create_app(config_name="development"):
     limiter = Limiter(
         get_remote_address,
         app=app,
-        default_limits=["200 per day", "50 per hour"],
+        default_limits=[],
         storage_uri="memory://"
     )
 
@@ -551,8 +551,57 @@ def create_app(config_name="development"):
             "stripe_customer_id": user.stripe_customer_id,
         })
 
-
     @app.route("/api/scan/history", methods=["GET"])
+    @app.route("/api/findings", methods=["GET"])
+    @jwt_required()
+    def get_findings():
+            current_user_id = get_jwt_identity()
+            # Get all scans belonging to this user
+            user_scans = Scan.query.filter_by(user_id=current_user_id).all()
+            scan_ids = [s.id for s in user_scans]
+            if not scan_ids:
+                return jsonify([]), 200
+            # Get all findings for those scans
+            findings = Finding.query.filter(
+                Finding.scan_id.in_(scan_ids)
+            ).order_by(Finding.id.desc()).all()
+            return jsonify([f.to_dict() for f in findings]), 200
+    @app.route("/api/devices", methods=["GET"])
+    @jwt_required()
+    def get_devices():
+            # Returns unique devices from all findings for this user
+            current_user_id = get_jwt_identity()
+            user_scans = Scan.query.filter_by(user_id=current_user_id).all()
+            scan_ids = [s.id for s in user_scans]
+            if not scan_ids:
+                return jsonify([]), 200
+            findings = Finding.query.filter(
+                Finding.scan_id.in_(scan_ids)
+            ).all()
+            # Group findings by target device
+            devices = {}
+            for f in findings:
+                if f.target not in devices:
+                    devices[f.target] = {
+                        "target":   f.target,
+                        "findings": [],
+                        "critical": 0,
+                        "high":     0,
+                        "medium":   0,
+                        "low":      0,
+                    }
+                devices[f.target]["findings"].append(f.to_dict())
+                severity = f.severity.lower()
+                if severity in devices[f.target]:
+                    devices[f.target][severity] += 1
+            return jsonify(list(devices.values())), 200
+
+    @app.route("/api/ai", methods=["GET"])
+    @jwt_required()
+    def get_ai_results():
+            # Returns empty list for now — AI results come in Month 2
+            return jsonify([]), 200
+    
     @jwt_required()
     def get_scan_history():
         user_id = get_jwt_identity()

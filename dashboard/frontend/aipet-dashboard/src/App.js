@@ -135,34 +135,301 @@ function StatCard({ title, value, icon: Icon, color, subtitle }) {
   );
 }
 
-function FindingRow({ finding }) {
-  const [open, setOpen] = useState(false);
+function FixPanel({ finding, token, onClose, onStatusUpdate }) {
+  const [remediation, setRemediation] = useState(null);
+  const [loading, setLoading]         = useState(true);
+  const [status, setStatus]           = useState(finding.fix_status || "open");
+  const [notes, setNotes]             = useState(finding.fix_notes || "");
+  const [saving, setSaving]           = useState(false);
+  const [copied, setCopied]           = useState(false);
   const cfg = SEVERITY_CONFIG[finding.severity] || SEVERITY_CONFIG.INFO;
+
+  useEffect(() => {
+    const fetchRemediation = async () => {
+      try {
+        const res = await axios.get(`${API}/remediation/${finding.id}`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        setRemediation(res.data.remediation);
+      } catch (err) {
+        console.error("Failed to fetch remediation:", err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchRemediation();
+  }, [finding.id, token]);
+
+  const handleCopy = () => {
+    if (remediation?.fix_commands) {
+      navigator.clipboard.writeText(remediation.fix_commands);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    }
+  };
+
+  const handleStatusUpdate = async (newStatus) => {
+    setSaving(true);
+    try {
+      await axios.patch(`${API}/findings/${finding.id}/status`, {
+        fix_status: newStatus,
+        fix_notes: notes
+      }, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      setStatus(newStatus);
+      if (onStatusUpdate) onStatusUpdate(finding.id, newStatus);
+    } catch (err) {
+      console.error("Failed to update status:", err);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const STATUS_CONFIG = {
+    open:          { label: "Open",          color: COLORS.critical },
+    in_progress:   { label: "In Progress",   color: COLORS.high     },
+    fixed:         { label: "Fixed",         color: COLORS.low      },
+    accepted_risk: { label: "Accepted Risk", color: COLORS.muted    },
+  };
+
+  const difficultyColor = {
+    "Quick Win": COLORS.low,
+    "Moderate":  COLORS.high,
+    "Complex":   COLORS.critical,
+  };
+
   return (
-    <div className="rounded-xl border overflow-hidden transition-all duration-200"
-      style={{ backgroundColor: COLORS.card, borderColor: open ? cfg.color + "40" : COLORS.border }}>
-      <div className="flex items-center justify-between p-4 cursor-pointer hover:bg-white/5 transition-colors"
-        onClick={() => setOpen(!open)}>
-        <div className="flex items-center gap-3">
-          <div className="w-1 h-10 rounded-full flex-shrink-0" style={{ backgroundColor: cfg.color }} />
+    <div className="fixed inset-0 z-50 flex justify-end"
+      style={{ backgroundColor: "rgba(0,0,0,0.6)", backdropFilter: "blur(4px)" }}>
+      <div className="w-full max-w-lg h-full overflow-y-auto flex flex-col"
+        style={{ backgroundColor: COLORS.dark, borderLeft: `1px solid ${COLORS.border}` }}>
+
+        {/* Header */}
+        <div className="sticky top-0 z-10 p-6 border-b flex items-start justify-between"
+          style={{ backgroundColor: COLORS.dark, borderColor: COLORS.border }}>
           <div>
-            <div className="font-semibold text-sm" style={{ color: COLORS.text }}>{finding.attack}</div>
-            <div className="text-xs mt-0.5" style={{ color: COLORS.muted }}>
-              {finding.module} — {finding.target}
+            <div className="flex items-center gap-2 mb-1">
+              <div className="w-2 h-2 rounded-full" style={{ backgroundColor: cfg.color }} />
+              <span className="text-xs font-bold uppercase tracking-wider" style={{ color: cfg.color }}>
+                {finding.severity}
+              </span>
             </div>
+            <h2 className="text-lg font-black" style={{ color: COLORS.text }}>
+              {finding.attack}
+            </h2>
+            <p className="text-xs mt-1" style={{ color: COLORS.muted }}>
+              {finding.module} — {finding.target}
+            </p>
           </div>
+          <button onClick={onClose}
+            className="p-2 rounded-lg hover:bg-white/10 transition-colors"
+            style={{ color: COLORS.muted }}>
+            ✕
+          </button>
         </div>
-        <div className="flex items-center gap-3">
-          <SeverityBadge severity={finding.severity} />
-          {open ? <ChevronUp size={16} style={{ color: COLORS.muted }} /> : <ChevronDown size={16} style={{ color: COLORS.muted }} />}
+
+        {/* Body */}
+        <div className="flex-1 p-6 space-y-6">
+
+          {loading ? (
+            <div className="text-center py-12" style={{ color: COLORS.muted }}>
+              Loading fix data...
+            </div>
+          ) : (
+            <>
+              {/* Why This Is Dangerous */}
+              <div className="rounded-xl p-4 border"
+                style={{ backgroundColor: cfg.color + "08", borderColor: cfg.color + "30" }}>
+                <h3 className="text-xs font-bold uppercase tracking-wider mb-2"
+                  style={{ color: cfg.color }}>
+                  Why This Is Dangerous
+                </h3>
+                <p className="text-sm leading-relaxed" style={{ color: COLORS.text }}>
+                  {remediation?.explanation}
+                </p>
+              </div>
+
+              {/* Time and Difficulty */}
+              <div className="flex gap-3">
+                <div className="flex-1 rounded-xl p-4 border text-center"
+                  style={{ backgroundColor: COLORS.card, borderColor: COLORS.border }}>
+                  <div className="text-2xl font-black" style={{ color: COLORS.blue }}>
+                    {remediation?.time_estimate_minutes}
+                  </div>
+                  <div className="text-xs mt-1" style={{ color: COLORS.muted }}>minutes to fix</div>
+                </div>
+                <div className="flex-1 rounded-xl p-4 border text-center"
+                  style={{ backgroundColor: COLORS.card, borderColor: COLORS.border }}>
+                  <div className="text-sm font-bold"
+                    style={{ color: difficultyColor[remediation?.difficulty] || COLORS.muted }}>
+                    {remediation?.difficulty}
+                  </div>
+                  <div className="text-xs mt-1" style={{ color: COLORS.muted }}>difficulty</div>
+                </div>
+                <div className="flex-1 rounded-xl p-4 border text-center"
+                  style={{ backgroundColor: COLORS.card, borderColor: COLORS.border }}>
+                  <div className="text-xs font-bold" style={{ color: COLORS.muted }}>
+                    {remediation?.source}
+                  </div>
+                  <div className="text-xs mt-1" style={{ color: COLORS.muted }}>source</div>
+                </div>
+              </div>
+
+              {/* Fix Commands */}
+              <div>
+                <div className="flex items-center justify-between mb-2">
+                  <h3 className="text-xs font-bold uppercase tracking-wider"
+                    style={{ color: COLORS.text }}>
+                    Fix Commands
+                  </h3>
+                  <button onClick={handleCopy}
+                    className="px-3 py-1.5 rounded-lg text-xs font-bold transition-all"
+                    style={{
+                      backgroundColor: copied ? COLORS.low + "20" : COLORS.blue + "20",
+                      color: copied ? COLORS.low : COLORS.blue,
+                      border: `1px solid ${copied ? COLORS.low + "40" : COLORS.blue + "40"}`
+                    }}>
+                    {copied ? "✓ Copied" : "Copy Commands"}
+                  </button>
+                </div>
+                <div className="rounded-xl p-4 font-mono text-xs leading-relaxed overflow-x-auto"
+                  style={{ backgroundColor: "#0a0a0a", color: "#00ff88", border: `1px solid ${COLORS.border}` }}>
+                  {remediation?.fix_commands?.split("\n").map((line, i) => (
+                    <div key={i} style={{ color: line.startsWith("#") ? COLORS.muted : "#00ff88" }}>
+                      {line || "\u00a0"}
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              {/* Fix Notes */}
+              <div>
+                <h3 className="text-xs font-bold uppercase tracking-wider mb-2"
+                  style={{ color: COLORS.text }}>
+                  Notes
+                </h3>
+                <textarea
+                  value={notes}
+                  onChange={e => setNotes(e.target.value)}
+                  placeholder="Add notes about what you did to fix this..."
+                  rows={3}
+                  className="w-full px-4 py-3 rounded-xl text-sm outline-none resize-none"
+                  style={{
+                    backgroundColor: COLORS.card,
+                    color: COLORS.text,
+                    border: `1px solid ${COLORS.border}`
+                  }}
+                />
+              </div>
+
+              {/* Status Buttons */}
+              <div>
+                <h3 className="text-xs font-bold uppercase tracking-wider mb-3"
+                  style={{ color: COLORS.text }}>
+                  Mark As
+                </h3>
+                <div className="grid grid-cols-2 gap-2">
+                  {Object.entries(STATUS_CONFIG).map(([key, val]) => (
+                    <button key={key}
+                      onClick={() => handleStatusUpdate(key)}
+                      disabled={saving}
+                      className="py-3 rounded-xl text-xs font-bold transition-all"
+                      style={{
+                        backgroundColor: status === key ? val.color + "20" : COLORS.card,
+                        color: status === key ? val.color : COLORS.muted,
+                        border: `1px solid ${status === key ? val.color + "40" : COLORS.border}`,
+                        opacity: saving ? 0.6 : 1
+                      }}>
+                      {status === key ? "✓ " : ""}{val.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </>
+          )}
         </div>
       </div>
-      {open && (
-        <div className="px-4 pb-4 pt-2 border-t" style={{ borderColor: COLORS.border }}>
-          <p className="text-sm leading-relaxed" style={{ color: COLORS.muted }}>{finding.finding}</p>
-        </div>
-      )}
     </div>
+  );
+}
+
+function FindingRow({ finding, token, onStatusUpdate }) {
+  const [open, setOpen]           = useState(false);
+  const [showFix, setShowFix]     = useState(false);
+  const [fixStatus, setFixStatus] = useState(finding.fix_status || "open");
+  const cfg = SEVERITY_CONFIG[finding.severity] || SEVERITY_CONFIG.INFO;
+
+  const STATUS_COLORS = {
+    open:          COLORS.critical,
+    in_progress:   COLORS.high,
+    fixed:         COLORS.low,
+    accepted_risk: COLORS.muted,
+  };
+
+  const handleStatusUpdate = (findingId, newStatus) => {
+    setFixStatus(newStatus);
+    if (onStatusUpdate) onStatusUpdate(findingId, newStatus);
+  };
+
+  return (
+    <>
+      {showFix && (
+        <FixPanel
+          finding={{ ...finding, fix_status: fixStatus }}
+          token={token}
+          onClose={() => setShowFix(false)}
+          onStatusUpdate={handleStatusUpdate}
+        />
+      )}
+      <div className="rounded-xl border overflow-hidden transition-all duration-200"
+        style={{ backgroundColor: COLORS.card, borderColor: open ? cfg.color + "40" : COLORS.border }}>
+        <div className="flex items-center justify-between p-4"
+          style={{ cursor: "pointer" }}
+          onClick={() => setOpen(!open)}>
+          <div className="flex items-center gap-3">
+            <div className="w-1 h-10 rounded-full flex-shrink-0" style={{ backgroundColor: cfg.color }} />
+            <div>
+              <div className="font-semibold text-sm" style={{ color: COLORS.text }}>{finding.attack}</div>
+              <div className="text-xs mt-0.5" style={{ color: COLORS.muted }}>
+                {finding.module} — {finding.target}
+              </div>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            {/* Fix status badge */}
+            <div className="px-2 py-1 rounded-lg text-xs font-bold"
+              style={{
+                backgroundColor: (STATUS_COLORS[fixStatus] || COLORS.muted) + "20",
+                color: STATUS_COLORS[fixStatus] || COLORS.muted,
+                border: `1px solid ${(STATUS_COLORS[fixStatus] || COLORS.muted) + "40"}`
+              }}>
+              {fixStatus.replace("_", " ")}
+            </div>
+            <SeverityBadge severity={finding.severity} />
+            {/* View Fix button */}
+            <button
+              onClick={e => { e.stopPropagation(); setShowFix(true); }}
+              className="px-3 py-1.5 rounded-lg text-xs font-bold transition-all"
+              style={{
+                backgroundColor: COLORS.blue + "20",
+                color: COLORS.blue,
+                border: `1px solid ${COLORS.blue + "40"}`
+              }}>
+              View Fix
+            </button>
+            {open
+              ? <ChevronUp size={16} style={{ color: COLORS.muted }} />
+              : <ChevronDown size={16} style={{ color: COLORS.muted }} />}
+          </div>
+        </div>
+        {open && (
+          <div className="px-4 pb-4 pt-2 border-t" style={{ borderColor: COLORS.border }}>
+            <p className="text-sm leading-relaxed" style={{ color: COLORS.muted }}>{finding.description}</p>
+          </div>
+        )}
+      </div>
+    </>
   );
 }
 
@@ -1470,14 +1737,15 @@ export default function App() {
   };
   
   const fetchAll = useCallback(async () => {
+    const headers = { Authorization: `Bearer ${token}` };
     try {
       const [s, d, f, a, r, sc] = await Promise.all([
-        axios.get(`${API}/summary`),
-        axios.get(`${API}/devices`),
-        axios.get(`${API}/findings`),
-        axios.get(`${API}/ai`),
-        axios.get(`${API}/reports`),
-        axios.get(`${API}/scan/status`),
+        axios.get(`${API}/summary`,     { headers }),
+        axios.get(`${API}/devices`,     { headers }),
+        axios.get(`${API}/findings`,    { headers }),
+        axios.get(`${API}/ai`,          { headers }),
+        axios.get(`${API}/reports`,     { headers }),
+        axios.get(`${API}/scan/status`, { headers }),
       ]);
       setData({
         summary:    s.data,
@@ -1493,11 +1761,11 @@ export default function App() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [token]);
 
-  useEffect(() => {
+ useEffect(() => {
     fetchAll();
-    const interval = setInterval(fetchAll, 5000);
+    const interval = setInterval(fetchAll, 60000);
     return () => clearInterval(interval);
   }, [fetchAll]);
 
@@ -1597,7 +1865,7 @@ export default function App() {
   ].filter(d => d.value > 0) : [];
 
   const filteredFindings = findings.filter(f => {
-    const matchSev  = filter === "ALL" || f.severity === filter;
+    const matchSev  = filter === "ALL" || f.severity.toUpperCase() === filter;
     const matchText = searchText === "" ||
       f.attack.toLowerCase().includes(searchText.toLowerCase()) ||
       f.finding.toLowerCase().includes(searchText.toLowerCase());
@@ -1990,7 +2258,7 @@ export default function App() {
                   <CheckCircle size={48} style={{ color: COLORS.muted }} className="mx-auto mb-4" />
                   <p style={{ color: COLORS.muted }}>No findings match your filter.</p>
                 </div>
-              ) : filteredFindings.map((f, i) => <FindingRow key={i} finding={f} />)}
+              ) : filteredFindings.map((f, i) => <FindingRow key={i} finding={f} token={token} onStatusUpdate={() => {}} />)}
             </div>
           )}
 
