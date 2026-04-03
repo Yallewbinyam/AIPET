@@ -25,6 +25,7 @@ from dashboard.backend.auth.routes import auth_bp
 from dashboard.backend.config import config
 from dashboard.backend.celery_app import celery
 from dashboard.backend.remediation.routes import remediation_bp
+from dashboard.backend.explain.routes import explain_bp
 from dashboard.backend.monitoring.logger import setup_logging, get_logger
 from dashboard.backend.security import init_security
 from dashboard.backend.monitoring.logger import (
@@ -111,6 +112,7 @@ def create_app(config_name="development"):
     app.register_blueprint(payments_bp, url_prefix='/payments')
     from dashboard.backend.api_keys.routes import api_keys_bp
     app.register_blueprint(remediation_bp)
+    app.register_blueprint(explain_bp)
     app.register_blueprint(api_keys_bp, url_prefix='/api/keys')
 
     # Setup logging
