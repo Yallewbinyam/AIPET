@@ -136,12 +136,16 @@ function StatCard({ title, value, icon: Icon, color, subtitle }) {
 }
 
 function FixPanel({ finding, token, onClose, onStatusUpdate }) {
-  const [remediation, setRemediation] = useState(null);
-  const [loading, setLoading]         = useState(true);
-  const [status, setStatus]           = useState(finding.fix_status || "open");
-  const [notes, setNotes]             = useState(finding.fix_notes || "");
-  const [saving, setSaving]           = useState(false);
-  const [copied, setCopied]           = useState(false);
+  const [remediation, setRemediation]       = useState(null);
+  const [loading, setLoading]               = useState(true);
+  const [status, setStatus]                 = useState(finding.fix_status || "open");
+  const [notes, setNotes]                   = useState(finding.fix_notes || "");
+  const [saving, setSaving]                 = useState(false);
+  const [copied, setCopied]                 = useState(false);
+  const [activeTab, setActiveTab]           = useState("fix");
+  const [explanation, setExplanation]       = useState(null);
+  const [explainLoading, setExplainLoading] = useState(false);
+  const [explainError, setExplainError]     = useState(null);
   const cfg = SEVERITY_CONFIG[finding.severity] || SEVERITY_CONFIG.INFO;
 
   useEffect(() => {
@@ -165,6 +169,25 @@ function FixPanel({ finding, token, onClose, onStatusUpdate }) {
       navigator.clipboard.writeText(remediation.fix_commands);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
+    }
+  };
+  const fetchExplanation = async () => {
+    if (explanation) return; // already loaded
+    setExplainLoading(true);
+    setExplainError(null);
+    try {
+      const res = await axios.get(`${API}/explain/finding/${finding.id}`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      setExplanation(res.data.content);
+    } catch (err) {
+      if (err.response?.status === 403 && err.response?.data?.upgrade) {
+        setExplainError("upgrade");
+      } else {
+        setExplainError("Failed to load explanation. Please try again.");
+      }
+    } finally {
+      setExplainLoading(false);
     }
   };
 
@@ -230,9 +253,93 @@ function FixPanel({ finding, token, onClose, onStatusUpdate }) {
         </div>
 
         {/* Body */}
+        {/* Tabs */}
+        <div className="flex border-b" style={{ borderColor: COLORS.border }}>
+          <button
+            onClick={() => setActiveTab("fix")}
+            className="px-6 py-3 text-xs font-bold transition-all"
+            style={{
+              color: activeTab === "fix" ? COLORS.blue : COLORS.muted,
+              borderBottom: activeTab === "fix" ? `2px solid ${COLORS.blue}` : "2px solid transparent"
+            }}>
+            Fix Guide
+          </button>
+          <button
+            onClick={() => { setActiveTab("explain"); fetchExplanation(); }}
+            className="px-6 py-3 text-xs font-bold transition-all"
+            style={{
+              color: activeTab === "explain" ? COLORS.blue : COLORS.muted,
+              borderBottom: activeTab === "explain" ? `2px solid ${COLORS.blue}` : "2px solid transparent"
+            }}>
+            AI Explanation
+          </button>
+        </div>
+
+        {/* Body */}
         <div className="flex-1 p-6 space-y-6">
 
-          {loading ? (
+          {activeTab === "explain" ? (
+            <div className="space-y-4">
+              {explainLoading ? (
+                <div className="text-center py-12" style={{ color: COLORS.muted }}>
+                  <div className="text-2xl mb-3">🤖</div>
+                  <div className="text-sm">Claude is generating your explanation...</div>
+                  <div className="text-xs mt-1" style={{ color: COLORS.muted }}>This takes 2-3 seconds</div>
+                </div>
+              ) : explainError === "upgrade" ? (
+                <div className="rounded-xl p-6 border text-center"
+                  style={{ backgroundColor: COLORS.card, borderColor: COLORS.border }}>
+                  <div className="text-2xl mb-3">⭐</div>
+                  <div className="text-sm font-bold mb-2" style={{ color: COLORS.text }}>
+                    Professional Feature
+                  </div>
+                  <div className="text-xs mb-4" style={{ color: COLORS.muted }}>
+                    AI Explanations are available on Professional and Enterprise plans.
+                  </div>
+                  <div className="text-xs px-4 py-2 rounded-lg inline-block"
+                    style={{ backgroundColor: COLORS.blue + "20", color: COLORS.blue }}>
+                    Upgrade to unlock
+                  </div>
+                </div>
+              ) : explainError ? (
+                <div className="text-center py-12">
+                  <div className="text-sm" style={{ color: COLORS.critical }}>{explainError}</div>
+                </div>
+              ) : explanation ? (
+                <div className="space-y-4">
+                  {explanation.split("\n\n").map((section, i) => {
+                    const lines    = section.split("\n");
+                    const heading  = lines[0];
+                    const body     = lines.slice(1).join("\n");
+                    const isHeading = heading && !heading.includes(" ") === false &&
+                      (heading.startsWith("WHY") || heading.startsWith("WHAT"));
+                    return (
+                      <div key={i} className="rounded-xl p-4 border"
+                        style={{ backgroundColor: COLORS.card, borderColor: COLORS.border }}>
+                        {isHeading && (
+                          <div className="text-xs font-bold uppercase tracking-wider mb-2"
+                            style={{ color: COLORS.blue }}>
+                            {heading}
+                          </div>
+                        )}
+                        <p className="text-sm leading-relaxed"
+                          style={{ color: COLORS.text }}>
+                          {body || heading}
+                        </p>
+                      </div>
+                    );
+                  })}
+                  <div className="text-xs text-center pt-2" style={{ color: COLORS.muted }}>
+                    Generated by Claude AI · Powered by Anthropic
+                  </div>
+                </div>
+              ) : (
+                <div className="text-center py-12" style={{ color: COLORS.muted }}>
+                  <div className="text-sm">Click AI Explanation tab to generate</div>
+                </div>
+              )}
+            </div>
+          ) : loading ? (
             <div className="text-center py-12" style={{ color: COLORS.muted }}>
               Loading fix data...
             </div>
