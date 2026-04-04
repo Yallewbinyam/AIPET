@@ -461,6 +461,294 @@ function FixPanel({ finding, token, onClose, onStatusUpdate }) {
     </div>
   );
 }
+function WatchPanel({ token }) {
+  const [status, setStatus]       = useState(null);
+  const [alerts, setAlerts]       = useState([]);
+  const [loading, setLoading]     = useState(true);
+  const [building, setBuilding]   = useState(false);
+  const [error, setError]         = useState(null);
+  const [message, setMessage]     = useState(null);
+
+  const headers = { Authorization: `Bearer ${token}` };
+
+  useEffect(() => {
+    fetchStatus();
+    fetchAlerts();
+  }, [token]);
+
+  const fetchStatus = async () => {
+    try {
+      const res = await axios.get(`${API}/watch/status`, { headers });
+      setStatus(res.data);
+    } catch (err) {
+      if (err.response?.status === 403) setError("upgrade");
+      else setError("Failed to load watch status.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const fetchAlerts = async () => {
+    try {
+      const res = await axios.get(`${API}/watch/alerts`, { headers });
+      setAlerts(res.data);
+    } catch (err) {
+      console.error("Failed to load watch alerts:", err);
+    }
+  };
+
+  const buildBaselines = async () => {
+    setBuilding(true);
+    setMessage(null);
+    try {
+      const res = await axios.post(`${API}/watch/baselines/build`, {}, { headers });
+      setMessage(`✓ Built baselines for ${res.data.devices} devices`);
+      await fetchStatus();
+    } catch (err) {
+      if (err.response?.status === 403) setError("upgrade");
+      else setMessage("Failed to build baselines. Run a scan first.");
+    } finally {
+      setBuilding(false);
+    }
+  };
+
+  const acknowledgeAlert = async (alertId) => {
+    try {
+      await axios.patch(`${API}/watch/alerts/${alertId}/acknowledge`, {}, { headers });
+      setAlerts(prev => prev.map(a => a.id === alertId ? { ...a, is_acknowledged: true } : a));
+    } catch (err) {
+      console.error("Failed to acknowledge alert:", err);
+    }
+  };
+
+  const severityColor = {
+    Critical: COLORS.critical,
+    High:     COLORS.high,
+    Medium:   COLORS.medium,
+    Low:      COLORS.low,
+  };
+
+  const statusColor = (baseline) => {
+    const risk = baseline.baseline_data?.risk_score || 0;
+    if (risk >= 25) return COLORS.critical;
+    if (risk >= 15) return COLORS.high;
+    if (risk >= 8)  return COLORS.medium;
+    return COLORS.low;
+  };
+
+  if (loading) return (
+    <div className="flex items-center justify-center h-64" style={{ color: COLORS.muted }}>
+      Loading watch status...
+    </div>
+  );
+
+  if (error === "upgrade") return (
+    <div className="rounded-2xl p-16 border text-center"
+      style={{ backgroundColor: COLORS.card, borderColor: COLORS.border }}>
+      <Shield size={48} style={{ color: COLORS.muted }} className="mx-auto mb-4" />
+      <div className="text-sm font-bold mb-2" style={{ color: COLORS.text }}>Enterprise Feature</div>
+      <div className="text-xs mb-4" style={{ color: COLORS.muted }}>
+        AIPET Watch is available on the Enterprise plan (£499/month).
+      </div>
+      <div className="text-xs" style={{ color: COLORS.muted }}>
+        Includes 24/7 passive network monitoring, baseline profiling, and anomaly detection.
+      </div>
+    </div>
+  );
+
+  return (
+    <div className="space-y-4">
+      {/* Header */}
+      <div className="rounded-xl border p-4 flex items-center justify-between"
+        style={{ backgroundColor: COLORS.card, borderColor: COLORS.border }}>
+        <div>
+          <div className="text-sm font-bold" style={{ color: COLORS.text }}>
+            AIPET Watch — Network Monitoring
+          </div>
+          <div className="text-xs mt-0.5" style={{ color: COLORS.muted }}>
+            {status ? `${status.devices_monitored} devices monitored · ${status.unacked_alerts} unacknowledged alerts` : "No baselines built yet"}
+          </div>
+        </div>
+        <button onClick={buildBaselines} disabled={building}
+          className="px-4 py-2 rounded-xl text-xs font-bold transition-all"
+          style={{
+            backgroundColor: COLORS.blue + "20",
+            color: COLORS.blue,
+            border: `1px solid ${COLORS.blue + "40"}`,
+            opacity: building ? 0.6 : 1
+          }}>
+          {building ? "Building..." : "Build Baselines"}
+        </button>
+      </div>
+
+      {/* Message */}
+      {message && (
+        <div className="rounded-xl border p-3"
+          style={{
+            backgroundColor: message.startsWith("✓") ? COLORS.low + "10" : COLORS.critical + "10",
+            borderColor: message.startsWith("✓") ? COLORS.low + "40" : COLORS.critical + "40"
+          }}>
+          <div className="text-xs" style={{ color: message.startsWith("✓") ? COLORS.low : COLORS.critical }}>
+            {message}
+          </div>
+        </div>
+      )}
+
+      {/* Stats */}
+      {status && (
+        <div className="grid grid-cols-3 gap-3">
+          {[
+            { label: "Devices Monitored", value: status.devices_monitored, color: COLORS.blue    },
+            { label: "Unacked Alerts",    value: status.unacked_alerts,    color: COLORS.critical },
+            { label: "Total Alerts",      value: status.total_alerts,      color: COLORS.muted   },
+          ].map(item => (
+            <div key={item.label} className="rounded-xl p-4 border text-center"
+              style={{ backgroundColor: COLORS.card, borderColor: COLORS.border }}>
+              <div className="text-2xl font-black" style={{ color: item.color }}>{item.value}</div>
+              <div className="text-xs mt-1" style={{ color: COLORS.muted }}>{item.label}</div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Device baselines */}
+      {status?.baselines?.length > 0 && (
+        <div className="rounded-xl border p-4" style={{ backgroundColor: COLORS.card, borderColor: COLORS.border }}>
+          <div className="text-xs font-bold uppercase tracking-wider mb-3" style={{ color: COLORS.text }}>
+            Monitored Devices
+          </div>
+          <div className="space-y-2">
+            {status.baselines.map((baseline, i) => (
+              <div key={i} className="rounded-lg p-3 border flex items-center justify-between"
+                style={{ backgroundColor: COLORS.dark, borderColor: COLORS.border }}>
+                <div className="flex items-center gap-3">
+                  <div className="w-2 h-2 rounded-full flex-shrink-0"
+                    style={{ backgroundColor: statusColor(baseline) }} />
+                  <div>
+                    <div className="text-xs font-mono font-bold" style={{ color: COLORS.text }}>
+                      {baseline.device_ip}
+                    </div>
+                    <div className="text-xs" style={{ color: COLORS.muted }}>
+                      {baseline.device_function}
+                    </div>
+                  </div>
+                </div>
+                <div className="flex items-center gap-4">
+                  <div className="text-right">
+                    <div className="text-xs font-bold"
+                      style={{ color: severityColor[baseline.baseline_data?.worst_severity] || COLORS.muted }}>
+                      {baseline.baseline_data?.worst_severity}
+                    </div>
+                    <div className="text-xs" style={{ color: COLORS.muted }}>
+                      Risk: {baseline.baseline_data?.risk_score}
+                    </div>
+                  </div>
+                  <div className="text-right">
+                    <div className="text-xs font-bold" style={{ color: COLORS.text }}>
+                      {baseline.baseline_data?.finding_count} finding{baseline.baseline_data?.finding_count !== 1 ? 's' : ''}
+                    </div>
+                    <div className="text-xs" style={{ color: COLORS.muted }}>
+                      {baseline.baseline_data?.protocols?.join(", ")}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Agent instructions */}
+      <div className="rounded-xl border p-4" style={{ backgroundColor: COLORS.card, borderColor: COLORS.border }}>
+        <div className="text-xs font-bold uppercase tracking-wider mb-3" style={{ color: COLORS.blue }}>
+          Deploy the Watch Agent
+        </div>
+        <div className="text-xs leading-relaxed mb-3" style={{ color: COLORS.muted }}>
+          The AIPET Watch agent runs on your local network and monitors traffic passively.
+          It is completely invisible to devices — they cannot detect it.
+        </div>
+        <div className="rounded-lg p-3 font-mono text-xs"
+          style={{ backgroundColor: "#0a0a0a", color: "#00ff88", border: `1px solid ${COLORS.border}` }}>
+          <div style={{ color: COLORS.muted }}># Install Scapy</div>
+          <div>pip install scapy</div>
+          <div className="mt-2" style={{ color: COLORS.muted }}># Run the agent (requires sudo)</div>
+          <div>sudo python3 dashboard/backend/watch/agent.py \</div>
+          <div>  --api-url https://aipet.io \</div>
+          <div>  --token YOUR_API_TOKEN</div>
+          <div className="mt-2" style={{ color: COLORS.muted }}># Test mode (no sudo required)</div>
+          <div>python3 dashboard/backend/watch/agent.py \</div>
+          <div>  --test \</div>
+          <div>  --api-url http://localhost:5001 \</div>
+          <div>  --token YOUR_API_TOKEN</div>
+        </div>
+      </div>
+
+      {/* Alerts */}
+      {alerts.length > 0 && (
+        <div className="rounded-xl border p-4" style={{ backgroundColor: COLORS.card, borderColor: COLORS.border }}>
+          <div className="text-xs font-bold uppercase tracking-wider mb-3" style={{ color: COLORS.critical }}>
+            Watch Alerts
+          </div>
+          <div className="space-y-2">
+            {alerts.map(alert => (
+              <div key={alert.id} className="rounded-lg p-3 border"
+                style={{
+                  backgroundColor: COLORS.dark,
+                  borderColor: alert.is_acknowledged ? COLORS.border : (severityColor[alert.severity] || COLORS.border) + "40",
+                  opacity: alert.is_acknowledged ? 0.6 : 1
+                }}>
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="text-xs font-bold px-2 py-0.5 rounded"
+                        style={{
+                          backgroundColor: (severityColor[alert.severity] || COLORS.muted) + "20",
+                          color: severityColor[alert.severity] || COLORS.muted
+                        }}>
+                        {alert.severity}
+                      </span>
+                      <span className="text-xs font-mono" style={{ color: COLORS.text }}>
+                        {alert.device_ip}
+                      </span>
+                      <span className="text-xs" style={{ color: COLORS.muted }}>
+                        {alert.alert_type.replace(/_/g, " ")}
+                      </span>
+                    </div>
+                    <div className="text-xs" style={{ color: COLORS.muted }}>
+                      {alert.description}
+                    </div>
+                  </div>
+                  {!alert.is_acknowledged && (
+                    <button onClick={() => acknowledgeAlert(alert.id)}
+                      className="px-3 py-1.5 rounded-lg text-xs font-bold flex-shrink-0"
+                      style={{
+                        backgroundColor: COLORS.low + "20",
+                        color: COLORS.low,
+                        border: `1px solid ${COLORS.low + "40"}`
+                      }}>
+                      Acknowledge
+                    </button>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {alerts.length === 0 && status?.devices_monitored > 0 && (
+        <div className="rounded-2xl p-12 border text-center"
+          style={{ backgroundColor: COLORS.card, borderColor: COLORS.border }}>
+          <div className="text-2xl mb-3">🛡️</div>
+          <div className="text-sm font-bold mb-2" style={{ color: COLORS.text }}>All Clear</div>
+          <div className="text-xs" style={{ color: COLORS.muted }}>
+            No anomalies detected. Your network behaviour matches the baseline.
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
 function PredictPanel({ token, scans }) {
   const [alerts, setAlerts]         = useState([]);
   const [loading, setLoading]       = useState(true);
@@ -2957,6 +3245,7 @@ const NAV_ITEMS = [
   { id: "findings",  label: "Findings",    icon: AlertTriangle },
   { id: "map",       label: "Network Map", icon: Shield },
   { id: "predict",   label: "CVE Intel",   icon: AlertTriangle },
+  { id: "watch",     label: "Watch",       icon: Shield },
   { id: "ai",        label: "AI Analysis", icon: Shield        },
   { id: "reports",   label: "Reports",     icon: FileText      },
   { id: "pricing",   label: "Pricing",     icon: Zap           },
@@ -3531,6 +3820,10 @@ export default function App() {
           {/* AI ANALYSIS */}
           {/* NETWORK MAP */}
           {/* CVE INTELLIGENCE */}
+          {/* AIPET WATCH */}
+          {activeTab === "watch" && (
+            <WatchPanel token={token} />
+          )}
           {activeTab === "predict" && (
             <PredictPanel token={token} scans={data?.scans || []} />
           )}
