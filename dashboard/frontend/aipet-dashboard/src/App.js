@@ -461,6 +461,219 @@ function FixPanel({ finding, token, onClose, onStatusUpdate }) {
     </div>
   );
 }
+function AskPanel({ token }) {
+  const [messages, setMessages]   = useState([]);
+  const [question, setQuestion]   = useState("");
+  const [loading, setLoading]     = useState(false);
+  const [error, setError]         = useState(null);
+  const messagesEndRef             = useRef(null);
+
+  const headers = { Authorization: `Bearer ${token}` };
+
+  const SUGGESTED_QUESTIONS = [
+    "What should I fix first this week?",
+    "Which device is most at risk right now?",
+    "Write a one-paragraph summary for my board",
+    "How much financial risk can I eliminate today?",
+    "What would an attacker target first on my network?",
+    "Explain our biggest vulnerability in plain English",
+  ];
+
+  useEffect(() => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages]);
+
+  const sendQuestion = async (q) => {
+    const questionText = q || question.trim();
+    if (!questionText || loading) return;
+
+    setQuestion("");
+    setError(null);
+
+    // Add user message
+    const newMessages = [...messages, { role: "user", content: questionText }];
+    setMessages(newMessages);
+    setLoading(true);
+
+    try {
+      const res = await axios.post(`${API}/ask`, {
+        question: questionText,
+        history:  messages.slice(-10)
+      }, { headers });
+
+      // Add assistant response
+      setMessages(prev => [...prev, {
+        role:    "assistant",
+        content: res.data.answer,
+        tokens:  res.data.tokens_used,
+      }]);
+    } catch (err) {
+      if (err.response?.status === 403) {
+        setError("upgrade");
+      } else {
+        setError("Failed to get answer. Please try again.");
+        // Remove the user message if failed
+        setMessages(messages);
+      }
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const clearConversation = () => {
+    setMessages([]);
+    setError(null);
+  };
+
+  if (error === "upgrade") return (
+    <div className="rounded-2xl p-16 border text-center"
+      style={{ backgroundColor: COLORS.card, borderColor: COLORS.border }}>
+      <Shield size={48} style={{ color: COLORS.muted }} className="mx-auto mb-4" />
+      <div className="text-sm font-bold mb-2" style={{ color: COLORS.text }}>Professional Feature</div>
+      <div className="text-xs" style={{ color: COLORS.muted }}>
+        AIPET Ask is available on Professional and Enterprise plans.
+      </div>
+    </div>
+  );
+
+  return (
+    <div className="flex flex-col space-y-4">
+
+      {/* Header */}
+      <div className="rounded-xl border p-4 flex items-center justify-between"
+        style={{ backgroundColor: COLORS.card, borderColor: COLORS.border }}>
+        <div>
+          <div className="text-sm font-bold" style={{ color: COLORS.text }}>AIPET Ask</div>
+          <div className="text-xs mt-0.5" style={{ color: COLORS.muted }}>
+            Ask any security question — powered by Claude AI with your full security context
+          </div>
+        </div>
+        {messages.length > 0 && (
+          <button onClick={clearConversation}
+            className="px-3 py-1.5 rounded-lg text-xs font-bold transition-all"
+            style={{
+              backgroundColor: COLORS.border,
+              color: COLORS.muted,
+              border: `1px solid ${COLORS.border}`
+            }}>
+            Clear
+          </button>
+        )}
+      </div>
+
+      {/* Suggested questions */}
+      {messages.length === 0 && (
+        <div className="rounded-xl border p-4"
+          style={{ backgroundColor: COLORS.card, borderColor: COLORS.border }}>
+          <div className="text-xs font-bold uppercase tracking-wider mb-3" style={{ color: COLORS.muted }}>
+            Suggested Questions
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            {SUGGESTED_QUESTIONS.map((q, i) => (
+              <button key={i} onClick={() => sendQuestion(q)}
+                className="text-left px-3 py-2.5 rounded-lg text-xs transition-all hover:bg-white/5"
+                style={{
+                  backgroundColor: COLORS.dark,
+                  color: COLORS.text,
+                  border: `1px solid ${COLORS.border}`
+                }}>
+                {q}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Conversation */}
+      {messages.length > 0 && (
+        <div className="rounded-xl border overflow-hidden"
+          style={{ backgroundColor: COLORS.card, borderColor: COLORS.border }}>
+          <div className="p-4 space-y-4 max-h-96 overflow-y-auto">
+            {messages.map((msg, i) => (
+              <div key={i} className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
+                <div className={`max-w-3xl rounded-xl p-3 text-xs leading-relaxed ${
+                  msg.role === "user" ? "ml-8" : "mr-8"
+                }`}
+                  style={{
+                    backgroundColor: msg.role === "user"
+                      ? COLORS.blue + "20"
+                      : COLORS.dark,
+                    color: COLORS.text,
+                    border: `1px solid ${msg.role === "user" ? COLORS.blue + "40" : COLORS.border}`
+                  }}>
+                  {msg.role === "assistant" && (
+                    <div className="text-xs font-bold mb-1" style={{ color: COLORS.blue }}>
+                      AIPET Ask
+                    </div>
+                  )}
+                  <div className="whitespace-pre-wrap">{msg.content}</div>
+                  {msg.tokens && (
+                    <div className="text-xs mt-2" style={{ color: COLORS.muted }}>
+                      {msg.tokens} tokens
+                    </div>
+                  )}
+                </div>
+              </div>
+            ))}
+
+            {loading && (
+              <div className="flex justify-start">
+                <div className="rounded-xl p-3 text-xs"
+                  style={{ backgroundColor: COLORS.dark, color: COLORS.muted, border: `1px solid ${COLORS.border}` }}>
+                  <div className="font-bold mb-1" style={{ color: COLORS.blue }}>AIPET Ask</div>
+                  Thinking...
+                </div>
+              </div>
+            )}
+
+            {error && error !== "upgrade" && (
+              <div className="text-xs text-center py-2" style={{ color: COLORS.critical }}>
+                {error}
+              </div>
+            )}
+
+            <div ref={messagesEndRef} />
+          </div>
+        </div>
+      )}
+
+      {/* Input */}
+      <div className="rounded-xl border p-3 flex items-end gap-3"
+        style={{ backgroundColor: COLORS.card, borderColor: COLORS.border }}>
+        <textarea
+          value={question}
+          onChange={e => setQuestion(e.target.value)}
+          onKeyDown={e => {
+            if (e.key === "Enter" && !e.shiftKey) {
+              e.preventDefault();
+              sendQuestion();
+            }
+          }}
+          placeholder="Ask a security question... (Enter to send, Shift+Enter for new line)"
+          rows={2}
+          className="flex-1 text-xs outline-none resize-none bg-transparent"
+          style={{ color: COLORS.text }}
+          disabled={loading}
+        />
+        <button
+          onClick={() => sendQuestion()}
+          disabled={loading || !question.trim()}
+          className="px-4 py-2 rounded-lg text-xs font-bold transition-all flex-shrink-0"
+          style={{
+            backgroundColor: loading || !question.trim() ? COLORS.border : COLORS.blue,
+            color: loading || !question.trim() ? COLORS.muted : "#fff",
+            opacity: loading ? 0.6 : 1
+          }}>
+          {loading ? "..." : "Ask"}
+        </button>
+      </div>
+
+      <div className="text-xs text-center" style={{ color: COLORS.muted }}>
+        Powered by Claude AI · Responses use your actual security data
+      </div>
+    </div>
+  );
+}
 function WatchPanel({ token }) {
   const [status, setStatus]       = useState(null);
   const [alerts, setAlerts]       = useState([]);
@@ -3247,6 +3460,7 @@ const NAV_ITEMS = [
   { id: "predict",   label: "CVE Intel",   icon: AlertTriangle },
   { id: "watch",     label: "Watch",       icon: Shield },
   { id: "ai",        label: "AI Analysis", icon: Shield        },
+  { id: "ask",       label: "Ask AIPET",   icon: Shield },
   { id: "reports",   label: "Reports",     icon: FileText      },
   { id: "pricing",   label: "Pricing",     icon: Zap           },
   { id: "billing",   label: "Billing",     icon: Lock          },
@@ -3823,6 +4037,10 @@ export default function App() {
           {/* AIPET WATCH */}
           {activeTab === "watch" && (
             <WatchPanel token={token} />
+          )}
+          {/* AIPET ASK */}
+          {activeTab === "ask" && (
+            <AskPanel token={token} />
           )}
           {activeTab === "predict" && (
             <PredictPanel token={token} scans={data?.scans || []} />
