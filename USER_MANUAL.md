@@ -738,3 +738,63 @@ The score is weighted by severity — fixing a Critical finding reduces your ris
 ### Important Note
 
 AIPET Fix provides guidance based on industry standards. Always test fixes in a non-production environment first. Some fixes (such as disabling services) may affect device functionality. Consult your security team before applying fixes to production systems.
+
+---
+
+## 18. AIPET Explain — AI-Powered Plain English Explanations
+
+AIPET Explain uses Claude AI to translate technical security findings into plain English that anyone can understand — from IT managers to CEOs and board members.
+
+### Finding Explanations
+
+Every finding in AIPET now has an AI-generated plain English explanation. To access it:
+
+1. Go to the **Findings** tab
+2. Click **View Fix** on any finding
+3. Click the **AI Explanation** tab at the top of the Fix Panel
+4. Wait 2-3 seconds for Claude to generate the explanation (first time only)
+5. Subsequent views load instantly from cache
+
+Each explanation has two sections:
+
+**WHY THIS IS DANGEROUS** — explains the real-world business risk in plain English. What could an attacker actually do? What is the worst case scenario? Written without technical jargon for a business audience.
+
+**WHAT THIS MEANS FOR YOUR BUSINESS** — explains the practical business impact. Is data at risk? Could operations be disrupted? Could there be regulatory consequences?
+
+### Executive Security Report
+
+The Executive Security Report generates a complete board-level security summary for your entire scan with one click.
+
+To generate a report:
+
+1. Go to the **Findings** tab
+2. Click the **Executive Report** button next to the risk reduction percentage
+3. Wait 3-5 seconds for Claude to write the report
+4. Read the four sections — Executive Summary, Key Risks, Immediate Actions, Overall Assessment
+5. Click **Copy Report** to copy it to your clipboard
+6. Paste it into an email, PowerPoint, or board document
+
+The report is written in professional business English with no technical jargon — suitable for presenting directly to a CEO, board, or senior management team.
+
+### Report Sections
+
+| Section | Content |
+|---|---|
+| Executive Summary | 2-sentence overview of what was assessed and the overall risk level |
+| Key Risks Identified | Bullet points describing the most important risks in business language |
+| Immediate Actions Required | Numbered list of the top 3 things to do in the next 7 days |
+| Overall Security Assessment | Honest assessment of current posture and outlook |
+
+### Caching
+
+AIPET Explain is designed to be cost-efficient. Every explanation is generated once and stored permanently. If you view the same finding explanation multiple times, it loads instantly from the database — Claude is only called once per finding.
+
+The Executive Report is regenerated fresh every time you click the button — so it always reflects your current fix status and latest findings.
+
+### Plan Access
+
+AIPET Explain is available on **Professional** and **Enterprise** plans. Free plan users will see an upgrade prompt when clicking the AI Explanation tab or Executive Report button.
+
+### Important Note
+
+AI-generated explanations are designed to make security findings accessible to non-technical audiences. They should be used alongside, not instead of, technical security advice. For critical decisions, always consult a qualified security professional.
