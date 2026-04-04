@@ -974,6 +974,90 @@ The NVD publishes hundreds of new CVEs every day. AIPET Predict filters these do
 
 AIPET Predict is available on **Professional** and **Enterprise** plans. Free plan users will see an upgrade prompt when clicking the CVE Intel tab.
 
+---
+
+## 22. AIPET Watch — 24/7 Network Monitoring
+
+AIPET Watch monitors your network continuously in the background, builds a profile of normal device behaviour, and alerts you the moment something unusual happens — even if it has no known CVE.
+
+### Plan Access
+
+AIPET Watch is available on the **Enterprise plan** (£499/month) only. This is the most advanced monitoring capability in AIPET and is designed for organisations that need continuous security monitoring.
+
+### How AIPET Watch Works
+
+AIPET Watch uses a two-component architecture:
+
+**1. The Watch Agent** — runs on your local network
+A lightweight Python script that passively captures network packets using Scapy. It is completely invisible to devices on your network — they cannot detect it. The agent analyses traffic patterns, compares against stored baselines, and reports anomalies to the AIPET Cloud.
+
+**2. The AIPET Cloud** — receives and displays alerts
+The cloud receives reports from your agent, stores anomaly alerts, and displays them in the Watch dashboard.
+
+### Setting Up AIPET Watch
+
+**Step 1 — Build Device Baselines**
+
+1. Go to the **Watch** tab in the sidebar
+2. Click **Build Baselines**
+3. AIPET analyses your latest scan to profile each device
+4. Baselines are stored permanently and updated automatically
+
+**Step 2 — Deploy the Watch Agent**
+
+Install Scapy on a Linux machine on your network:
+pip install scapy
+
+Run the agent with your API token:
+sudo python3 dashboard/backend/watch/agent.py 
+--api-url https://aipet.io 
+--token YOUR_API_TOKEN
+
+Your API token can be found in the **API Keys** tab of the dashboard (Enterprise users only).
+
+**Step 3 — Monitor for Anomalies**
+
+The agent runs continuously. When it detects an anomaly, it reports to AIPET Cloud automatically. Anomalies appear in the Watch Alerts section of the dashboard.
+
+### Testing Without a Network
+
+To test AIPET Watch without a real network or sudo access, use test mode:
+python3 dashboard/backend/watch/agent.py 
+--test 
+--api-url http://localhost:5001 
+--token YOUR_API_TOKEN
+
+Test mode simulates realistic network traffic and anomalies over 3 cycles.
+
+### Understanding the Watch Dashboard
+
+**Monitored Devices** — shows all devices that have been baselined with their current status, severity, risk score, and protocols.
+
+**Watch Alerts** — shows anomalies detected by the agent. Each alert shows the device IP, anomaly type, severity, and description. Click Acknowledge when you have reviewed an alert.
+
+**All Clear** — shown when no unacknowledged anomalies exist. Your network behaviour matches the baseline.
+
+### Anomaly Types
+
+| Anomaly | Severity | Description |
+|---|---|---|
+| new_protocol_detected | High/Medium | A device is using a protocol not seen before |
+| traffic_spike | High | Traffic from a device is 5x above normal |
+| network_scan_detected | Critical | A device is connecting to many new IPs (possible scanner) |
+| finding_spike | High | Number of vulnerabilities on a device increased |
+| severity_increase | Critical/High | A device's worst severity escalated |
+| new_attack_type | High | A new vulnerability type appeared on a device |
+
+### Agent Configuration Options
+
+| Option | Default | Description |
+|---|---|---|
+| --api-url | required | URL of your AIPET Cloud instance |
+| --token | required | Your AIPET API token |
+| --interface | auto | Network interface to monitor (e.g. eth0) |
+| --interval | 60 | Seconds between check cycles |
+| --test | false | Run in test mode without Scapy |
+
 ### Report Sections
 
 | Section | Content |

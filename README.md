@@ -614,6 +614,18 @@ Every user now gets real-time CVE intelligence matched against their specific de
 - **Deduplication** — never creates duplicate alerts for the same CVE
 - **Predict API** — four production-ready endpoints: `POST /api/predict/scan/<scan_id>`, `GET /api/predict/alerts`, `PATCH /api/predict/alerts/<id>/review`, `DELETE /api/predict/alerts/<id>`
 
+### AIPET Watch ✅ Complete
+
+Every Enterprise user now has access to 24/7 passive network monitoring:
+
+- **Scapy-Based Agent** — lightweight Python agent runs passively on the customer's local network, completely invisible to devices, captures and analyses all network traffic
+- **Baseline Profiling** — builds a baseline of normal behaviour for each device from existing scan data — finding count, severity profile, protocols, risk score, attack types
+- **Anomaly Detection** — detects deviations from baseline including new protocols, traffic spikes, network scanning behaviour, and new vulnerabilities
+- **Cloud Reporting** — agent sends anomaly reports to AIPET Cloud API every configurable interval
+- **Agent Deployment** — single Python script with two modes: live (Scapy, requires sudo) and test (simulation, no sudo required)
+- **Watch API** — six production-ready endpoints: `POST /api/watch/baselines/build`, `GET /api/watch/baselines`, `POST /api/watch/report`, `GET /api/watch/alerts`, `PATCH /api/watch/alerts/<id>/acknowledge`, `GET /api/watch/status`
+- **Enterprise Only** — AIPET Watch is exclusive to the Enterprise plan (£499/month)
+
 ### Coming Soon
 
 | Module | Description | Status |
@@ -622,6 +634,6 @@ Every user now gets real-time CVE intelligence matched against their specific de
 | | 3 | AIPET Score — Financial Business Impact | ✅ Complete |
 | AIPET Map — Visual Attack Path Mapping | ✅ Complete |
 | AIPET Predict — CVE Monitoring | ✅ Complete |
-| AIPET Watch | Passive 24/7 network anomaly detection | 📅 Month 6 |
+| | 6 | AIPET Watch — Passive Network Monitoring | ✅ Complete |
 | AIPET Ask | Natural language AI security assistant | 📅 Month 7 |
 
