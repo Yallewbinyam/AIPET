@@ -2,6 +2,11 @@
 import { useState, useEffect, useCallback, useRef } from "react";
 import axios from "axios";
 import * as d3 from "d3";
+// Load JetBrains Mono font for technical aesthetic
+const fontLink = document.createElement("link");
+fontLink.href = "https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Inter:wght@400;500;600;700&display=swap";
+fontLink.rel = "stylesheet";
+document.head.appendChild(fontLink);
 import {
   PieChart, Pie, Cell, Tooltip, ResponsiveContainer,
   BarChart, Bar, XAxis, YAxis, CartesianGrid
@@ -35,20 +40,33 @@ axios.interceptors.response.use(
 );
 
 const COLORS = {
-  critical: "#ef4444",
-  high:     "#f97316",
-  medium:   "#eab308",
-  low:      "#22c55e",
+  // Alert colours
+  critical: "#ff4444",
+  high:     "#ff8c00",
+  medium:   "#f5c518",
+  low:      "#00ff88",
   info:     "#6b7280",
-  blue:     "#3b82f6",
+
+  // Brand colours
+  blue:     "#00d4ff",
   purple:   "#8b5cf6",
-  dark:     "#0f172a",
-  darker:   "#020617",
-  card:     "#1e293b",
-  border:   "#334155",
-  text:     "#f1f5f9",
-  muted:    "#94a3b8",
-};
+  cyan:     "#00d4ff",
+
+  // Background layers
+  dark:     "#080c10",
+  darker:   "#04060a",
+  card:     "#0d1117",
+  cardHover:"#111820",
+
+  // Borders
+  border:   "#21262d",
+  borderHover: "#30363d",
+
+  // Typography
+  text:     "#e6edf3",
+  muted:    "#7d8590",
+  subtle:   "#484f58",
+}
 
 const SEVERITY_CONFIG = {
   CRITICAL: { color: COLORS.critical, bg: "bg-red-500/10",    border: "border-red-500/30",    icon: AlertOctagon, label: "CRITICAL" },
