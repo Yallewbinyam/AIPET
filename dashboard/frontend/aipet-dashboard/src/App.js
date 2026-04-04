@@ -461,6 +461,273 @@ function FixPanel({ finding, token, onClose, onStatusUpdate }) {
     </div>
   );
 }
+function PredictPanel({ token, scans }) {
+  const [alerts, setAlerts]         = useState([]);
+  const [loading, setLoading]       = useState(true);
+  const [scanning, setScanning]     = useState(false);
+  const [error, setError]           = useState(null);
+  const [scanResult, setScanResult] = useState(null);
+
+  const latestScan = scans && scans.find(s => s.status === "completed" || s.status === "complete");
+  const scanId     = latestScan?.id;
+
+  const headers = { Authorization: `Bearer ${token}` };
+
+  useEffect(() => {
+    fetchAlerts();
+  }, [token]);
+
+  const fetchAlerts = async () => {
+    try {
+      const res = await axios.get(`${API}/predict/alerts`, { headers });
+      setAlerts(res.data);
+    } catch (err) {
+      if (err.response?.status === 403) setError("upgrade");
+      else setError("Failed to load CVE alerts.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const runScan = async () => {
+    if (!scanId) { setError("No completed scan found. Run a scan first."); return; }
+    setScanning(true);
+    setScanResult(null);
+    try {
+      const res = await axios.post(
+        `${API}/predict/scan/${scanId}`,
+        { days: 7 },
+        { headers }
+      );
+      setScanResult(res.data);
+      await fetchAlerts();
+    } catch (err) {
+      if (err.response?.status === 403) setError("upgrade");
+      else setError("Failed to run CVE scan.");
+    } finally {
+      setScanning(false);
+    }
+  };
+
+  const markReviewed = async (alertId) => {
+    try {
+      await axios.patch(`${API}/predict/alerts/${alertId}/review`, {}, { headers });
+      setAlerts(prev => prev.map(a => a.id === alertId ? { ...a, is_reviewed: true } : a));
+    } catch (err) {
+      console.error("Failed to mark reviewed:", err);
+    }
+  };
+
+  const dismissAlert = async (alertId) => {
+    try {
+      await axios.delete(`${API}/predict/alerts/${alertId}`, { headers });
+      setAlerts(prev => prev.filter(a => a.id !== alertId));
+    } catch (err) {
+      console.error("Failed to dismiss alert:", err);
+    }
+  };
+
+  const severityColor = {
+    Critical: COLORS.critical,
+    High:     COLORS.high,
+    Medium:   COLORS.medium,
+    Low:      COLORS.low,
+  };
+
+  const weaponisationColor = (pct) => {
+    if (pct >= 70) return COLORS.critical;
+    if (pct >= 40) return COLORS.high;
+    if (pct >= 20) return COLORS.medium;
+    return COLORS.low;
+  };
+
+  if (loading) return (
+    <div className="flex items-center justify-center h-64" style={{ color: COLORS.muted }}>
+      Loading CVE intelligence...
+    </div>
+  );
+
+  if (error === "upgrade") return (
+    <div className="rounded-2xl p-16 border text-center"
+      style={{ backgroundColor: COLORS.card, borderColor: COLORS.border }}>
+      <AlertTriangle size={48} style={{ color: COLORS.muted }} className="mx-auto mb-4" />
+      <div className="text-sm font-bold mb-2" style={{ color: COLORS.text }}>Professional Feature</div>
+      <div className="text-xs" style={{ color: COLORS.muted }}>
+        AIPET Predict is available on Professional and Enterprise plans.
+      </div>
+    </div>
+  );
+
+  return (
+    <div className="space-y-4">
+      {/* Header */}
+      <div className="rounded-xl border p-4 flex items-center justify-between"
+        style={{ backgroundColor: COLORS.card, borderColor: COLORS.border }}>
+        <div>
+          <div className="text-sm font-bold" style={{ color: COLORS.text }}>CVE Intelligence Feed</div>
+          <div className="text-xs mt-0.5" style={{ color: COLORS.muted }}>
+            {alerts.length > 0
+              ? `${alerts.filter(a => !a.is_reviewed).length} unreviewed alerts · ${alerts.length} total`
+              : "No CVE alerts yet — click Check for New CVEs"}
+          </div>
+        </div>
+        <button onClick={runScan} disabled={scanning}
+          className="px-4 py-2 rounded-xl text-xs font-bold transition-all"
+          style={{
+            backgroundColor: COLORS.blue + "20",
+            color: COLORS.blue,
+            border: `1px solid ${COLORS.blue + "40"}`,
+            opacity: scanning ? 0.6 : 1
+          }}>
+          {scanning ? "Scanning NVD..." : "Check for New CVEs"}
+        </button>
+      </div>
+
+      {/* Scan result */}
+      {scanResult && (
+        <div className="rounded-xl border p-4"
+          style={{ backgroundColor: COLORS.low + "10", borderColor: COLORS.low + "40" }}>
+          <div className="text-xs font-bold" style={{ color: COLORS.low }}>
+            ✓ Scan Complete
+          </div>
+          <div className="text-xs mt-1" style={{ color: COLORS.muted }}>
+            Checked {scanResult.cves_checked} CVEs from last {scanResult.days_checked} days.
+            Found {scanResult.new_alerts} new alerts matching your devices.
+          </div>
+        </div>
+      )}
+
+      {error && error !== "upgrade" && (
+        <div className="rounded-xl border p-4"
+          style={{ backgroundColor: COLORS.critical + "10", borderColor: COLORS.critical + "40" }}>
+          <div className="text-xs" style={{ color: COLORS.critical }}>{error}</div>
+        </div>
+      )}
+
+      {/* Alerts list */}
+      {alerts.length === 0 ? (
+        <div className="rounded-2xl p-16 border text-center"
+          style={{ backgroundColor: COLORS.card, borderColor: COLORS.border }}>
+          <div className="text-2xl mb-3">🛡️</div>
+          <div className="text-sm font-bold mb-2" style={{ color: COLORS.text }}>
+            No CVE Alerts
+          </div>
+          <div className="text-xs" style={{ color: COLORS.muted }}>
+            Click "Check for New CVEs" to scan the NVD for vulnerabilities matching your devices.
+          </div>
+        </div>
+      ) : (
+        <div className="space-y-3">
+          {alerts.map(alert => (
+            <div key={alert.id} className="rounded-xl border overflow-hidden"
+              style={{
+                backgroundColor: COLORS.card,
+                borderColor: alert.is_reviewed ? COLORS.border : (severityColor[alert.severity] || COLORS.border) + "40",
+                opacity: alert.is_reviewed ? 0.7 : 1
+              }}>
+              {/* Alert header */}
+              <div className="p-4">
+                <div className="flex items-start justify-between gap-3">
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2 mb-1">
+                      <span className="text-xs font-black px-2 py-0.5 rounded"
+                        style={{
+                          backgroundColor: (severityColor[alert.severity] || COLORS.muted) + "20",
+                          color: severityColor[alert.severity] || COLORS.muted
+                        }}>
+                        {alert.severity}
+                      </span>
+                      <span className="text-xs font-mono font-bold" style={{ color: COLORS.text }}>
+                        {alert.cve_id}
+                      </span>
+                      <span className="text-xs" style={{ color: COLORS.muted }}>
+                        CVSS {alert.cvss_score}
+                      </span>
+                      {alert.is_reviewed && (
+                        <span className="text-xs" style={{ color: COLORS.low }}>✓ Reviewed</span>
+                      )}
+                    </div>
+                    <div className="text-xs leading-relaxed mb-2" style={{ color: COLORS.text }}>
+                      {alert.description?.substring(0, 200)}
+                      {alert.description?.length > 200 ? "..." : ""}
+                    </div>
+
+                    {/* Weaponisation probability */}
+                    <div className="flex items-center gap-3 mb-2">
+                      <div className="text-xs" style={{ color: COLORS.muted }}>
+                        Weaponisation probability:
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <div className="w-24 h-1.5 rounded-full overflow-hidden"
+                          style={{ backgroundColor: COLORS.border }}>
+                          <div className="h-full rounded-full"
+                            style={{
+                              width: `${alert.weaponisation_pct}%`,
+                              backgroundColor: weaponisationColor(alert.weaponisation_pct)
+                            }} />
+                        </div>
+                        <span className="text-xs font-bold"
+                          style={{ color: weaponisationColor(alert.weaponisation_pct) }}>
+                          {alert.weaponisation_pct}%
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Affected devices */}
+                    {alert.affected_devices?.length > 0 && (
+                      <div className="flex items-center gap-2 flex-wrap">
+                        <span className="text-xs" style={{ color: COLORS.muted }}>Affects:</span>
+                        {alert.affected_devices.map((d, i) => (
+                          <span key={i} className="text-xs px-2 py-0.5 rounded font-mono"
+                            style={{ backgroundColor: COLORS.dark, color: COLORS.text }}>
+                            {d.ip}
+                          </span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Actions */}
+                  <div className="flex flex-col gap-2 flex-shrink-0">
+                    <a href={alert.nvd_url} target="_blank" rel="noopener noreferrer"
+                      className="px-3 py-1.5 rounded-lg text-xs font-bold text-center transition-all"
+                      style={{
+                        backgroundColor: COLORS.blue + "20",
+                        color: COLORS.blue,
+                        border: `1px solid ${COLORS.blue + "40"}`
+                      }}>
+                      View CVE
+                    </a>
+                    {!alert.is_reviewed && (
+                      <button onClick={() => markReviewed(alert.id)}
+                        className="px-3 py-1.5 rounded-lg text-xs font-bold transition-all"
+                        style={{
+                          backgroundColor: COLORS.low + "20",
+                          color: COLORS.low,
+                          border: `1px solid ${COLORS.low + "40"}`
+                        }}>
+                        Mark Reviewed
+                      </button>
+                    )}
+                    <button onClick={() => dismissAlert(alert.id)}
+                      className="px-3 py-1.5 rounded-lg text-xs font-bold transition-all"
+                      style={{
+                        backgroundColor: COLORS.critical + "10",
+                        color: COLORS.muted,
+                        border: `1px solid ${COLORS.border}`
+                      }}>
+                      Dismiss
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 function NetworkMap({ token, scans }) {
   const svgRef = useRef(null);
   const [graphData, setGraphData]       = useState(null);
@@ -2689,6 +2956,7 @@ const NAV_ITEMS = [
   { id: "devices",   label: "Devices",     icon: Cpu           },
   { id: "findings",  label: "Findings",    icon: AlertTriangle },
   { id: "map",       label: "Network Map", icon: Shield },
+  { id: "predict",   label: "CVE Intel",   icon: AlertTriangle },
   { id: "ai",        label: "AI Analysis", icon: Shield        },
   { id: "reports",   label: "Reports",     icon: FileText      },
   { id: "pricing",   label: "Pricing",     icon: Zap           },
@@ -3262,6 +3530,10 @@ export default function App() {
 
           {/* AI ANALYSIS */}
           {/* NETWORK MAP */}
+          {/* CVE INTELLIGENCE */}
+          {activeTab === "predict" && (
+            <PredictPanel token={token} scans={data?.scans || []} />
+          )}
           {activeTab === "map" && (
             <NetworkMap token={token} scans={data?.scans || []} />
           )}
