@@ -461,6 +461,265 @@ function FixPanel({ finding, token, onClose, onStatusUpdate }) {
   );
 }
 
+function ScorePanel({ findings, token, scans }) {
+  const [showTagModal, setShowTagModal]   = useState(false);
+  const [showScore, setShowScore]         = useState(false);
+  const [tags, setTags]                   = useState({});
+  const [industry, setIndustry]           = useState("General Business");
+  const [industries, setIndustries]       = useState([]);
+  const [businessFunctions, setBusinessFunctions] = useState([]);
+  const [scoreResult, setScoreResult]     = useState(null);
+  const [calculating, setCalculating]     = useState(false);
+  const [saving, setSaving]               = useState(false);
+  const [error, setError]                 = useState(null);
+
+  const latestScan = scans && scans.find(s => s.status === "completed" || s.status === "complete");
+  const scanId     = latestScan?.id;
+
+  // Get unique device IPs from findings
+  const devices = [...new Set(findings.map(f => f.target).filter(Boolean))];
+
+  // Load options and existing tags on mount
+  useState(() => {
+    const load = async () => {
+      try {
+        const headers = { Authorization: `Bearer ${token}` };
+        const [optRes, tagRes] = await Promise.all([
+          axios.get(`${API}/score/options`, { headers }),
+          axios.get(`${API}/score/tags`,    { headers }),
+        ]);
+        setIndustries(optRes.data.industries || []);
+        setBusinessFunctions(optRes.data.business_functions || []);
+        // Pre-populate tags from saved data
+        const savedTags = {};
+        let savedIndustry = "General Business";
+        (tagRes.data || []).forEach(t => {
+          savedTags[t.device_ip] = t.business_function;
+          savedIndustry = t.industry;
+        });
+        setTags(savedTags);
+        setIndustry(savedIndustry);
+      } catch (e) {
+        console.error("Failed to load score options:", e);
+      }
+    };
+    load();
+  }, [token]);
+
+  const saveTags = async () => {
+    setSaving(true);
+    try {
+      const headers = { Authorization: `Bearer ${token}` };
+      const tagList = Object.entries(tags).map(([ip, fn]) => ({
+        device_ip: ip, business_function: fn
+      }));
+      await axios.post(`${API}/score/tags`, { tags: tagList, industry }, { headers });
+      setShowTagModal(false);
+    } catch (err) {
+      if (err.response?.status === 403) {
+        setError("upgrade");
+      } else {
+        setError("Failed to save tags. Please try again.");
+      }
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const calculateScore = async () => {
+    if (!scanId) { setError("No completed scan found."); return; }
+    setCalculating(true);
+    setError(null);
+    try {
+      const headers = { Authorization: `Bearer ${token}` };
+      const res = await axios.post(
+        `${API}/score/calculate/${scanId}`,
+        { industry },
+        { headers }
+      );
+      setScoreResult(res.data);
+      setShowScore(true);
+    } catch (err) {
+      if (err.response?.status === 403) setError("upgrade");
+      else setError("Failed to calculate score. Please try again.");
+    } finally {
+      setCalculating(false);
+    }
+  };
+
+  const severityColor = { Critical: COLORS.critical, High: COLORS.high, Medium: COLORS.medium, Low: COLORS.low };
+
+  return (
+    <>
+      {/* Device Tagging Modal */}
+      {showTagModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center"
+          style={{ backgroundColor: "rgba(0,0,0,0.8)", backdropFilter: "blur(4px)" }}>
+          <div className="w-full max-w-lg mx-4 rounded-2xl overflow-hidden"
+            style={{ backgroundColor: COLORS.dark, border: `1px solid ${COLORS.border}`, maxHeight: "85vh", overflowY: "auto" }}>
+            <div className="p-6 border-b flex items-center justify-between"
+              style={{ borderColor: COLORS.border }}>
+              <div>
+                <h2 className="text-lg font-black" style={{ color: COLORS.text }}>Tag Your Devices</h2>
+                <p className="text-xs mt-1" style={{ color: COLORS.muted }}>Tell us what each device does to calculate accurate financial risk</p>
+              </div>
+              <button onClick={() => setShowTagModal(false)}
+                className="p-2 rounded-lg hover:bg-white/10" style={{ color: COLORS.muted }}>✕</button>
+            </div>
+            <div className="p-6 space-y-4">
+              {/* Industry selector */}
+              <div>
+                <label className="text-xs font-bold uppercase tracking-wider mb-2 block" style={{ color: COLORS.text }}>
+                  Your Industry
+                </label>
+                <select value={industry} onChange={e => setIndustry(e.target.value)}
+                  className="w-full px-4 py-3 rounded-xl text-sm outline-none"
+                  style={{ backgroundColor: COLORS.card, color: COLORS.text, border: `1px solid ${COLORS.border}` }}>
+                  {industries.map(ind => <option key={ind} value={ind}>{ind}</option>)}
+                </select>
+              </div>
+              {/* Device tags */}
+              <div>
+                <label className="text-xs font-bold uppercase tracking-wider mb-2 block" style={{ color: COLORS.text }}>
+                  Device Functions
+                </label>
+                {devices.length === 0 ? (
+                  <p className="text-sm" style={{ color: COLORS.muted }}>No devices found. Run a scan first.</p>
+                ) : (
+                  <div className="space-y-2">
+                    {devices.map(ip => (
+                      <div key={ip} className="flex items-center gap-3">
+                        <div className="text-xs font-mono flex-shrink-0 w-28" style={{ color: COLORS.muted }}>{ip}</div>
+                        <select
+                          value={tags[ip] || "Unknown"}
+                          onChange={e => setTags(prev => ({ ...prev, [ip]: e.target.value }))}
+                          className="flex-1 px-3 py-2 rounded-lg text-xs outline-none"
+                          style={{ backgroundColor: COLORS.card, color: COLORS.text, border: `1px solid ${COLORS.border}` }}>
+                          {businessFunctions.map(fn => <option key={fn} value={fn}>{fn}</option>)}
+                        </select>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+              <button onClick={saveTags} disabled={saving}
+                className="w-full py-3 rounded-xl text-sm font-bold transition-all"
+                style={{ backgroundColor: COLORS.blue, color: "#fff", opacity: saving ? 0.6 : 1 }}>
+                {saving ? "Saving..." : "Save Tags & Close"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Score Panel */}
+      <div className="rounded-xl border p-4" style={{ backgroundColor: COLORS.card, borderColor: COLORS.border }}>
+        <div className="flex items-center justify-between mb-3">
+          <div>
+            <div className="text-sm font-bold" style={{ color: COLORS.text }}>Financial Risk Exposure</div>
+            <div className="text-xs mt-0.5" style={{ color: COLORS.muted }}>
+              {scoreResult ? `Industry: ${scoreResult.industry}` : "Tag your devices to calculate financial impact"}
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            <button onClick={() => setShowTagModal(true)}
+              className="px-3 py-1.5 rounded-lg text-xs font-bold transition-all"
+              style={{ backgroundColor: COLORS.blue + "20", color: COLORS.blue, border: `1px solid ${COLORS.blue + "40"}` }}>
+              Tag Devices
+            </button>
+            <button onClick={calculateScore} disabled={calculating}
+              className="px-3 py-1.5 rounded-lg text-xs font-bold transition-all"
+              style={{ backgroundColor: COLORS.purple + "20", color: COLORS.purple, border: `1px solid ${COLORS.purple + "40"}`, opacity: calculating ? 0.6 : 1 }}>
+              {calculating ? "Calculating..." : "Calculate Score"}
+            </button>
+          </div>
+        </div>
+
+        {error === "upgrade" ? (
+          <div className="text-center py-6">
+            <div className="text-xs" style={{ color: COLORS.muted }}>AIPET Score is available on Professional and Enterprise plans.</div>
+          </div>
+        ) : error ? (
+          <div className="text-center py-4">
+            <div className="text-xs" style={{ color: COLORS.critical }}>{error}</div>
+          </div>
+        ) : scoreResult ? (
+          <div className="space-y-3">
+            {/* Total exposure */}
+            <div className="rounded-xl p-4 text-center"
+              style={{ backgroundColor: COLORS.critical + "10", border: `1px solid ${COLORS.critical + "30"}` }}>
+              <div className="text-xs font-bold uppercase tracking-wider mb-1" style={{ color: COLORS.critical }}>
+                Total Financial Exposure
+              </div>
+              <div className="text-3xl font-black" style={{ color: COLORS.critical }}>
+                {scoreResult.total_exposure_fmt}
+              </div>
+              <div className="text-xs mt-1" style={{ color: COLORS.muted }}>
+                Based on {scoreResult.industry} industry breach cost data
+              </div>
+            </div>
+
+            {/* Per-finding breakdown */}
+            <div className="space-y-2">
+              {scoreResult.findings_breakdown?.map((f, i) => {
+                const maxExposure = scoreResult.findings_breakdown[0]?.exposure_gbp || 1;
+                const barWidth    = Math.round((f.exposure_gbp / maxExposure) * 100);
+                return (
+                  <div key={i} className="rounded-lg p-3 border"
+                    style={{ backgroundColor: COLORS.dark, borderColor: COLORS.border }}>
+                    <div className="flex items-center justify-between mb-1.5">
+                      <div className="flex items-center gap-2">
+                        <div className="w-2 h-2 rounded-full flex-shrink-0"
+                          style={{ backgroundColor: severityColor[f.severity] || COLORS.muted }} />
+                        <span className="text-xs font-semibold" style={{ color: COLORS.text }}>{f.attack}</span>
+                        <span className="text-xs" style={{ color: COLORS.muted }}>{f.target}</span>
+                      </div>
+                      <span className="text-xs font-black" style={{ color: severityColor[f.severity] || COLORS.text }}>
+                        {f.exposure_fmt}
+                      </span>
+                    </div>
+                    <div className="w-full h-1.5 rounded-full overflow-hidden" style={{ backgroundColor: COLORS.border }}>
+                      <div className="h-full rounded-full"
+                        style={{ width: `${barWidth}%`, backgroundColor: severityColor[f.severity] || COLORS.muted }} />
+                    </div>
+                    <div className="text-xs mt-1" style={{ color: COLORS.muted }}>
+                      {f.device_function} · {f.breach_probability}% breach probability
+                      {f.fix_status === "fixed" && <span style={{ color: COLORS.low }}> · Fixed ✓</span>}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Summary */}
+            <div className="grid grid-cols-2 gap-2">
+              {[
+                { label: "Critical Exposure", value: `£${(scoreResult.summary?.critical_exposure || 0).toLocaleString()}`, color: COLORS.critical },
+                { label: "High Exposure",     value: `£${(scoreResult.summary?.high_exposure     || 0).toLocaleString()}`, color: COLORS.high     },
+                { label: "Medium Exposure",   value: `£${(scoreResult.summary?.medium_exposure   || 0).toLocaleString()}`, color: COLORS.medium   },
+                { label: "Fixed Savings",     value: `£${(scoreResult.summary?.fixed_savings     || 0).toLocaleString()}`, color: COLORS.low      },
+              ].map(item => (
+                <div key={item.label} className="rounded-lg p-3 border"
+                  style={{ backgroundColor: COLORS.dark, borderColor: COLORS.border }}>
+                  <div className="text-xs" style={{ color: COLORS.muted }}>{item.label}</div>
+                  <div className="text-sm font-black mt-1" style={{ color: item.color }}>{item.value}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        ) : (
+          <div className="text-center py-6">
+            <div className="text-2xl mb-2">💰</div>
+            <div className="text-xs" style={{ color: COLORS.muted }}>
+              Click "Tag Devices" to assign business functions, then "Calculate Score" to see financial impact
+            </div>
+          </div>
+        )}
+      </div>
+    </>
+  );
+}
+
 function RiskReductionBar({ findings, token, scans }) {
   const [showReport, setShowReport]     = useState(false);
   const [report, setReport]             = useState(null);
@@ -2547,8 +2806,11 @@ export default function App() {
           {/* FINDINGS */}
           {activeTab === "findings" && (
             <div className="space-y-4">
-              {/* Risk Reduction Score + Executive Report */}
+             {/* Risk Reduction Score + Executive Report */}
               <RiskReductionBar findings={findings} token={token} scans={data?.scans || []} />
+
+              {/* AIPET Score — Financial Risk */}
+              <ScorePanel findings={findings} token={token} scans={data?.scans || []} />
               
               {/* Controls */}
               <div className="flex items-center gap-3">
