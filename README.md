@@ -578,12 +578,24 @@ Every finding and scan now has plain English AI explanations powered by Claude:
 - **Explain API** — three production-ready endpoints: `GET /api/explain/finding/<id>`, `POST /api/explain/report/<scan_id>`, `GET /api/explain/report/<scan_id>`
 - **Token Tracking** — every API call tracks tokens used for cost monitoring as usage scales
 
+### AIPET Score ✅ Complete
+
+Every scan now includes a financial risk assessment translating technical vulnerabilities into business impact:
+
+- **Device Tagging** — users assign business functions to each device (Patient Records, Financial/Payment, Customer Data, etc.) so the calculation reflects real organisational context
+- **Industry-Calibrated Scoring** — 10 UK industries with base breach costs from IBM Cost of a Data Breach Report 2024 and NCSC UK Cyber Security Breaches Survey 2024
+- **Per-Finding Financial Exposure** — each vulnerability gets a pound figure based on severity × device criticality × breach probability
+- **Financial Summary** — Critical Exposure, High Exposure, Medium Exposure, and Fixed Savings displayed in real time
+- **Persistent Tags** — device tags are saved permanently so users only need to tag once
+- **Score API** — four production-ready endpoints: `GET /api/score/options`, `GET /api/score/tags`, `POST /api/score/tags`, `POST /api/score/calculate/<scan_id>`
+- **Honest Disclaimers** — all figures include source attribution and appropriate caveats
+
 ### Coming Soon
 
 | Module | Description | Status |
 |---|---|---|
 | AIPET Explain — Natural Language AI Explanations | ✅ Complete |
-| AIPET Score | Financial business impact calculation | 📅 Month 3 |
+| | 3 | AIPET Score — Financial Business Impact | ✅ Complete |
 | AIPET Map | Visual attack path mapping with D3.js | 📅 Month 4 |
 | AIPET Predict | CVE monitoring via NVD API | 📅 Month 5 |
 | AIPET Watch | Passive 24/7 network anomaly detection | 📅 Month 6 |

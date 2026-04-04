@@ -776,6 +776,69 @@ To generate a report:
 
 The report is written in professional business English with no technical jargon — suitable for presenting directly to a CEO, board, or senior management team.
 
+---
+
+## 19. AIPET Score — Financial Risk Assessment
+
+AIPET Score translates technical vulnerabilities into financial business impact. Instead of CVSS scores and severity ratings, you see pound figures — helping you prioritise security investment and communicate risk to non-technical stakeholders.
+
+### How to Use AIPET Score
+
+**Step 1 — Tag Your Devices**
+
+1. Go to the **Findings** tab
+2. Click **Tag Devices**
+3. Select your industry from the dropdown (Healthcare, Financial Services, Manufacturing, etc.)
+4. For each device IP, select what that device does in your organisation:
+   - Patient Records / Medical
+   - Financial / Payment
+   - Customer Data
+   - Operations / Manufacturing
+   - Research / IP
+   - HR / Employee Data
+   - General IT
+   - Infrastructure / Network
+   - IoT / Sensor
+   - Unknown
+5. Click **Save Tags & Close**
+
+You only need to tag devices once. Tags are saved permanently and pre-populated on future visits.
+
+**Step 2 — Calculate Your Score**
+
+1. Click **Calculate Score**
+2. AIPET calculates the financial exposure for every finding
+3. The Financial Risk Exposure panel displays your results instantly
+
+### Understanding Your Score
+
+**Total Financial Exposure** — the combined pound value of all vulnerabilities based on your industry's average breach costs.
+
+**Per-Finding Breakdown** — each vulnerability shows:
+- The pound value of that specific finding
+- A proportional bar showing relative impact
+- The device business function assigned
+- The breach probability percentage for that attack type
+
+**Summary Grid** — four key figures:
+- Critical Exposure — total exposure from Critical severity findings
+- High Exposure — total exposure from High severity findings
+- Medium Exposure — total exposure from Medium severity findings
+- Fixed Savings — exposure eliminated by findings you have already fixed
+
+### How the Calculation Works
+
+AIPET Score uses a weighted formula based on UK industry breach cost data:
+Industry base costs come from the IBM Cost of a Data Breach Report 2024 and the NCSC UK Cyber Security Breaches Survey 2024.
+
+### Important Disclaimer
+
+Financial exposure figures are estimates based on UK industry average breach costs. Actual costs may vary significantly depending on the size of your organisation, the nature of the data involved, regulatory environment, and incident response capability. These figures are intended to support security investment decisions and stakeholder communication — not to predict exact breach costs. Always consult a qualified security professional and cyber insurance advisor for precise risk quantification.
+
+### Plan Access
+
+AIPET Score is available on **Professional** and **Enterprise** plans. Free plan users will see an upgrade prompt when clicking Tag Devices or Calculate Score.
+
 ### Report Sections
 
 | Section | Content |
