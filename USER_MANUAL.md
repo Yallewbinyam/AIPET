@@ -908,6 +908,72 @@ Clicking any node opens the Device Details panel showing:
 
 AIPET Map is available on **Professional** and **Enterprise** plans. Free plan users will see an upgrade prompt when clicking the Network Map tab.
 
+---
+
+## 21. AIPET Predict — CVE Intelligence Feed
+
+AIPET Predict monitors the National Vulnerability Database (NVD) for new CVEs published daily and alerts you when any match your specific device inventory. Instead of reading hundreds of CVE bulletins, you only see the ones that matter to your network.
+
+### How to Access CVE Intelligence
+
+1. Go to the **CVE Intel** tab in the sidebar
+2. Click **Check for New CVEs** to scan the NVD
+3. AIPET fetches CVEs from the last 7 days and matches them against your devices
+4. Relevant CVEs appear as alerts sorted by severity
+
+### Understanding CVE Alerts
+
+Each alert shows:
+
+**Severity badge** — Critical, High, Medium, or Low based on the CVSS score
+
+**CVE ID** — the official identifier (e.g. CVE-2025-9497)
+
+**CVSS Score** — the official vulnerability severity score (0-10). Scores above 9.0 are Critical.
+
+**Description** — a plain English summary of what the vulnerability is
+
+**Weaponisation Probability** — our estimate of how likely this CVE is to be actively exploited:
+- 70%+ (red) — very high risk, act immediately
+- 40-69% (orange) — high risk, patch within 48 hours
+- 20-39% (yellow) — moderate risk, patch within 7 days
+- Below 20% (green) — lower risk, monitor
+
+**Affects** — which of your specific devices are most likely vulnerable
+
+### Managing Alerts
+
+Each alert has three action buttons:
+
+**View CVE** — opens the official NVD page for this CVE with full technical details, patch information, and references
+
+**Mark Reviewed** — marks the alert as reviewed so you can track which CVEs you have already assessed. Reviewed alerts are dimmed but remain visible.
+
+**Dismiss** — permanently removes the alert from your list
+
+### How the Matching Works
+
+AIPET Predict matches CVEs to your devices by cross-referencing:
+
+- **Attack types** from your scan findings (e.g. open_telnet matches CVEs mentioning Telnet)
+- **Device functions** from your device tags (e.g. Operations/Manufacturing matches SCADA/ICS CVEs)
+- **Protocols** detected during scanning (e.g. MQTT, CoAP, FTP)
+
+Only CVEs that match at least one keyword from your specific network profile are shown. Generic CVEs that don't affect your devices are filtered out automatically.
+
+### How Often to Check
+
+We recommend checking for new CVEs:
+- **Daily** for Enterprise environments
+- **Weekly** for Professional users
+- After any major security incident or news event involving IoT devices
+
+The NVD publishes hundreds of new CVEs every day. AIPET Predict filters these down to only the ones relevant to your specific devices.
+
+### Plan Access
+
+AIPET Predict is available on **Professional** and **Enterprise** plans. Free plan users will see an upgrade prompt when clicking the CVE Intel tab.
+
 ### Report Sections
 
 | Section | Content |

@@ -602,6 +602,18 @@ Every scan now includes an interactive network attack path visualisation:
 - **Visual Indicators** — ⚠ entry points, dashed border for critical assets, severity-coded colours (red=Critical, orange=High, yellow=Medium, green=Low)
 - **Map API** — two production-ready endpoints: `GET /api/map/<scan_id>`, `GET /api/map/<scan_id>/paths`
 
+### AIPET Predict ✅ Complete
+
+Every user now gets real-time CVE intelligence matched against their specific device inventory:
+
+- **NVD Integration** — connects to the National Vulnerability Database API (free, no authentication required) to fetch CVEs published in the last 1-30 days
+- **Intelligent Matching** — cross-references CVE keywords against the user's attack types, device functions, and protocols to find only relevant CVEs
+- **Weaponisation Probability** — calculates 0-95% probability that each CVE will be actively exploited based on CVSS score, attack complexity, and days since publication
+- **Affected Device Mapping** — identifies which specific devices in the user's inventory are most likely affected by each CVE
+- **Alert Management** — mark alerts as reviewed or dismiss them; alerts persist across sessions
+- **Deduplication** — never creates duplicate alerts for the same CVE
+- **Predict API** — four production-ready endpoints: `POST /api/predict/scan/<scan_id>`, `GET /api/predict/alerts`, `PATCH /api/predict/alerts/<id>/review`, `DELETE /api/predict/alerts/<id>`
+
 ### Coming Soon
 
 | Module | Description | Status |
@@ -609,7 +621,7 @@ Every scan now includes an interactive network attack path visualisation:
 | AIPET Explain — Natural Language AI Explanations | ✅ Complete |
 | | 3 | AIPET Score — Financial Business Impact | ✅ Complete |
 | AIPET Map — Visual Attack Path Mapping | ✅ Complete |
-| AIPET Predict | CVE monitoring via NVD API | 📅 Month 5 |
+| AIPET Predict — CVE Monitoring | ✅ Complete |
 | AIPET Watch | Passive 24/7 network anomaly detection | 📅 Month 6 |
 | AIPET Ask | Natural language AI security assistant | 📅 Month 7 |
 
