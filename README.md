@@ -590,13 +590,25 @@ Every scan now includes a financial risk assessment translating technical vulner
 - **Score API** — four production-ready endpoints: `GET /api/score/options`, `GET /api/score/tags`, `POST /api/score/tags`, `POST /api/score/calculate/<scan_id>`
 - **Honest Disclaimers** — all figures include source attribution and appropriate caveats
 
+### AIPET Map ✅ Complete
+
+Every scan now includes an interactive network attack path visualisation:
+
+- **D3.js Network Graph** — interactive force-directed graph showing all devices as nodes with severity-colour coding, drag-and-drop rearrangement, and scroll-to-zoom
+- **Attack Path Detection** — BFS algorithm identifies shortest paths from entry points (Critical/High severity devices) to critical assets (tagged as Patient Records, Financial, Customer Data)
+- **Attack Animation** — click "Animate Attack" to highlight active attack paths in red
+- **Priority Recommendations** — ranked list of fixes ordered by how many attack paths each fix would disrupt
+- **Device Inspector** — click any node to see its findings, severity, business function, and fix status
+- **Visual Indicators** — ⚠ entry points, dashed border for critical assets, severity-coded colours (red=Critical, orange=High, yellow=Medium, green=Low)
+- **Map API** — two production-ready endpoints: `GET /api/map/<scan_id>`, `GET /api/map/<scan_id>/paths`
+
 ### Coming Soon
 
 | Module | Description | Status |
 |---|---|---|
 | AIPET Explain — Natural Language AI Explanations | ✅ Complete |
 | | 3 | AIPET Score — Financial Business Impact | ✅ Complete |
-| AIPET Map | Visual attack path mapping with D3.js | 📅 Month 4 |
+| AIPET Map — Visual Attack Path Mapping | ✅ Complete |
 | AIPET Predict | CVE monitoring via NVD API | 📅 Month 5 |
 | AIPET Watch | Passive 24/7 network anomaly detection | 📅 Month 6 |
 | AIPET Ask | Natural language AI security assistant | 📅 Month 7 |

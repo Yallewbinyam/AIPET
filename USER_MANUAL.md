@@ -839,6 +839,75 @@ Financial exposure figures are estimates based on UK industry average breach cos
 
 AIPET Score is available on **Professional** and **Enterprise** plans. Free plan users will see an upgrade prompt when clicking Tag Devices or Calculate Score.
 
+---
+
+## 20. AIPET Map — Network Attack Path Visualisation
+
+AIPET Map shows your network as an interactive visual graph and draws the paths an attacker would take to reach your most critical devices. Instead of a list of vulnerabilities, you see exactly how they connect.
+
+### How to Access the Network Map
+
+1. Go to the **Network Map** tab in the sidebar
+2. The map loads automatically from your latest scan
+3. Device tags from AIPET Score are used to identify critical assets
+
+### Understanding the Map
+
+**Nodes — the circles**
+
+Each circle represents a device on your network:
+
+| Colour | Meaning |
+|---|---|
+| Red | Critical severity finding on this device |
+| Orange | High severity finding |
+| Yellow | Medium severity finding |
+| Green | Low severity finding |
+| Blue | No findings |
+
+**Special indicators:**
+- ⚠ icon — this device is an **Entry Point** (has Critical or High findings, could be attacked first)
+- Dashed yellow border — this device is a **Critical Asset** (tagged as Patient Records, Financial, Customer Data, etc.)
+
+**Edges — the lines between circles**
+
+Lines connect devices that are on the same network segment. An attacker who compromises one device can potentially reach all connected devices.
+
+**Attack Paths — the red highlighted edges**
+
+Red lines show the shortest path an attacker would take from an entry point to a critical asset. These are the most dangerous routes through your network.
+
+### Interacting with the Map
+
+- **Click a node** — opens the Device Details panel showing all findings, severity, and fix status for that device
+- **Drag a node** — rearrange the map layout to make it clearer
+- **Scroll** — zoom in and out
+- **Click "Animate Attack"** — highlights the current attack path in red so you can visualise the threat
+
+### Attack Paths Panel
+
+Below the map, the Attack Paths panel lists every detected attack route:
+This means an attacker starting at 192.168.1.1 can reach your Customer Data device at 192.168.1.2 in one hop.
+
+### Priority Recommendations
+
+AIPET Map calculates which single fix would disrupt the most attack paths simultaneously. The recommendations are ranked by impact:
+
+1. The top recommendation breaks the most attack chains
+2. Fixing recommendation #1 first gives you the best security improvement per hour of work
+
+### Device Details Panel
+
+Clicking any node opens the Device Details panel showing:
+- Business function (from your device tags)
+- Worst severity finding on this device
+- Risk score (0-100)
+- All findings with severity and fix status
+
+### Plan Access
+
+AIPET Map is available on **Professional** and **Enterprise** plans. Free plan users will see an upgrade prompt when clicking the Network Map tab.
+
 ### Report Sections
 
 | Section | Content |
