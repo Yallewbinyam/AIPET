@@ -1,6 +1,7 @@
 
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import axios from "axios";
+import * as d3 from "d3";
 import {
   PieChart, Pie, Cell, Tooltip, ResponsiveContainer,
   BarChart, Bar, XAxis, YAxis, CartesianGrid
@@ -457,6 +458,397 @@ function FixPanel({ finding, token, onClose, onStatusUpdate }) {
           )}
         </div>
       </div>
+    </div>
+  );
+}
+function NetworkMap({ token, scans }) {
+  const svgRef = useRef(null);
+  const [graphData, setGraphData]       = useState(null);
+  const [loading, setLoading]           = useState(true);
+  const [error, setError]               = useState(null);
+  const [animating, setAnimating]       = useState(false);
+  const [selectedNode, setSelectedNode] = useState(null);
+  const [activePathIndex, setActivePathIndex] = useState(0);
+
+  const latestScan = scans && scans.find(s => s.status === "completed" || s.status === "complete");
+  const scanId     = latestScan?.id;
+
+  useEffect(() => {
+    const fetchMap = async () => {
+      if (!scanId) {
+        setLoading(false);
+        setError("No completed scan found. Run a scan first.");
+        return;
+      }
+      try {
+        const res = await axios.get(`${API}/map/${scanId}`, {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        setGraphData(res.data);
+      } catch (err) {
+        if (err.response?.status === 403) setError("upgrade");
+        else setError("Failed to load network map.");
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchMap();
+  }, [scanId, token]);
+
+  useEffect(() => {
+    if (!graphData || !svgRef.current) return;
+    drawGraph(graphData);
+  }, [graphData]);
+
+  const drawGraph = (data) => {
+    const { nodes, edges } = data;
+    if (!nodes || nodes.length === 0) return;
+
+    const svg    = d3.select(svgRef.current);
+    const width  = svgRef.current.clientWidth  || 800;
+    const height = svgRef.current.clientHeight || 500;
+
+    svg.selectAll("*").remove();
+
+    // Add zoom behaviour
+    const g = svg.append("g");
+    svg.call(d3.zoom().scaleExtent([0.3, 3]).on("zoom", (event) => {
+      g.attr("transform", event.transform);
+    }));
+
+    // Arrow marker for directed edges
+    svg.append("defs").append("marker")
+      .attr("id", "arrowhead")
+      .attr("viewBox", "0 -5 10 10")
+      .attr("refX", 25)
+      .attr("refY", 0)
+      .attr("markerWidth", 6)
+      .attr("markerHeight", 6)
+      .attr("orient", "auto")
+      .append("path")
+      .attr("d", "M0,-5L10,0L0,5")
+      .attr("fill", "#6b7280");
+
+    // Force simulation
+    const simulation = d3.forceSimulation(nodes)
+      .force("link",   d3.forceLink(edges).id(d => d.id).distance(150))
+      .force("charge", d3.forceManyBody().strength(-400))
+      .force("center", d3.forceCenter(width / 2, height / 2))
+      .force("collision", d3.forceCollide().radius(50));
+
+    // Draw edges
+    const link = g.append("g")
+      .selectAll("line")
+      .data(edges)
+      .enter()
+      .append("line")
+      .attr("stroke", "#374151")
+      .attr("stroke-width", 2)
+      .attr("marker-end", "url(#arrowhead)");
+
+    // Draw nodes
+    const node = g.append("g")
+      .selectAll("g")
+      .data(nodes)
+      .enter()
+      .append("g")
+      .style("cursor", "pointer")
+      .call(d3.drag()
+        .on("start", (event, d) => {
+          if (!event.active) simulation.alphaTarget(0.3).restart();
+          d.fx = d.x; d.fy = d.y;
+        })
+        .on("drag", (event, d) => {
+          d.fx = event.x; d.fy = event.y;
+        })
+        .on("end", (event, d) => {
+          if (!event.active) simulation.alphaTarget(0);
+          d.fx = null; d.fy = null;
+        })
+      )
+      .on("click", (event, d) => {
+        setSelectedNode(d);
+      });
+
+    // Node outer ring for critical assets
+    node.filter(d => d.is_critical)
+      .append("circle")
+      .attr("r", 32)
+      .attr("fill", "none")
+      .attr("stroke", "#f59e0b")
+      .attr("stroke-width", 2)
+      .attr("stroke-dasharray", "4,4");
+
+    // Node circles
+    node.append("circle")
+      .attr("r", d => d.is_entry ? 28 : 20)
+      .attr("fill", d => d.color + "33")
+      .attr("stroke", d => d.color)
+      .attr("stroke-width", d => d.is_entry ? 3 : 2);
+
+    // Entry point warning icon
+    node.filter(d => d.is_entry)
+      .append("text")
+      .attr("text-anchor", "middle")
+      .attr("dy", "0.35em")
+      .attr("font-size", "16px")
+      .text("⚠");
+
+    // Non-entry node label
+    node.filter(d => !d.is_entry)
+      .append("text")
+      .attr("text-anchor", "middle")
+      .attr("dy", "0.35em")
+      .attr("font-size", "10px")
+      .attr("fill", d => d.color)
+      .attr("font-weight", "bold")
+      .text(d => d.severity[0]);
+
+    // IP label below node
+    node.append("text")
+      .attr("text-anchor", "middle")
+      .attr("dy", d => d.is_entry ? "4em" : "3.2em")
+      .attr("font-size", "10px")
+      .attr("fill", "#9ca3af")
+      .text(d => d.label);
+
+    // Function label
+    node.append("text")
+      .attr("text-anchor", "middle")
+      .attr("dy", d => d.is_entry ? "5.2em" : "4.4em")
+      .attr("font-size", "9px")
+      .attr("fill", "#6b7280")
+      .text(d => d.device_function !== "Unknown" ? d.device_function.split("/")[0].trim() : "");
+
+    // Tick function
+    simulation.on("tick", () => {
+      link
+        .attr("x1", d => d.source.x)
+        .attr("y1", d => d.source.y)
+        .attr("x2", d => d.target.x)
+        .attr("y2", d => d.target.y);
+
+      node.attr("transform", d => `translate(${d.x},${d.y})`);
+    });
+  };
+
+  const animateAttackPath = () => {
+    if (!graphData || !graphData.attack_paths.length) return;
+    const path      = graphData.attack_paths[activePathIndex];
+    if (!path) return;
+
+    setAnimating(true);
+
+    const svg = d3.select(svgRef.current);
+    svg.selectAll(".attack-dot").remove();
+    svg.selectAll("line").attr("stroke", "#374151").attr("stroke-width", 2);
+
+    // Find the nodes in the path
+    const nodeMap  = {};
+    graphData.nodes.forEach(n => { nodeMap[n.id] = n; });
+
+    // Highlight path edges
+    const pathSet = new Set();
+    for (let i = 0; i < path.path.length - 1; i++) {
+      pathSet.add(`${path.path[i]}-${path.path[i+1]}`);
+      pathSet.add(`${path.path[i+1]}-${path.path[i]}`);
+    }
+
+    svg.select("g").selectAll("line").each(function(d) {
+      const key = `${d.source.id || d.source}-${d.target.id || d.target}`;
+      if (pathSet.has(key)) {
+        d3.select(this).attr("stroke", "#ef4444").attr("stroke-width", 3);
+      }
+    });
+
+    setTimeout(() => {
+      setAnimating(false);
+      setActivePathIndex((activePathIndex + 1) % graphData.attack_paths.length);
+    }, 2000);
+  };
+
+  const severityColors = { Critical: COLORS.critical, High: COLORS.high, Medium: COLORS.medium, Low: COLORS.low };
+
+  if (loading) return (
+    <div className="flex items-center justify-center h-64" style={{ color: COLORS.muted }}>
+      Loading network map...
+    </div>
+  );
+
+  if (error === "upgrade") return (
+    <div className="rounded-2xl p-16 border text-center" style={{ backgroundColor: COLORS.card, borderColor: COLORS.border }}>
+      <Shield size={48} style={{ color: COLORS.muted }} className="mx-auto mb-4" />
+      <div className="text-sm font-bold mb-2" style={{ color: COLORS.text }}>Professional Feature</div>
+      <div className="text-xs" style={{ color: COLORS.muted }}>AIPET Map is available on Professional and Enterprise plans.</div>
+    </div>
+  );
+
+  if (error) return (
+    <div className="rounded-2xl p-16 border text-center" style={{ backgroundColor: COLORS.card, borderColor: COLORS.border }}>
+      <div className="text-sm" style={{ color: COLORS.muted }}>{error}</div>
+    </div>
+  );
+
+  if (!graphData || graphData.nodes.length === 0) return (
+    <div className="rounded-2xl p-16 border text-center" style={{ backgroundColor: COLORS.card, borderColor: COLORS.border }}>
+      <Shield size={48} style={{ color: COLORS.muted }} className="mx-auto mb-4" />
+      <div className="text-sm" style={{ color: COLORS.muted }}>No devices found. Run a scan first.</div>
+    </div>
+  );
+
+  return (
+    <div className="space-y-4">
+      {/* Stats bar */}
+      <div className="grid grid-cols-4 gap-3">
+        {[
+          { label: "Devices",       value: graphData.stats.total_devices,   color: COLORS.blue     },
+          { label: "Entry Points",  value: graphData.stats.entry_points,    color: COLORS.critical },
+          { label: "Critical Assets", value: graphData.stats.critical_assets, color: COLORS.high   },
+          { label: "Attack Paths",  value: graphData.stats.attack_paths,    color: COLORS.purple   },
+        ].map(item => (
+          <div key={item.label} className="rounded-xl p-3 border text-center"
+            style={{ backgroundColor: COLORS.card, borderColor: COLORS.border }}>
+            <div className="text-2xl font-black" style={{ color: item.color }}>{item.value}</div>
+            <div className="text-xs mt-1" style={{ color: COLORS.muted }}>{item.label}</div>
+          </div>
+        ))}
+      </div>
+
+      {/* Map canvas */}
+      <div className="rounded-2xl border overflow-hidden"
+        style={{ backgroundColor: COLORS.card, borderColor: COLORS.border }}>
+        <div className="p-4 border-b flex items-center justify-between"
+          style={{ borderColor: COLORS.border }}>
+          <div>
+            <div className="text-sm font-bold" style={{ color: COLORS.text }}>Network Attack Map</div>
+            <div className="text-xs mt-0.5" style={{ color: COLORS.muted }}>
+              Click nodes to inspect · Drag to rearrange · Scroll to zoom
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            {graphData.attack_paths.length > 0 && (
+              <button onClick={animateAttackPath} disabled={animating}
+                className="px-3 py-1.5 rounded-lg text-xs font-bold transition-all"
+                style={{
+                  backgroundColor: COLORS.critical + "20",
+                  color: COLORS.critical,
+                  border: `1px solid ${COLORS.critical + "40"}`,
+                  opacity: animating ? 0.6 : 1
+                }}>
+                {animating ? "Animating..." : "▶ Animate Attack"}
+              </button>
+            )}
+            {/* Legend */}
+            <div className="flex items-center gap-3 text-xs" style={{ color: COLORS.muted }}>
+              <span>⚠ Entry Point</span>
+              <span style={{ color: "#f59e0b" }}>◯ Critical Asset</span>
+            </div>
+          </div>
+        </div>
+        <svg ref={svgRef} width="100%" height="500"
+          style={{ backgroundColor: COLORS.dark }} />
+      </div>
+
+      {/* Attack paths */}
+      {graphData.attack_paths.length > 0 && (
+        <div className="rounded-xl border p-4" style={{ backgroundColor: COLORS.card, borderColor: COLORS.border }}>
+          <div className="text-xs font-bold uppercase tracking-wider mb-3" style={{ color: COLORS.critical }}>
+            Attack Paths Detected
+          </div>
+          <div className="space-y-2">
+            {graphData.attack_paths.map((path, i) => (
+              <div key={i} className="rounded-lg p-3 border"
+                style={{ backgroundColor: COLORS.dark, borderColor: COLORS.border }}>
+                <div className="flex items-center gap-2 text-xs">
+                  {path.path.map((node, j) => (
+                    <span key={j} className="flex items-center gap-2">
+                      <span className="font-mono px-2 py-0.5 rounded"
+                        style={{ backgroundColor: COLORS.critical + "20", color: COLORS.critical }}>
+                        {node}
+                      </span>
+                      {j < path.path.length - 1 && (
+                        <span style={{ color: COLORS.muted }}>→</span>
+                      )}
+                    </span>
+                  ))}
+                  <span className="ml-2" style={{ color: COLORS.muted }}>
+                    → {path.target_function}
+                  </span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Recommendations */}
+      {graphData.recommendations.length > 0 && (
+        <div className="rounded-xl border p-4" style={{ backgroundColor: COLORS.card, borderColor: COLORS.border }}>
+          <div className="text-xs font-bold uppercase tracking-wider mb-3" style={{ color: COLORS.blue }}>
+            Priority Recommendations
+          </div>
+          <div className="space-y-2">
+            {graphData.recommendations.map((rec, i) => (
+              <div key={i} className="rounded-lg p-3 border flex items-start gap-3"
+                style={{ backgroundColor: COLORS.dark, borderColor: COLORS.border }}>
+                <div className="w-6 h-6 rounded-full flex items-center justify-center flex-shrink-0 text-xs font-black"
+                  style={{ backgroundColor: COLORS.blue + "20", color: COLORS.blue }}>
+                  {i + 1}
+                </div>
+                <div>
+                  <div className="text-xs font-semibold" style={{ color: COLORS.text }}>{rec.message}</div>
+                  <div className="text-xs mt-0.5" style={{ color: COLORS.muted }}>
+                    Device: {rec.device} · Severity: {rec.severity}
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Selected node details */}
+      {selectedNode && (
+        <div className="rounded-xl border p-4" style={{ backgroundColor: COLORS.card, borderColor: COLORS.border }}>
+          <div className="flex items-center justify-between mb-3">
+            <div className="text-xs font-bold uppercase tracking-wider" style={{ color: COLORS.text }}>
+              Device Details — {selectedNode.id}
+            </div>
+            <button onClick={() => setSelectedNode(null)}
+              className="text-xs" style={{ color: COLORS.muted }}>✕</button>
+          </div>
+          <div className="grid grid-cols-3 gap-3 mb-3">
+            {[
+              { label: "Function",    value: selectedNode.device_function },
+              { label: "Severity",    value: selectedNode.severity        },
+              { label: "Risk Score",  value: selectedNode.risk_score      },
+            ].map(item => (
+              <div key={item.label} className="rounded-lg p-3 border"
+                style={{ backgroundColor: COLORS.dark, borderColor: COLORS.border }}>
+                <div className="text-xs" style={{ color: COLORS.muted }}>{item.label}</div>
+                <div className="text-sm font-bold mt-1"
+                  style={{ color: severityColors[item.value] || COLORS.text }}>
+                  {item.value}
+                </div>
+              </div>
+            ))}
+          </div>
+          <div className="space-y-1">
+            {selectedNode.findings?.map((f, i) => (
+              <div key={i} className="rounded-lg p-2 border text-xs"
+                style={{ backgroundColor: COLORS.dark, borderColor: COLORS.border }}>
+                <span style={{ color: severityColors[f.severity] || COLORS.text }}>{f.severity}</span>
+                <span className="mx-2" style={{ color: COLORS.muted }}>·</span>
+                <span style={{ color: COLORS.text }}>{f.attack}</span>
+                <span className="mx-2" style={{ color: COLORS.muted }}>·</span>
+                <span style={{ color: f.fix_status === "fixed" ? COLORS.low : COLORS.muted }}>
+                  {f.fix_status}
+                </span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -2296,6 +2688,7 @@ const NAV_ITEMS = [
   { id: "dashboard", label: "Dashboard",   icon: Activity      },
   { id: "devices",   label: "Devices",     icon: Cpu           },
   { id: "findings",  label: "Findings",    icon: AlertTriangle },
+  { id: "map",       label: "Network Map", icon: Shield },
   { id: "ai",        label: "AI Analysis", icon: Shield        },
   { id: "reports",   label: "Reports",     icon: FileText      },
   { id: "pricing",   label: "Pricing",     icon: Zap           },
@@ -2868,6 +3261,10 @@ export default function App() {
           )}
 
           {/* AI ANALYSIS */}
+          {/* NETWORK MAP */}
+          {activeTab === "map" && (
+            <NetworkMap token={token} scans={data?.scans || []} />
+          )}
           {activeTab === "ai" && (
             <div className="space-y-6">
               {aiResults.length === 0 ? (
