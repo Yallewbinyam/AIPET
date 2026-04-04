@@ -173,8 +173,8 @@ class ExplainResult(db.Model):
             "tokens_used":  self.tokens_used,
             "created_at":   str(self.created_at),
         }
-    class DeviceTag(db.Model):
-        tablename__ = "device_tags"
+class DeviceTag(db.Model):
+    __tablename__ = "device_tags"
 
     id                = db.Column(db.Integer,     primary_key=True)
     user_id           = db.Column(db.Integer,     db.ForeignKey("users.id"), nullable=False)
@@ -190,7 +190,7 @@ class ExplainResult(db.Model):
             "device_ip":         self.device_ip,
             "business_function": self.business_function,
             "industry":          self.industry,
-        }
+        }   
 
 
 class ScoreResult(db.Model):
