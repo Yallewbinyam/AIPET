@@ -558,23 +558,26 @@ function AskPanel({ token }) {
     <div className="flex flex-col space-y-4">
 
       {/* Header */}
-      <div className="rounded-xl border p-4 flex items-center justify-between"
-        style={{ backgroundColor: COLORS.card, borderColor: COLORS.border }}>
+      <div className="rounded-xl border p-5 flex items-center justify-between"
+        style={{ backgroundColor: COLORS.card, borderColor: COLORS.cyan + "30", background: `linear-gradient(135deg, ${COLORS.card} 0%, rgba(0,229,255,0.03) 100%)` }}>
         <div>
-          <div className="text-sm font-bold" style={{ color: COLORS.text }}>AIPET Ask</div>
+          <div className="flex items-center gap-2 mb-1">
+            <div className="w-2 h-2 rounded-full" style={{ backgroundColor: COLORS.cyan, boxShadow: `0 0 8px ${COLORS.cyan}` }} />
+            <div className="text-base font-black" style={{ color: COLORS.text, fontFamily: "'JetBrains Mono', monospace", letterSpacing: "0.05em" }}>AIPET Ask</div>
+          </div>
           <div className="text-xs mt-0.5" style={{ color: COLORS.muted }}>
-            Ask any security question — powered by Claude AI with your full security context
+            Ask any security question — Claude AI answers using your actual device data, findings, and financial exposure
           </div>
         </div>
         {messages.length > 0 && (
           <button onClick={clearConversation}
             className="px-3 py-1.5 rounded-lg text-xs font-bold transition-all"
             style={{
-              backgroundColor: COLORS.border,
+              backgroundColor: "transparent",
               color: COLORS.muted,
               border: `1px solid ${COLORS.border}`
             }}>
-            Clear
+            Clear Chat
           </button>
         )}
       </div>
@@ -583,17 +586,28 @@ function AskPanel({ token }) {
       {messages.length === 0 && (
         <div className="rounded-xl border p-4"
           style={{ backgroundColor: COLORS.card, borderColor: COLORS.border }}>
-          <div className="text-xs font-bold uppercase tracking-wider mb-3" style={{ color: COLORS.muted }}>
+          <div className="text-xs font-bold uppercase tracking-widest mb-3" style={{ color: COLORS.cyan, opacity: 0.7, fontFamily: "'JetBrains Mono', monospace" }}>
             Suggested Questions
           </div>
           <div className="grid grid-cols-2 gap-2">
             {SUGGESTED_QUESTIONS.map((q, i) => (
               <button key={i} onClick={() => sendQuestion(q)}
-                className="text-left px-3 py-2.5 rounded-lg text-xs transition-all hover:bg-white/5"
+                className="text-left px-4 py-3 rounded-lg text-xs transition-all"
                 style={{
                   backgroundColor: COLORS.dark,
                   color: COLORS.text,
-                  border: `1px solid ${COLORS.border}`
+                  border: `1px solid ${COLORS.border}`,
+                  lineHeight: "1.5",
+                }}
+                onMouseEnter={e => {
+                  e.currentTarget.style.borderColor = COLORS.cyan + "60";
+                  e.currentTarget.style.backgroundColor = `rgba(0,229,255,0.05)`;
+                  e.currentTarget.style.color = COLORS.cyan;
+                }}
+                onMouseLeave={e => {
+                  e.currentTarget.style.borderColor = COLORS.border;
+                  e.currentTarget.style.backgroundColor = COLORS.dark;
+                  e.currentTarget.style.color = COLORS.text;
                 }}>
                 {q}
               </button>
@@ -656,8 +670,8 @@ function AskPanel({ token }) {
       )}
 
       {/* Input */}
-      <div className="rounded-xl border p-3 flex items-end gap-3"
-        style={{ backgroundColor: COLORS.card, borderColor: COLORS.border }}>
+      <div className="rounded-xl border p-4 flex items-end gap-3"
+        style={{ backgroundColor: COLORS.card, borderColor: COLORS.cyan + "30" }}>
         <textarea
           value={question}
           onChange={e => setQuestion(e.target.value)}
@@ -669,25 +683,26 @@ function AskPanel({ token }) {
           }}
           placeholder="Ask a security question... (Enter to send, Shift+Enter for new line)"
           rows={2}
-          className="flex-1 text-xs outline-none resize-none bg-transparent"
-          style={{ color: COLORS.text }}
+          className="flex-1 text-sm outline-none resize-none bg-transparent"
+          style={{ color: COLORS.text, fontFamily: "inherit" }}
           disabled={loading}
         />
         <button
           onClick={() => sendQuestion()}
           disabled={loading || !question.trim()}
-          className="px-4 py-2 rounded-lg text-xs font-bold transition-all flex-shrink-0"
+          className="px-5 py-2.5 rounded-lg text-sm font-bold transition-all flex-shrink-0"
           style={{
-            backgroundColor: loading || !question.trim() ? COLORS.border : COLORS.blue,
-            color: loading || !question.trim() ? COLORS.muted : "#fff",
-            opacity: loading ? 0.6 : 1
+            backgroundColor: loading || !question.trim() ? COLORS.border : COLORS.cyan,
+            color: loading || !question.trim() ? COLORS.muted : "#030712",
+            opacity: loading ? 0.6 : 1,
+            boxShadow: loading || !question.trim() ? "none" : "0 0 16px rgba(0,229,255,0.3)",
           }}>
-          {loading ? "..." : "Ask"}
+          {loading ? "Thinking..." : "Ask →"}
         </button>
       </div>
 
-      <div className="text-xs text-center" style={{ color: COLORS.muted }}>
-        Powered by Claude AI · Responses use your actual security data
+      <div className="text-xs text-center" style={{ color: COLORS.subtle }}>
+        Powered by Claude AI · Your data stays private · Responses reference your actual devices and findings
       </div>
     </div>
   );
@@ -3969,28 +3984,28 @@ export default function App() {
                 display: "flex", alignItems: "center", gap: "8px",
                 padding: "6px 14px",
                 borderRadius: "8px",
-                backgroundColor: summary.risk_score >= 70
+                backgroundColor: riskScore >= 70
                   ? "rgba(255,61,61,0.12)"
-                  : summary.risk_score >= 40
+                  : riskScore >= 40
                   ? "rgba(255,183,0,0.12)"
                   : "rgba(0,255,148,0.12)",
-                border: `1px solid ${summary.risk_score >= 70
+                border: `1px solid ${riskScore >= 70
                   ? "rgba(255,61,61,0.3)"
-                  : summary.risk_score >= 40
+                  : riskScore >= 40
                   ? "rgba(255,183,0,0.3)"
                   : "rgba(0,255,148,0.3)"}`,
               }}>
                 <div style={{
                   width: "6px", height: "6px", borderRadius: "50%",
-                  backgroundColor: summary.risk_score >= 70 ? "#ff3d3d" : summary.risk_score >= 40 ? "#ffb700" : "#00ff94",
+                  backgroundColor: riskScore >= 70 ? "#ff3d3d" : riskScore >= 40 ? "#ffb700" : "#00ff94",
                 }} />
                 <span style={{
                   fontFamily: "'JetBrains Mono', monospace",
                   fontSize: "12px",
                   fontWeight: 700,
-                  color: summary.risk_score >= 70 ? "#ff3d3d" : summary.risk_score >= 40 ? "#ffb700" : "#00ff94",
+                  color: riskScore >= 70 ? "#ff3d3d" : riskScore >= 40 ? "#ffb700" : "#00ff94",
                 }}>
-                  RISK {summary.risk_score || 0}
+                  RISK {riskScore || 0}
                 </span>
               </div>
             )}
