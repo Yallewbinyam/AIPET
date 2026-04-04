@@ -655,7 +655,7 @@ function ScorePanel({ findings, token, scans }) {
                 {scoreResult.total_exposure_fmt}
               </div>
               <div className="text-xs mt-1" style={{ color: COLORS.muted }}>
-                Based on {scoreResult.industry} industry breach cost data
+                Based on {scoreResult.industry} industry breach cost data (IBM & NCSC 2024)
               </div>
             </div>
 
@@ -706,8 +706,13 @@ function ScorePanel({ findings, token, scans }) {
                 </div>
               ))}
             </div>
+            <div className="rounded-lg p-3 border text-xs leading-relaxed"
+              style={{ backgroundColor: COLORS.dark, borderColor: COLORS.border, color: COLORS.muted }}>
+              ⚠️ Estimates based on UK average breach costs from IBM Cost of a Data Breach Report 2024 and NCSC UK Cyber Security Breaches Survey 2024. Actual costs may vary. Intended to support security investment decisions, not to predict exact breach costs.
+            </div>
           </div>
         ) : (
+          
           <div className="text-center py-6">
             <div className="text-2xl mb-2">💰</div>
             <div className="text-xs" style={{ color: COLORS.muted }}>
