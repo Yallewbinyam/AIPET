@@ -3471,23 +3471,31 @@ function ScanModal({ onClose, onScan, scanning }) {
 }
 
 const NAV_ITEMS = [
-  { id: "dashboard", label: "Dashboard",   icon: Activity      },
-  { id: "devices",   label: "Devices",     icon: Cpu           },
-  { id: "findings",  label: "Findings",    icon: AlertTriangle },
-  { id: "map",       label: "Network Map", icon: Shield },
-  { id: "predict",   label: "CVE Intel",   icon: AlertTriangle },
-  { id: "watch",     label: "Watch",       icon: Shield },
-  { id: "ai",        label: "AI Analysis", icon: Shield        },
-  { id: "ask",       label: "Ask AIPET",   icon: Shield },
-  { id: "reports",   label: "Reports",     icon: FileText      },
-  { id: "pricing",   label: "Pricing",     icon: Zap           },
-  { id: "billing",   label: "Billing",     icon: Lock          },
-  { id: "apikeys",   label: "API Keys",    icon: CreditCard    },
+  { id: "dashboard", label: "Overview",      icon: Activity,      group: "main"     },
+  { id: "findings",  label: "Findings",      icon: AlertTriangle, group: "main"     },
+  { id: "devices",   label: "Devices",       icon: Cpu,           group: "main"     },
+  { id: "map",       label: "Network Map",   icon: Shield,        group: "intel"    },
+  { id: "watch",     label: "Watch",         icon: Shield,        group: "intel"    },
+  { id: "predict",   label: "CVE Intel",     icon: AlertTriangle, group: "intel"    },
+  { id: "ask",       label: "Ask AIPET",     icon: Shield,        group: "intel"    },
+  { id: "ai",        label: "AI Analysis",   icon: Shield,        group: "reports"  },
+  { id: "reports",   label: "Reports",       icon: FileText,      group: "reports"  },
+  { id: "pricing",   label: "Pricing",       icon: Zap,           group: "account"  },
+  { id: "billing",   label: "Billing",       icon: Lock,          group: "account"  },
+  { id: "apikeys",   label: "API Keys",      icon: CreditCard,    group: "account"  },
+];
+
+const NAV_GROUPS = [
+  { id: "main",    label: "Security"     },
+  { id: "intel",   label: "Intelligence" },
+  { id: "reports", label: "Reports"      },
+  { id: "account", label: "Account"      },
 ];
 
 export default function App() {
   const [data,       setData]       = useState({});
   const [activeTab,  setActiveTab]  = useState("dashboard");
+  const [collapsedGroups, setCollapsedGroups] = useState({});
   const [showScan,   setShowScan]   = useState(false);
   const [loading,    setLoading]    = useState(true);
   const [scanning,   setScanning]   = useState(false);
@@ -3696,15 +3704,20 @@ export default function App() {
         style={{ backgroundColor: COLORS.dark, borderColor: COLORS.border }}>
 
         {/* Logo */}
-        <div className="p-6 border-b" style={{ borderColor: COLORS.border }}>
+        <div className="p-5 border-b" style={{ borderColor: COLORS.border }}>
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-xl flex items-center justify-center"
-              style={{ backgroundColor: COLORS.blue }}>
-              <Shield size={20} color="white" />
+            <div className="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0"
+              style={{ backgroundColor: COLORS.cyan + "20", border: `1px solid ${COLORS.cyan + "40"}` }}>
+              <Shield size={18} style={{ color: COLORS.cyan }} />
             </div>
             <div>
-              <div className="font-black text-lg tracking-tight" style={{ color: COLORS.text }}>AIPET</div>
-              <div className="text-xs" style={{ color: COLORS.muted }}>v1.0.0 — IoT Security</div>
+              <div className="font-black text-base tracking-widest"
+                style={{ color: COLORS.text, fontFamily: "'JetBrains Mono', monospace", letterSpacing: "0.15em" }}>
+                AIPET
+              </div>
+              <div className="text-xs" style={{ color: COLORS.subtle, fontFamily: "'JetBrains Mono', monospace" }}>
+                IoT Security Platform
+              </div>
             </div>
           </div>
         </div>
@@ -3721,26 +3734,60 @@ export default function App() {
         )}
 
         {/* Navigation */}
-        <nav className="flex-1 p-4 space-y-1">
-          {NAV_ITEMS.map(({ id, label, icon: Icon }) => {
-            const active = activeTab === id;
+        <nav className="flex-1 p-3 overflow-y-auto">
+          {NAV_GROUPS.map(group => {
+            const groupItems = NAV_ITEMS.filter(item => item.group === group.id);
             return (
-              <button key={id} onClick={() => setActiveTab(id)}
-                className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-sm font-semibold transition-all duration-200"
-                style={{
-                  backgroundColor: active ? COLORS.blue + "20" : "transparent",
-                  color: active ? COLORS.blue : COLORS.muted,
-                  borderLeft: active ? `3px solid ${COLORS.blue}` : "3px solid transparent"
-                }}>
-                <Icon size={18} />
-                {label}
-                {id === "findings" && findings.length > 0 && (
-                  <span className="ml-auto text-xs px-2 py-0.5 rounded-full"
-                    style={{ backgroundColor: COLORS.critical + "20", color: COLORS.critical }}>
-                    {findings.filter(f => f.severity === "CRITICAL").length}
+              <div key={group.id} className="mb-4">
+               <button
+                  onClick={() => setCollapsedGroups(prev => ({...prev, [group.id]: !prev[group.id]}))}
+                  className="w-full flex items-center justify-between px-3 py-1.5 rounded-lg transition-all hover:bg-white/5 mb-1">
+                  <span className="text-xs font-bold uppercase tracking-widest"
+                    style={{ color: COLORS.cyan, fontFamily: "'JetBrains Mono', monospace", opacity: 0.7 }}>
+                    {group.label}
                   </span>
-                )}
-              </button>
+                  <ChevronDown size={14}
+                    style={{
+                      color: COLORS.cyan,
+                      opacity: 0.8,
+                      transform: collapsedGroups[group.id] ? "rotate(-90deg)" : "rotate(0deg)",
+                      transition: "transform 0.2s ease"
+                    }} />
+                </button>
+                
+                {!collapsedGroups[group.id] && groupItems.map(({ id, label, icon: Icon }) => {
+                  const active = activeTab === id;
+                  return (
+                    <button key={id} onClick={() => setActiveTab(id)}
+                     className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-150 mb-0.5"
+                      style={{
+                        backgroundColor: active ? COLORS.cyan + "15" : "transparent",
+                        color: active ? COLORS.cyan : COLORS.text,
+                        borderLeft: active ? `2px solid ${COLORS.cyan}` : "2px solid transparent",
+                        opacity: active ? 1 : 0.75,
+                      }}>
+                      <Icon size={15} />
+                      <span style={{ fontFamily: active ? "'JetBrains Mono', monospace" : "inherit" }}>
+                        {label}
+                      </span>
+                      {id === "findings" && findings.length > 0 && (
+                        <span className="ml-auto text-xs px-1.5 py-0.5 rounded font-mono"
+                          style={{ backgroundColor: COLORS.critical + "25", color: COLORS.critical }}>
+                          {findings.filter(f => f.severity === "Critical").length}
+                        </span>
+                      )}
+                      {id === "predict" && (
+                        <span className="ml-auto w-1.5 h-1.5 rounded-full"
+                          style={{ backgroundColor: COLORS.cyan }} />
+                      )}
+                      {id === "watch" && (
+                        <span className="ml-auto w-1.5 h-1.5 rounded-full"
+                          style={{ backgroundColor: COLORS.low }} />
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
             );
           })}
         </nav>
