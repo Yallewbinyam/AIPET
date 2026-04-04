@@ -4169,24 +4169,24 @@ export default function App() {
                         <Server size={26} style={{ color: COLORS.blue }} />
                       </div>
                       <div>
-                        <div className="font-black text-xl" style={{ color: COLORS.text }}>{device.ip}</div>
-                        <div className="text-sm mt-0.5" style={{ color: COLORS.muted }}>{device.device_type}</div>
+                        <div className="font-black text-xl" style={{ color: COLORS.text }}>{device.target}</div>
+                        <div className="text-sm mt-0.5" style={{ color: COLORS.muted }}>{device.findings?.length || 0} finding{device.findings?.length !== 1 ? "s" : ""} detected</div>
                       </div>
                     </div>
                     <div className="flex items-center gap-3">
-                      {device.ai_severity && <SeverityBadge severity={device.ai_severity} />}
+                      {device.critical > 0 && <SeverityBadge severity="Critical" />}{device.critical === 0 && device.high > 0 && <SeverityBadge severity="High" />}
                       <div className="text-right">
-                        <div className="text-2xl font-black" style={{ color: riskColor }}>{device.risk_score}</div>
-                        <div className="text-xs" style={{ color: COLORS.muted }}>Risk Score</div>
+                        <div className="text-2xl font-black" style={{ color: device.critical > 0 ? COLORS.critical : device.high > 0 ? COLORS.high : COLORS.medium }}>{device.critical > 0 ? "CRITICAL" : device.high > 0 ? "HIGH" : device.medium > 0 ? "MEDIUM" : "LOW"}</div>
+                        <div className="text-xs" style={{ color: COLORS.muted }}>Risk Level</div>
                       </div>
                     </div>
                   </div>
 
                   <div className="grid grid-cols-3 gap-3 mb-4">
                     {[
-                      { label: "Open Ports", value: device.ports?.join(", ") || "None" },
-                      { label: "Risk Label", value: device.risk_label || "N/A" },
-                      { label: "AI Confidence", value: device.ai_confidence ? `${(device.ai_confidence * 100).toFixed(1)}%` : "N/A" },
+                      { label: "Critical", value: device.critical || 0 },
+                      { label: "High", value: device.high || 0 },
+                      { label: "Medium", value: device.medium || 0 },
                     ].map(({ label, value }) => (
                       <div key={label} className="p-4 rounded-xl"
                         style={{ backgroundColor: COLORS.darker }}>
