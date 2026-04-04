@@ -1,7 +1,7 @@
 {
     "target": "localhost",
     "port": 5683,
-    "scan_time": "2026-03-29 05:38:41",
+    "scan_time": "2026-04-02 09:19:45",
     "attacks": [
         {
             "attack": "Resource Discovery",
@@ -26,7 +26,7 @@
                 {
                     "path": "/temperature",
                     "response": "2.05 Content",
-                    "payload": "temperature={\"source\": \"AIPET_replay_test\", \"command\": \"replay_test\", \"time\": \"2026-03-29 05:32:07\"}C,unit=celsius,location=server_room"
+                    "payload": "temperature={\"source\": \"AIPET_replay_test\", \"command\": \"replay_test\", \"time\": \"2026-04-02 09:10:40\"}C,unit=celsius,location=server_room"
                 },
                 {
                     "path": "/credentials",
@@ -58,7 +58,7 @@
                 {
                     "resource": "/temperature",
                     "pattern": "location",
-                    "payload": "temperature={\"source\": \"AIPET_replay_test\", \"command\": \"replay_test\", \"time\": \"2026-03-29 05:32:07\"}C,unit=celsius,location=server_room"
+                    "payload": "temperature={\"source\": \"AIPET_replay_test\", \"command\": \"replay_test\", \"time\": \"2026-04-02 09:10:40\"}C,unit=celsius,location=server_room"
                 },
                 {
                     "resource": "/credentials",

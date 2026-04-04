@@ -1,0 +1,1020 @@
+{
+    "report_date": "2026-04-02 09:10:46",
+    "devices_assessed": 1,
+    "modules_run": [
+        "Recon Engine",
+        "MQTT Attack Suite",
+        "CoAP Attack Suite",
+        "HTTP/Web IoT Suite",
+        "Firmware Analyser",
+        "Explainable AI Engine"
+    ],
+    "all_data": {
+        "profiles": [
+            {
+                "ip": "10.0.2.15",
+                "scan_time": "2026-04-02 01:44:56",
+                "hostname": "unknown",
+                "state": "up",
+                "ports": [
+                    22,
+                    3000,
+                    5001,
+                    50003
+                ],
+                "services": {
+                    "22": {
+                        "protocol": "tcp",
+                        "state": "open",
+                        "name": "ssh",
+                        "product": "OpenSSH",
+                        "version": "10.2p1 Debian 5",
+                        "extrainfo": "protocol 2.0"
+                    },
+                    "3000": {
+                        "protocol": "tcp",
+                        "state": "open",
+                        "name": "http",
+                        "product": "Node.js Express framework",
+                        "version": "",
+                        "extrainfo": ""
+                    },
+                    "5001": {
+                        "protocol": "tcp",
+                        "state": "open",
+                        "name": "http",
+                        "product": "Werkzeug httpd",
+                        "version": "3.1.7",
+                        "extrainfo": "Python 3.13.12"
+                    },
+                    "50003": {
+                        "protocol": "tcp",
+                        "state": "open",
+                        "name": "tcpwrapped",
+                        "product": "",
+                        "version": "",
+                        "extrainfo": ""
+                    }
+                },
+                "device_type": "embedded_linux_device",
+                "confidence": 28.8,
+                "risk_indicators": [],
+                "risk_score": 15,
+                "risk_label": "INFORMATIONAL",
+                "recommended_modules": [
+                    {
+                        "module": "Module 5 \u2014 Firmware Analyser",
+                        "reason": "embedded_linux_device detected \u2014 firmware analysis recommended",
+                        "priority": "MEDIUM"
+                    }
+                ],
+                "profile_built": "2026-04-02 01:44:56"
+            }
+        ],
+        "mqtt": {
+            "target": "localhost",
+            "port": 1883,
+            "scan_time": "2026-04-02 09:10:05",
+            "attacks": [
+                {
+                    "attack": "Connection Test",
+                    "host": "localhost",
+                    "port": 1883,
+                    "connected": true,
+                    "auth_required": false,
+                    "finding": "BROKER ACCEPTS ANONYMOUS CONNECTIONS \u2014 No authentication required",
+                    "severity": "CRITICAL"
+                },
+                {
+                    "attack": "Authentication Bypass",
+                    "host": "localhost",
+                    "credentials_tried": 17,
+                    "bypass_found": true,
+                    "valid_credentials": [
+                        {
+                            "username": "",
+                            "password": ""
+                        },
+                        {
+                            "username": "admin",
+                            "password": "admin"
+                        },
+                        {
+                            "username": "admin",
+                            "password": "password"
+                        },
+                        {
+                            "username": "admin",
+                            "password": "1234"
+                        },
+                        {
+                            "username": "admin",
+                            "password": ""
+                        },
+                        {
+                            "username": "root",
+                            "password": "root"
+                        },
+                        {
+                            "username": "root",
+                            "password": "password"
+                        },
+                        {
+                            "username": "root",
+                            "password": ""
+                        },
+                        {
+                            "username": "mqtt",
+                            "password": "mqtt"
+                        },
+                        {
+                            "username": "mqtt",
+                            "password": "password"
+                        },
+                        {
+                            "username": "guest",
+                            "password": "guest"
+                        },
+                        {
+                            "username": "user",
+                            "password": "user"
+                        },
+                        {
+                            "username": "test",
+                            "password": "test"
+                        },
+                        {
+                            "username": "pi",
+                            "password": "raspberry"
+                        },
+                        {
+                            "username": "ubnt",
+                            "password": "ubnt"
+                        },
+                        {
+                            "username": "admin",
+                            "password": "admin123"
+                        },
+                        {
+                            "username": "support",
+                            "password": "support"
+                        }
+                    ],
+                    "finding": "Authentication bypass successful \u2014 17 valid credential set(s) found",
+                    "severity": "CRITICAL"
+                },
+                {
+                    "attack": "Topic Enumeration",
+                    "host": "localhost",
+                    "topics_found": [],
+                    "message_count": 0,
+                    "finding": "No messages captured in window",
+                    "severity": "INFO"
+                },
+                {
+                    "attack": "Message Injection",
+                    "host": "localhost",
+                    "injections_attempted": 4,
+                    "injections_successful": 4,
+                    "finding": "Message injection successful \u2014 4 message(s) injected without authorisation",
+                    "severity": "HIGH"
+                },
+                {
+                    "attack": "Sensitive Data Harvest",
+                    "host": "localhost",
+                    "sensitive_found": [],
+                    "finding": "No sensitive patterns detected",
+                    "severity": "INFO"
+                },
+                {
+                    "attack": "Retained Message Scanner",
+                    "target": "localhost:1883",
+                    "retained_messages": [],
+                    "sensitive_found": false,
+                    "finding": "No retained messages found",
+                    "severity": "INFO"
+                }
+            ],
+            "summary": {
+                "critical": 2,
+                "high": 1,
+                "medium": 0,
+                "info": 3
+            }
+        },
+        "coap": {
+            "target": "localhost",
+            "port": 5683,
+            "scan_time": "2026-04-02 09:10:40",
+            "attacks": [
+                {
+                    "attack": "Resource Discovery",
+                    "host": "localhost",
+                    "port": 5683,
+                    "resources_found": [
+                        "/.well-known/core",
+                        "/temperature",
+                        "/credentials",
+                        "/control",
+                        "/firmware",
+                        "https://christian.amsuess.com/tools/aiocoap/#version-0.4.17"
+                    ],
+                    "raw_response": "</.well-known/core>;ct=\"40\",</temperature>,</credentials>,</control>,</firmware>,<https://christian.amsuess.com/tools/aiocoap/#version-0.4.17>;rel=\"impl-info\"",
+                    "finding": "Discovered 6 resource(s) \u2014 device attack surface fully mapped",
+                    "severity": "HIGH"
+                },
+                {
+                    "attack": "Unauthenticated Access",
+                    "host": "localhost",
+                    "readable_resources": [
+                        {
+                            "path": "/temperature",
+                            "response": "2.05 Content",
+                            "payload": "temperature={\"source\": \"AIPET_replay_test\", \"command\": \"replay_test\", \"time\": \"2026-04-02 08:14:09\"}C,unit=celsius,location=server_room"
+                        },
+                        {
+                            "path": "/credentials",
+                            "response": "2.05 Content",
+                            "payload": "device_id=IoT_SENSOR_001,admin_user=admin,admin_password=admin123,api_key=SECRET_API_KEY_12345,firmware=v1.2.3"
+                        },
+                        {
+                            "path": "/control",
+                            "response": "2.05 Content",
+                            "payload": "status="
+                        },
+                        {
+                            "path": "/firmware",
+                            "response": "2.05 Content",
+                            "payload": "firmware_version=1.2.3,model=SmartSensor-X100,manufacturer=VulnTech,update_url=http://update.vulntech.com/firmware"
+                        }
+                    ],
+                    "writable_resources": [
+                        {
+                            "path": "/temperature",
+                            "response": "2.04 Changed"
+                        },
+                        {
+                            "path": "/control",
+                            "response": "2.04 Changed"
+                        }
+                    ],
+                    "sensitive_data": [
+                        {
+                            "resource": "/temperature",
+                            "pattern": "location",
+                            "payload": "temperature={\"source\": \"AIPET_replay_test\", \"command\": \"replay_test\", \"time\": \"2026-04-02 08:14:09\"}C,unit=celsius,location=server_room"
+                        },
+                        {
+                            "resource": "/credentials",
+                            "pattern": "password",
+                            "payload": "device_id=IoT_SENSOR_001,admin_user=admin,admin_password=admin123,api_key=SECRET_API_KEY_12345,firmware=v1.2.3"
+                        },
+                        {
+                            "resource": "/firmware",
+                            "pattern": "firmware",
+                            "payload": "firmware_version=1.2.3,model=SmartSensor-X100,manufacturer=VulnTech,update_url=http://update.vulntech.com/firmware"
+                        }
+                    ],
+                    "finding": "Sensitive data exposed on 3 resource(s) without authentication",
+                    "severity": "CRITICAL"
+                },
+                {
+                    "attack": "Replay Attack",
+                    "host": "localhost",
+                    "vulnerable_resources": [
+                        "/temperature",
+                        "/control"
+                    ],
+                    "finding": "2 resource(s) vulnerable to replay attacks \u2014 no duplicate request detection",
+                    "severity": "HIGH"
+                },
+                {
+                    "attack": "Malformed Packet Injection",
+                    "host": "localhost",
+                    "tests_run": 3,
+                    "anomalies": [
+                        {
+                            "test": "Empty payload PUT",
+                            "finding": "Device accepts empty PUT without validation"
+                        }
+                    ],
+                    "finding": "1 anomalie(s) found \u2014 device does not handle malformed packets robustly",
+                    "severity": "MEDIUM"
+                }
+            ],
+            "summary": {
+                "critical": 1,
+                "high": 2,
+                "medium": 1,
+                "info": 0
+            }
+        },
+        "http": {
+            "target": "localhost",
+            "port": 8080,
+            "scheme": "http",
+            "scan_time": "2026-04-02 09:10:45",
+            "attacks": [
+                {
+                    "attack": "Default Credential Testing",
+                    "host": "localhost",
+                    "port": 8080,
+                    "credentials_tried": 24,
+                    "valid_credentials": [
+                        {
+                            "username": "admin",
+                            "password": "admin",
+                            "endpoint": "/admin",
+                            "method": "HTTP Basic Auth"
+                        },
+                        {
+                            "username": "admin",
+                            "password": "password",
+                            "endpoint": "/admin",
+                            "method": "HTTP Basic Auth"
+                        },
+                        {
+                            "username": "admin",
+                            "password": "admin123",
+                            "endpoint": "/admin",
+                            "method": "HTTP Basic Auth"
+                        },
+                        {
+                            "username": "admin",
+                            "password": "1234",
+                            "endpoint": "/admin",
+                            "method": "HTTP Basic Auth"
+                        },
+                        {
+                            "username": "admin",
+                            "password": "",
+                            "endpoint": "/admin",
+                            "method": "HTTP Basic Auth"
+                        },
+                        {
+                            "username": "root",
+                            "password": "root",
+                            "endpoint": "/admin",
+                            "method": "HTTP Basic Auth"
+                        },
+                        {
+                            "username": "root",
+                            "password": "password",
+                            "endpoint": "/admin",
+                            "method": "HTTP Basic Auth"
+                        },
+                        {
+                            "username": "root",
+                            "password": "",
+                            "endpoint": "/admin",
+                            "method": "HTTP Basic Auth"
+                        },
+                        {
+                            "username": "admin",
+                            "password": "admin",
+                            "endpoint": "/config",
+                            "method": "HTTP Basic Auth"
+                        },
+                        {
+                            "username": "admin",
+                            "password": "password",
+                            "endpoint": "/config",
+                            "method": "HTTP Basic Auth"
+                        },
+                        {
+                            "username": "admin",
+                            "password": "admin123",
+                            "endpoint": "/config",
+                            "method": "HTTP Basic Auth"
+                        },
+                        {
+                            "username": "admin",
+                            "password": "1234",
+                            "endpoint": "/config",
+                            "method": "HTTP Basic Auth"
+                        },
+                        {
+                            "username": "admin",
+                            "password": "",
+                            "endpoint": "/config",
+                            "method": "HTTP Basic Auth"
+                        },
+                        {
+                            "username": "root",
+                            "password": "root",
+                            "endpoint": "/config",
+                            "method": "HTTP Basic Auth"
+                        },
+                        {
+                            "username": "root",
+                            "password": "password",
+                            "endpoint": "/config",
+                            "method": "HTTP Basic Auth"
+                        },
+                        {
+                            "username": "root",
+                            "password": "",
+                            "endpoint": "/config",
+                            "method": "HTTP Basic Auth"
+                        },
+                        {
+                            "username": "admin",
+                            "password": "admin",
+                            "endpoint": "/management",
+                            "method": "HTTP Basic Auth"
+                        },
+                        {
+                            "username": "admin",
+                            "password": "password",
+                            "endpoint": "/management",
+                            "method": "HTTP Basic Auth"
+                        },
+                        {
+                            "username": "admin",
+                            "password": "admin123",
+                            "endpoint": "/management",
+                            "method": "HTTP Basic Auth"
+                        },
+                        {
+                            "username": "admin",
+                            "password": "1234",
+                            "endpoint": "/management",
+                            "method": "HTTP Basic Auth"
+                        },
+                        {
+                            "username": "admin",
+                            "password": "",
+                            "endpoint": "/management",
+                            "method": "HTTP Basic Auth"
+                        },
+                        {
+                            "username": "root",
+                            "password": "root",
+                            "endpoint": "/management",
+                            "method": "HTTP Basic Auth"
+                        },
+                        {
+                            "username": "root",
+                            "password": "password",
+                            "endpoint": "/management",
+                            "method": "HTTP Basic Auth"
+                        },
+                        {
+                            "username": "root",
+                            "password": "",
+                            "endpoint": "/management",
+                            "method": "HTTP Basic Auth"
+                        }
+                    ],
+                    "login_endpoints": [],
+                    "finding": "Default credentials valid \u2014 24 credential set(s) found",
+                    "severity": "CRITICAL"
+                },
+                {
+                    "attack": "Admin Interface Discovery",
+                    "host": "localhost",
+                    "port": 8080,
+                    "admin_found": [
+                        {
+                            "path": "/admin",
+                            "status": 200,
+                            "size": 345,
+                            "sensitive": [
+                                "password",
+                                "login",
+                                "admin",
+                                "firmware"
+                            ]
+                        },
+                        {
+                            "path": "/management",
+                            "status": 200,
+                            "size": 71,
+                            "sensitive": [
+                                "password",
+                                "admin"
+                            ]
+                        },
+                        {
+                            "path": "/config",
+                            "status": 200,
+                            "size": 275,
+                            "sensitive": [
+                                "password",
+                                "secret",
+                                "api_key",
+                                "key",
+                                "ssid",
+                                "wifi",
+                                "admin",
+                                "firmware"
+                            ]
+                        },
+                        {
+                            "path": "/setup",
+                            "status": 200,
+                            "size": 105,
+                            "sensitive": [
+                                "auth"
+                            ]
+                        }
+                    ],
+                    "sensitive_files": [
+                        {
+                            "path": "/config.bak",
+                            "status": 200,
+                            "size": 275,
+                            "sensitive": [
+                                "password",
+                                "secret",
+                                "api_key",
+                                "key",
+                                "ssid",
+                                "wifi",
+                                "admin",
+                                "firmware"
+                            ]
+                        },
+                        {
+                            "path": "/firmware",
+                            "status": 200,
+                            "size": 133,
+                            "sensitive": [
+                                "version",
+                                "model"
+                            ]
+                        },
+                        {
+                            "path": "/diag",
+                            "status": 200,
+                            "size": 123,
+                            "sensitive": [
+                                "password",
+                                "secret",
+                                "api_key",
+                                "key",
+                                "admin"
+                            ]
+                        },
+                        {
+                            "path": "/status",
+                            "status": 200,
+                            "size": 202,
+                            "sensitive": [
+                                "secret",
+                                "api_key",
+                                "key",
+                                "firmware",
+                                "location"
+                            ]
+                        }
+                    ],
+                    "sensitive_responses": [
+                        {
+                            "path": "/admin",
+                            "patterns": [
+                                "password",
+                                "login",
+                                "admin",
+                                "firmware"
+                            ],
+                            "preview": "\n<html><body>\n<h1>Admin Panel</h1>\n<p>Welcome admin \u00e2\u0080\u0094 full device control</p>\n<p>Device ID: SmartSensor-X100</p>\n<p>Firmware: 1.2.3</p>\n<form method='POST' action='/admin/login'>\nUsername: <input na"
+                        },
+                        {
+                            "path": "/management",
+                            "patterns": [
+                                "password",
+                                "admin"
+                            ],
+                            "preview": "{\n  \"status\": \"management interface active\",\n  \"password\": \"admin123\"\n}"
+                        },
+                        {
+                            "path": "/config",
+                            "patterns": [
+                                "password",
+                                "secret",
+                                "api_key",
+                                "key",
+                                "ssid",
+                                "wifi",
+                                "admin",
+                                "firmware"
+                            ],
+                            "preview": "{\n  \"device_id\": \"SmartSensor-X100\",\n  \"firmware\": \"1.2.3\",\n  \"admin_user\": \"admin\",\n  \"admin_password\": \"admin123\",\n  \"api_key\": \"SECRET_API_KEY_12345\",\n  \"wifi_ssid\": \"HomeNetwork\",\n  \"wifi_password"
+                        },
+                        {
+                            "path": "/setup",
+                            "patterns": [
+                                "auth"
+                            ],
+                            "preview": "\n<html><body>\n<h1>Device Setup</h1>\n<p>Initial configuration page \u00e2\u0080\u0094 no auth required</p>\n</body></html>"
+                        },
+                        {
+                            "path": "/config.bak",
+                            "patterns": [
+                                "password",
+                                "secret",
+                                "api_key",
+                                "key",
+                                "ssid",
+                                "wifi",
+                                "admin",
+                                "firmware"
+                            ],
+                            "preview": "{\n  \"device_id\": \"SmartSensor-X100\",\n  \"firmware\": \"1.2.3\",\n  \"admin_user\": \"admin\",\n  \"admin_password\": \"admin123\",\n  \"api_key\": \"SECRET_API_KEY_12345\",\n  \"wifi_ssid\": \"HomeNetwork\",\n  \"wifi_password"
+                        },
+                        {
+                            "path": "/firmware",
+                            "patterns": [
+                                "version",
+                                "model"
+                            ],
+                            "preview": "{\n  \"version\": \"1.2.3\",\n  \"model\": \"SmartSensor-X100\",\n  \"update_url\": \"http://update.vulntech.com\",\n  \"last_updated\": \"2021-03-15\"\n}"
+                        },
+                        {
+                            "path": "/diag",
+                            "patterns": [
+                                "password",
+                                "secret",
+                                "api_key",
+                                "key",
+                                "admin"
+                            ],
+                            "preview": "{\n  \"cpu\": \"45%\",\n  \"memory\": \"62%\",\n  \"uptime\": \"15 days\",\n  \"password\": \"admin123\",\n  \"api_key\": \"SECRET_API_KEY_12345\"\n}"
+                        },
+                        {
+                            "path": "/status",
+                            "patterns": [
+                                "secret",
+                                "api_key",
+                                "key",
+                                "firmware",
+                                "location"
+                            ],
+                            "preview": "{\n  \"device\": \"SmartSensor-X100\",\n  \"firmware\": \"1.2.3\",\n  \"temperature\": \"22.5\",\n  \"humidity\": \"65\",\n  \"location\": \"server_room\",\n  \"mqtt_broker\": \"192.168.1.100\",\n  \"api_key\": \"SECRET_API_KEY_12345\""
+                        }
+                    ],
+                    "finding": "8 interface(s) found \u2014 8 exposing sensitive data",
+                    "severity": "CRITICAL"
+                },
+                {
+                    "attack": "API Security Testing",
+                    "host": "localhost",
+                    "apis_found": [
+                        "/api/v1/sensors",
+                        "/api/v1/config"
+                    ],
+                    "unauthenticated": [
+                        {
+                            "path": "/api/v1/sensors",
+                            "method": "GET",
+                            "size": 120
+                        },
+                        {
+                            "path": "/api/v1/config",
+                            "method": "GET",
+                            "size": 275
+                        }
+                    ],
+                    "sensitive_apis": [
+                        {
+                            "path": "/api/v1/sensors",
+                            "patterns": [
+                                "location"
+                            ],
+                            "preview": "{\n  \"temperature\": \"22.5\",\n  \"humidity\": \"65\",\n  \"pressure\": \"1013\",\n  \"location\": \"server_room\",\n  \"status\": \"active\"\n}"
+                        },
+                        {
+                            "path": "/api/v1/config",
+                            "patterns": [
+                                "password",
+                                "secret",
+                                "api_key",
+                                "key",
+                                "ssid",
+                                "wifi",
+                                "admin",
+                                "firmware"
+                            ],
+                            "preview": "{\n  \"device_id\": \"SmartSensor-X100\",\n  \"firmware\": \"1.2.3\",\n  \"admin_user\": \"admin\",\n  \"admin_password\": \"admin123\",\n  \"api_key\": \"SECRET_API_KEY_12345\",\n  \"wifi_ssid\": \"HomeNetwork\",\n  \"wifi_password\": \"wifipass123\",\n  \"mqtt_broker\": \"192.168.1.100\",\n  \"mqtt_port\": \"1883\"\n}"
+                        }
+                    ],
+                    "injectable_apis": [],
+                    "finding": "2 API(s) found \u2014 2 exposing sensitive data without authentication",
+                    "severity": "CRITICAL"
+                },
+                {
+                    "attack": "Common Vulnerability Scan",
+                    "host": "localhost",
+                    "vulnerabilities": [
+                        {
+                            "type": "Missing Security Headers",
+                            "detail": "Missing: X-Frame-Options, X-Content-Type-Options, Content-Security-Policy, Strict-Transport-Security",
+                            "severity": "LOW"
+                        },
+                        {
+                            "type": "Server Version Disclosure",
+                            "detail": "Server header: BaseHTTP/0.6 Python/3.13.12",
+                            "severity": "LOW"
+                        }
+                    ],
+                    "finding": "2 vulnerability/vulnerabilities found",
+                    "severity": "LOW"
+                }
+            ],
+            "summary": {
+                "critical": 3,
+                "high": 0,
+                "medium": 0,
+                "info": 1
+            }
+        },
+        "firmware": {
+            "target": "lab/fake_firmware",
+            "scan_time": "2026-04-02 09:10:45",
+            "analyses": [
+                {
+                    "analysis": "Binwalk Scan",
+                    "target": "lab/fake_firmware",
+                    "signatures": [],
+                    "finding": "No signatures found",
+                    "severity": "INFO"
+                },
+                {
+                    "analysis": "Credential Hunt",
+                    "target": "lab/fake_firmware",
+                    "credentials_found": [
+                        {
+                            "file": "lab/fake_firmware/bin/firmware.bin",
+                            "pattern": "Hardcoded Password",
+                            "severity": "CRITICAL",
+                            "matches": [
+                                "password: secret123\u0000api_key=HARDCODED_KEY_XYZ\u0000telnet"
+                            ],
+                            "count": 1
+                        },
+                        {
+                            "file": "lab/fake_firmware/bin/firmware.bin",
+                            "pattern": "Hardcoded API Key",
+                            "severity": "CRITICAL",
+                            "matches": [
+                                "api_key: HARDCODED_KEY_XYZ\u0000telnet"
+                            ],
+                            "count": 1
+                        },
+                        {
+                            "file": "lab/fake_firmware/etc/config.conf",
+                            "pattern": "Hardcoded Password",
+                            "severity": "CRITICAL",
+                            "matches": [
+                                "password: admin123",
+                                "password: mqtt_pass123",
+                                "password: wifipassword123"
+                            ],
+                            "count": 3
+                        },
+                        {
+                            "file": "lab/fake_firmware/etc/config.conf",
+                            "pattern": "Hardcoded Username",
+                            "severity": "HIGH",
+                            "matches": [
+                                "username: admin",
+                                "username: mqtt_user"
+                            ],
+                            "count": 2
+                        },
+                        {
+                            "file": "lab/fake_firmware/etc/config.conf",
+                            "pattern": "Hardcoded API Key",
+                            "severity": "CRITICAL",
+                            "matches": [
+                                "api_key: SECRET_API_KEY_12345",
+                                "secret_key: wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
+                            ],
+                            "count": 2
+                        },
+                        {
+                            "file": "lab/fake_firmware/etc/config.conf",
+                            "pattern": "AWS Access Key",
+                            "severity": "CRITICAL",
+                            "matches": [
+                                "AKIAIOSFODNN7EXAMPLE"
+                            ],
+                            "count": 1
+                        },
+                        {
+                            "file": "lab/fake_firmware/etc/config.conf",
+                            "pattern": "AWS Secret Key",
+                            "severity": "CRITICAL",
+                            "matches": [
+                                "secret_key: wJalrXUtnFEMI/K7MDENG/bPxRfiCYEXAMPLEKEY"
+                            ],
+                            "count": 1
+                        },
+                        {
+                            "file": "lab/fake_firmware/etc/config.conf",
+                            "pattern": "MQTT Credentials",
+                            "severity": "HIGH",
+                            "matches": [
+                                "mqtt_username: mqtt_user"
+                            ],
+                            "count": 1
+                        }
+                    ],
+                    "files_scanned": 5,
+                    "finding": "Found 8 hardcoded credential pattern(s) \u2014 6 CRITICAL",
+                    "severity": "CRITICAL"
+                },
+                {
+                    "analysis": "Private Key Scanner",
+                    "target": "lab/fake_firmware",
+                    "keys_found": [
+                        {
+                            "file": "lab/fake_firmware/etc/server.key",
+                            "pattern": "RSA Private Key",
+                            "severity": "CRITICAL",
+                            "matches": [
+                                "-----BEGIN RSA PRIVATE KEY-----"
+                            ],
+                            "count": 1,
+                            "file_hash": "06cbc556ce8980005be4c56b13f212752c562b871f21a4a3296df1ad99d3d2d3"
+                        }
+                    ],
+                    "finding": "Found 1 private key/certificate(s) embedded in firmware \u2014 all devices share the same key",
+                    "severity": "CRITICAL"
+                },
+                {
+                    "analysis": "Dangerous Configuration Scanner",
+                    "target": "lab/fake_firmware",
+                    "configs_found": [
+                        {
+                            "file": "lab/fake_firmware/etc/config.conf",
+                            "pattern": "Telnet Enabled",
+                            "severity": "CRITICAL",
+                            "matches": [
+                                "telnet_enabled: true"
+                            ],
+                            "count": 1
+                        },
+                        {
+                            "file": "lab/fake_firmware/etc/config.conf",
+                            "pattern": "Debug Mode Enabled",
+                            "severity": "HIGH",
+                            "matches": [
+                                "debug_mode: true"
+                            ],
+                            "count": 1
+                        }
+                    ],
+                    "finding": "Found 2 dangerous configuration(s)",
+                    "severity": "CRITICAL"
+                },
+                {
+                    "analysis": "Sensitive File Finder",
+                    "target": "lab/fake_firmware",
+                    "files_found": [
+                        {
+                            "path": "lab/fake_firmware/etc/shadow",
+                            "description": "Hashed password file",
+                            "severity": "CRITICAL",
+                            "size": 62,
+                            "hash": "7dc05c426d290fb1c171ada4b31f0c84d664f0e1ef68bbcf829fd8cf7af8d5e0"
+                        },
+                        {
+                            "path": "lab/fake_firmware/etc/passwd",
+                            "description": "System password file",
+                            "severity": "HIGH",
+                            "size": 141,
+                            "hash": "ec753c5897f2bf285b6da1fbbe2364fa9f2e1357fdea45769f9f16cc61fce921"
+                        },
+                        {
+                            "path": "lab/fake_firmware/etc/server.key",
+                            "description": "SSL server key",
+                            "severity": "CRITICAL",
+                            "size": 127,
+                            "hash": "06cbc556ce8980005be4c56b13f212752c562b871f21a4a3296df1ad99d3d2d3"
+                        },
+                        {
+                            "path": "lab/fake_firmware/etc/config.conf",
+                            "description": "Device configuration",
+                            "severity": "HIGH",
+                            "size": 396,
+                            "hash": "a85a4d93256c75bef14142d4ff4ca95b9bd118cf94a3b835b6fe374452971839"
+                        }
+                    ],
+                    "finding": "Found 4 sensitive file(s) in firmware",
+                    "severity": "CRITICAL"
+                },
+                {
+                    "analysis": "Vulnerable Component Scanner",
+                    "target": "lab/fake_firmware",
+                    "components_found": [
+                        {
+                            "file": "lab/fake_firmware/bin/firmware.bin",
+                            "pattern": "OpenSSL 1.0.x (Heartbleed vulnerable)",
+                            "severity": "CRITICAL",
+                            "matches": [
+                                "OpenSSL 1.0.1"
+                            ],
+                            "count": 1
+                        },
+                        {
+                            "file": "lab/fake_firmware/bin/firmware.bin",
+                            "pattern": "OpenSSH < 7.4 (Multiple CVEs)",
+                            "severity": "HIGH",
+                            "matches": [
+                                "OpenSSH_7.2"
+                            ],
+                            "count": 1
+                        }
+                    ],
+                    "finding": "Found 2 potentially vulnerable component(s)",
+                    "severity": "CRITICAL"
+                }
+            ],
+            "summary": {
+                "critical": 5,
+                "high": 0,
+                "medium": 0,
+                "info": 1
+            }
+        },
+        "ai_results": [
+            {
+                "ip": "10.0.2.15",
+                "device_type": "embedded_linux_device",
+                "prediction": {
+                    "predicted_class": 0,
+                    "predicted_severity": "Low",
+                    "confidence": 0.3903,
+                    "probabilities": {
+                        "Low": 0.3903,
+                        "Medium": 0.2787,
+                        "High": 0.2232,
+                        "Critical": 0.1078
+                    },
+                    "shap_contributions": {
+                        "open_port_count": -0.17592431482977525,
+                        "firmware_vulnerable_component": 0.07789560715245461,
+                        "firmware_hardcoded_creds": 0.0557900872656477,
+                        "firmware_version_risk": 0.045626582710897805,
+                        "device_type": 0.03681735423310586,
+                        "port_443": -0.02641298391933469,
+                        "http_default_creds": 0.023059524077546488,
+                        "mqtt_anonymous": 0.021414102831161158,
+                        "http_admin_exposed": 0.016221185362861323,
+                        "port_8080": -0.013491158320228932,
+                        "firmware_telnet": 0.01324008271279634,
+                        "port_80": 0.012873353859793622,
+                        "http_sensitive_data": 0.012732035626156435,
+                        "port_22": -0.012697393803224431,
+                        "firmware_private_key": 0.01257943047320486,
+                        "firmware_debug": 0.009784369187990504,
+                        "port_1883": 0.009046531039557923,
+                        "port_23": 0.00731999305523009,
+                        "coap_unauth_read": 0.006846777697529389,
+                        "port_8883": 0.003616211073740813,
+                        "mqtt_sensitive_data": 0.0027579796945123494,
+                        "mqtt_default_creds": 0.0025247633569678435,
+                        "port_5683": 0.002316168104238045,
+                        "coap_unauth_write": 0.0013730271937549123,
+                        "coap_replay": 0.0004835244479566611,
+                        "port_502": 0.00039990752025118926
+                    },
+                    "expected_value": 0.2441269216342618
+                },
+                "explanation": "Predicted Severity: Low (confidence: 39.0%)\n\nKey factors driving this prediction:\n\n  Increasing severity:\n  + Device type classification (impact: 3.7%)\n\n  Reducing severity:\n  - Total number of open ports (impact: 17.6%)\n  - HTTPS web interface (port 443) (impact: 2.6%)\n  - Alternative HTTP interface (port 8080) (impact: 1.3%)\n\nSeverity probability breakdown:\n  Low         39.0%  \u2588\u2588\u2588\u2588\u2588\u2588\u2588\n  Medium      27.9%  \u2588\u2588\u2588\u2588\u2588\n  High        22.3%  \u2588\u2588\u2588\u2588\n  Critical    10.8%  \u2588\u2588",
+                "feature_vector": {
+                    "device_type": 7,
+                    "open_port_count": 4,
+                    "port_22": 1,
+                    "port_23": 0,
+                    "port_80": 0,
+                    "port_443": 0,
+                    "port_502": 0,
+                    "port_1883": 0,
+                    "port_5683": 0,
+                    "port_8080": 0,
+                    "port_8883": 0,
+                    "mqtt_anonymous": 0,
+                    "mqtt_default_creds": 0,
+                    "mqtt_sensitive_data": 0,
+                    "coap_unauth_read": 0,
+                    "coap_unauth_write": 0,
+                    "coap_replay": 0,
+                    "http_default_creds": 0,
+                    "http_admin_exposed": 0,
+                    "http_sensitive_data": 0,
+                    "firmware_hardcoded_creds": 0,
+                    "firmware_private_key": 0,
+                    "firmware_telnet": 0,
+                    "firmware_vulnerable_component": 0,
+                    "firmware_debug": 0,
+                    "firmware_version_risk": 0
+                },
+                "predicted_at": "2026-04-02 09:10:46"
+            }
+        ]
+    },
+    "report_content": "# AIPET \u2014 IoT Penetration Test Report\n\n**AI-Powered Penetration Testing Framework for IoT**\n\n---\n\n| Field | Value |\n|-------|-------|\n| Report Date | 2026-04-02 09:10:46 |\n| Devices Assessed | 1 |\n| Framework | AIPET v1.0 \u2014 Explainable AI IoT Penetration Testing |\n| Institution | Coventry University \u2014 MSc Cyber Security (Ethical Hacking) |\n| Classification | CONFIDENTIAL \u2014 For authorised use only |\n\n---\n\n## Table of Contents\n\n1. [Executive Summary](#executive-summary)\n2. [Discovered Devices](#discovered-devices)\n3. [Detailed Findings](#detailed-findings)\n4. [AI-Powered Risk Analysis](#ai-powered-risk-analysis)\n5. [Recommendations](#recommendations)\n\n---\n\n## Executive Summary\n\n**Overall Risk Rating: \ud83d\udea8 CRITICAL**\n\nThe assessment identified 11 critical vulnerability/vulnerabilities requiring immediate remediation.\n\n### Assessment Scope\n- Devices assessed: 1\n- Modules executed: MQTT, CoAP, HTTP, Firmware, AI Analysis\n\n### Finding Summary\n\n| Severity | Count |\n|----------|-------|\n| \ud83d\udea8 Critical | 11 |\n| \ud83d\udd34 High     | 3 |\n| \u26a0\ufe0f  Medium   | 1 |\n| \u2139\ufe0f  Low      | 5 |\n| **Total**   | **20** |\n\n### Immediate Priority Actions\n\n1. **Disable MQTT anonymous access** \u2014 MQTT broker accepts connections without authentication\n\n2. **Revoke shared private key** \u2014 Private key found in firmware affects ALL devices of this model\n\n3. **Disable Telnet** \u2014 Telnet transmits credentials in plaintext\n\n---\n\n## Discovered Devices\n\n### Device: 10.0.2.15\n\n| Property | Value |\n|----------|-------|\n| IP Address | `10.0.2.15` |\n| Hostname | unknown |\n| Device Type | embedded_linux_device |\n| Fingerprint Confidence | 28.8% |\n| Risk Score | 15/100 |\n| Risk Label | INFORMATIONAL |\n| Open Ports | 22, 3000, 5001, 50003 |\n| AI Severity | Low (39.0% confidence) |\n\n**Services Detected:**\n\n| Port | Protocol | Service | Version |\n|------|----------|---------|---------|\n| 22 | tcp | ssh | OpenSSH 10.2p1 Debian 5 |\n| 3000 | tcp | http | Node.js Express framework  |\n| 5001 | tcp | http | Werkzeug httpd 3.1.7 |\n| 50003 | tcp | tcpwrapped |   |\n\n---\n\n## Detailed Findings\n\n### Module 2 \u2014 MQTT Attack Suite\n**Target:** localhost:1883\n\n#### CRITICAL \u2014 Connection Test\n\n**Finding:** BROKER ACCEPTS ANONYMOUS CONNECTIONS \u2014 No authentication required\n\n**Recommendation:** Configure MQTT broker authentication. Enable username/password authentication in mosquitto.conf: `allow_anonymous false`. Generate strong unique credentials for each client.\n\n#### CRITICAL \u2014 Authentication Bypass\n\n**Finding:** Authentication bypass successful \u2014 17 valid credential set(s) found\n\n**Valid Credentials Found:** 17\n\n**Recommendation:** Change all default MQTT credentials immediately. Implement per-device unique credentials. Consider certificate-based authentication for production deployments.\n\n#### \ud83d\udccb INFO \u2014 Topic Enumeration\n\n**Finding:** No messages captured in window\n\n#### HIGH \u2014 Message Injection\n\n**Finding:** Message injection successful \u2014 4 message(s) injected without authorisation\n\n#### \ud83d\udccb INFO \u2014 Sensitive Data Harvest\n\n**Finding:** No sensitive patterns detected\n\n**Recommendation:** Review all MQTT topic payloads for sensitive data. Implement payload encryption using TLS (port 8883). Apply topic-level access control lists (ACLs).\n\n#### \ud83d\udccb INFO \u2014 Retained Message Scanner\n\n**Finding:** No retained messages found\n\n---\n\n### Module 3 \u2014 CoAP Attack Suite\n**Target:** coap://localhost:5683\n\n#### HIGH \u2014 Resource Discovery\n\n**Finding:** Discovered 6 resource(s) \u2014 device attack surface fully mapped\n\n**Resources Found:** /.well-known/core, /temperature, /credentials, /control, /firmware\n\n#### CRITICAL \u2014 Unauthenticated Access\n\n**Finding:** Sensitive data exposed on 3 resource(s) without authentication\n\n**Recommendation:** Implement CoAP access control. Use DTLS for CoAP communication (CoAPS). Restrict resource access to authorised clients only.\n\n#### HIGH \u2014 Replay Attack\n\n**Finding:** 2 resource(s) vulnerable to replay attacks \u2014 no duplicate request detection\n\n**Recommendation:** Implement replay protection using nonces or timestamps in CoAP messages. Enable DTLS which provides replay protection at the transport layer.\n\n#### MEDIUM \u2014 Malformed Packet Injection\n\n**Finding:** 1 anomalie(s) found \u2014 device does not handle malformed packets robustly\n\n---\n\n### Module 4 \u2014 HTTP/Web IoT Suite\n**Target:** http://localhost:8080\n\n#### CRITICAL \u2014 Default Credential Testing\n\n**Finding:** Default credentials valid \u2014 24 credential set(s) found\n\n**Recommendation:** Change all default credentials immediately. Implement account lockout after failed attempts. Use strong unique passwords for each device. Consider disabling the web interface if not needed.\n\n#### CRITICAL \u2014 Admin Interface Discovery\n\n**Finding:** 8 interface(s) found \u2014 8 exposing sensitive data\n\n**Recommendation:** Restrict admin interface access by IP whitelist. Implement strong authentication on all admin pages. Consider moving admin interface to non-standard port. Disable admin interface if not required remotely.\n\n#### CRITICAL \u2014 API Security Testing\n\n**Finding:** 2 API(s) found \u2014 2 exposing sensitive data without authentication\n\n**Recommendation:** Remove all sensitive data from HTTP responses. Implement proper access control on all API endpoints. Audit all endpoints for unintended data exposure. Implement API authentication tokens.\n\n#### LOW \u2014 Common Vulnerability Scan\n\n**Finding:** 2 vulnerability/vulnerabilities found\n\n---\n\n### Module 5 \u2014 Firmware Analyser\n**Target:** lab/fake_firmware\n\n#### \ud83d\udccb INFO \u2014 Binwalk Scan\n\n**Finding:** No signatures found\n\n#### CRITICAL \u2014 Credential Hunt\n\n**Finding:** Found 8 hardcoded credential pattern(s) \u2014 6 CRITICAL\n\n**Recommendation:** Remove all hardcoded credentials from firmware. Implement secure credential provisioning at manufacturing time. Issue firmware update to all affected devices. This affects ALL devices running this firmware version.\n\n#### CRITICAL \u2014 Private Key Scanner\n\n**Finding:** Found 1 private key/certificate(s) embedded in firmware \u2014 all devices share the same key\n\n**Recommendation:** CRITICAL: Remove private key from firmware immediately. Generate unique keys per device during provisioning. Revoke the compromised key across all deployments. All devices sharing this key are vulnerable to traffic decryption and impersonation.\n\n#### CRITICAL \u2014 Dangerous Configuration Scanner\n\n**Finding:** Found 2 dangerous configuration(s)\n\n**Recommendation:** Disable Telnet immediately \u2014 it transmits all data including passwords in plaintext. Replace with SSH for remote access. Issue firmware update to all affected devices.\n\n#### CRITICAL \u2014 Sensitive File Finder\n\n**Finding:** Found 4 sensitive file(s) in firmware\n\n#### CRITICAL \u2014 Vulnerable Component Scanner\n\n**Finding:** Found 2 potentially vulnerable component(s)\n\n**Recommendation:** Update all identified vulnerable components. Establish a firmware update process. Subscribe to CVE notifications for all components. Test updates in staging before deployment.\n\n---\n\n## AI-Powered Risk Analysis\n\nThe following analysis was generated by AIPET's Explainable AI engine using a Random Forest classifier trained on IoT CVE data and SHAP (SHapley Additive exPlanations) values to justify each prediction.\n\n### \u2139\ufe0f  LOW \u2014 Device: 10.0.2.15\n\n**Device Type:** embedded_linux_device\n**AI Predicted Severity:** Low (39.0% confidence)\n\n**Severity Probability Breakdown:**\n\n| Severity | Probability |\n|----------|-------------|\n| Low | 39.0% \u2588\u2588\u2588\u2588\u2588\u2588\u2588 |\n| Medium | 27.9% \u2588\u2588\u2588\u2588\u2588 |\n| High | 22.3% \u2588\u2588\u2588\u2588 |\n| Critical | 10.8% \u2588\u2588 |\n\n**Key Factors (SHAP Feature Contributions):**\n\n| Feature | Impact | Direction |\n|---------|--------|-----------|\n| Open Port Count | 17.6% | \u2b07\ufe0f Reduces severity |\n| Firmware Vulnerable Component | 7.8% | \u2b06\ufe0f Increases severity |\n| Firmware Hardcoded Creds | 5.6% | \u2b06\ufe0f Increases severity |\n| Firmware Version Risk | 4.6% | \u2b06\ufe0f Increases severity |\n| Device Type | 3.7% | \u2b06\ufe0f Increases severity |\n| Port 443 | 2.6% | \u2b07\ufe0f Reduces severity |\n| Http Default Creds | 2.3% | \u2b06\ufe0f Increases severity |\n| Mqtt Anonymous | 2.1% | \u2b06\ufe0f Increases severity |\n\n**Plain-English Explanation:**\n\n```\nPredicted Severity: Low (confidence: 39.0%)\n\nKey factors driving this prediction:\n\n  Increasing severity:\n  + Device type classification (impact: 3.7%)\n\n  Reducing severity:\n  - Total number of open ports (impact: 17.6%)\n  - HTTPS web interface (port 443) (impact: 2.6%)\n  - Alternative HTTP interface (port 8080) (impact: 1.3%)\n\nSeverity probability breakdown:\n  Low         39.0%  \u2588\u2588\u2588\u2588\u2588\u2588\u2588\n  Medium      27.9%  \u2588\u2588\u2588\u2588\u2588\n  High        22.3%  \u2588\u2588\u2588\u2588\n  Critical    10.8%  \u2588\u2588\n```\n\n---\n\n## Recommendations\n\nThe following recommendations are prioritised by severity. Address Critical items immediately before moving to High severity items.\n\n### \ud83d\udea8 Critical Priority\n\n1. **Disable anonymous MQTT access** \u2014 Enforce authentication on all MQTT brokers. No device should connect without credentials.\n\n2. **Remove hardcoded credentials from firmware** \u2014 Issue firmware update. All devices running affected firmware are vulnerable.\n\n3. **Revoke and replace shared private keys** \u2014 Every device sharing the same key is vulnerable to traffic decryption and impersonation.\n\n4. **Disable Telnet** \u2014 Replace with SSH on all devices. Telnet exposes credentials on the network.\n\n### \ud83d\udd34 High Priority\n\n5. **Change all default web interface credentials** \u2014 Each device must have unique, strong credentials.\n\n6. **Restrict admin interface access** \u2014 Admin panels should not be accessible without authentication. Apply IP whitelisting where possible.\n\n7. **Update vulnerable firmware components** \u2014 OpenSSL 1.0.x and OpenSSH < 7.4 have known critical vulnerabilities. Update immediately.\n\n### \u26a0\ufe0f Medium Priority\n\n8. **Implement CoAP authentication** \u2014 Use DTLS for CoAP communication. Restrict resource access to authorised clients.\n\n9. **Implement replay protection** \u2014 Add nonce or timestamp validation to CoAP and MQTT message processing.\n\n10. **Add HTTP security headers** \u2014 Implement X-Frame-Options, Content-Security-Policy, and X-Content-Type-Options on all web interfaces.\n\n### \u2139\ufe0f General Best Practices\n\n- Implement network segmentation \u2014 IoT devices should be on isolated VLANs\n- Enable firmware automatic updates where possible\n- Monitor all IoT device communications for anomalous behaviour\n- Conduct regular penetration testing as devices and firmware are updated\n- Subscribe to CVE notifications for all IoT device models and firmware versions\n\n---\n\n*Report generated by AIPET \u2014 AI-Powered Penetration Testing Framework for IoT*\n*Coventry University \u2014 MSc Cyber Security (Ethical Hacking) \u2014 2025*\n*This report is confidential and intended solely for the authorised recipient.*"
+}
