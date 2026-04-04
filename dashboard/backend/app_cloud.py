@@ -30,6 +30,7 @@ from dashboard.backend.score.routes import score_bp
 from dashboard.backend.map.routes import map_bp
 from dashboard.backend.predict.routes import predict_bp
 from dashboard.backend.watch.routes import watch_bp
+from dashboard.backend.ask.routes import ask_bp
 from dashboard.backend.monitoring.logger import setup_logging, get_logger
 from dashboard.backend.security import init_security
 from dashboard.backend.monitoring.logger import (
@@ -121,6 +122,7 @@ def create_app(config_name="development"):
     app.register_blueprint(map_bp)
     app.register_blueprint(predict_bp)
     app.register_blueprint(watch_bp)
+    app.register_blueprint(ask_bp)
     app.register_blueprint(api_keys_bp, url_prefix='/api/keys')
 
     # Setup logging
