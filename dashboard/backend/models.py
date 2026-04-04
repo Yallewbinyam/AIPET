@@ -246,8 +246,8 @@ class PredictAlert(db.Model):
             "is_reviewed":       self.is_reviewed,
             "created_at":        str(self.created_at),
         }
-    class WatchBaseline(db.Model):
-        __tablename__ = "watch_baselines"
+class WatchBaseline(db.Model):
+    __tablename__ = "watch_baselines"
 
     id              = db.Column(db.Integer,     primary_key=True)
     user_id         = db.Column(db.Integer,     db.ForeignKey("users.id"), nullable=False)
