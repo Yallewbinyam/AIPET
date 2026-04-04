@@ -173,6 +173,46 @@ class ExplainResult(db.Model):
             "tokens_used":  self.tokens_used,
             "created_at":   str(self.created_at),
         }
+    class DeviceTag(db.Model):
+        tablename__ = "device_tags"
+
+    id                = db.Column(db.Integer,     primary_key=True)
+    user_id           = db.Column(db.Integer,     db.ForeignKey("users.id"), nullable=False)
+    device_ip         = db.Column(db.String(255), nullable=False)
+    business_function = db.Column(db.String(100), nullable=False)
+    industry          = db.Column(db.String(100), nullable=False, default="General Business")
+    created_at        = db.Column(db.DateTime,    default=lambda: datetime.now(timezone.utc))
+    updated_at        = db.Column(db.DateTime,    default=lambda: datetime.now(timezone.utc))
+
+    def to_dict(self):
+        return {
+            "id":                self.id,
+            "device_ip":         self.device_ip,
+            "business_function": self.business_function,
+            "industry":          self.industry,
+        }
+
+
+class ScoreResult(db.Model):
+    __tablename__ = "score_results"
+
+    id                  = db.Column(db.Integer,     primary_key=True)
+    scan_id             = db.Column(db.Integer,     db.ForeignKey("scans.id"),  nullable=False)
+    user_id             = db.Column(db.Integer,     db.ForeignKey("users.id"),  nullable=False)
+    industry            = db.Column(db.String(100), nullable=False)
+    total_exposure_gbp  = db.Column(db.BigInteger,  nullable=False, default=0)
+    findings_breakdown  = db.Column(db.JSON,         nullable=True)
+    created_at          = db.Column(db.DateTime,    default=lambda: datetime.now(timezone.utc))
+
+    def to_dict(self):
+        return {
+            "id":                 self.id,
+            "scan_id":            self.scan_id,
+            "industry":           self.industry,
+            "total_exposure_gbp": self.total_exposure_gbp,
+            "findings_breakdown": self.findings_breakdown,
+            "created_at":         str(self.created_at),
+        }
 
 
 PLAN_LIMITS = {
