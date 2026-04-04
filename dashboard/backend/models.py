@@ -213,6 +213,38 @@ class ScoreResult(db.Model):
             "findings_breakdown": self.findings_breakdown,
             "created_at":         str(self.created_at),
         }
+    class PredictAlert(db.Model):
+        __tablename__ = "predict_alerts"
+
+    id                = db.Column(db.Integer,     primary_key=True)
+    user_id           = db.Column(db.Integer,     db.ForeignKey("users.id"), nullable=False)
+    cve_id            = db.Column(db.String(50),  nullable=False)
+    title             = db.Column(db.String(500), nullable=False)
+    description       = db.Column(db.Text,        nullable=False)
+    severity          = db.Column(db.String(50),  nullable=False)
+    cvss_score        = db.Column(db.Float,       default=0.0)
+    affected_devices  = db.Column(db.JSON,        nullable=True)
+    weaponisation_pct = db.Column(db.Integer,     default=0)
+    published_date    = db.Column(db.DateTime,    nullable=False)
+    nvd_url           = db.Column(db.String(500), nullable=True)
+    is_reviewed       = db.Column(db.Boolean,     default=False)
+    created_at        = db.Column(db.DateTime,    default=lambda: datetime.now(timezone.utc))
+
+    def to_dict(self):
+        return {
+            "id":                self.id,
+            "cve_id":            self.cve_id,
+            "title":             self.title,
+            "description":       self.description,
+            "severity":          self.severity,
+            "cvss_score":        self.cvss_score,
+            "affected_devices":  self.affected_devices,
+            "weaponisation_pct": self.weaponisation_pct,
+            "published_date":    str(self.published_date),
+            "nvd_url":           self.nvd_url,
+            "is_reviewed":       self.is_reviewed,
+            "created_at":        str(self.created_at),
+        }
 
 
 PLAN_LIMITS = {
