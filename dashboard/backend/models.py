@@ -246,7 +246,55 @@ class PredictAlert(db.Model):
             "is_reviewed":       self.is_reviewed,
             "created_at":        str(self.created_at),
         }
+    class WatchBaseline(db.Model):
+        __tablename__ = "watch_baselines"
 
+    id              = db.Column(db.Integer,     primary_key=True)
+    user_id         = db.Column(db.Integer,     db.ForeignKey("users.id"), nullable=False)
+    device_ip       = db.Column(db.String(255), nullable=False)
+    device_function = db.Column(db.String(100), default="Unknown")
+    baseline_data   = db.Column(db.JSON,        nullable=False)
+    first_seen      = db.Column(db.DateTime,    default=lambda: datetime.now(timezone.utc))
+    last_seen       = db.Column(db.DateTime,    default=lambda: datetime.now(timezone.utc))
+    is_active       = db.Column(db.Boolean,     default=True)
+    created_at      = db.Column(db.DateTime,    default=lambda: datetime.now(timezone.utc))
+
+    def to_dict(self):
+        return {
+            "id":              self.id,
+            "device_ip":       self.device_ip,
+            "device_function": self.device_function,
+            "baseline_data":   self.baseline_data,
+            "first_seen":      str(self.first_seen),
+            "last_seen":       str(self.last_seen),
+            "is_active":       self.is_active,
+        }
+
+
+class WatchAlert(db.Model):
+    __tablename__ = "watch_alerts"
+
+    id               = db.Column(db.Integer,     primary_key=True)
+    user_id          = db.Column(db.Integer,     db.ForeignKey("users.id"), nullable=False)
+    device_ip        = db.Column(db.String(255), nullable=False)
+    alert_type       = db.Column(db.String(100), nullable=False)
+    severity         = db.Column(db.String(50),  nullable=False)
+    description      = db.Column(db.Text,        nullable=False)
+    details          = db.Column(db.JSON,        nullable=True)
+    is_acknowledged  = db.Column(db.Boolean,     default=False)
+    created_at       = db.Column(db.DateTime,    default=lambda: datetime.now(timezone.utc))
+
+    def to_dict(self):
+        return {
+            "id":              self.id,
+            "device_ip":       self.device_ip,
+            "alert_type":      self.alert_type,
+            "severity":        self.severity,
+            "description":     self.description,
+            "details":         self.details,
+            "is_acknowledged": self.is_acknowledged,
+            "created_at":      str(self.created_at),
+        }
 
 PLAN_LIMITS = {
     "free": {
