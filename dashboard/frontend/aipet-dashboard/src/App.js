@@ -558,23 +558,26 @@ function AskPanel({ token }) {
     <div className="flex flex-col space-y-4">
 
       {/* Header */}
-      <div className="rounded-xl border p-4 flex items-center justify-between"
-        style={{ backgroundColor: COLORS.card, borderColor: COLORS.border }}>
+      <div className="rounded-xl border p-5 flex items-center justify-between"
+        style={{ backgroundColor: COLORS.card, borderColor: COLORS.cyan + "30", background: `linear-gradient(135deg, ${COLORS.card} 0%, rgba(0,229,255,0.03) 100%)` }}>
         <div>
-          <div className="text-sm font-bold" style={{ color: COLORS.text }}>AIPET Ask</div>
+          <div className="flex items-center gap-2 mb-1">
+            <div className="w-2 h-2 rounded-full" style={{ backgroundColor: COLORS.cyan, boxShadow: `0 0 8px ${COLORS.cyan}` }} />
+            <div className="text-base font-black" style={{ color: COLORS.text, fontFamily: "'JetBrains Mono', monospace", letterSpacing: "0.05em" }}>AIPET Ask</div>
+          </div>
           <div className="text-xs mt-0.5" style={{ color: COLORS.muted }}>
-            Ask any security question — powered by Claude AI with your full security context
+            Ask any security question — Claude AI answers using your actual device data, findings, and financial exposure
           </div>
         </div>
         {messages.length > 0 && (
           <button onClick={clearConversation}
             className="px-3 py-1.5 rounded-lg text-xs font-bold transition-all"
             style={{
-              backgroundColor: COLORS.border,
+              backgroundColor: "transparent",
               color: COLORS.muted,
               border: `1px solid ${COLORS.border}`
             }}>
-            Clear
+            Clear Chat
           </button>
         )}
       </div>
@@ -583,17 +586,28 @@ function AskPanel({ token }) {
       {messages.length === 0 && (
         <div className="rounded-xl border p-4"
           style={{ backgroundColor: COLORS.card, borderColor: COLORS.border }}>
-          <div className="text-xs font-bold uppercase tracking-wider mb-3" style={{ color: COLORS.muted }}>
+          <div className="text-xs font-bold uppercase tracking-widest mb-3" style={{ color: COLORS.cyan, opacity: 0.7, fontFamily: "'JetBrains Mono', monospace" }}>
             Suggested Questions
           </div>
           <div className="grid grid-cols-2 gap-2">
             {SUGGESTED_QUESTIONS.map((q, i) => (
               <button key={i} onClick={() => sendQuestion(q)}
-                className="text-left px-3 py-2.5 rounded-lg text-xs transition-all hover:bg-white/5"
+                className="text-left px-4 py-3 rounded-lg text-xs transition-all"
                 style={{
                   backgroundColor: COLORS.dark,
                   color: COLORS.text,
-                  border: `1px solid ${COLORS.border}`
+                  border: `1px solid ${COLORS.border}`,
+                  lineHeight: "1.5",
+                }}
+                onMouseEnter={e => {
+                  e.currentTarget.style.borderColor = COLORS.cyan + "60";
+                  e.currentTarget.style.backgroundColor = `rgba(0,229,255,0.05)`;
+                  e.currentTarget.style.color = COLORS.cyan;
+                }}
+                onMouseLeave={e => {
+                  e.currentTarget.style.borderColor = COLORS.border;
+                  e.currentTarget.style.backgroundColor = COLORS.dark;
+                  e.currentTarget.style.color = COLORS.text;
                 }}>
                 {q}
               </button>
@@ -656,8 +670,8 @@ function AskPanel({ token }) {
       )}
 
       {/* Input */}
-      <div className="rounded-xl border p-3 flex items-end gap-3"
-        style={{ backgroundColor: COLORS.card, borderColor: COLORS.border }}>
+      <div className="rounded-xl border p-4 flex items-end gap-3"
+        style={{ backgroundColor: COLORS.card, borderColor: COLORS.cyan + "30" }}>
         <textarea
           value={question}
           onChange={e => setQuestion(e.target.value)}
@@ -669,25 +683,26 @@ function AskPanel({ token }) {
           }}
           placeholder="Ask a security question... (Enter to send, Shift+Enter for new line)"
           rows={2}
-          className="flex-1 text-xs outline-none resize-none bg-transparent"
-          style={{ color: COLORS.text }}
+          className="flex-1 text-sm outline-none resize-none bg-transparent"
+          style={{ color: COLORS.text, fontFamily: "inherit" }}
           disabled={loading}
         />
         <button
           onClick={() => sendQuestion()}
           disabled={loading || !question.trim()}
-          className="px-4 py-2 rounded-lg text-xs font-bold transition-all flex-shrink-0"
+          className="px-5 py-2.5 rounded-lg text-sm font-bold transition-all flex-shrink-0"
           style={{
-            backgroundColor: loading || !question.trim() ? COLORS.border : COLORS.blue,
-            color: loading || !question.trim() ? COLORS.muted : "#fff",
-            opacity: loading ? 0.6 : 1
+            backgroundColor: loading || !question.trim() ? COLORS.border : COLORS.cyan,
+            color: loading || !question.trim() ? COLORS.muted : "#030712",
+            opacity: loading ? 0.6 : 1,
+            boxShadow: loading || !question.trim() ? "none" : "0 0 16px rgba(0,229,255,0.3)",
           }}>
-          {loading ? "..." : "Ask"}
+          {loading ? "Thinking..." : "Ask →"}
         </button>
       </div>
 
-      <div className="text-xs text-center" style={{ color: COLORS.muted }}>
-        Powered by Claude AI · Responses use your actual security data
+      <div className="text-xs text-center" style={{ color: COLORS.subtle }}>
+        Powered by Claude AI · Your data stays private · Responses reference your actual devices and findings
       </div>
     </div>
   );
@@ -2750,17 +2765,9 @@ function LandingPage({ onGetStarted, onLogin, setLegalPage }) {
           <button onClick={onGetStarted}
             className="px-8 py-4 rounded-xl font-bold text-base transition-all"
             style={{ backgroundColor: COLORS.blue, color: "white" }}>
-            Start for Free — No Card Required
+            Start Free Trial
           </button>
-          <button onClick={onLogin}
-            className="px-8 py-4 rounded-xl font-bold text-base border transition-all"
-            style={{
-              backgroundColor: "transparent",
-              borderColor: COLORS.border,
-              color: COLORS.muted
-            }}>
-            Sign In
-          </button>
+
         </div>
       </div>
 
@@ -3697,92 +3704,173 @@ export default function App() {
   );
 
   return (
-    <div className="flex min-h-screen" style={{ backgroundColor: COLORS.darker, color: COLORS.text }}>
+    <div style={{
+      display: "flex",
+      minHeight: "100vh",
+      backgroundColor: "#030712",
+      color: "#e2e8f0",
+      fontFamily: "'Inter', sans-serif",
+      position: "relative",
+      overflow: "hidden",
+    }}>
+
+      {/* Background atmospheric effect */}
+      <div style={{
+        position: "fixed",
+        top: 0, left: 0, right: 0, bottom: 0,
+        background: "radial-gradient(ellipse at 20% 50%, rgba(0,229,255,0.03) 0%, transparent 60%), radial-gradient(ellipse at 80% 20%, rgba(0,229,255,0.02) 0%, transparent 50%)",
+        pointerEvents: "none",
+        zIndex: 0,
+      }} />
 
       {/* Sidebar */}
-      <div className="w-64 flex flex-col border-r flex-shrink-0"
-        style={{ backgroundColor: COLORS.dark, borderColor: COLORS.border }}>
+      <div style={{
+        width: "240px",
+        minWidth: "240px",
+        backgroundColor: "#0a0f1a",
+        borderRight: "1px solid #1e2d3d",
+        display: "flex",
+        flexDirection: "column",
+        position: "relative",
+        zIndex: 10,
+      }}>
 
         {/* Logo */}
-        <div className="p-5 border-b" style={{ borderColor: COLORS.border }}>
-          <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-lg flex items-center justify-center flex-shrink-0"
-              style={{ backgroundColor: COLORS.cyan + "20", border: `1px solid ${COLORS.cyan + "40"}` }}>
-              <Shield size={18} style={{ color: COLORS.cyan }} />
+        <div style={{ padding: "20px 20px 16px", borderBottom: "1px solid #1e2d3d" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+            <div style={{
+              width: "36px", height: "36px",
+              borderRadius: "8px",
+              backgroundColor: "rgba(0,229,255,0.1)",
+              border: "1px solid rgba(0,229,255,0.3)",
+              display: "flex", alignItems: "center", justifyContent: "center",
+              boxShadow: "0 0 12px rgba(0,229,255,0.15)",
+            }}>
+              <Shield size={18} color="#00e5ff" />
             </div>
             <div>
-              <div className="font-black text-base tracking-widest"
-                style={{ color: COLORS.text, fontFamily: "'JetBrains Mono', monospace", letterSpacing: "0.15em" }}>
-                AIPET
-              </div>
-              <div className="text-xs" style={{ color: COLORS.subtle, fontFamily: "'JetBrains Mono', monospace" }}>
-                IoT Security Platform
-              </div>
+              <div style={{
+                fontFamily: "'JetBrains Mono', monospace",
+                fontWeight: 900,
+                fontSize: "15px",
+                letterSpacing: "0.2em",
+                color: "#e2e8f0",
+              }}>AIPET</div>
+              <div style={{
+                fontFamily: "'JetBrains Mono', monospace",
+                fontSize: "9px",
+                color: "#334155",
+                letterSpacing: "0.05em",
+              }}>IoT Security Platform</div>
             </div>
           </div>
         </div>
 
-        {/* Status indicator */}
+        {/* Scan status */}
         {scanning && (
-          <div className="mx-4 mt-4 p-3 rounded-xl border"
-            style={{ backgroundColor: COLORS.blue + "15", borderColor: COLORS.blue + "40" }}>
-            <div className="flex items-center gap-2">
-              <div className="w-2 h-2 rounded-full animate-pulse" style={{ backgroundColor: COLORS.blue }} />
-              <span className="text-xs font-semibold" style={{ color: COLORS.blue }}>Scan in progress...</span>
-            </div>
+          <div style={{
+            margin: "12px 12px 0",
+            padding: "10px 12px",
+            backgroundColor: "rgba(0,229,255,0.08)",
+            border: "1px solid rgba(0,229,255,0.2)",
+            borderRadius: "8px",
+            display: "flex", alignItems: "center", gap: "8px",
+          }}>
+            <div style={{
+              width: "6px", height: "6px", borderRadius: "50%",
+              backgroundColor: "#00e5ff",
+              animation: "pulse 1.5s infinite",
+            }} />
+            <span style={{ fontSize: "11px", color: "#00e5ff", fontFamily: "'JetBrains Mono', monospace" }}>
+              Scanning...
+            </span>
           </div>
         )}
 
         {/* Navigation */}
-        <nav className="flex-1 p-3 overflow-y-auto">
+        <nav style={{ flex: 1, padding: "16px 12px", overflowY: "auto" }}>
           {NAV_GROUPS.map(group => {
             const groupItems = NAV_ITEMS.filter(item => item.group === group.id);
+            const isCollapsed = collapsedGroups[group.id] || false;
             return (
-              <div key={group.id} className="mb-4">
-               <button
+              <div key={group.id} style={{ marginBottom: "20px" }}>
+                {/* Group header */}
+                <button
                   onClick={() => setCollapsedGroups(prev => ({...prev, [group.id]: !prev[group.id]}))}
-                  className="w-full flex items-center justify-between px-3 py-1.5 rounded-lg transition-all hover:bg-white/5 mb-1">
-                  <span className="text-xs font-bold uppercase tracking-widest"
-                    style={{ color: COLORS.cyan, fontFamily: "'JetBrains Mono', monospace", opacity: 0.7 }}>
-                    {group.label}
-                  </span>
-                  <ChevronDown size={14}
-                    style={{
-                      color: COLORS.cyan,
-                      opacity: 0.8,
-                      transform: collapsedGroups[group.id] ? "rotate(-90deg)" : "rotate(0deg)",
-                      transition: "transform 0.2s ease"
-                    }} />
+                  style={{
+                    width: "100%",
+                    display: "flex", alignItems: "center", justifyContent: "space-between",
+                    padding: "4px 8px",
+                    background: "none", border: "none", cursor: "pointer",
+                    marginBottom: "4px",
+                    borderRadius: "6px",
+                    transition: "background 0.15s",
+                  }}
+                  onMouseEnter={e => e.currentTarget.style.background = "rgba(255,255,255,0.04)"}
+                  onMouseLeave={e => e.currentTarget.style.background = "none"}
+                >
+                  <span style={{
+                    fontFamily: "'JetBrains Mono', monospace",
+                    fontSize: "9px",
+                    fontWeight: 700,
+                    letterSpacing: "0.15em",
+                    color: "#00e5ff",
+                    opacity: 0.6,
+                    textTransform: "uppercase",
+                  }}>{group.label}</span>
+                  <ChevronDown size={16} color="#00e5ff" style={{
+                    opacity: 0.5,
+                    transform: isCollapsed ? "rotate(-90deg)" : "rotate(0deg)",
+                    transition: "transform 0.2s ease",
+                  }} />
                 </button>
-                
-                {!collapsedGroups[group.id] && groupItems.map(({ id, label, icon: Icon }) => {
+
+                {/* Nav items */}
+                {!isCollapsed && groupItems.map(({ id, label, icon: Icon }) => {
                   const active = activeTab === id;
                   return (
-                    <button key={id} onClick={() => setActiveTab(id)}
-                     className="w-full flex items-center gap-3 px-3 py-2.5 rounded-lg text-sm font-medium transition-all duration-150 mb-0.5"
+                    <button key={id}
+                      onClick={() => setActiveTab(id)}
                       style={{
-                        backgroundColor: active ? COLORS.cyan + "15" : "transparent",
-                        color: active ? COLORS.cyan : COLORS.text,
-                        borderLeft: active ? `2px solid ${COLORS.cyan}` : "2px solid transparent",
-                        opacity: active ? 1 : 0.75,
-                      }}>
+                        width: "100%",
+                        display: "flex", alignItems: "center", gap: "10px",
+                        padding: "8px 10px",
+                        borderRadius: "8px",
+                        border: "none",
+                        cursor: "pointer",
+                        marginBottom: "2px",
+                        backgroundColor: active ? "rgba(0,229,255,0.1)" : "transparent",
+                        borderLeft: active ? "2px solid #00e5ff" : "2px solid transparent",
+                        color: active ? "#00e5ff" : "#64748b",
+                        fontSize: "13px",
+                        fontWeight: active ? 600 : 400,
+                        transition: "all 0.15s",
+                        textAlign: "left",
+                        boxShadow: active ? "0 0 12px rgba(0,229,255,0.08)" : "none",
+                      }}
+                      onMouseEnter={e => { if (!active) { e.currentTarget.style.backgroundColor = "rgba(255,255,255,0.04)"; e.currentTarget.style.color = "#94a3b8"; }}}
+                      onMouseLeave={e => { if (!active) { e.currentTarget.style.backgroundColor = "transparent"; e.currentTarget.style.color = "#64748b"; }}}
+                    >
                       <Icon size={15} />
-                      <span style={{ fontFamily: active ? "'JetBrains Mono', monospace" : "inherit" }}>
-                        {label}
-                      </span>
+                      <span style={{ flex: 1 }}>{label}</span>
                       {id === "findings" && findings.length > 0 && (
-                        <span className="ml-auto text-xs px-1.5 py-0.5 rounded font-mono"
-                          style={{ backgroundColor: COLORS.critical + "25", color: COLORS.critical }}>
+                        <span style={{
+                          fontSize: "10px",
+                          padding: "1px 6px",
+                          borderRadius: "4px",
+                          backgroundColor: "rgba(255,61,61,0.2)",
+                          color: "#ff3d3d",
+                          fontFamily: "'JetBrains Mono', monospace",
+                          fontWeight: 700,
+                        }}>
                           {findings.filter(f => f.severity === "Critical").length}
                         </span>
                       )}
                       {id === "predict" && (
-                        <span className="ml-auto w-1.5 h-1.5 rounded-full"
-                          style={{ backgroundColor: COLORS.cyan }} />
+                        <span style={{ width: "6px", height: "6px", borderRadius: "50%", backgroundColor: "#00e5ff" }} />
                       )}
                       {id === "watch" && (
-                        <span className="ml-auto w-1.5 h-1.5 rounded-full"
-                          style={{ backgroundColor: COLORS.low }} />
+                        <span style={{ width: "6px", height: "6px", borderRadius: "50%", backgroundColor: "#00ff94" }} />
                       )}
                     </button>
                   );
@@ -3791,87 +3879,173 @@ export default function App() {
             );
           })}
         </nav>
-        {/* Logout button */}
-        <div className="px-4 pb-2">
-          <button onClick={handleLogout}
-            className="w-full flex items-center justify-center gap-2 py-2 rounded-xl text-xs font-medium transition-all"
-            style={{ color: COLORS.critical, backgroundColor: COLORS.critical + "10" }}>
-            <X size={12} />
-            Sign Out
+
+        {/* Sign out */}
+        <div style={{ padding: "0 12px 8px" }}>
+          <button onClick={handleLogout} style={{
+            width: "100%",
+            padding: "8px",
+            borderRadius: "8px",
+            border: "1px solid rgba(255,61,61,0.2)",
+            backgroundColor: "rgba(255,61,61,0.08)",
+            color: "#ff3d3d",
+            fontSize: "12px",
+            cursor: "pointer",
+            display: "flex", alignItems: "center", justifyContent: "center", gap: "6px",
+            transition: "all 0.15s",
+          }}
+          onMouseEnter={e => e.currentTarget.style.backgroundColor = "rgba(255,61,61,0.15)"}
+          onMouseLeave={e => e.currentTarget.style.backgroundColor = "rgba(255,61,61,0.08)"}
+          >
+            <X size={12} /> Sign Out
           </button>
         </div>
 
-        {/* Scan button */}
-        <div className="p-4 border-t" style={{ borderColor: COLORS.border }}>
-          <button onClick={() => setShowScan(true)} disabled={scanning}
-            className="w-full flex items-center justify-center gap-2 py-3 rounded-xl font-bold text-sm transition-all duration-200"
-            style={{
-              backgroundColor: scanning ? COLORS.border : COLORS.blue,
-              color: scanning ? COLORS.muted : "white",
-              opacity: scanning ? 0.7 : 1
-            }}>
+        {/* New Scan button */}
+        <div style={{ padding: "8px 12px 16px", borderTop: "1px solid #1e2d3d" }}>
+          <button onClick={() => setShowScan(true)} disabled={scanning} style={{
+            width: "100%",
+            padding: "10px",
+            borderRadius: "10px",
+            border: "none",
+            backgroundColor: scanning ? "#1e2d3d" : "#00e5ff",
+            color: scanning ? "#64748b" : "#030712",
+            fontSize: "13px",
+            fontWeight: 700,
+            cursor: scanning ? "not-allowed" : "pointer",
+            display: "flex", alignItems: "center", justifyContent: "center", gap: "8px",
+            transition: "all 0.2s",
+            boxShadow: scanning ? "none" : "0 0 20px rgba(0,229,255,0.3)",
+          }}
+          onMouseEnter={e => { if (!scanning) e.currentTarget.style.boxShadow = "0 0 30px rgba(0,229,255,0.5)"; }}
+          onMouseLeave={e => { if (!scanning) e.currentTarget.style.boxShadow = "0 0 20px rgba(0,229,255,0.3)"; }}
+          >
             {scanning
-              ? <><RefreshCw size={16} className="animate-spin" /> Scanning...</>
-              : <><Play size={16} /> New Scan</>}
+              ? <><RefreshCw size={14} style={{ animation: "spin 1s linear infinite" }} /> Scanning...</>
+              : <><Play size={14} /> New Scan</>
+            }
           </button>
-          <button onClick={fetchAll}
-            className="w-full flex items-center justify-center gap-2 py-2 mt-2 rounded-xl text-xs font-medium transition-all"
-            style={{ color: COLORS.muted }}>
-            <RefreshCw size={12} /> Refresh Data
+          <button onClick={fetchAll} style={{
+            width: "100%",
+            padding: "6px",
+            marginTop: "6px",
+            borderRadius: "8px",
+            border: "none",
+            backgroundColor: "transparent",
+            color: "#334155",
+            fontSize: "11px",
+            cursor: "pointer",
+            display: "flex", alignItems: "center", justifyContent: "center", gap: "6px",
+            transition: "color 0.15s",
+          }}
+          onMouseEnter={e => e.currentTarget.style.color = "#64748b"}
+          onMouseLeave={e => e.currentTarget.style.color = "#334155"}
+          >
+            <RefreshCw size={11} /> Refresh Data
           </button>
         </div>
       </div>
 
       {/* Main content */}
-      <div className="flex-1 overflow-auto">
+      <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden", position: "relative", zIndex: 10 }}>
 
-        {/* Header */}
-        <div className="sticky top-0 z-10 px-8 py-4 border-b flex items-center justify-between"
-          style={{ backgroundColor: COLORS.dark + "ee", borderColor: COLORS.border, backdropFilter: "blur(12px)" }}>
+        {/* Top header */}
+        <div style={{
+          padding: "0 32px",
+          height: "60px",
+          minHeight: "60px",
+          borderBottom: "1px solid #1e2d3d",
+          display: "flex", alignItems: "center", justifyContent: "space-between",
+          backgroundColor: "rgba(10,15,26,0.95)",
+          backdropFilter: "blur(20px)",
+          position: "sticky", top: 0, zIndex: 20,
+        }}>
           <div>
-            <h1 className="text-xl font-black capitalize tracking-tight" style={{ color: COLORS.text }}>
-              {NAV_ITEMS.find(n => n.id === activeTab)?.label}
+            <h1 style={{
+              fontSize: "16px",
+              fontWeight: 700,
+              color: "#e2e8f0",
+              margin: 0,
+              letterSpacing: "-0.02em",
+            }}>
+              {NAV_ITEMS.find(n => n.id === activeTab)?.label || "Overview"}
             </h1>
-            <p className="text-xs mt-0.5" style={{ color: COLORS.muted }}>
+            <p style={{ fontSize: "11px", color: "#334155", margin: 0, marginTop: "2px" }}>
               {summary?.last_scan ? `Last scan: ${summary.last_scan}` : "No scans yet — run a scan to begin"}
             </p>
           </div>
-          <div className="flex items-center gap-3">
-            {/* Plan badge */}
-            {usage && (
-              <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg border"
-                style={{
-                  borderColor: (usage.plan === 'enterprise' ? COLORS.purple : usage.plan === 'professional' ? COLORS.blue : COLORS.muted) + "40",
-                  backgroundColor: (usage.plan === 'enterprise' ? COLORS.purple : usage.plan === 'professional' ? COLORS.blue : COLORS.muted) + "15"
-                }}>
-                <span className="text-xs font-bold capitalize"
-                  style={{ color: usage.plan === 'enterprise' ? COLORS.purple : usage.plan === 'professional' ? COLORS.blue : COLORS.muted }}>
-                  {usage.plan}
-                </span>
-              </div>
-            )}
-            {/* Risk badge */}
+
+          {/* Header right — risk indicator + plan + user */}
+          <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
+
+            {/* Live risk score */}
             {summary && (
-              <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg border"
-                style={{ borderColor: riskColor + "40", backgroundColor: riskColor + "10" }}>
-                <div className="w-2 h-2 rounded-full" style={{ backgroundColor: riskColor }} />
-                <span className="text-xs font-bold" style={{ color: riskColor }}>
-                  {summary.overall_risk}
+              <div style={{
+                display: "flex", alignItems: "center", gap: "8px",
+                padding: "6px 14px",
+                borderRadius: "8px",
+                backgroundColor: riskScore >= 70
+                  ? "rgba(255,61,61,0.12)"
+                  : riskScore >= 40
+                  ? "rgba(255,183,0,0.12)"
+                  : "rgba(0,255,148,0.12)",
+                border: `1px solid ${riskScore >= 70
+                  ? "rgba(255,61,61,0.3)"
+                  : riskScore >= 40
+                  ? "rgba(255,183,0,0.3)"
+                  : "rgba(0,255,148,0.3)"}`,
+              }}>
+                <div style={{
+                  width: "6px", height: "6px", borderRadius: "50%",
+                  backgroundColor: riskScore >= 70 ? "#ff3d3d" : riskScore >= 40 ? "#ffb700" : "#00ff94",
+                }} />
+                <span style={{
+                  fontFamily: "'JetBrains Mono', monospace",
+                  fontSize: "12px",
+                  fontWeight: 700,
+                  color: riskScore >= 70 ? "#ff3d3d" : riskScore >= 40 ? "#ffb700" : "#00ff94",
+                }}>
+                  RISK {riskScore || 0}
                 </span>
               </div>
             )}
-            {/* User greeting */}
-            {summary?.user && (
-              <div className="text-xs font-semibold" style={{ color: COLORS.muted }}>
-                {summary.user.name}
-              </div>
-            )}
+
+            {/* Plan badge */}
+            <div style={{
+              padding: "4px 12px",
+              borderRadius: "6px",
+              backgroundColor: "rgba(139,92,246,0.1)",
+              border: "1px solid rgba(139,92,246,0.3)",
+              fontSize: "11px",
+              fontWeight: 600,
+              color: "#8b5cf6",
+              fontFamily: "'JetBrains Mono', monospace",
+              textTransform: "uppercase",
+              letterSpacing: "0.05em",
+            }}>
+              {usage?.plan || "free"}
+            </div>
+
+            {/* User */}
+            <div style={{
+              fontSize: "13px",
+              color: "#64748b",
+              fontWeight: 500,
+            }}>
+              {usage?.name || "User"}
+            </div>
           </div>
         </div>
 
-        <div className="p-8">
+        {/* Page content */}
+        <div style={{
+          flex: 1,
+          overflowY: "auto",
+          padding: "28px 32px",
+          backgroundColor: "#030712",
+        }}>
 
-          {/* DASHBOARD */}
+          {/* DASHBOARD / OVERVIEW */}
           {activeTab === "dashboard" && !summary && !loading && (
             <div className="flex flex-col items-center justify-center h-96 text-center">
               <div className="w-20 h-20 rounded-2xl flex items-center justify-center mb-6"
@@ -3995,24 +4169,24 @@ export default function App() {
                         <Server size={26} style={{ color: COLORS.blue }} />
                       </div>
                       <div>
-                        <div className="font-black text-xl" style={{ color: COLORS.text }}>{device.ip}</div>
-                        <div className="text-sm mt-0.5" style={{ color: COLORS.muted }}>{device.device_type}</div>
+                        <div className="font-black text-xl" style={{ color: COLORS.text }}>{device.target}</div>
+                        <div className="text-sm mt-0.5" style={{ color: COLORS.muted }}>{device.findings?.length || 0} finding{device.findings?.length !== 1 ? "s" : ""} detected</div>
                       </div>
                     </div>
                     <div className="flex items-center gap-3">
-                      {device.ai_severity && <SeverityBadge severity={device.ai_severity} />}
+                      {device.critical > 0 && <SeverityBadge severity="Critical" />}{device.critical === 0 && device.high > 0 && <SeverityBadge severity="High" />}
                       <div className="text-right">
-                        <div className="text-2xl font-black" style={{ color: riskColor }}>{device.risk_score}</div>
-                        <div className="text-xs" style={{ color: COLORS.muted }}>Risk Score</div>
+                        <div className="text-2xl font-black" style={{ color: device.critical > 0 ? COLORS.critical : device.high > 0 ? COLORS.high : COLORS.medium }}>{device.critical > 0 ? "CRITICAL" : device.high > 0 ? "HIGH" : device.medium > 0 ? "MEDIUM" : "LOW"}</div>
+                        <div className="text-xs" style={{ color: COLORS.muted }}>Risk Level</div>
                       </div>
                     </div>
                   </div>
 
                   <div className="grid grid-cols-3 gap-3 mb-4">
                     {[
-                      { label: "Open Ports", value: device.ports?.join(", ") || "None" },
-                      { label: "Risk Label", value: device.risk_label || "N/A" },
-                      { label: "AI Confidence", value: device.ai_confidence ? `${(device.ai_confidence * 100).toFixed(1)}%` : "N/A" },
+                      { label: "Critical", value: device.critical || 0 },
+                      { label: "High", value: device.high || 0 },
+                      { label: "Medium", value: device.medium || 0 },
                     ].map(({ label, value }) => (
                       <div key={label} className="p-4 rounded-xl"
                         style={{ backgroundColor: COLORS.darker }}>
@@ -4097,163 +4271,44 @@ export default function App() {
           )}
 
           {/* AI ANALYSIS */}
+
           {/* NETWORK MAP */}
+
+          {/* NETWORK MAP */}
+          {activeTab === "map" && (
+            <NetworkMap token={token} scans={data?.scans || []} />
+          )}
+
           {/* CVE INTELLIGENCE */}
+          {activeTab === "predict" && (
+            <PredictPanel token={token} scans={data?.scans || []} />
+          )}
+
           {/* AIPET WATCH */}
           {activeTab === "watch" && (
             <WatchPanel token={token} />
           )}
-          {/* AIPET ASK */}
+
+          {/* AI ANALYSIS */}
+          {activeTab === "ai" && (
+            <div style={{ color: "#64748b", textAlign: "center", paddingTop: "80px" }}>
+              <Shield size={48} style={{ opacity: 0.3, marginBottom: "16px" }} />
+              <p>AI Analysis coming soon</p>
+            </div>
+          )}
+
+          {/* ASK AIPET */}
           {activeTab === "ask" && (
             <AskPanel token={token} />
-          )}
-          {activeTab === "predict" && (
-            <PredictPanel token={token} scans={data?.scans || []} />
-          )}
-          {activeTab === "map" && (
-            <NetworkMap token={token} scans={data?.scans || []} />
-          )}
-          {activeTab === "ai" && (
-            <div className="space-y-6">
-              {aiResults.length === 0 ? (
-                <div className="rounded-2xl p-16 border text-center"
-                  style={{ backgroundColor: COLORS.card, borderColor: COLORS.border }}>
-                  <Shield size={48} style={{ color: COLORS.muted }} className="mx-auto mb-4" />
-                  <p style={{ color: COLORS.muted }}>No AI results yet. Run a scan first.</p>
-                </div>
-              ) : aiResults.map((result, i) => {
-                const pred     = result.prediction || {};
-                const contribs = pred.shap_contributions || {};
-                const top6     = Object.entries(contribs)
-                  .sort((a, b) => Math.abs(b[1]) - Math.abs(a[1]))
-                  .slice(0, 6);
-                const cfg = SEVERITY_CONFIG[pred.predicted_severity] || SEVERITY_CONFIG.INFO;
-
-                return (
-                  <div key={i} className="rounded-2xl border overflow-hidden"
-                    style={{ backgroundColor: COLORS.card, borderColor: COLORS.border }}>
-                    {/* Header */}
-                    <div className="p-6 border-b flex items-center justify-between"
-                      style={{ borderColor: COLORS.border, backgroundColor: cfg.color + "08" }}>
-                      <div className="flex items-center gap-4">
-                        <div className="w-12 h-12 rounded-xl flex items-center justify-center"
-                          style={{ backgroundColor: cfg.color + "20" }}>
-                          <Shield size={24} style={{ color: cfg.color }} />
-                        </div>
-                        <div>
-                          <div className="font-black text-lg" style={{ color: COLORS.text }}>{result.ip}</div>
-                          <div className="text-sm" style={{ color: COLORS.muted }}>{result.device_type}</div>
-                        </div>
-                      </div>
-                      <div className="text-right">
-                        <SeverityBadge severity={pred.predicted_severity} />
-                        <div className="text-sm mt-1" style={{ color: COLORS.muted }}>
-                          {((pred.confidence || 0) * 100).toFixed(1)}% confidence
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="p-6 grid grid-cols-2 gap-6">
-                      {/* SHAP bars */}
-                      <div>
-                        <h4 className="text-xs font-bold uppercase tracking-wider mb-4"
-                          style={{ color: COLORS.muted }}>
-                          Key Factors (SHAP Values)
-                        </h4>
-                        <div className="space-y-1">
-                          {top6.map(([feature, value], j) => (
-                            <ShapBar key={j} feature={feature} value={value} />
-                          ))}
-                        </div>
-                        <div className="flex items-center gap-4 mt-3 text-xs" style={{ color: COLORS.muted }}>
-                          <span className="flex items-center gap-1">
-                            <span className="w-3 h-1.5 rounded inline-block" style={{ backgroundColor: COLORS.critical }} />
-                            Increases severity
-                          </span>
-                          <span className="flex items-center gap-1">
-                            <span className="w-3 h-1.5 rounded inline-block" style={{ backgroundColor: COLORS.low }} />
-                            Reduces severity
-                          </span>
-                        </div>
-                      </div>
-
-                      {/* Probability breakdown */}
-                      <div>
-                        <h4 className="text-xs font-bold uppercase tracking-wider mb-4"
-                          style={{ color: COLORS.muted }}>
-                          Severity Probability
-                        </h4>
-                        <div className="space-y-3">
-                          {Object.entries(pred.probabilities || {}).map(([sev, prob]) => {
-                            const scfg = SEVERITY_CONFIG[sev] || SEVERITY_CONFIG.INFO;
-                            return (
-                              <div key={sev}>
-                                <div className="flex justify-between text-xs mb-1">
-                                  <span style={{ color: scfg.color }}>{sev}</span>
-                                  <span style={{ color: COLORS.muted }}>{(prob * 100).toFixed(1)}%</span>
-                                </div>
-                                <div className="h-2 rounded-full overflow-hidden"
-                                  style={{ backgroundColor: COLORS.border }}>
-                                  <div className="h-full rounded-full transition-all duration-700"
-                                    style={{
-                                      width: `${prob * 100}%`,
-                                      backgroundColor: scfg.color
-                                    }} />
-                                </div>
-                              </div>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
           )}
 
           {/* REPORTS */}
           {activeTab === "reports" && (
-            <div className="space-y-3">
-              {reports.length === 0 ? (
-                <div className="rounded-2xl p-16 border text-center"
-                  style={{ backgroundColor: COLORS.card, borderColor: COLORS.border }}>
-                  <FileText size={48} style={{ color: COLORS.muted }} className="mx-auto mb-4" />
-                  <p style={{ color: COLORS.muted }}>No reports yet. Run a scan first.</p>
-                </div>
-              ) : reports.map((report, i) => (
-                <div key={i} className="rounded-xl p-4 border flex items-center justify-between transition-all hover:border-blue-500/30"
-                  style={{ backgroundColor: COLORS.card, borderColor: COLORS.border }}>
-                  <div className="flex items-center gap-4">
-                    <div className="w-10 h-10 rounded-xl flex items-center justify-center"
-                      style={{ backgroundColor: COLORS.blue + "20" }}>
-                      <FileText size={18} style={{ color: COLORS.blue }} />
-                    </div>
-                    <div>
-                      <div className="font-semibold text-sm" style={{ color: COLORS.text }}>{report.filename}</div>
-                      <div className="text-xs mt-0.5" style={{ color: COLORS.muted }}>
-                        {report.created} · {(report.size / 1024).toFixed(1)} KB
-                      </div>
-                    </div>
-                  </div>
-                  <a href={`${API}/reports/${report.filename}`} download
-                    className="flex items-center gap-2 px-4 py-2 rounded-xl text-sm font-semibold transition-all"
-                    style={{ backgroundColor: COLORS.blue, color: "white" }}>
-                    <Download size={14} />
-                    Download
-                  </a>
-                </div>
-              ))}
+            <div style={{ color: "#64748b", textAlign: "center", paddingTop: "80px" }}>
+              <FileText size={48} style={{ opacity: 0.3, marginBottom: "16px" }} />
+              <p>Reports coming soon</p>
             </div>
-      )}
-      {/* Loading state */}
-      {!usageLoaded && (
-        <div className="text-center py-4">
-          <p className="text-sm" style={{ color: COLORS.muted }}>
-            Loading your plan details...
-          </p>
-        </div>
-      )}
+          )}
 
           {/* PRICING */}
           {activeTab === "pricing" && (
@@ -4271,8 +4326,10 @@ export default function App() {
               onUpgrade={handleUpgrade}
               onCancel={handleCancel}
               onPortal={handlePortal}
+              showToast={showToast}
             />
           )}
+
           {/* API KEYS */}
           {activeTab === "apikeys" && (
             <ApiKeysPage
@@ -4280,11 +4337,26 @@ export default function App() {
               userPlan={usage?.plan || "free"}
             />
           )}
-
         </div>
       </div>
-    {showScan && <ScanModal onClose={() => setShowScan(false)} onScan={startScan} scanning={scanning} />}
+
+      {showScan && <ScanModal onClose={() => setShowScan(false)} onScan={startScan} scanning={scanning} />}
       <Toast toast={toast} />
+
+      <style>{`
+        @keyframes pulse {
+          0%, 100% { opacity: 1; }
+          50% { opacity: 0.4; }
+        }
+        @keyframes spin {
+          from { transform: rotate(0deg); }
+          to { transform: rotate(360deg); }
+        }
+        ::-webkit-scrollbar { width: 4px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #1e2d3d; border-radius: 2px; }
+        ::-webkit-scrollbar-thumb:hover { background: #334155; }
+      `}</style>
     </div>
   );
 }
