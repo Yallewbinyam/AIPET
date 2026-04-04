@@ -626,14 +626,29 @@ Every Enterprise user now has access to 24/7 passive network monitoring:
 - **Watch API** — six production-ready endpoints: `POST /api/watch/baselines/build`, `GET /api/watch/baselines`, `POST /api/watch/report`, `GET /api/watch/alerts`, `PATCH /api/watch/alerts/<id>/acknowledge`, `GET /api/watch/status`
 - **Enterprise Only** — AIPET Watch is exclusive to the Enterprise plan (£499/month)
 
+### AIPET Ask ✅ Complete
+
+Every user can now ask security questions in plain English and get AI-powered answers using their actual security data:
+
+- **Full Security Context** — every question is answered with knowledge of the user's specific findings, device inventory, financial risk, CVE alerts, attack paths, watch status, and remediation progress
+- **Conversation Memory** — multi-turn conversations where follow-up questions reference previous answers correctly
+- **Suggested Questions** — six pre-built questions to get users started immediately
+- **Synthesis Across All Modules** — answers combine data from Fix, Explain, Score, Map, Predict, and Watch simultaneously
+- **Board Reports on Demand** — ask for a board-level summary and receive a professional paragraph in seconds
+- **Claude API Powered** — uses claude-sonnet-4-20250514 with structured security context injection
+- **Ask API** — two production-ready endpoints: `POST /api/ask`, `GET /api/ask/context`
+- **Plan Access** — Professional and Enterprise plans
+
+
 ### Coming Soon
 
 | Module | Description | Status |
 |---|---|---|
 | AIPET Explain — Natural Language AI Explanations | ✅ Complete |
-| | 3 | AIPET Score — Financial Business Impact | ✅ Complete |
+| AIPET Score — Financial Business Impact | ✅ Complete |
 | AIPET Map — Visual Attack Path Mapping | ✅ Complete |
 | AIPET Predict — CVE Monitoring | ✅ Complete |
-| | 6 | AIPET Watch — Passive Network Monitoring | ✅ Complete |
-| AIPET Ask | Natural language AI security assistant | 📅 Month 7 |
+| AIPET Watch — Passive Network Monitoring | ✅ Complete |
+| AIPET Ask — Natural Language AI Assistant | ✅ Complete |
+| 
 

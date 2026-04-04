@@ -1037,6 +1037,82 @@ Test mode simulates realistic network traffic and anomalies over 3 cycles.
 
 **All Clear** — shown when no unacknowledged anomalies exist. Your network behaviour matches the baseline.
 
+---
+
+## 23. AIPET Ask — Natural Language Security Assistant
+
+AIPET Ask is an AI-powered security advisor that answers your questions using your actual security data. Instead of interpreting findings tables and risk scores yourself, simply ask a question in plain English and get a direct, specific answer.
+
+### How to Access AIPET Ask
+
+1. Go to the **Ask AIPET** tab in the sidebar
+2. Click any suggested question or type your own
+3. Press **Enter** or click **Ask** to send
+4. AIPET Ask responds within 2-5 seconds
+
+### What AIPET Ask Knows
+
+Every answer AIPET Ask gives is based on your complete security profile:
+
+- Your specific findings and vulnerability details
+- Your device inventory with business functions
+- Your financial risk exposure in pounds
+- Active CVE alerts matching your devices
+- Network monitoring status and anomalies
+- Attack paths through your network
+- Your remediation progress
+
+AIPET Ask never gives generic answers. It always refers to your specific devices, your actual pound figures, and your real CVE alerts.
+
+### Suggested Questions
+
+AIPET Ask shows six suggested questions when you open it:
+
+- **What should I fix first this week?** — prioritised recommendation based on financial impact and attack paths
+- **Which device is most at risk right now?** — identifies the highest-risk device with specific reasons
+- **Write a one-paragraph summary for my board** — professional board-ready summary
+- **How much financial risk can I eliminate today?** — calculates which fixes give the best return
+- **What would an attacker target first on my network?** — attack path analysis in plain English
+- **Explain our biggest vulnerability in plain English** — technical finding explained for non-experts
+
+### More Question Ideas
+
+**Financial questions:**
+- "How much money am I risking right now?"
+- "Which single fix gives me the best return on investment?"
+- "If we got breached today, what would it cost us?"
+
+**Technical questions:**
+- "Which vulnerabilities have active exploits right now?"
+- "How would an attacker move through my network?"
+- "If 192.168.1.1 was compromised, what else is at risk?"
+
+**Report requests:**
+- "Write a board report about our security posture"
+- "Write an email to my CEO explaining our security situation"
+- "Give me a one-sentence summary of our biggest risk"
+
+### Multi-Turn Conversations
+
+AIPET Ask remembers your conversation within a session. You can ask follow-up questions:
+You: What should I fix first?
+AIPET Ask: Fix default_credentials on 192.168.1.2...
+You: How long will that take?
+AIPET Ask: [answers knowing you mean the default_credentials fix]
+
+Click **Clear** to start a new conversation with fresh context.
+
+### Important Notes
+
+- Conversations reset when you navigate away from the Ask tab
+- AIPET Ask uses your most recent completed scan for context
+- Answers are generated fresh each time — the same question may get slightly different answers
+- All answers are based on real data from your AIPET account
+
+### Plan Access
+
+AIPET Ask is available on **Professional** and **Enterprise** plans. Free plan users will see an upgrade prompt when clicking the Ask AIPET tab.
+
 ### Anomaly Types
 
 | Anomaly | Severity | Description |
