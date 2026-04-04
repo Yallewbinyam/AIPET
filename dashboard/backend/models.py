@@ -213,8 +213,9 @@ class ScoreResult(db.Model):
             "findings_breakdown": self.findings_breakdown,
             "created_at":         str(self.created_at),
         }
-    class PredictAlert(db.Model):
-        __tablename__ = "predict_alerts"
+    
+class PredictAlert(db.Model):
+    __tablename__ = "predict_alerts"
 
     id                = db.Column(db.Integer,     primary_key=True)
     user_id           = db.Column(db.Integer,     db.ForeignKey("users.id"), nullable=False)
