@@ -316,3 +316,26 @@ PLAN_LIMITS = {
         "price_gbp":        499,
     },
 }
+
+class ComplianceResult(db.Model):
+    __tablename__ = "compliance_results"
+
+    id          = db.Column(db.Integer,     primary_key=True)
+    user_id     = db.Column(db.Integer,     db.ForeignKey("users.id"), nullable=False)
+    scan_id     = db.Column(db.Integer,     db.ForeignKey("scans.id"), nullable=False)
+    framework   = db.Column(db.String(50),  nullable=False)  # nis2, nist, iso27001
+    score       = db.Column(db.Integer,     nullable=False, default=0)
+    total       = db.Column(db.Integer,     nullable=False, default=0)
+    controls    = db.Column(db.JSON,        nullable=True)
+    created_at  = db.Column(db.DateTime,    default=lambda: datetime.now(timezone.utc))
+
+    def to_dict(self):
+        return {
+            "id":         self.id,
+            "scan_id":    self.scan_id,
+            "framework":  self.framework,
+            "score":      self.score,
+            "total":      self.total,
+            "controls":   self.controls,
+            "created_at": str(self.created_at),
+        }

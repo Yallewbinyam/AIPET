@@ -3160,6 +3160,183 @@ function LoginPage({ onLogin }) {
     </div>
   );
 }
+
+function CompliancePage({ token, showToast, currentPlan }) {
+  const [scans,     setScans]     = useState([]);
+  const [scanId,    setScanId]    = useState("");
+  const [framework, setFramework] = useState("nis2");
+  const [report,    setReport]    = useState(null);
+  const [loading,   setLoading]   = useState(false);
+
+  const FRAMEWORKS = {
+    nis2:     { name: "NIS2",         region: "EU",     color: COLORS.blue   },
+    nist:     { name: "NIST CSF 2.0", region: "USA",    color: COLORS.purple },
+    iso27001: { name: "ISO 27001",    region: "Global", color: COLORS.low    },
+  };
+
+  useEffect(() => {
+    fetch("http://localhost:5001/api/scans", {
+      headers: { Authorization: `Bearer ${token}` }
+    })
+      .then(r => r.json())
+      .then(d => {
+        const completed = d.filter(s => s.status === "completed");
+        setScans(completed);
+        if (completed.length > 0) setScanId(completed[0].id);
+      })
+      .catch(() => {});
+  }, [token]);
+
+  const generate = async () => {
+    if (!scanId) return showToast("Please select a scan", "error");
+    setLoading(true);
+    setReport(null);
+    try {
+      const r = await fetch("http://localhost:5001/api/compliance/generate", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ scan_id: parseInt(scanId), framework }),
+      });
+      const d = await r.json();
+      if (!r.ok) throw new Error(d.error);
+      setReport(d);
+      showToast("Compliance report generated", "success");
+    } catch (e) {
+      showToast(e.message || "Failed to generate report", "error");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (currentPlan === "free") {
+    return (
+      <div className="flex flex-col items-center justify-center h-64 gap-4">
+        <Lock size={48} style={{ color: COLORS.muted }} />
+        <p style={{ color: COLORS.muted }}>Compliance reports require Professional or Enterprise plan.</p>
+        <button onClick={() => {}} className="px-6 py-3 rounded-xl font-bold text-sm"
+          style={{ backgroundColor: COLORS.blue, color: "white" }}>
+          Upgrade to Professional
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      {/* Header */}
+      <div>
+        <h2 className="text-2xl font-black mb-1" style={{ color: COLORS.text }}>Compliance</h2>
+        <p className="text-sm" style={{ color: COLORS.muted }}>Generate compliance reports for NIS2, NIST CSF 2.0, and ISO 27001</p>
+      </div>
+
+      {/* Framework selector */}
+      <div className="rounded-2xl border p-6" style={{ backgroundColor: COLORS.card, borderColor: COLORS.border }}>
+        <div className="grid grid-cols-3 gap-4 mb-6">
+          {Object.entries(FRAMEWORKS).map(([key, fw]) => (
+            <button key={key} onClick={() => setFramework(key)}
+              className="rounded-xl border p-4 text-left transition-all"
+              style={{
+                backgroundColor: framework === key ? fw.color + "15" : COLORS.dark,
+                borderColor: framework === key ? fw.color : COLORS.border,
+              }}>
+              <div className="font-bold text-sm mb-1" style={{ color: fw.color }}>{fw.name}</div>
+              <div className="text-xs" style={{ color: COLORS.muted }}>{fw.region}</div>
+            </button>
+          ))}
+        </div>
+
+        {/* Scan selector */}
+        <div className="flex gap-4">
+          <select value={scanId} onChange={e => setScanId(e.target.value)}
+            className="flex-1 px-4 py-3 rounded-xl text-sm"
+            style={{ backgroundColor: COLORS.dark, color: COLORS.text, border: `1px solid ${COLORS.border}` }}>
+            {scans.length === 0
+              ? <option>No completed scans</option>
+              : scans.map(s => (
+                  <option key={s.id} value={s.id}>
+                    Scan #{s.id} — {s.target} ({s.completed_at?.slice(0,10)})
+                  </option>
+                ))
+            }
+          </select>
+          <button onClick={generate} disabled={loading}
+            className="px-6 py-3 rounded-xl font-bold text-sm transition-all"
+            style={{ backgroundColor: FRAMEWORKS[framework].color, color: "white", opacity: loading ? 0.7 : 1 }}>
+            {loading ? "Generating..." : "Generate Report"}
+          </button>
+        </div>
+      </div>
+
+      {/* Report */}
+      {report && (
+        <div className="rounded-2xl border p-6 space-y-6" style={{ backgroundColor: COLORS.card, borderColor: COLORS.border }}>
+          {/* Score */}
+          <div className="flex items-center justify-between">
+            <div>
+              <div className="text-lg font-black" style={{ color: COLORS.text }}>
+                {FRAMEWORKS[framework].name} Compliance Report
+              </div>
+              <div className="text-sm" style={{ color: COLORS.muted }}>
+                Scan #{report.scan_id} · {report.passed}/{report.total} controls passed
+              </div>
+            </div>
+            <div className="text-center">
+              <div className="text-4xl font-black" style={{
+                color: report.score >= 80 ? COLORS.low : report.score >= 60 ? COLORS.high : COLORS.critical
+              }}>
+                {report.score}%
+              </div>
+              <div className="text-xs" style={{ color: COLORS.muted }}>compliance score</div>
+            </div>
+          </div>
+
+          {/* Summary bars */}
+          <div className="grid grid-cols-3 gap-4">
+            {[
+              { label: "Passed",  value: report.passed,           color: COLORS.low      },
+              { label: "Failed",  value: report.failed,           color: COLORS.critical },
+              { label: "Total",   value: report.total,            color: COLORS.blue     },
+            ].map((s, i) => (
+              <div key={i} className="rounded-xl p-4 text-center"
+                style={{ backgroundColor: s.color + "15", border: `1px solid ${s.color}30` }}>
+                <div className="text-2xl font-black" style={{ color: s.color }}>{s.value}</div>
+                <div className="text-xs" style={{ color: COLORS.muted }}>{s.label}</div>
+              </div>
+            ))}
+          </div>
+
+          {/* Controls list */}
+          <div className="space-y-2">
+            <div className="text-sm font-bold mb-3" style={{ color: COLORS.text }}>Control Assessment</div>
+            {report.controls.map((c, i) => (
+              <div key={i} className="flex items-center justify-between rounded-xl px-4 py-3"
+                style={{ backgroundColor: COLORS.dark, border: `1px solid ${COLORS.border}` }}>
+                <div className="flex items-center gap-3">
+                  <div className="w-2 h-2 rounded-full" style={{
+                    backgroundColor: c.status === "pass" ? COLORS.low : COLORS.critical
+                  }} />
+                  <div>
+                    <div className="text-sm font-bold" style={{ color: COLORS.text }}>{c.title}</div>
+                    <div className="text-xs" style={{ color: COLORS.muted }}>
+                      {c.article || c.function || c.clause}
+                    </div>
+                  </div>
+                </div>
+                <div className="text-xs font-bold px-3 py-1 rounded-full" style={{
+                  backgroundColor: c.status === "pass" ? COLORS.low + "20" : COLORS.critical + "20",
+                  color: c.status === "pass" ? COLORS.low : COLORS.critical,
+                }}>
+                  {c.status.toUpperCase()}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function PricingPage({ currentPlan, onUpgrade, usageLoaded }) {
   const [currency, setCurrency] = useState({ code: 'GBP', symbol: '£' });
 
@@ -3582,6 +3759,7 @@ const NAV_ITEMS = [
   { id: "ask",       label: "Ask AIPET",     icon: Shield,        group: "intel"    },
   { id: "ai",        label: "AI Analysis",   icon: Shield,        group: "reports"  },
   { id: "reports",   label: "Reports",       icon: FileText,      group: "reports"  },
+  { id: "compliance",label: "Compliance",     icon: Lock,          group: "reports"  },
   { id: "pricing",   label: "Pricing",       icon: Zap,           group: "account"  },
   { id: "billing",   label: "Billing",       icon: Lock,          group: "account"  },
   { id: "apikeys",   label: "API Keys",      icon: CreditCard,    group: "account"  },
@@ -4406,6 +4584,9 @@ export default function App() {
           )}
 
           {/* PRICING */}
+          {activeTab === "compliance" && (
+            <CompliancePage token={token} showToast={showToast} currentPlan={usage?.plan} />
+          )}
           {activeTab === "pricing" && (
             <PricingPage
               currentPlan={usage?.plan || "free"}
