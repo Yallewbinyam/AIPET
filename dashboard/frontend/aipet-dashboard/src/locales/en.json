@@ -1,14 +1,17 @@
 {
   "nav": {
     "signIn": "Sign In",
-    "getStarted": "Get Started Free"
+    "getStarted": "Get Started Free",
+    "features": "Features",
+    "howItWorks": "How it works",
+    "pricing": "Pricing"
   },
   "hero": {
     "badge": "MSc Cyber Security Research — Coventry University",
-    "title1": "AI-Powered IoT Security",
-    "title2": "for the Modern Enterprise",
+    "title1": "Find Exactly How a Hacker Would Attack",
+    "title2": "Your IoT Devices — Before They Do",
     "subtitle": "AIPET automates the discovery, testing, and prioritisation of vulnerabilities across your IoT devices — with explainable AI that tells you not just what is vulnerable, but exactly why.",
-    "cta": "Start Free Trial"
+    "cta": "Get Started Free"
   },
   "features": {
     "attackModules": "7 Attack Modules",
@@ -69,5 +72,27 @@
     "free": "Free",
     "professional": "Professional",
     "enterprise": "Enterprise"
+  },
+  "howItWorks": {
+    "title": "How it works",
+    "subtitle": "Three steps to complete IoT security",
+    "step1Title": "Scan",
+    "step1Desc": "Point AIPET at your network. It discovers every IoT device and tests each one for vulnerabilities in under 60 seconds.",
+    "step2Title": "Understand",
+    "step2Desc": "Our explainable AI tells you exactly why each device is vulnerable, what it would cost if exploited, and how a hacker would attack.",
+    "step3Title": "Fix & Comply",
+    "step3Desc": "Get exact remediation commands, track your fixes, and generate NIS2, NIST, and ISO 27001 compliance reports instantly."
+  },
+  "cta": {
+    "title": "Start protecting your IoT devices today",
+    "subtitle": "Free forever. No credit card required. Setup in under 60 seconds.",
+    "getStarted": "Get Started Free",
+    "signIn": "Sign In"
+  },
+  "stats": {
+    "scanSpeed": "Scan speed",
+    "attackModules": "Attack modules",
+    "frameworks": "Compliance frameworks",
+    "nis2": "NIS2 coverage"
   }
 }

@@ -6,7 +6,7 @@ import axios from "axios";
 import * as d3 from "d3";
 // Load JetBrains Mono font for technical aesthetic
 const fontLink = document.createElement("link");
-fontLink.href = "https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Inter:wght@400;500;600;700&display=swap";
+fontLink.href = "https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Inter:wght@400;500;600;700&family=Noto+Sans+KR:wght@400;500;700&family=Noto+Sans+SC:wght@400;500;700&family=Noto+Sans+Arabic:wght@400;500;700&display=swap";
 fontLink.rel = "stylesheet";
 document.head.appendChild(fontLink);
 import {
@@ -2728,37 +2728,61 @@ function LandingPage({ onGetStarted, onLogin, setLegalPage }) {
     <div className="min-h-screen" style={{ backgroundColor: COLORS.darker }}>
 
       {/* Navigation */}
-      <nav className="flex items-center justify-between px-8 py-5 border-b"
-        style={{ borderColor: COLORS.border }}>
-        <div className="flex items-center gap-3">
+      <nav className="relative flex items-center justify-between px-8 py-4 border-b sticky top-0 z-50"
+        style={{ borderColor: COLORS.border, backgroundColor: COLORS.darker + "ee", backdropFilter: "blur(12px)" }}>
+        {/* Logo */}
+        <div className="flex items-center gap-3" style={{ flex: 1 }}>
           <div className="w-9 h-9 rounded-xl flex items-center justify-center"
             style={{ backgroundColor: COLORS.blue }}>
             <Shield size={18} color="white" />
           </div>
           <span className="font-black text-xl" style={{ color: COLORS.text }}>AIPET</span>
         </div>
-        <div className="flex items-center gap-3">
-          {/* Language dropdown */}
-          <div style={{ position: 'relative' }}>
-            <select
-              value={i18n.language}
-              onChange={e => i18n.changeLanguage(e.target.value)}
-              style={{
-                backgroundColor: COLORS.card,
-                color: COLORS.text,
-                border: `1px solid ${COLORS.border}`,
-                borderRadius: '8px',
-                padding: '6px 10px',
-                fontSize: '13px',
-                cursor: 'pointer',
-                outline: 'none',
-              }}>
-              <option value="en">🇬🇧 EN</option>
-              <option value="fr">🇫🇷 FR</option>
-              <option value="de">🇩🇪 DE</option>
-              <option value="ja">🇯🇵 JA</option>
-            </select>
-          </div>
+        {/* Nav links — absolutely centered */}
+        <div className="absolute left-0 right-0 flex justify-center">
+        <div className="hidden md:flex items-center gap-8">
+          {[
+            { label: t("nav.features"), id: "features" },
+            { label: t("nav.howItWorks"), id: "how-it-works" },
+            { label: t("nav.pricing"), id: "pricing" },
+          ].map((link, i) => (
+            <button key={i}
+              onClick={() => document.getElementById(link.id)?.scrollIntoView({ behavior: 'smooth' })}
+              className="font-semibold transition-all"
+              style={{ color: COLORS.muted, textDecoration: "none", background: "none", border: "none", cursor: "pointer", fontSize: "15px" }}
+              onMouseEnter={e => e.target.style.color = COLORS.blue}
+              onMouseLeave={e => e.target.style.color = COLORS.muted}>
+              {link.label}
+            </button>
+          ))}
+        </div>
+        </div>
+        {/* Right side */}
+        <div className="flex items-center gap-3" style={{ flex: 1, justifyContent: "flex-end" }}>
+          <select
+            value={i18n.language}
+            onChange={e => i18n.changeLanguage(e.target.value)}
+            style={{
+              backgroundColor: COLORS.card,
+              color: COLORS.text,
+              border: `1px solid ${COLORS.border}`,
+              borderRadius: '8px',
+              padding: '6px 10px',
+              fontSize: '13px',
+              cursor: 'pointer',
+              outline: 'none',
+            }}>
+            <option value="en">🇬🇧 EN</option>
+            <option value="fr">🇫🇷 FR</option>
+            <option value="de">🇩🇪 DE</option>
+            <option value="ja">🇯🇵 JA</option>
+            <option value="es">🇪🇸 ES</option>
+            <option value="zh">🇨🇳 ZH</option>
+            <option value="ar">🇸🇦 AR</option>
+            <option value="pt">🇧🇷 PT</option>
+            <option value="it">🇮🇹 IT</option>
+            <option value="nl">🇳🇱 NL</option>
+          </select>
           <button onClick={onLogin}
             className="text-sm font-semibold px-4 py-2 rounded-xl transition-all"
             style={{ color: COLORS.muted }}>
@@ -2808,29 +2832,51 @@ function LandingPage({ onGetStarted, onLogin, setLegalPage }) {
         </div>
       </div>
 
-      {/* Feature grid */}
-      <div className="max-w-5xl mx-auto px-8 pb-20">
-        {/* Currency switcher */}
-        <div className="flex items-center justify-center gap-2 mb-8">
+      {/* Stats bar */}
+      <div className="border-y py-6 mb-12" style={{ borderColor: COLORS.blue + "30", backgroundColor: COLORS.blue + "05" }}>
+        <div className="max-w-5xl mx-auto px-8">
+          <div className="grid grid-cols-4 gap-4 text-center">
+            {[
+              { value: "60 sec", label: t('stats.scanSpeed') },
+              { value: "7", label: t('stats.attackModules') },
+              { value: "3", label: t('stats.frameworks') },
+              { value: "100%", label: t('stats.nis2') },
+            ].map((stat, i) => (
+              <div key={i}>
+                <div className="text-2xl font-black mb-1" style={{ color: COLORS.blue }}>{stat.value}</div>
+                <div className="text-xs" style={{ color: COLORS.muted }}>{stat.label}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* How it works */}
+      <div id="how-it-works" className="max-w-5xl mx-auto px-8 pb-16">
+        <div className="text-center mb-10">
+          <h2 className="text-3xl font-black mb-3" style={{ color: COLORS.text }}>{t('howItWorks.title')}</h2>
+          <p className="text-sm" style={{ color: COLORS.muted }}>{t('howItWorks.subtitle')}</p>
+        </div>
+        <div className="grid grid-cols-3 gap-8">
           {[
-            { code: 'GBP', symbol: '£', label: 'GBP' },
-            { code: 'USD', symbol: '$', label: 'USD' },
-            { code: 'EUR', symbol: '€', label: 'EUR' },
-            { code: 'JPY', symbol: '¥', label: 'JPY' },
-          ].map(c => (
-            <button key={c.code}
-              onClick={() => setCurrency(c)}
-              className="px-4 py-2 rounded-lg text-sm font-bold transition-all"
-              style={{
-                backgroundColor: currency.code === c.code ? COLORS.blue : COLORS.card,
-                color: currency.code === c.code ? 'white' : COLORS.muted,
-                border: `1px solid ${currency.code === c.code ? COLORS.blue : COLORS.border}`,
-              }}>
-              {c.symbol} {c.label}
-            </button>
+            { step: "01", title: t('howItWorks.step1Title'), desc: t('howItWorks.step1Desc'), color: COLORS.blue },
+            { step: "02", title: t('howItWorks.step2Title'), desc: t('howItWorks.step2Desc'), color: COLORS.purple },
+            { step: "03", title: t('howItWorks.step3Title'), desc: t('howItWorks.step3Desc'), color: COLORS.low },
+          ].map((item, i) => (
+            <div key={i} className="relative">
+              <div className="text-6xl font-black mb-4 opacity-20" style={{ color: item.color }}>{item.step}</div>
+              <h3 className="text-xl font-black mb-3" style={{ color: item.color }}>{item.title}</h3>
+              <p className="text-sm leading-relaxed" style={{ color: COLORS.muted }}>{item.desc}</p>
+              {i < 2 && (
+                <div className="absolute top-8 right-0 text-2xl" style={{ color: COLORS.border }}>→</div>
+              )}
+            </div>
           ))}
         </div>
+      </div>
 
+      {/* Feature grid */}
+      <div id="features" className="max-w-5xl mx-auto px-8 pb-20">
         <div className="grid grid-cols-3 gap-6 mb-20">
           {[
             {
@@ -2871,7 +2917,7 @@ function LandingPage({ onGetStarted, onLogin, setLegalPage }) {
             },
           ].map((feature, i) => (
             <div key={i} className="rounded-2xl border p-6 transition-all"
-              style={{ backgroundColor: COLORS.card, borderColor: COLORS.border }}>
+              style={{ backgroundColor: COLORS.card, borderColor: feature.color + "40", boxShadow: `0 0 20px ${feature.color}10` }}>
               <div className="w-10 h-10 rounded-xl flex items-center justify-center mb-4"
                 style={{ backgroundColor: feature.color + "20" }}>
                 <feature.icon size={20} style={{ color: feature.color }} />
@@ -2887,13 +2933,34 @@ function LandingPage({ onGetStarted, onLogin, setLegalPage }) {
         </div>
 
         {/* Pricing section */}
-        <div className="text-center mb-12">
+        <div id="pricing" className="text-center mb-12">
           <h2 className="text-3xl font-black mb-3" style={{ color: COLORS.text }}>
             {t('pricing.title')}
           </h2>
           <p className="text-sm" style={{ color: COLORS.muted }}>
             {t('pricing.subtitle')}
           </p>
+        </div>
+
+        {/* Currency switcher */}
+        <div className="flex items-center justify-center gap-2 mb-8">
+          {[
+            { code: 'GBP', symbol: '£', label: 'GBP' },
+            { code: 'USD', symbol: '$', label: 'USD' },
+            { code: 'EUR', symbol: '€', label: 'EUR' },
+            { code: 'JPY', symbol: '¥', label: 'JPY' },
+          ].map(c => (
+            <button key={c.code}
+              onClick={() => setCurrency(c)}
+              className="px-4 py-2 rounded-lg text-sm font-bold transition-all"
+              style={{
+                backgroundColor: currency.code === c.code ? COLORS.blue : COLORS.card,
+                color: currency.code === c.code ? 'white' : COLORS.muted,
+                border: `1px solid ${currency.code === c.code ? COLORS.blue : COLORS.border}`,
+              }}>
+              {c.symbol} {c.label}
+            </button>
+          ))}
         </div>
 
         <div className="grid grid-cols-3 gap-6 mb-20">
@@ -2969,6 +3036,29 @@ function LandingPage({ onGetStarted, onLogin, setLegalPage }) {
           ))}
         </div>
 
+        {/* Final CTA */}
+        <div className="text-center rounded-2xl border p-16 mb-12"
+          style={{ backgroundColor: COLORS.card, borderColor: COLORS.blue + "40", background: `linear-gradient(135deg, ${COLORS.card} 0%, rgba(0,229,255,0.05) 100%)` }}>
+          <h2 className="text-3xl font-black mb-4" style={{ color: COLORS.text }}>
+            {t('cta.title')}
+          </h2>
+          <p className="text-sm mb-8 max-w-lg mx-auto" style={{ color: COLORS.muted }}>
+            {t('cta.subtitle')}
+          </p>
+          <div className="flex items-center justify-center gap-4">
+            <button onClick={onGetStarted}
+              className="px-10 py-4 rounded-xl font-bold text-base transition-all"
+              style={{ backgroundColor: COLORS.blue, color: "white" }}>
+              {t('cta.getStarted')}
+            </button>
+            <button onClick={onLogin}
+              className="px-10 py-4 rounded-xl font-bold text-base transition-all"
+              style={{ backgroundColor: "transparent", color: COLORS.blue, border: `1px solid ${COLORS.blue}` }}>
+              {t('cta.signIn')}
+            </button>
+          </div>
+        </div>
+
         {/* Footer */}
         <div className="text-center border-t pt-8"
           style={{ borderColor: COLORS.border }}>
@@ -2995,7 +3085,7 @@ function LandingPage({ onGetStarted, onLogin, setLegalPage }) {
             </a>
           </div>
           <p className="text-xs" style={{ color: COLORS.muted }}>
-            AIPET Cloud v2.0.0 — Developed as part of MSc Cyber Security research
+            AIPET Cloud v3.0.0 — Developed as part of MSc Cyber Security research
             at Coventry University · MIT Licence
           </p>
         </div>
@@ -3014,7 +3104,6 @@ function LoginPage({ onLogin }) {
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
     const ssoToken = params.get('sso_token');
-    const plan     = params.get('plan');
     if (ssoToken) {
       localStorage.setItem('aipet_token', ssoToken);
       window.history.replaceState({}, '', '/');
@@ -3165,14 +3254,10 @@ function LoginPage({ onLogin }) {
             <span className="text-xs" style={{ color: COLORS.muted }}>or</span>
             <div className="flex-1 h-px" style={{ backgroundColor: COLORS.border }}/>
           </div>
-          {/* Google SSO button */}
+          {/* Google SSO */}
           <button onClick={handleGoogleLogin}
             className="w-full py-3 rounded-xl font-bold text-sm transition-all flex items-center justify-center gap-3"
-            style={{
-              backgroundColor: COLORS.dark,
-              color: COLORS.text,
-              border: `1px solid ${COLORS.border}`,
-            }}>
+            style={{ backgroundColor: COLORS.dark, color: COLORS.text, border: `1px solid ${COLORS.border}` }}>
             <svg width="18" height="18" viewBox="0 0 18 18">
               <path fill="#4285F4" d="M16.51 8H8.98v3h4.3c-.18 1-.74 1.48-1.6 2.04v2.01h2.6a7.8 7.8 0 002.38-5.88c0-.57-.05-.66-.15-1.18z"/>
               <path fill="#34A853" d="M8.98 17c2.16 0 3.97-.72 5.3-1.94l-2.6-2a4.8 4.8 0 01-7.18-2.54H1.83v2.07A8 8 0 008.98 17z"/>

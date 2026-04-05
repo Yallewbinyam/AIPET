@@ -1,14 +1,17 @@
 {
   "nav": {
     "signIn": "サインイン",
-    "getStarted": "無料で始める"
+    "getStarted": "無料で始める",
+    "features": "機能",
+    "howItWorks": "使い方",
+    "pricing": "料金"
   },
   "hero": {
     "badge": "MScサイバーセキュリティ研究 — コベントリー大学",
     "title1": "AIを活用したIoTセキュリティ",
     "title2": "現代のエンタープライズのために",
     "subtitle": "AIPETはIoTデバイス全体の脆弱性の発見、テスト、優先順位付けを自動化します — 何が脆弱かだけでなく、正確になぜかを説明するAIを搭載しています。",
-    "cta": "無料トライアルを開始"
+    "cta": "無料で始める"
   },
   "features": {
     "attackModules": "7つの攻撃モジュール",
@@ -69,5 +72,27 @@
     "free": "無料",
     "professional": "プロフェッショナル",
     "enterprise": "エンタープライズ"
+  },
+  "howItWorks": {
+    "title": "使い方",
+    "subtitle": "完全なIoTセキュリティのための3ステップ",
+    "step1Title": "スキャン",
+    "step1Desc": "AIPETをネットワークに向けます。60秒以内にすべてのIoTデバイスを発見してテストします。",
+    "step2Title": "理解する",
+    "step2Desc": "説明可能なAIが各デバイスの脆弱性の理由と悪用された場合のコストを正確に説明します。",
+    "step3Title": "修正してコンプライアンス",
+    "step3Desc": "正確な修正コマンドを取得し、NIS2、NIST、ISO 27001コンプライアンスレポートを即座に生成します。"
+  },
+  "cta": {
+    "title": "今日からIoTデバイスを保護しましょう",
+    "subtitle": "永久無料。クレジットカード不要。60秒以内にセットアップ。",
+    "getStarted": "無料で始める",
+    "signIn": "サインイン"
+  },
+  "stats": {
+    "scanSpeed": "スキャン速度",
+    "attackModules": "攻撃モジュール",
+    "frameworks": "コンプライアンス",
+    "nis2": "NIS2対応"
   }
 }

@@ -1,0 +1,98 @@
+{
+  "nav": {
+    "signIn": "Entrar",
+    "getStarted": "Começar Grátis",
+    "features": "Recursos",
+    "howItWorks": "Como funciona",
+    "pricing": "Preços"
+  },
+  "hero": {
+    "badge": "Pesquisa MSc Cibersegurança — Universidade de Coventry",
+    "title1": "Descubra Exatamente Como um Hacker Atacaria",
+    "title2": "Seus Dispositivos IoT — Antes que Aconteça",
+    "subtitle": "O AIPET automatiza a descoberta, teste e priorização de vulnerabilidades em seus dispositivos IoT.",
+    "cta": "Começar Grátis"
+  },
+  "features": {
+    "attackModules": "7 Módulos de Ataque",
+    "attackModulesDesc": "MQTT, CoAP, HTTP, Firmware, Recon — cobertura IoT completa.",
+    "explainableAI": "IA Explicável",
+    "explainableAIDesc": "As previsões SHAP dizem exatamente por que cada dispositivo está em risco.",
+    "owasp": "OWASP IoT Top 10",
+    "owaspDesc": "Cobertura completa das 10 categorias de vulnerabilidades OWASP IoT.",
+    "dashboard": "Painel em Tempo Real",
+    "dashboardDesc": "Status de varredura, descobertas e análise de IA em um só lugar.",
+    "api": "API Empresarial",
+    "apiDesc": "Integre o AIPET em seus pipelines CI/CD com acesso por chave API.",
+    "reports": "Relatórios PDF",
+    "reportsDesc": "Relatórios de avaliação profissionais prontos para compartilhar."
+  },
+  "pricing": {
+    "title": "Preços simples e transparentes",
+    "subtitle": "Comece grátis. Atualize quando precisar.",
+    "popular": "POPULAR",
+    "forever": "para sempre",
+    "perMonth": "por mês",
+    "getStarted": "Começar",
+    "startTrial": "Iniciar Teste Gratuito",
+    "contactSales": "Contatar Vendas"
+  },
+  "plans": {
+    "free": "Grátis",
+    "professional": "Profissional",
+    "enterprise": "Empresarial"
+  },
+  "planFeatures": {
+    "free": [
+      "5 varreduras por mês",
+      "Varredura de rede única",
+      "Análise IA básica",
+      "Relatórios PDF",
+      "Suporte comunitário"
+    ],
+    "pro": [
+      "Varreduras ilimitadas",
+      "Varredura paralela (3 redes)",
+      "Explicações SHAP completas",
+      "Todos os formatos",
+      "Suporte por email",
+      "Fila prioritária"
+    ],
+    "ent": [
+      "Varreduras ilimitadas",
+      "Varredura paralela (10 redes)",
+      "Análise IA completa + SHAP",
+      "Acesso API",
+      "Suporte prioritário",
+      "Garantia SLA",
+      "Integrações personalizadas"
+    ]
+  },
+  "footer": {
+    "privacy": "Política de Privacidade",
+    "terms": "Termos de Serviço",
+    "cookie": "Política de Cookies"
+  },
+  "howItWorks": {
+    "title": "Como funciona",
+    "subtitle": "Três passos para segurança IoT completa",
+    "step1Title": "Varrer",
+    "step1Desc": "Aponte o AIPET para sua rede. Ele descobre cada dispositivo IoT e testa cada um em menos de 60 segundos.",
+    "step2Title": "Entender",
+    "step2Desc": "Nossa IA explicável diz exatamente por que cada dispositivo é vulnerável e o custo se for explorado.",
+    "step3Title": "Corrigir e Cumprir",
+    "step3Desc": "Obtenha comandos de correção exatos e gere relatórios NIS2, NIST e ISO 27001 instantaneamente."
+  },
+  "cta": {
+    "title": "Comece a proteger seus dispositivos IoT hoje",
+    "subtitle": "Grátis para sempre. Sem cartão de crédito. Configuração em menos de 60 segundos.",
+    "getStarted": "Começar Grátis",
+    "signIn": "Entrar"
+  },
+  "stats": {
+    "scanSpeed": "Velocidade de varredura",
+    "attackModules": "Módulos de ataque",
+    "frameworks": "Estruturas de conformidade",
+    "nis2": "Cobertura NIS2"
+  }
+}

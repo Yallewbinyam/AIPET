@@ -1,14 +1,17 @@
 {
   "nav": {
     "signIn": "Anmelden",
-    "getStarted": "Kostenlos Starten"
+    "getStarted": "Kostenlos Starten",
+    "features": "Funktionen",
+    "howItWorks": "So funktioniert es",
+    "pricing": "Preise"
   },
   "hero": {
     "badge": "MSc Cybersicherheitsforschung — Universität Coventry",
     "title1": "KI-gestützte IoT-Sicherheit",
     "title2": "für das moderne Unternehmen",
     "subtitle": "AIPET automatisiert die Erkennung, Prüfung und Priorisierung von Schwachstellen auf Ihren IoT-Geräten — mit erklärbarer KI, die Ihnen nicht nur sagt, was anfällig ist, sondern genau warum.",
-    "cta": "Kostenlose Testversion Starten"
+    "cta": "Kostenlos Starten"
   },
   "features": {
     "attackModules": "7 Angriffsmodule",
@@ -69,5 +72,27 @@
     "free": "Kostenlos",
     "professional": "Professionell",
     "enterprise": "Unternehmen"
+  },
+  "howItWorks": {
+    "title": "So funktioniert es",
+    "subtitle": "Drei Schritte zur vollständigen IoT-Sicherheit",
+    "step1Title": "Scannen",
+    "step1Desc": "Richten Sie AIPET auf Ihr Netzwerk. Es entdeckt jedes IoT-Gerät und testet es in unter 60 Sekunden.",
+    "step2Title": "Verstehen",
+    "step2Desc": "Unsere erklärbare KI sagt Ihnen genau, warum jedes Gerät anfällig ist und was es kosten würde.",
+    "step3Title": "Beheben & Einhalten",
+    "step3Desc": "Erhalten Sie genaue Behebungsbefehle und generieren Sie NIS2, NIST und ISO 27001 Berichte sofort."
+  },
+  "cta": {
+    "title": "Schützen Sie Ihre IoT-Geräte noch heute",
+    "subtitle": "Kostenlos für immer. Keine Kreditkarte erforderlich. Einrichtung in unter 60 Sekunden.",
+    "getStarted": "Kostenlos Starten",
+    "signIn": "Anmelden"
+  },
+  "stats": {
+    "scanSpeed": "Scan-Geschwindigkeit",
+    "attackModules": "Angriffsmodule",
+    "frameworks": "Compliance-Frameworks",
+    "nis2": "NIS2-Abdeckung"
   }
 }

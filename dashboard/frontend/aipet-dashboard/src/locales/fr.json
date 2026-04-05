@@ -1,14 +1,17 @@
 {
   "nav": {
     "signIn": "Connexion",
-    "getStarted": "Commencer Gratuitement"
+    "getStarted": "Commencer Gratuitement",
+    "features": "Fonctionnalités",
+    "howItWorks": "Comment ça marche",
+    "pricing": "Tarifs"
   },
   "hero": {
     "badge": "Recherche MSc Cybersécurité — Université de Coventry",
     "title1": "Sécurité IoT Propulsée par l'IA",
     "title2": "pour l'Entreprise Moderne",
     "subtitle": "AIPET automatise la découverte, les tests et la priorisation des vulnérabilités sur vos appareils IoT — avec une IA explicable qui vous dit non seulement ce qui est vulnérable, mais exactement pourquoi.",
-    "cta": "Démarrer l'Essai Gratuit"
+    "cta": "Commencer Gratuitement"
   },
   "features": {
     "attackModules": "7 Modules d'Attaque",
@@ -69,5 +72,27 @@
     "free": "Gratuit",
     "professional": "Professionnel",
     "enterprise": "Entreprise"
+  },
+  "howItWorks": {
+    "title": "Comment ça marche",
+    "subtitle": "Trois étapes pour une sécurité IoT complète",
+    "step1Title": "Scanner",
+    "step1Desc": "Pointez AIPET sur votre réseau. Il découvre chaque appareil IoT et teste chacun en moins de 60 secondes.",
+    "step2Title": "Comprendre",
+    "step2Desc": "Notre IA explicable vous dit exactement pourquoi chaque appareil est vulnérable et ce qu'il en coûterait s'il était exploité.",
+    "step3Title": "Corriger et Conformer",
+    "step3Desc": "Obtenez des commandes de remédiation exactes et générez des rapports NIS2, NIST et ISO 27001 instantanément."
+  },
+  "cta": {
+    "title": "Commencez à protéger vos appareils IoT aujourd'hui",
+    "subtitle": "Gratuit pour toujours. Aucune carte de crédit requise. Installation en moins de 60 secondes.",
+    "getStarted": "Commencer Gratuitement",
+    "signIn": "Connexion"
+  },
+  "stats": {
+    "scanSpeed": "Vitesse de scan",
+    "attackModules": "Modules d'attaque",
+    "frameworks": "Cadres de conformité",
+    "nis2": "Couverture NIS2"
   }
 }

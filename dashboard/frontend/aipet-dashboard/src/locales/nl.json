@@ -1,0 +1,98 @@
+{
+  "nav": {
+    "signIn": "Inloggen",
+    "getStarted": "Gratis Beginnen",
+    "features": "Functies",
+    "howItWorks": "Hoe het werkt",
+    "pricing": "Prijzen"
+  },
+  "hero": {
+    "badge": "MSc Cybersecurity Onderzoek — Universiteit van Coventry",
+    "title1": "Ontdek Precies Hoe een Hacker Uw",
+    "title2": "IoT-apparaten Zou Aanvallen — Voor Ze het Doen",
+    "subtitle": "AIPET automatiseert de ontdekking, het testen en de prioritering van kwetsbaarheden op uw IoT-apparaten.",
+    "cta": "Gratis Beginnen"
+  },
+  "features": {
+    "attackModules": "7 Aanvalsmodules",
+    "attackModulesDesc": "MQTT, CoAP, HTTP, Firmware, Verkenning — volledige IoT-dekking.",
+    "explainableAI": "Verklaarbare AI",
+    "explainableAIDesc": "SHAP-voorspellingen vertellen u precies waarom elk apparaat risico loopt.",
+    "owasp": "OWASP IoT Top 10",
+    "owaspDesc": "Volledige dekking van alle 10 OWASP IoT-kwetsbaarheidscategorieën.",
+    "dashboard": "Realtime Dashboard",
+    "dashboardDesc": "Scanstatus, bevindingen en AI-analyse op één plek.",
+    "api": "Enterprise API",
+    "apiDesc": "Integreer AIPET in uw CI/CD-pipelines met API-sleuteltoegang.",
+    "reports": "PDF-rapporten",
+    "reportsDesc": "Professionele beoordelingsrapporten klaar om te delen."
+  },
+  "pricing": {
+    "title": "Eenvoudige, transparante prijzen",
+    "subtitle": "Begin gratis. Upgrade wanneer u meer nodig hebt.",
+    "popular": "POPULAIR",
+    "forever": "voor altijd",
+    "perMonth": "per maand",
+    "getStarted": "Beginnen",
+    "startTrial": "Gratis Proef Starten",
+    "contactSales": "Contact Verkoop"
+  },
+  "plans": {
+    "free": "Gratis",
+    "professional": "Professioneel",
+    "enterprise": "Zakelijk"
+  },
+  "planFeatures": {
+    "free": [
+      "5 scans per maand",
+      "Enkel netwerk scannen",
+      "Basis AI-analyse",
+      "PDF-rapporten",
+      "Community-ondersteuning"
+    ],
+    "pro": [
+      "Onbeperkte scans",
+      "Parallel scannen (3 netwerken)",
+      "Volledige SHAP AI-uitleg",
+      "Alle rapportformaten",
+      "E-mailondersteuning",
+      "Prioriteitswachtrij"
+    ],
+    "ent": [
+      "Onbeperkte scans",
+      "Parallel scannen (10 netwerken)",
+      "Volledige AI-analyse + SHAP",
+      "API-toegang",
+      "Prioriteitsondersteuning",
+      "SLA-garantie",
+      "Aangepaste integraties"
+    ]
+  },
+  "footer": {
+    "privacy": "Privacybeleid",
+    "terms": "Servicevoorwaarden",
+    "cookie": "Cookiebeleid"
+  },
+  "howItWorks": {
+    "title": "Hoe het werkt",
+    "subtitle": "Drie stappen naar volledige IoT-beveiliging",
+    "step1Title": "Scannen",
+    "step1Desc": "Richt AIPET op uw netwerk. Het ontdekt elk IoT-apparaat en test elk apparaat in minder dan 60 seconden.",
+    "step2Title": "Begrijpen",
+    "step2Desc": "Onze verklaarbare AI vertelt u precies waarom elk apparaat kwetsbaar is en wat het zou kosten als het wordt misbruikt.",
+    "step3Title": "Oplossen en Voldoen",
+    "step3Desc": "Ontvang exacte herstelcommando's en genereer NIS2, NIST en ISO 27001 nalevingsrapporten direct."
+  },
+  "cta": {
+    "title": "Begin vandaag met het beschermen van uw IoT-apparaten",
+    "subtitle": "Gratis voor altijd. Geen creditcard vereist. Installatie in minder dan 60 seconden.",
+    "getStarted": "Gratis Beginnen",
+    "signIn": "Inloggen"
+  },
+  "stats": {
+    "scanSpeed": "Scansnelheid",
+    "attackModules": "Aanvalsmodules",
+    "frameworks": "Nalevingsframeworks",
+    "nis2": "NIS2-dekking"
+  }
+}

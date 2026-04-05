@@ -1,0 +1,98 @@
+{
+  "nav": {
+    "signIn": "登录",
+    "getStarted": "免费开始",
+    "features": "功能",
+    "howItWorks": "如何使用",
+    "pricing": "定价"
+  },
+  "hero": {
+    "badge": "网络安全硕士研究 — 考文垂大学",
+    "title1": "发现黑客如何攻击",
+    "title2": "您的IoT设备 — 在他们动手之前",
+    "subtitle": "AIPET自动发现、测试和优先处理您IoT设备上的漏洞，使用可解释AI告诉您确切的原因。",
+    "cta": "免费开始"
+  },
+  "features": {
+    "attackModules": "7个攻击模块",
+    "attackModulesDesc": "MQTT、CoAP、HTTP、固件、侦察 — 完整的IoT覆盖。",
+    "explainableAI": "可解释AI",
+    "explainableAIDesc": "SHAP预测准确告诉您每个设备为何处于风险中。",
+    "owasp": "OWASP IoT前10",
+    "owaspDesc": "完整覆盖所有10个OWASP IoT漏洞类别。",
+    "dashboard": "实时仪表板",
+    "dashboardDesc": "在一处查看扫描状态、发现和AI分析。",
+    "api": "企业API",
+    "apiDesc": "通过API密钥将AIPET集成到CI/CD管道中。",
+    "reports": "PDF报告",
+    "reportsDesc": "专业评估报告，随时可与客户共享。"
+  },
+  "pricing": {
+    "title": "简单透明的定价",
+    "subtitle": "免费开始，按需升级。",
+    "popular": "热门",
+    "forever": "永久",
+    "perMonth": "每月",
+    "getStarted": "开始",
+    "startTrial": "开始免费试用",
+    "contactSales": "联系销售"
+  },
+  "plans": {
+    "free": "免费",
+    "professional": "专业版",
+    "enterprise": "企业版"
+  },
+  "planFeatures": {
+    "free": [
+      "每月5次扫描",
+      "单网络扫描",
+      "基础AI分析",
+      "PDF报告",
+      "社区支持"
+    ],
+    "pro": [
+      "无限扫描",
+      "并行扫描（3个网络）",
+      "完整SHAP AI解释",
+      "所有报告格式",
+      "邮件支持",
+      "优先队列"
+    ],
+    "ent": [
+      "无限扫描",
+      "并行扫描（10个网络）",
+      "完整AI分析+SHAP",
+      "API访问",
+      "优先支持",
+      "SLA保证",
+      "自定义集成"
+    ]
+  },
+  "footer": {
+    "privacy": "隐私政策",
+    "terms": "服务条款",
+    "cookie": "Cookie政策"
+  },
+  "howItWorks": {
+    "title": "如何使用",
+    "subtitle": "完整IoT安全的三个步骤",
+    "step1Title": "扫描",
+    "step1Desc": "将AIPET指向您的网络。它在60秒内发现每个IoT设备并进行测试。",
+    "step2Title": "理解",
+    "step2Desc": "我们的可解释AI准确告诉您每个设备为何易受攻击以及被利用的成本。",
+    "step3Title": "修复并合规",
+    "step3Desc": "获取精确的修复命令，即时生成NIS2、NIST和ISO 27001合规报告。"
+  },
+  "cta": {
+    "title": "立即开始保护您的IoT设备",
+    "subtitle": "永久免费。无需信用卡。60秒内完成设置。",
+    "getStarted": "免费开始",
+    "signIn": "登录"
+  },
+  "stats": {
+    "scanSpeed": "扫描速度",
+    "attackModules": "攻击模块",
+    "frameworks": "合规框架",
+    "nis2": "NIS2覆盖"
+  }
+}

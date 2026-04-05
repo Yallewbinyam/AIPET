@@ -1,0 +1,98 @@
+{
+  "nav": {
+    "signIn": "Accedi",
+    "getStarted": "Inizia Gratis",
+    "features": "Funzionalità",
+    "howItWorks": "Come funziona",
+    "pricing": "Prezzi"
+  },
+  "hero": {
+    "badge": "Ricerca MSc Cybersecurity — Università di Coventry",
+    "title1": "Scopri Esattamente Come un Hacker Attaccherebbe",
+    "title2": "I Tuoi Dispositivi IoT — Prima che Accada",
+    "subtitle": "AIPET automatizza la scoperta, il test e la prioritizzazione delle vulnerabilità sui tuoi dispositivi IoT.",
+    "cta": "Inizia Gratis"
+  },
+  "features": {
+    "attackModules": "7 Moduli di Attacco",
+    "attackModulesDesc": "MQTT, CoAP, HTTP, Firmware, Recon — copertura IoT completa.",
+    "explainableAI": "IA Spiegabile",
+    "explainableAIDesc": "Le previsioni SHAP ti dicono esattamente perché ogni dispositivo è a rischio.",
+    "owasp": "OWASP IoT Top 10",
+    "owaspDesc": "Copertura completa di tutte le 10 categorie di vulnerabilità OWASP IoT.",
+    "dashboard": "Dashboard in Tempo Reale",
+    "dashboardDesc": "Stato della scansione, risultati e analisi AI in un unico posto.",
+    "api": "API Aziendale",
+    "apiDesc": "Integra AIPET nelle tue pipeline CI/CD con accesso tramite chiave API.",
+    "reports": "Report PDF",
+    "reportsDesc": "Report di valutazione professionali pronti da condividere."
+  },
+  "pricing": {
+    "title": "Prezzi semplici e trasparenti",
+    "subtitle": "Inizia gratis. Aggiorna quando ne hai bisogno.",
+    "popular": "POPOLARE",
+    "forever": "per sempre",
+    "perMonth": "al mese",
+    "getStarted": "Inizia",
+    "startTrial": "Inizia la Prova Gratuita",
+    "contactSales": "Contatta le Vendite"
+  },
+  "plans": {
+    "free": "Gratuito",
+    "professional": "Professionale",
+    "enterprise": "Aziendale"
+  },
+  "planFeatures": {
+    "free": [
+      "5 scansioni al mese",
+      "Scansione rete singola",
+      "Analisi AI di base",
+      "Report PDF",
+      "Supporto community"
+    ],
+    "pro": [
+      "Scansioni illimitate",
+      "Scansione parallela (3 reti)",
+      "Spiegazioni SHAP complete",
+      "Tutti i formati",
+      "Supporto email",
+      "Coda prioritaria"
+    ],
+    "ent": [
+      "Scansioni illimitate",
+      "Scansione parallela (10 reti)",
+      "Analisi AI completa + SHAP",
+      "Accesso API",
+      "Supporto prioritario",
+      "Garanzia SLA",
+      "Integrazioni personalizzate"
+    ]
+  },
+  "footer": {
+    "privacy": "Informativa sulla Privacy",
+    "terms": "Termini di Servizio",
+    "cookie": "Informativa sui Cookie"
+  },
+  "howItWorks": {
+    "title": "Come funziona",
+    "subtitle": "Tre passaggi per la sicurezza IoT completa",
+    "step1Title": "Scansiona",
+    "step1Desc": "Punta AIPET sulla tua rete. Scopre ogni dispositivo IoT e lo testa in meno di 60 secondi.",
+    "step2Title": "Comprendi",
+    "step2Desc": "La nostra IA spiegabile ti dice esattamente perché ogni dispositivo è vulnerabile e quanto costerebbe se sfruttato.",
+    "step3Title": "Correggi e Conformati",
+    "step3Desc": "Ottieni comandi di rimedio esatti e genera report NIS2, NIST e ISO 27001 istantaneamente."
+  },
+  "cta": {
+    "title": "Inizia a proteggere i tuoi dispositivi IoT oggi",
+    "subtitle": "Gratis per sempre. Nessuna carta di credito richiesta. Configurazione in meno di 60 secondi.",
+    "getStarted": "Inizia Gratis",
+    "signIn": "Accedi"
+  },
+  "stats": {
+    "scanSpeed": "Velocità di scansione",
+    "attackModules": "Moduli di attacco",
+    "frameworks": "Framework di conformità",
+    "nis2": "Copertura NIS2"
+  }
+}
