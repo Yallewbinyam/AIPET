@@ -1,0 +1,73 @@
+{
+  "nav": {
+    "signIn": "サインイン",
+    "getStarted": "無料で始める"
+  },
+  "hero": {
+    "badge": "MScサイバーセキュリティ研究 — コベントリー大学",
+    "title1": "AIを活用したIoTセキュリティ",
+    "title2": "現代のエンタープライズのために",
+    "subtitle": "AIPETはIoTデバイス全体の脆弱性の発見、テスト、優先順位付けを自動化します — 何が脆弱かだけでなく、正確になぜかを説明するAIを搭載しています。",
+    "cta": "無料トライアルを開始"
+  },
+  "features": {
+    "attackModules": "7つの攻撃モジュール",
+    "attackModulesDesc": "MQTT、CoAP、HTTP、ファームウェア、偵察 — 完全なIoTカバレッジ。",
+    "explainableAI": "説明可能なAI",
+    "explainableAIDesc": "SHAPを活用した予測で、各デバイスがリスクにさらされている理由を正確に説明します。",
+    "owasp": "OWASP IoT トップ10",
+    "owaspDesc": "OWASP IoT脆弱性カテゴリ10項目すべてを完全カバー。",
+    "dashboard": "リアルタイムダッシュボード",
+    "dashboardDesc": "スキャン状況、発見事項、AI分析を一か所で確認。",
+    "api": "エンタープライズAPI",
+    "apiDesc": "APIキーアクセスでAIPETをCI/CDパイプラインに統合。",
+    "reports": "PDFレポート",
+    "reportsDesc": "クライアントと共有できるプロフェッショナルな評価レポート。"
+  },
+  "pricing": {
+    "title": "シンプルで透明な料金体系",
+    "subtitle": "無料で始めて、必要に応じてアップグレード。",
+    "popular": "人気",
+    "forever": "永久",
+    "perMonth": "月額",
+    "getStarted": "始める",
+    "startTrial": "無料トライアルを開始",
+    "contactSales": "営業に連絡"
+  },
+  "footer": {
+    "privacy": "プライバシーポリシー",
+    "terms": "利用規約",
+    "cookie": "クッキーポリシー"
+  },
+  "planFeatures": {
+    "free": [
+      "月5回スキャン",
+      "シングルネットワークスキャン",
+      "基本AI分析",
+      "PDFレポート",
+      "コミュニティサポート"
+    ],
+    "pro": [
+      "スキャン無制限",
+      "並列スキャン（3ネットワーク）",
+      "完全SHAP AI説明",
+      "全レポート形式",
+      "メールサポート",
+      "優先キュー"
+    ],
+    "ent": [
+      "スキャン無制限",
+      "並列スキャン（10ネットワーク）",
+      "完全AI分析＋SHAP",
+      "APIアクセス",
+      "優先サポート",
+      "SLA保証",
+      "カスタム統合"
+    ]
+  },
+  "plans": {
+    "free": "無料",
+    "professional": "プロフェッショナル",
+    "enterprise": "エンタープライズ"
+  }
+}

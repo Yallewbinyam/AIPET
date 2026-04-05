@@ -1,5 +1,7 @@
 
 import { useState, useEffect, useCallback, useRef } from "react";
+import { useTranslation } from "react-i18next";
+import "./i18n";
 import axios from "axios";
 import * as d3 from "d3";
 // Load JetBrains Mono font for technical aesthetic
@@ -2706,6 +2708,7 @@ function Toast({ toast }) {
   );
 }
 function LandingPage({ onGetStarted, onLogin, setLegalPage }) {
+  const { t, i18n } = useTranslation();
   const [currency, setCurrency] = useState({ code: 'GBP', symbol: '£' });
 
   const CURRENCY_PRICES = {
@@ -2734,16 +2737,37 @@ function LandingPage({ onGetStarted, onLogin, setLegalPage }) {
           </div>
           <span className="font-black text-xl" style={{ color: COLORS.text }}>AIPET</span>
         </div>
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-3">
+          {/* Language dropdown */}
+          <div style={{ position: 'relative' }}>
+            <select
+              value={i18n.language}
+              onChange={e => i18n.changeLanguage(e.target.value)}
+              style={{
+                backgroundColor: COLORS.card,
+                color: COLORS.text,
+                border: `1px solid ${COLORS.border}`,
+                borderRadius: '8px',
+                padding: '6px 10px',
+                fontSize: '13px',
+                cursor: 'pointer',
+                outline: 'none',
+              }}>
+              <option value="en">🇬🇧 EN</option>
+              <option value="fr">🇫🇷 FR</option>
+              <option value="de">🇩🇪 DE</option>
+              <option value="ja">🇯🇵 JA</option>
+            </select>
+          </div>
           <button onClick={onLogin}
             className="text-sm font-semibold px-4 py-2 rounded-xl transition-all"
             style={{ color: COLORS.muted }}>
-            Sign In
+            {t('nav.signIn')}
           </button>
           <button onClick={onGetStarted}
             className="text-sm font-bold px-5 py-2 rounded-xl transition-all"
             style={{ backgroundColor: COLORS.blue, color: "white" }}>
-            Get Started Free
+            {t('nav.getStarted')}
           </button>
         </div>
       </nav>
@@ -2758,29 +2782,27 @@ function LandingPage({ onGetStarted, onLogin, setLegalPage }) {
           <div className="w-2 h-2 rounded-full animate-pulse"
             style={{ backgroundColor: COLORS.blue }} />
           <span className="text-xs font-bold" style={{ color: COLORS.blue }}>
-            MSc Cyber Security Research — Coventry University
+            {t('hero.badge')}
           </span>
         </div>
 
         <h1 className="text-5xl font-black mb-6 leading-tight"
           style={{ color: COLORS.text }}>
-          AI-Powered IoT Security
+          {t('hero.title1')}
           <br />
-          <span style={{ color: COLORS.blue }}>for the Modern Enterprise</span>
+          <span style={{ color: COLORS.blue }}>{t('hero.title2')}</span>
         </h1>
 
         <p className="text-lg mb-10 max-w-2xl mx-auto leading-relaxed"
           style={{ color: COLORS.muted }}>
-          AIPET automates the discovery, testing, and prioritisation of
-          vulnerabilities across your IoT devices — with explainable AI
-          that tells you not just what is vulnerable, but exactly why.
+          {t('hero.subtitle')}
         </p>
 
         <div className="flex items-center justify-center gap-4">
           <button onClick={onGetStarted}
             className="px-8 py-4 rounded-xl font-bold text-base transition-all"
             style={{ backgroundColor: COLORS.blue, color: "white" }}>
-            Start Free Trial
+            {t('hero.cta')}
           </button>
 
         </div>
@@ -2814,38 +2836,38 @@ function LandingPage({ onGetStarted, onLogin, setLegalPage }) {
             {
               icon: Shield,
               color: COLORS.blue,
-              title: "7 Attack Modules",
-              desc: "MQTT, CoAP, HTTP, Firmware, Recon — full IoT coverage out of the box."
+              title: t('features.attackModules'),
+              desc: t('features.attackModulesDesc')
             },
             {
               icon: Zap,
               color: COLORS.critical,
-              title: "Explainable AI",
-              desc: "SHAP-powered predictions tell you exactly why each device is at risk."
+              title: t('features.explainableAI'),
+              desc: t('features.explainableAIDesc')
             },
             {
               icon: Lock,
               color: COLORS.low,
-              title: "OWASP IoT Top 10",
-              desc: "Complete coverage of all 10 OWASP IoT vulnerability categories."
+              title: t('features.owasp'),
+              desc: t('features.owaspDesc')
             },
             {
               icon: Activity,
               color: COLORS.purple,
-              title: "Real-time Dashboard",
-              desc: "Live scan status, findings, and AI analysis in one place."
+              title: t('features.dashboard'),
+              desc: t('features.dashboardDesc')
             },
             {
               icon: CreditCard,
               color: COLORS.high,
-              title: "Enterprise API",
-              desc: "Integrate AIPET into your CI/CD pipelines with API key access."
+              title: t('features.api'),
+              desc: t('features.apiDesc')
             },
             {
               icon: FileText,
               color: COLORS.muted,
-              title: "PDF Reports",
-              desc: "Professional assessment reports ready to share with clients."
+              title: t('features.reports'),
+              desc: t('features.reportsDesc')
             },
           ].map((feature, i) => (
             <div key={i} className="rounded-2xl border p-6 transition-all"
@@ -2867,39 +2889,39 @@ function LandingPage({ onGetStarted, onLogin, setLegalPage }) {
         {/* Pricing section */}
         <div className="text-center mb-12">
           <h2 className="text-3xl font-black mb-3" style={{ color: COLORS.text }}>
-            Simple, transparent pricing
+            {t('pricing.title')}
           </h2>
           <p className="text-sm" style={{ color: COLORS.muted }}>
-            Start free. Upgrade when you need more.
+            {t('pricing.subtitle')}
           </p>
         </div>
 
         <div className="grid grid-cols-3 gap-6 mb-20">
           {[
             {
-              name: "Free",
+              name: t('plans.free'),
               price: `${currency.symbol}0`,
-              period: "forever",
+              period: t('pricing.forever'),
               color: COLORS.muted,
-              features: ["5 scans per month", "Single network scanning", "Basic AI analysis", "PDF reports", "Community support"],
-              cta: "Get Started",
+              features: t('planFeatures.free', { returnObjects: true }),
+              cta: t('pricing.getStarted'),
             },
             {
-              name: "Professional",
+              name: t('plans.professional'),
               price: `${currency.symbol}${CURRENCY_PRICES[currency.code].professional}`,
-              period: "per month",
+              period: t('pricing.perMonth'),
               color: COLORS.blue,
               popular: true,
-              features: ["Unlimited scans", "Parallel scanning (3 networks)", "Full SHAP AI explanations", "All report formats", "Email support", "Priority queue"],
-              cta: "Start Free Trial",
+              features: t('planFeatures.pro', { returnObjects: true }),
+              cta: t('pricing.startTrial'),
             },
             {
-              name: "Enterprise",
+              name: t('plans.enterprise'),
               price: `${currency.symbol}${CURRENCY_PRICES[currency.code].enterprise}`,
-              period: "per month",
+              period: t('pricing.perMonth'),
               color: COLORS.purple,
-              features: ["Unlimited scans", "Parallel scanning (10 networks)", "Full AI analysis + SHAP", "API access", "Priority support", "SLA guarantee", "Custom integrations"],
-              cta: "Contact Sales",
+              features: t('planFeatures.ent', { returnObjects: true }),
+              cta: t('pricing.contactSales'),
             },
           ].map((plan, i) => (
             <div key={i}
@@ -2912,7 +2934,7 @@ function LandingPage({ onGetStarted, onLogin, setLegalPage }) {
               {plan.popular && (
                 <div className="absolute top-0 right-0 px-3 py-1 text-xs font-bold rounded-bl-xl"
                   style={{ backgroundColor: plan.color, color: "white" }}>
-                  POPULAR
+                  {t("pricing.popular")}
                 </div>
               )}
               <h3 className="font-black text-lg mb-2" style={{ color: plan.color }}>
@@ -2954,17 +2976,17 @@ function LandingPage({ onGetStarted, onLogin, setLegalPage }) {
             <button onClick={() => setLegalPage('privacy')}
               className="text-xs transition-all"
               style={{ color: COLORS.muted }}>
-              Privacy Policy
+              {t('footer.privacy')}
             </button>
             <button onClick={() => setLegalPage('terms')}
               className="text-xs transition-all"
               style={{ color: COLORS.muted }}>
-              Terms of Service
+              {t('footer.terms')}
             </button>
             <button onClick={() => setLegalPage('cookies')}
               className="text-xs transition-all"
               style={{ color: COLORS.muted }}>
-              Cookie Policy
+              {t('footer.cookie')}
             </button>
             <a href="https://github.com/Yallewbinyam/AIPET"
               className="text-xs"
@@ -3160,7 +3182,7 @@ function PricingPage({ currentPlan, onUpgrade, usageLoaded }) {
       id:       "free",
       name:     "Free",
       price:    `${currency.symbol}${CURRENCY_PRICES[currency.code].free}`,
-      period:   "forever",
+      period:   t('pricing.forever'),
       color:    COLORS.muted,
       features: [
         "5 scans per month",
@@ -3176,7 +3198,7 @@ function PricingPage({ currentPlan, onUpgrade, usageLoaded }) {
       id:       "professional",
       name:     "Professional",
       price:    `${currency.symbol}${CURRENCY_PRICES[currency.code].professional}`,
-      period:   "per month",
+      period:   t('pricing.perMonth'),
       color:    COLORS.blue,
       popular:  true,
       features: [
@@ -3194,7 +3216,7 @@ function PricingPage({ currentPlan, onUpgrade, usageLoaded }) {
       id:       "enterprise",
       name:     "Enterprise",
       price:    `${currency.symbol}${CURRENCY_PRICES[currency.code].enterprise}`,
-      period:   "per month",
+      period:   t('pricing.perMonth'),
       color:    COLORS.purple,
       features: [
         "Unlimited scans",
@@ -3260,7 +3282,7 @@ function PricingPage({ currentPlan, onUpgrade, usageLoaded }) {
               {plan.popular && (
                 <div className="absolute top-0 right-0 px-3 py-1 text-xs font-bold rounded-bl-xl"
                   style={{ backgroundColor: plan.color, color: "white" }}>
-                  POPULAR
+                  {t("pricing.popular")}
                 </div>
               )}
 

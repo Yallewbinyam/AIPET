@@ -1,0 +1,73 @@
+{
+  "nav": {
+    "signIn": "Connexion",
+    "getStarted": "Commencer Gratuitement"
+  },
+  "hero": {
+    "badge": "Recherche MSc Cybersécurité — Université de Coventry",
+    "title1": "Sécurité IoT Propulsée par l'IA",
+    "title2": "pour l'Entreprise Moderne",
+    "subtitle": "AIPET automatise la découverte, les tests et la priorisation des vulnérabilités sur vos appareils IoT — avec une IA explicable qui vous dit non seulement ce qui est vulnérable, mais exactement pourquoi.",
+    "cta": "Démarrer l'Essai Gratuit"
+  },
+  "features": {
+    "attackModules": "7 Modules d'Attaque",
+    "attackModulesDesc": "MQTT, CoAP, HTTP, Firmware, Recon — couverture IoT complète dès le départ.",
+    "explainableAI": "IA Explicable",
+    "explainableAIDesc": "Les prédictions SHAP vous disent exactement pourquoi chaque appareil est à risque.",
+    "owasp": "OWASP IoT Top 10",
+    "owaspDesc": "Couverture complète des 10 catégories de vulnérabilités OWASP IoT.",
+    "dashboard": "Tableau de Bord en Temps Réel",
+    "dashboardDesc": "Statut des scans, résultats et analyse IA en un seul endroit.",
+    "api": "API Entreprise",
+    "apiDesc": "Intégrez AIPET dans vos pipelines CI/CD avec accès par clé API.",
+    "reports": "Rapports PDF",
+    "reportsDesc": "Rapports d'évaluation professionnels prêts à partager avec les clients."
+  },
+  "pricing": {
+    "title": "Tarification simple et transparente",
+    "subtitle": "Commencez gratuitement. Passez à niveau quand vous en avez besoin.",
+    "popular": "POPULAIRE",
+    "forever": "pour toujours",
+    "perMonth": "par mois",
+    "getStarted": "Commencer",
+    "startTrial": "Démarrer l'Essai Gratuit",
+    "contactSales": "Contacter les Ventes"
+  },
+  "footer": {
+    "privacy": "Politique de Confidentialité",
+    "terms": "Conditions d'Utilisation",
+    "cookie": "Politique des Cookies"
+  },
+  "planFeatures": {
+    "free": [
+      "5 scans par mois",
+      "Analyse réseau unique",
+      "Analyse IA de base",
+      "Rapports PDF",
+      "Support communautaire"
+    ],
+    "pro": [
+      "Scans illimités",
+      "Scan parallèle (3 réseaux)",
+      "Explications IA SHAP complètes",
+      "Tous les formats de rapport",
+      "Support par email",
+      "File prioritaire"
+    ],
+    "ent": [
+      "Scans illimités",
+      "Scan parallèle (10 réseaux)",
+      "Analyse IA complète + SHAP",
+      "Accès API",
+      "Support prioritaire",
+      "Garantie SLA",
+      "Intégrations personnalisées"
+    ]
+  },
+  "plans": {
+    "free": "Gratuit",
+    "professional": "Professionnel",
+    "enterprise": "Entreprise"
+  }
+}

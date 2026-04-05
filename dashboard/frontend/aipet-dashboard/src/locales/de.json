@@ -1,0 +1,73 @@
+{
+  "nav": {
+    "signIn": "Anmelden",
+    "getStarted": "Kostenlos Starten"
+  },
+  "hero": {
+    "badge": "MSc Cybersicherheitsforschung — Universität Coventry",
+    "title1": "KI-gestützte IoT-Sicherheit",
+    "title2": "für das moderne Unternehmen",
+    "subtitle": "AIPET automatisiert die Erkennung, Prüfung und Priorisierung von Schwachstellen auf Ihren IoT-Geräten — mit erklärbarer KI, die Ihnen nicht nur sagt, was anfällig ist, sondern genau warum.",
+    "cta": "Kostenlose Testversion Starten"
+  },
+  "features": {
+    "attackModules": "7 Angriffsmodule",
+    "attackModulesDesc": "MQTT, CoAP, HTTP, Firmware, Recon — vollständige IoT-Abdeckung von Anfang an.",
+    "explainableAI": "Erklärbare KI",
+    "explainableAIDesc": "SHAP-basierte Vorhersagen sagen Ihnen genau, warum jedes Gerät gefährdet ist.",
+    "owasp": "OWASP IoT Top 10",
+    "owaspDesc": "Vollständige Abdeckung aller 10 OWASP IoT-Schwachstellenkategorien.",
+    "dashboard": "Echtzeit-Dashboard",
+    "dashboardDesc": "Live-Scanstatus, Ergebnisse und KI-Analyse an einem Ort.",
+    "api": "Unternehmens-API",
+    "apiDesc": "Integrieren Sie AIPET in Ihre CI/CD-Pipelines mit API-Schlüsselzugang.",
+    "reports": "PDF-Berichte",
+    "reportsDesc": "Professionelle Bewertungsberichte, bereit zur Weitergabe an Kunden."
+  },
+  "pricing": {
+    "title": "Einfache, transparente Preisgestaltung",
+    "subtitle": "Kostenlos starten. Upgraden wenn Sie mehr brauchen.",
+    "popular": "BELIEBT",
+    "forever": "für immer",
+    "perMonth": "pro Monat",
+    "getStarted": "Loslegen",
+    "startTrial": "Kostenlose Testversion Starten",
+    "contactSales": "Vertrieb Kontaktieren"
+  },
+  "footer": {
+    "privacy": "Datenschutzrichtlinie",
+    "terms": "Nutzungsbedingungen",
+    "cookie": "Cookie-Richtlinie"
+  },
+  "planFeatures": {
+    "free": [
+      "5 Scans pro Monat",
+      "Einzelnetzwerk-Scanning",
+      "Grundlegende KI-Analyse",
+      "PDF-Berichte",
+      "Community-Support"
+    ],
+    "pro": [
+      "Unbegrenzte Scans",
+      "Paralleles Scannen (3 Netzwerke)",
+      "Vollständige SHAP KI-Erklärungen",
+      "Alle Berichtsformate",
+      "E-Mail-Support",
+      "Prioritätswarteschlange"
+    ],
+    "ent": [
+      "Unbegrenzte Scans",
+      "Paralleles Scannen (10 Netzwerke)",
+      "Vollständige KI-Analyse + SHAP",
+      "API-Zugang",
+      "Prioritäts-Support",
+      "SLA-Garantie",
+      "Benutzerdefinierte Integrationen"
+    ]
+  },
+  "plans": {
+    "free": "Kostenlos",
+    "professional": "Professionell",
+    "enterprise": "Unternehmen"
+  }
+}

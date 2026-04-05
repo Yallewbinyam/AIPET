@@ -1,0 +1,73 @@
+{
+  "nav": {
+    "signIn": "Sign In",
+    "getStarted": "Get Started Free"
+  },
+  "hero": {
+    "badge": "MSc Cyber Security Research — Coventry University",
+    "title1": "AI-Powered IoT Security",
+    "title2": "for the Modern Enterprise",
+    "subtitle": "AIPET automates the discovery, testing, and prioritisation of vulnerabilities across your IoT devices — with explainable AI that tells you not just what is vulnerable, but exactly why.",
+    "cta": "Start Free Trial"
+  },
+  "features": {
+    "attackModules": "7 Attack Modules",
+    "attackModulesDesc": "MQTT, CoAP, HTTP, Firmware, Recon — full IoT coverage out of the box.",
+    "explainableAI": "Explainable AI",
+    "explainableAIDesc": "SHAP-powered predictions tell you exactly why each device is at risk.",
+    "owasp": "OWASP IoT Top 10",
+    "owaspDesc": "Complete coverage of all 10 OWASP IoT vulnerability categories.",
+    "dashboard": "Real-time Dashboard",
+    "dashboardDesc": "Live scan status, findings, and AI analysis in one place.",
+    "api": "Enterprise API",
+    "apiDesc": "Integrate AIPET into your CI/CD pipelines with API key access.",
+    "reports": "PDF Reports",
+    "reportsDesc": "Professional assessment reports ready to share with clients."
+  },
+  "pricing": {
+    "title": "Simple, transparent pricing",
+    "subtitle": "Start free. Upgrade when you need more.",
+    "popular": "POPULAR",
+    "forever": "forever",
+    "perMonth": "per month",
+    "getStarted": "Get Started",
+    "startTrial": "Start Free Trial",
+    "contactSales": "Contact Sales"
+  },
+  "footer": {
+    "privacy": "Privacy Policy",
+    "terms": "Terms of Service",
+    "cookie": "Cookie Policy"
+  },
+  "planFeatures": {
+    "free": [
+      "5 scans per month",
+      "Single network scanning",
+      "Basic AI analysis",
+      "PDF reports",
+      "Community support"
+    ],
+    "pro": [
+      "Unlimited scans",
+      "Parallel scanning (3 networks)",
+      "Full SHAP AI explanations",
+      "All report formats",
+      "Email support",
+      "Priority queue"
+    ],
+    "ent": [
+      "Unlimited scans",
+      "Parallel scanning (10 networks)",
+      "Full AI analysis + SHAP",
+      "API access",
+      "Priority support",
+      "SLA guarantee",
+      "Custom integrations"
+    ]
+  },
+  "plans": {
+    "free": "Free",
+    "professional": "Professional",
+    "enterprise": "Enterprise"
+  }
+}
