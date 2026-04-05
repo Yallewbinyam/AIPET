@@ -165,3 +165,69 @@ def change_password():
     ).decode("utf-8")
     db.session.commit()
     return jsonify({"message": "Password changed successfully"}), 200
+
+# =============================================================
+# Google SSO
+# =============================================================
+from authlib.integrations.flask_client import OAuth
+from flask import redirect, current_app, session
+import secrets
+
+oauth = OAuth()
+
+def init_google_oauth(app):
+    oauth.init_app(app)
+    oauth.register(
+        name='google',
+        client_id=app.config['GOOGLE_CLIENT_ID'],
+        client_secret=app.config['GOOGLE_CLIENT_SECRET'],
+        server_metadata_url=app.config['GOOGLE_DISCOVERY_URL'],
+        client_kwargs={'scope': 'openid email profile'},
+    )
+
+@auth_bp.route('/api/auth/google', methods=['GET'])
+def google_login():
+    state = secrets.token_urlsafe(16)
+    session['oauth_state'] = state
+    redirect_uri = current_app.config['GOOGLE_REDIRECT_URI']
+    return oauth.google.authorize_redirect(redirect_uri, state=state)
+
+@auth_bp.route('/api/auth/google/callback', methods=['GET'])
+def google_callback():
+    from ..models import User, db
+    from flask_jwt_extended import create_access_token
+
+    try:
+        token = oauth.google.authorize_access_token()
+        userinfo = token.get('userinfo')
+
+        if not userinfo:
+            return redirect('http://localhost:3000/login?error=google_failed')
+
+        email = userinfo.get('email')
+        name  = userinfo.get('name', email.split('@')[0])
+
+        if not email:
+            return redirect('http://localhost:3000/login?error=no_email')
+
+        user = User.query.filter_by(email=email).first()
+
+        if not user:
+            import bcrypt
+            random_password = secrets.token_urlsafe(32)
+            password_hash   = bcrypt.hashpw(random_password.encode(), bcrypt.gensalt()).decode()
+            user = User(
+                email         = email,
+                name          = name,
+                password_hash = password_hash,
+                plan          = 'free',
+            )
+            db.session.add(user)
+            db.session.commit()
+
+        access_token = create_access_token(identity=str(user.id))
+        return redirect(f'http://localhost:3000?sso_token={access_token}&plan={user.plan}')
+
+    except Exception as e:
+        current_app.logger.error(f'Google SSO error: {e}')
+        return redirect('http://localhost:3000/login?error=sso_failed')

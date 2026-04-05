@@ -21,7 +21,7 @@ from flask_limiter.util import get_remote_address
 sys.path.insert(0, '/home/binyam/AIPET')
 
 from dashboard.backend.models import db, User, Scan, Finding
-from dashboard.backend.auth.routes import auth_bp
+from dashboard.backend.auth.routes import auth_bp, init_google_oauth
 from dashboard.backend.config import config
 from dashboard.backend.celery_app import celery
 from dashboard.backend.remediation.routes import remediation_bp
@@ -32,6 +32,7 @@ from dashboard.backend.predict.routes import predict_bp
 from dashboard.backend.watch.routes import watch_bp
 from dashboard.backend.ask.routes import ask_bp
 from dashboard.backend.compliance.routes import compliance_bp
+from dashboard.backend.protocols.routes import protocols_bp
 from dashboard.backend.monitoring.logger import setup_logging, get_logger
 from dashboard.backend.security import init_security
 from dashboard.backend.monitoring.logger import (
@@ -111,6 +112,7 @@ def create_app(config_name="development"):
         pass
     # Register blueprints
     app.register_blueprint(auth_bp)
+    init_google_oauth(app)
     # Apply strict rate limiting to auth endpoints
     limiter.limit("10 per minute")(app.view_functions.get('auth.login', lambda: None))
     limiter.limit("5 per minute")(app.view_functions.get('auth.register', lambda: None))
@@ -125,6 +127,7 @@ def create_app(config_name="development"):
     app.register_blueprint(watch_bp)
     app.register_blueprint(ask_bp)
     app.register_blueprint(compliance_bp)
+    app.register_blueprint(protocols_bp)
     app.register_blueprint(api_keys_bp, url_prefix='/api/keys')
 
     # Setup logging

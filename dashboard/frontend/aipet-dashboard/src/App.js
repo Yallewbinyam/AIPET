@@ -3011,6 +3011,21 @@ function LoginPage({ onLogin }) {
   const [error,      setError]      = useState("");
   const [loading,    setLoading]    = useState(false);
 
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const ssoToken = params.get('sso_token');
+    const plan     = params.get('plan');
+    if (ssoToken) {
+      localStorage.setItem('aipet_token', ssoToken);
+      window.history.replaceState({}, '', '/');
+      onLogin(ssoToken);
+    }
+  }, []);
+
+  const handleGoogleLogin = () => {
+    window.location.href = 'http://localhost:5001/api/auth/google';
+  };
+
   const handleSubmit = async () => {
     setError("");
     if (!email || !password) { setError("Email and password are required"); return; }
@@ -3144,6 +3159,28 @@ function LoginPage({ onLogin }) {
               : isRegister ? "Create Account" : "Sign In"}
           </button>
 
+          {/* Divider */}
+          <div className="flex items-center gap-3 my-4">
+            <div className="flex-1 h-px" style={{ backgroundColor: COLORS.border }}/>
+            <span className="text-xs" style={{ color: COLORS.muted }}>or</span>
+            <div className="flex-1 h-px" style={{ backgroundColor: COLORS.border }}/>
+          </div>
+          {/* Google SSO button */}
+          <button onClick={handleGoogleLogin}
+            className="w-full py-3 rounded-xl font-bold text-sm transition-all flex items-center justify-center gap-3"
+            style={{
+              backgroundColor: COLORS.dark,
+              color: COLORS.text,
+              border: `1px solid ${COLORS.border}`,
+            }}>
+            <svg width="18" height="18" viewBox="0 0 18 18">
+              <path fill="#4285F4" d="M16.51 8H8.98v3h4.3c-.18 1-.74 1.48-1.6 2.04v2.01h2.6a7.8 7.8 0 002.38-5.88c0-.57-.05-.66-.15-1.18z"/>
+              <path fill="#34A853" d="M8.98 17c2.16 0 3.97-.72 5.3-1.94l-2.6-2a4.8 4.8 0 01-7.18-2.54H1.83v2.07A8 8 0 008.98 17z"/>
+              <path fill="#FBBC05" d="M4.5 10.52a4.8 4.8 0 010-3.04V5.41H1.83a8 8 0 000 7.18l2.67-2.07z"/>
+              <path fill="#EA4335" d="M8.98 4.18c1.17 0 2.23.4 3.06 1.2l2.3-2.3A8 8 0 001.83 5.4L4.5 7.49a4.77 4.77 0 014.48-3.3z"/>
+            </svg>
+            Continue with Google
+          </button>
           {/* Toggle login/register */}
           <div className="mt-4 text-center">
             <button
@@ -3157,6 +3194,223 @@ function LoginPage({ onLogin }) {
           </div>
         </div>
       </div>
+    </div>
+  );
+}
+
+
+function ProtocolsPage({ token, showToast, currentPlan }) {
+  const [protocol, setProtocol] = useState("modbus");
+  const [target,   setTarget]   = useState("");
+  const [scanning, setScanning] = useState(false);
+  const [result,   setResult]   = useState(null);
+  const [history,  setHistory]  = useState([]);
+
+  const PROTOCOLS = {
+    modbus:  { name: "Modbus TCP",  color: COLORS.critical, desc: "Industrial control systems, PLCs, power grids", port: 502  },
+    zigbee:  { name: "Zigbee",      color: COLORS.blue,     desc: "Smart home, building automation, IoT sensors",  port: null },
+    lorawan: { name: "LoRaWAN",     color: COLORS.low,      desc: "Smart cities, agriculture, long-range IoT",     port: 1700 },
+  };
+
+  const SEVERITY_COLORS = {
+    critical: COLORS.critical,
+    high:     COLORS.high,
+    medium:   COLORS.medium,
+    low:      COLORS.low,
+  };
+
+  useEffect(() => {
+    fetch("http://localhost:5001/api/protocols/history", {
+      headers: { Authorization: `Bearer ${token}` }
+    })
+      .then(r => r.json())
+      .then(setHistory)
+      .catch(() => {});
+  }, [token]);
+
+  const runScan = async () => {
+    if (!target.trim()) return showToast("Please enter a target", "error");
+    setScanning(true);
+    setResult(null);
+    try {
+      const r = await fetch("http://localhost:5001/api/protocols/scan", {
+        method: "POST",
+        headers: { Authorization: `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ protocol, target }),
+      });
+      const d = await r.json();
+      if (!r.ok) throw new Error(d.error);
+      setResult(d);
+      setHistory(h => [{ ...d, protocol, target }, ...h.slice(0, 19)]);
+      showToast(`${PROTOCOLS[protocol].name} scan complete`, "success");
+    } catch (e) {
+      showToast(e.message || "Scan failed", "error");
+    } finally {
+      setScanning(false);
+    }
+  };
+
+  if (currentPlan === "free") {
+    return (
+      <div className="flex flex-col items-center justify-center h-64 gap-4">
+        <Cpu size={48} style={{ color: COLORS.muted }} />
+        <p style={{ color: COLORS.muted }}>Protocol scanning requires Professional or Enterprise plan.</p>
+        <button className="px-6 py-3 rounded-xl font-bold text-sm"
+          style={{ backgroundColor: COLORS.blue, color: "white" }}>
+          Upgrade to Professional
+        </button>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-6">
+      {/* Header */}
+      <div>
+        <h2 className="text-2xl font-black mb-1" style={{ color: COLORS.text }}>IoT Protocols</h2>
+        <p className="text-sm" style={{ color: COLORS.muted }}>Scan Zigbee, LoRaWAN, and Modbus industrial IoT networks</p>
+      </div>
+
+      {/* Protocol selector */}
+      <div className="rounded-2xl border p-6 space-y-4" style={{ backgroundColor: COLORS.card, borderColor: COLORS.border }}>
+        <div className="grid grid-cols-3 gap-4">
+          {Object.entries(PROTOCOLS).map(([key, p]) => (
+            <button key={key} onClick={() => setProtocol(key)}
+              className="rounded-xl border p-4 text-left transition-all"
+              style={{
+                backgroundColor: protocol === key ? p.color + "15" : COLORS.dark,
+                borderColor: protocol === key ? p.color : COLORS.border,
+              }}>
+              <div className="font-bold text-sm mb-1" style={{ color: p.color }}>{p.name}</div>
+              <div className="text-xs mb-2" style={{ color: COLORS.muted }}>{p.desc}</div>
+              {p.port && (
+                <div className="text-xs font-mono px-2 py-0.5 rounded inline-block"
+                  style={{ backgroundColor: p.color + "20", color: p.color }}>
+                  Port {p.port}
+                </div>
+              )}
+            </button>
+          ))}
+        </div>
+
+        {/* Target input */}
+        <div className="flex gap-4">
+          <input
+            value={target}
+            onChange={e => setTarget(e.target.value)}
+            onKeyDown={e => e.key === "Enter" && runScan()}
+            placeholder={protocol === "zigbee" ? "e.g. 192.168.1.1 (coordinator IP)" : protocol === "lorawan" ? "e.g. 192.168.1.1 (gateway IP)" : "e.g. 192.168.1.100 (PLC IP)"}
+            className="flex-1 px-4 py-3 rounded-xl text-sm"
+            style={{ backgroundColor: COLORS.dark, color: COLORS.text, border: `1px solid ${COLORS.border}` }}
+          />
+          <button onClick={runScan} disabled={scanning}
+            className="px-6 py-3 rounded-xl font-bold text-sm transition-all"
+            style={{
+              backgroundColor: PROTOCOLS[protocol].color,
+              color: "white",
+              opacity: scanning ? 0.7 : 1,
+            }}>
+            {scanning ? "Scanning..." : `Scan ${PROTOCOLS[protocol].name}`}
+          </button>
+        </div>
+      </div>
+
+      {/* Results */}
+      {result && (
+        <div className="rounded-2xl border p-6 space-y-6" style={{ backgroundColor: COLORS.card, borderColor: COLORS.border }}>
+          {/* Summary */}
+          <div className="flex items-center justify-between">
+            <div>
+              <div className="text-lg font-black" style={{ color: COLORS.text }}>
+                {PROTOCOLS[protocol].name} Scan Results
+              </div>
+              <div className="text-sm" style={{ color: COLORS.muted }}>
+                Target: {result.target} · {result.device_count} devices found
+              </div>
+            </div>
+            <div className="px-4 py-2 rounded-xl font-bold text-sm"
+              style={{
+                backgroundColor: SEVERITY_COLORS[result.risk_level] + "20",
+                color: SEVERITY_COLORS[result.risk_level],
+                border: `1px solid ${SEVERITY_COLORS[result.risk_level]}40`,
+              }}>
+              {result.risk_level?.toUpperCase()} RISK
+            </div>
+          </div>
+
+          {/* Devices */}
+          <div>
+            <div className="text-sm font-bold mb-3" style={{ color: COLORS.text }}>Discovered Devices</div>
+            <div className="grid grid-cols-2 gap-3">
+              {result.devices?.map((d, i) => (
+                <div key={i} className="rounded-xl px-4 py-3 flex items-center justify-between"
+                  style={{ backgroundColor: COLORS.dark, border: `1px solid ${COLORS.border}` }}>
+                  <div>
+                    <div className="text-sm font-bold font-mono" style={{ color: PROTOCOLS[protocol].color }}>{d.id}</div>
+                    <div className="text-xs" style={{ color: COLORS.muted }}>{d.address} · {d.type}</div>
+                  </div>
+                  {d.rssi && (
+                    <div className="text-xs font-mono" style={{ color: COLORS.muted }}>{d.rssi} dBm</div>
+                  )}
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Findings */}
+          <div>
+            <div className="text-sm font-bold mb-3" style={{ color: COLORS.text }}>Security Findings</div>
+            <div className="space-y-2">
+              {result.findings?.map((f, i) => (
+                <div key={i} className="rounded-xl px-4 py-3"
+                  style={{ backgroundColor: COLORS.dark, border: `1px solid ${SEVERITY_COLORS[f.severity]}30` }}>
+                  <div className="flex items-center justify-between mb-1">
+                    <div className="text-sm font-bold" style={{ color: COLORS.text }}>{f.title}</div>
+                    <div className="text-xs font-bold px-2 py-0.5 rounded-full"
+                      style={{
+                        backgroundColor: SEVERITY_COLORS[f.severity] + "20",
+                        color: SEVERITY_COLORS[f.severity],
+                      }}>
+                      {f.severity.toUpperCase()}
+                    </div>
+                  </div>
+                  <div className="text-xs" style={{ color: COLORS.muted }}>{f.description}</div>
+                  <div className="text-xs font-mono mt-1" style={{ color: COLORS.muted }}>{f.id}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* History */}
+      {history.length > 0 && !result && (
+        <div className="rounded-2xl border p-6" style={{ backgroundColor: COLORS.card, borderColor: COLORS.border }}>
+          <div className="text-sm font-bold mb-4" style={{ color: COLORS.text }}>Recent Protocol Scans</div>
+          <div className="space-y-2">
+            {history.slice(0, 5).map((s, i) => (
+              <div key={i} className="flex items-center justify-between rounded-xl px-4 py-3"
+                style={{ backgroundColor: COLORS.dark, border: `1px solid ${COLORS.border}` }}>
+                <div>
+                  <div className="text-sm font-bold" style={{ color: COLORS.text }}>
+                    {s.protocol?.toUpperCase()} — {s.target}
+                  </div>
+                  <div className="text-xs" style={{ color: COLORS.muted }}>
+                    {s.device_count} devices · {s.created_at?.slice(0, 10)}
+                  </div>
+                </div>
+                <div className="text-xs font-bold px-2 py-1 rounded-full"
+                  style={{
+                    backgroundColor: SEVERITY_COLORS[s.risk_level] + "20",
+                    color: SEVERITY_COLORS[s.risk_level],
+                  }}>
+                  {s.risk_level?.toUpperCase()}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
     </div>
   );
 }
@@ -3757,6 +4011,7 @@ const NAV_ITEMS = [
   { id: "watch",     label: "Watch",         icon: Shield,        group: "intel"    },
   { id: "predict",   label: "CVE Intel",     icon: AlertTriangle, group: "intel"    },
   { id: "ask",       label: "Ask AIPET",     icon: Shield,        group: "intel"    },
+  { id: "protocols", label: "Protocols",     icon: Cpu,           group: "intel"    },
   { id: "ai",        label: "AI Analysis",   icon: Shield,        group: "reports"  },
   { id: "reports",   label: "Reports",       icon: FileText,      group: "reports"  },
   { id: "compliance",label: "Compliance",     icon: Lock,          group: "reports"  },
@@ -4584,6 +4839,9 @@ export default function App() {
           )}
 
           {/* PRICING */}
+          {activeTab === "protocols" && (
+            <ProtocolsPage token={token} showToast={showToast} currentPlan={usage?.plan} />
+          )}
           {activeTab === "compliance" && (
             <CompliancePage token={token} showToast={showToast} currentPlan={usage?.plan} />
           )}

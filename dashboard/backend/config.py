@@ -31,6 +31,10 @@ class Config:
     STRIPE_PRICE_ENTERPRISE_USD   = os.environ.get('STRIPE_PRICE_ENTERPRISE_USD')
     STRIPE_PRICE_ENTERPRISE_EUR   = os.environ.get('STRIPE_PRICE_ENTERPRISE_EUR')
     STRIPE_PRICE_ENTERPRISE_JPY   = os.environ.get('STRIPE_PRICE_ENTERPRISE_JPY')
+    GOOGLE_CLIENT_ID     = os.environ.get('GOOGLE_CLIENT_ID')
+    GOOGLE_CLIENT_SECRET = os.environ.get('GOOGLE_CLIENT_SECRET')
+    GOOGLE_REDIRECT_URI  = os.environ.get('GOOGLE_REDIRECT_URI', 'http://localhost:5001/api/auth/google/callback')
+    GOOGLE_DISCOVERY_URL = 'https://accounts.google.com/.well-known/openid-configuration'
     STRIPE_SUCCESS_URL            = os.environ.get('STRIPE_SUCCESS_URL', 'http://localhost:5000/dashboard?payment=success')
     STRIPE_CANCEL_URL             = os.environ.get('STRIPE_CANCEL_URL', 'http://localhost:5000/pricing?payment=cancelled')
     PLAN_SCAN_LIMITS              = {'free': 5, 'professional': None, 'enterprise': None}
