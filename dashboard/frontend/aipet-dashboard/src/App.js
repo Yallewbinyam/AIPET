@@ -2878,10 +2878,10 @@ function LandingPage({ onGetStarted, onLogin, setLegalPage }) {
           {[
             {
               name: "Free",
-              price: "£0",
+              price: `${currency.symbol}0`,
               period: "forever",
               color: COLORS.muted,
-              features: ["5 scans/month", "Basic AI analysis", "PDF reports"],
+              features: ["5 scans per month", "Single network scanning", "Basic AI analysis", "PDF reports", "Community support"],
               cta: "Get Started",
             },
             {
@@ -2890,7 +2890,7 @@ function LandingPage({ onGetStarted, onLogin, setLegalPage }) {
               period: "per month",
               color: COLORS.blue,
               popular: true,
-              features: ["Unlimited scans", "Full SHAP AI", "All report formats", "Email support"],
+              features: ["Unlimited scans", "Parallel scanning (3 networks)", "Full SHAP AI explanations", "All report formats", "Email support", "Priority queue"],
               cta: "Start Free Trial",
             },
             {
@@ -2898,7 +2898,7 @@ function LandingPage({ onGetStarted, onLogin, setLegalPage }) {
               price: `${currency.symbol}${CURRENCY_PRICES[currency.code].enterprise}`,
               period: "per month",
               color: COLORS.purple,
-              features: ["Unlimited scans", "API access", "Priority support", "SLA guarantee"],
+              features: ["Unlimited scans", "Parallel scanning (10 networks)", "Full AI analysis + SHAP", "API access", "Priority support", "SLA guarantee", "Custom integrations"],
               cta: "Contact Sales",
             },
           ].map((plan, i) => (
@@ -2906,8 +2906,8 @@ function LandingPage({ onGetStarted, onLogin, setLegalPage }) {
               className="rounded-2xl border p-6 flex flex-col relative overflow-hidden"
               style={{
                 backgroundColor: COLORS.card,
-                borderColor: plan.popular ? plan.color : COLORS.border,
-                boxShadow: plan.popular ? `0 0 30px ${plan.color}20` : "none"
+                borderColor: plan.color,
+                boxShadow: `0 0 20px ${plan.color}20`
               }}>
               {plan.popular && (
                 <div className="absolute top-0 right-0 px-3 py-1 text-xs font-bold rounded-bl-xl"
@@ -3139,11 +3139,27 @@ function LoginPage({ onLogin }) {
   );
 }
 function PricingPage({ currentPlan, onUpgrade, usageLoaded }) {
+  const [currency, setCurrency] = useState({ code: 'GBP', symbol: '£' });
+
+  const CURRENCY_PRICES = {
+    GBP: { free: '0', professional: '49', enterprise: '499' },
+    USD: { free: '0', professional: '59', enterprise: '599' },
+    EUR: { free: '0', professional: '55', enterprise: '549' },
+    JPY: { free: '0', professional: '8,900', enterprise: '89,000' },
+  };
+
+  useEffect(() => {
+    fetch('http://localhost:5001/payments/detect-currency')
+      .then(r => r.json())
+      .then(d => setCurrency({ code: d.currency, symbol: d.symbol }))
+      .catch(() => setCurrency({ code: 'GBP', symbol: '£' }));
+  }, []);
+
   const plans = [
     {
       id:       "free",
       name:     "Free",
-      price:    "£0",
+      price:    `${currency.symbol}${CURRENCY_PRICES[currency.code].free}`,
       period:   "forever",
       color:    COLORS.muted,
       features: [
@@ -3159,7 +3175,7 @@ function PricingPage({ currentPlan, onUpgrade, usageLoaded }) {
     {
       id:       "professional",
       name:     "Professional",
-      price:    "£49",
+      price:    `${currency.symbol}${CURRENCY_PRICES[currency.code].professional}`,
       period:   "per month",
       color:    COLORS.blue,
       popular:  true,
@@ -3177,7 +3193,7 @@ function PricingPage({ currentPlan, onUpgrade, usageLoaded }) {
     {
       id:       "enterprise",
       name:     "Enterprise",
-      price:    "£499",
+      price:    `${currency.symbol}${CURRENCY_PRICES[currency.code].enterprise}`,
       period:   "per month",
       color:    COLORS.purple,
       features: [
@@ -3206,6 +3222,27 @@ function PricingPage({ currentPlan, onUpgrade, usageLoaded }) {
         </p>
       </div>
 
+      {/* Currency switcher */}
+      <div className="flex items-center justify-center gap-2">
+        {[
+          { code: 'GBP', symbol: '£', label: 'GBP' },
+          { code: 'USD', symbol: '$', label: 'USD' },
+          { code: 'EUR', symbol: '€', label: 'EUR' },
+          { code: 'JPY', symbol: '¥', label: 'JPY' },
+        ].map(c => (
+          <button key={c.code}
+            onClick={() => setCurrency(c)}
+            className="px-4 py-2 rounded-lg text-sm font-bold transition-all"
+            style={{
+              backgroundColor: currency.code === c.code ? COLORS.blue : COLORS.card,
+              color: currency.code === c.code ? 'white' : COLORS.muted,
+              border: `1px solid ${currency.code === c.code ? COLORS.blue : COLORS.border}`,
+            }}>
+            {c.symbol} {c.label}
+          </button>
+        ))}
+      </div>
+
       {/* Plan cards */}
       <div className="grid grid-cols-3 gap-6">
         {plans.map((plan) => {
@@ -3215,8 +3252,8 @@ function PricingPage({ currentPlan, onUpgrade, usageLoaded }) {
               className="rounded-2xl border flex flex-col relative overflow-hidden transition-all duration-200"
               style={{
                 backgroundColor: COLORS.card,
-                borderColor: isCurrentPlan ? plan.color : plan.popular ? plan.color + "50" : COLORS.border,
-                boxShadow: plan.popular ? `0 0 30px ${plan.color}20` : "none",
+                borderColor: isCurrentPlan ? plan.color : plan.color + "50",
+                boxShadow: `0 0 20px ${plan.color}15`,
               }}>
 
               {/* Popular badge */}
