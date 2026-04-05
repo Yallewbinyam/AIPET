@@ -2706,6 +2706,21 @@ function Toast({ toast }) {
   );
 }
 function LandingPage({ onGetStarted, onLogin, setLegalPage }) {
+  const [currency, setCurrency] = useState({ code: 'GBP', symbol: '£' });
+
+  const CURRENCY_PRICES = {
+    GBP: { professional: '49', enterprise: '499' },
+    USD: { professional: '59', enterprise: '599' },
+    EUR: { professional: '55', enterprise: '549' },
+    JPY: { professional: '8,900', enterprise: '89,000' },
+  };
+
+  useEffect(() => {
+    fetch('http://localhost:5001/payments/detect-currency')
+      .then(r => r.json())
+      .then(d => setCurrency({ code: d.currency, symbol: d.symbol }))
+      .catch(() => setCurrency({ code: 'GBP', symbol: '£' }));
+  }, []);
   return (
     <div className="min-h-screen" style={{ backgroundColor: COLORS.darker }}>
 
@@ -2773,6 +2788,27 @@ function LandingPage({ onGetStarted, onLogin, setLegalPage }) {
 
       {/* Feature grid */}
       <div className="max-w-5xl mx-auto px-8 pb-20">
+        {/* Currency switcher */}
+        <div className="flex items-center justify-center gap-2 mb-8">
+          {[
+            { code: 'GBP', symbol: '£', label: 'GBP' },
+            { code: 'USD', symbol: '$', label: 'USD' },
+            { code: 'EUR', symbol: '€', label: 'EUR' },
+            { code: 'JPY', symbol: '¥', label: 'JPY' },
+          ].map(c => (
+            <button key={c.code}
+              onClick={() => setCurrency(c)}
+              className="px-4 py-2 rounded-lg text-sm font-bold transition-all"
+              style={{
+                backgroundColor: currency.code === c.code ? COLORS.blue : COLORS.card,
+                color: currency.code === c.code ? 'white' : COLORS.muted,
+                border: `1px solid ${currency.code === c.code ? COLORS.blue : COLORS.border}`,
+              }}>
+              {c.symbol} {c.label}
+            </button>
+          ))}
+        </div>
+
         <div className="grid grid-cols-3 gap-6 mb-20">
           {[
             {
@@ -2850,7 +2886,7 @@ function LandingPage({ onGetStarted, onLogin, setLegalPage }) {
             },
             {
               name: "Professional",
-              price: "£49",
+              price: `${currency.symbol}${CURRENCY_PRICES[currency.code].professional}`,
               period: "per month",
               color: COLORS.blue,
               popular: true,
@@ -2859,7 +2895,7 @@ function LandingPage({ onGetStarted, onLogin, setLegalPage }) {
             },
             {
               name: "Enterprise",
-              price: "£499",
+              price: `${currency.symbol}${CURRENCY_PRICES[currency.code].enterprise}`,
               period: "per month",
               color: COLORS.purple,
               features: ["Unlimited scans", "API access", "Priority support", "SLA guarantee"],

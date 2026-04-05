@@ -28,25 +28,11 @@ def create_checkout_session():
     if plan not in ('professional', 'enterprise'):
         return jsonify({'error': 'Invalid plan'}), 400
 
-    data_currency = data.get('currency', 'gbp').lower()
-    if data_currency not in ('gbp', 'usd', 'eur', 'jpy'):
-        data_currency = 'gbp'
-
     price_map = {
-        'professional': {
-            'gbp': current_app.config['STRIPE_PRICE_PROFESSIONAL'],
-            'usd': current_app.config['STRIPE_PRICE_PROFESSIONAL_USD'],
-            'eur': current_app.config['STRIPE_PRICE_PROFESSIONAL_EUR'],
-            'jpy': current_app.config['STRIPE_PRICE_PROFESSIONAL_JPY'],
-        },
-        'enterprise': {
-            'gbp': current_app.config['STRIPE_PRICE_ENTERPRISE'],
-            'usd': current_app.config['STRIPE_PRICE_ENTERPRISE_USD'],
-            'eur': current_app.config['STRIPE_PRICE_ENTERPRISE_EUR'],
-            'jpy': current_app.config['STRIPE_PRICE_ENTERPRISE_JPY'],
-        },
+        'professional': current_app.config['STRIPE_PRICE_PROFESSIONAL'],
+        'enterprise':   current_app.config['STRIPE_PRICE_ENTERPRISE'],
     }
-    price_id = price_map[plan][data_currency]
+    price_id = price_map[plan]
 
     try:
         customer_id = user.stripe_customer_id
@@ -78,35 +64,6 @@ def create_checkout_session():
     except stripe.error.StripeError as e:
         current_app.logger.error(f'Stripe error: {e}')
         return jsonify({'error': 'Payment service unavailable'}), 503
-
-
-
-
-@payments_bp.route('/detect-currency', methods=['GET'])
-def detect_currency():
-    import requests as req
-    country_to_currency = {
-        'GB': 'GBP', 'US': 'USD', 'CA': 'USD', 'AU': 'USD',
-        'DE': 'EUR', 'FR': 'EUR', 'IT': 'EUR', 'ES': 'EUR',
-        'NL': 'EUR', 'BE': 'EUR', 'AT': 'EUR', 'PT': 'EUR',
-        'FI': 'EUR', 'IE': 'EUR', 'GR': 'EUR', 'JP': 'JPY',
-    }
-    symbols = {'GBP': '£', 'USD': '$', 'EUR': '€', 'JPY': '¥'}
-    try:
-        ip = request.headers.get('X-Forwarded-For', request.remote_addr)
-        ip = ip.split(',')[0].strip()
-        if ip in ('127.0.0.1', '::1', 'localhost'):
-            currency = 'GBP'
-        else:
-            r = req.get(f'https://ipapi.co/{ip}/country/', timeout=3)
-            country = r.text.strip()
-            currency = country_to_currency.get(country, 'GBP')
-    except Exception:
-        currency = 'GBP'
-    return jsonify({
-        'currency': currency,
-        'symbol': symbols.get(currency, '£')
-    }), 200
 
 
 @payments_bp.route('/webhook', methods=['POST'])

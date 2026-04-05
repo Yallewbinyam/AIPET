@@ -25,12 +25,6 @@ class Config:
     STRIPE_WEBHOOK_SECRET         = os.environ.get('STRIPE_WEBHOOK_SECRET')
     STRIPE_PRICE_PROFESSIONAL     = os.environ.get('STRIPE_PRICE_PROFESSIONAL')
     STRIPE_PRICE_ENTERPRISE       = os.environ.get('STRIPE_PRICE_ENTERPRISE')
-    STRIPE_PRICE_PROFESSIONAL_USD = os.environ.get('STRIPE_PRICE_PROFESSIONAL_USD')
-    STRIPE_PRICE_PROFESSIONAL_EUR = os.environ.get('STRIPE_PRICE_PROFESSIONAL_EUR')
-    STRIPE_PRICE_PROFESSIONAL_JPY = os.environ.get('STRIPE_PRICE_PROFESSIONAL_JPY')
-    STRIPE_PRICE_ENTERPRISE_USD   = os.environ.get('STRIPE_PRICE_ENTERPRISE_USD')
-    STRIPE_PRICE_ENTERPRISE_EUR   = os.environ.get('STRIPE_PRICE_ENTERPRISE_EUR')
-    STRIPE_PRICE_ENTERPRISE_JPY   = os.environ.get('STRIPE_PRICE_ENTERPRISE_JPY')
     STRIPE_SUCCESS_URL            = os.environ.get('STRIPE_SUCCESS_URL', 'http://localhost:5000/dashboard?payment=success')
     STRIPE_CANCEL_URL             = os.environ.get('STRIPE_CANCEL_URL', 'http://localhost:5000/pricing?payment=cancelled')
     PLAN_SCAN_LIMITS              = {'free': 5, 'professional': None, 'enterprise': None}
