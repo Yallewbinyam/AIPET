@@ -2739,8 +2739,8 @@ function LandingPage({ onGetStarted, onLogin, setLegalPage }) {
           <span className="font-black text-xl" style={{ color: COLORS.text }}>AIPET</span>
         </div>
         {/* Nav links — absolutely centered */}
-        <div className="absolute left-0 right-0 flex justify-center">
-        <div className="hidden md:flex items-center gap-8">
+        <div className="absolute left-0 right-0 flex justify-center" style={{ pointerEvents: "none" }}>
+        <div className="hidden md:flex items-center gap-8" style={{ pointerEvents: "auto" }}>
           {[
             { label: t("nav.features"), id: "features" },
             { label: t("nav.howItWorks"), id: "how-it-works" },
