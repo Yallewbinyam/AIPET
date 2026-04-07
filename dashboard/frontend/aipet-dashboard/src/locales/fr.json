@@ -4,12 +4,16 @@
     "getStarted": "Commencer Gratuitement",
     "features": "Fonctionnalités",
     "howItWorks": "Comment ça marche",
-    "pricing": "Tarifs"
+    "pricing": "Tarifs",
+    "platform": "Plateforme",
+    "solutions": "Solutions",
+    "company": "Entreprise",
+    "requestDemo": "Demander une Démo"
   },
   "hero": {
     "badge": "Recherche MSc Cybersécurité — Université de Coventry",
-    "title1": "Sécurité IoT Propulsée par l'IA",
-    "title2": "pour l'Entreprise Moderne",
+    "title1": "Découvrez Exactement Comment les Hackers Attaquent",
+    "title2": "Vos Appareils IoT — Avant Qu'ils le Fassent",
     "subtitle": "AIPET automatise la découverte, les tests et la priorisation des vulnérabilités sur vos appareils IoT — avec une IA explicable qui vous dit non seulement ce qui est vulnérable, mais exactement pourquoi.",
     "cta": "Commencer Gratuitement"
   },

@@ -4,11 +4,15 @@
     "getStarted": "Get Started Free",
     "features": "Features",
     "howItWorks": "How it works",
-    "pricing": "Pricing"
+    "pricing": "Pricing",
+    "platform": "Platform",
+    "solutions": "Solutions",
+    "company": "Company",
+    "requestDemo": "Request Demo"
   },
   "hero": {
     "badge": "MSc Cyber Security Research — Coventry University",
-    "title1": "Find Exactly How a Hacker Would Attack",
+    "title1": "Find Exactly How Hackers Would Attack",
     "title2": "Your IoT Devices — Before They Do",
     "subtitle": "AIPET automates the discovery, testing, and prioritisation of vulnerabilities across your IoT devices — with explainable AI that tells you not just what is vulnerable, but exactly why.",
     "cta": "Get Started Free"

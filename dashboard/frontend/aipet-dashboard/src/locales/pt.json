@@ -4,11 +4,15 @@
     "getStarted": "Começar Grátis",
     "features": "Recursos",
     "howItWorks": "Como funciona",
-    "pricing": "Preços"
+    "pricing": "Preços",
+    "platform": "Plataforma",
+    "solutions": "Soluções",
+    "company": "Empresa",
+    "requestDemo": "Solicitar Demo"
   },
   "hero": {
     "badge": "Pesquisa MSc Cibersegurança — Universidade de Coventry",
-    "title1": "Descubra Exatamente Como um Hacker Atacaria",
+    "title1": "Descubra Exatamente Como os Hackers Atacam",
     "title2": "Seus Dispositivos IoT — Antes que Aconteça",
     "subtitle": "O AIPET automatiza a descoberta, teste e priorização de vulnerabilidades em seus dispositivos IoT.",
     "cta": "Começar Grátis"

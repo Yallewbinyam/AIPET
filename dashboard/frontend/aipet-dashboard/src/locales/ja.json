@@ -4,12 +4,16 @@
     "getStarted": "無料で始める",
     "features": "機能",
     "howItWorks": "使い方",
-    "pricing": "料金"
+    "pricing": "料金",
+    "platform": "プラットフォーム",
+    "solutions": "ソリューション",
+    "company": "会社",
+    "requestDemo": "デモを申請"
   },
   "hero": {
     "badge": "MScサイバーセキュリティ研究 — コベントリー大学",
-    "title1": "AIを活用したIoTセキュリティ",
-    "title2": "現代のエンタープライズのために",
+    "title1": "ハッカーがどう攻撃するか正確に把握する",
+    "title2": "あなたのIoTデバイス — 彼らが行動する前に",
     "subtitle": "AIPETはIoTデバイス全体の脆弱性の発見、テスト、優先順位付けを自動化します — 何が脆弱かだけでなく、正確になぜかを説明するAIを搭載しています。",
     "cta": "無料で始める"
   },

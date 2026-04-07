@@ -4,12 +4,16 @@
     "getStarted": "Gratis Beginnen",
     "features": "Functies",
     "howItWorks": "Hoe het werkt",
-    "pricing": "Prijzen"
+    "pricing": "Prijzen",
+    "platform": "Platform",
+    "solutions": "Oplossingen",
+    "company": "Bedrijf",
+    "requestDemo": "Demo Aanvragen"
   },
   "hero": {
     "badge": "MSc Cybersecurity Onderzoek — Universiteit van Coventry",
-    "title1": "Ontdek Precies Hoe een Hacker Uw",
-    "title2": "IoT-apparaten Zou Aanvallen — Voor Ze het Doen",
+    "title1": "Ontdek Precies Hoe Hackers Aanvallen",
+    "title2": "Uw IoT-apparaten — Voor Ze het Doen",
     "subtitle": "AIPET automatiseert de ontdekking, het testen en de prioritering van kwetsbaarheden op uw IoT-apparaten.",
     "cta": "Gratis Beginnen"
   },

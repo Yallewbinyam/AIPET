@@ -4,11 +4,15 @@
     "getStarted": "免费开始",
     "features": "功能",
     "howItWorks": "如何使用",
-    "pricing": "定价"
+    "pricing": "定价",
+    "platform": "平台",
+    "solutions": "解决方案",
+    "company": "公司",
+    "requestDemo": "申请演示"
   },
   "hero": {
     "badge": "网络安全硕士研究 — 考文垂大学",
-    "title1": "发现黑客如何攻击",
+    "title1": "精确了解黑客如何攻击",
     "title2": "您的IoT设备 — 在他们动手之前",
     "subtitle": "AIPET自动发现、测试和优先处理您IoT设备上的漏洞，使用可解释AI告诉您确切的原因。",
     "cta": "免费开始"

@@ -9,6 +9,17 @@ const fontLink = document.createElement("link");
 fontLink.href = "https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500;700&family=Inter:wght@400;500;600;700&family=Noto+Sans+KR:wght@400;500;700&family=Noto+Sans+SC:wght@400;500;700&family=Noto+Sans+Arabic:wght@400;500;700&display=swap";
 fontLink.rel = "stylesheet";
 document.head.appendChild(fontLink);
+const autofillStyle = document.createElement("style");
+autofillStyle.textContent = `
+  input:-webkit-autofill,
+  input:-webkit-autofill:hover,
+  input:-webkit-autofill:focus {
+    -webkit-box-shadow: 0 0 0 1000px #030712 inset !important;
+    -webkit-text-fill-color: #ffffff !important;
+    caret-color: #ffffff !important;
+  }
+`;
+document.head.appendChild(autofillStyle);
 import {
   PieChart, Pie, Cell, Tooltip, ResponsiveContainer,
   BarChart, Bar, XAxis, YAxis, CartesianGrid
@@ -2724,372 +2735,384 @@ function LandingPage({ onGetStarted, onLogin, setLegalPage }) {
       .then(d => setCurrency({ code: d.currency, symbol: d.symbol }))
       .catch(() => setCurrency({ code: 'GBP', symbol: '£' }));
   }, []);
-  return (
-    <div className="min-h-screen" style={{ backgroundColor: COLORS.darker }}>
 
-      {/* Navigation */}
-      <nav className="relative flex items-center justify-between px-8 py-4 border-b sticky top-0 z-50"
-        style={{ borderColor: COLORS.border, backgroundColor: COLORS.darker + "ee", backdropFilter: "blur(12px)" }}>
-        {/* Logo */}
-        <div className="flex items-center gap-3" style={{ flex: 1 }}>
-          <div className="w-9 h-9 rounded-xl flex items-center justify-center"
-            style={{ backgroundColor: COLORS.blue }}>
-            <Shield size={18} color="white" />
+  const [langOpen, setLangOpen] = useState(false);
+  const [activeDropdown, setActiveDropdown] = useState(null);
+
+  const NAV_MENUS = {
+    platform: [
+      { label: "AIPET Scan", desc: "Discover IoT vulnerabilities" },
+      { label: "AIPET Explain", desc: "AI-powered explanations" },
+      { label: "AIPET Score", desc: "Financial risk exposure" },
+      { label: "AIPET Map", desc: "Network attack paths" },
+      { label: "AIPET Predict", desc: "Live CVE intelligence" },
+      { label: "AIPET Watch", desc: "Anomaly detection" },
+      { label: "AIPET Ask", desc: "AI security assistant" },
+    ],
+    solutions: [
+      { label: "Healthcare & NHS", desc: "NIS2 compliant IoT audits" },
+      { label: "Manufacturing", desc: "OT/ICS security" },
+      { label: "Smart Buildings", desc: "Zigbee & LoRaWAN security" },
+      { label: "Universities", desc: "Research lab IoT protection" },
+      { label: "MSPs", desc: "Multi-client security platform" },
+    ],
+    company: [
+      { label: "About AIPET", desc: "Our mission and research" },
+      { label: "Contact Us", desc: "Get in touch" },
+      { label: "GitHub", desc: "Open source contributions" },
+    ],
+  };
+
+  const LANGUAGES = [
+    { code: 'en', label: 'EN', name: 'English' },
+    { code: 'fr', label: 'FR', name: 'Français' },
+    { code: 'de', label: 'DE', name: 'Deutsch' },
+    { code: 'ja', label: 'JA', name: '日本語' },
+    { code: 'es', label: 'ES', name: 'Español' },
+    { code: 'zh', label: 'ZH', name: '中文' },
+    { code: 'ar', label: 'AR', name: 'العربية' },
+    { code: 'pt', label: 'PT', name: 'Português' },
+    { code: 'it', label: 'IT', name: 'Italiano' },
+    { code: 'nl', label: 'NL', name: 'Nederlands' },
+  ];
+
+  return (
+    <div className="min-h-screen" style={{ backgroundColor: COLORS.darker, fontFamily: "Inter, sans-serif" }} onClick={() => { setActiveDropdown(null); setLangOpen(false); }}>
+
+      {/* TOP ANNOUNCEMENT BAR */}
+      <div style={{ width: "100%", background: `linear-gradient(90deg, ${COLORS.blue}cc, #0099cc, ${COLORS.blue}cc)`, borderBottom: `1px solid ${COLORS.blue}`, color: "white", textAlign: "center", padding: "10px 32px", fontSize: "14px", fontWeight: "600" }}>
+        🔒 &nbsp; AIPET Cloud v3.0.0 — AI-Powered IoT Security Platform &nbsp;&nbsp;·&nbsp;&nbsp; NIS2 &nbsp;|&nbsp; NIST CSF 2.0 &nbsp;|&nbsp; ISO 27001 Compliant &nbsp;&nbsp;·&nbsp;&nbsp;
+        <span style={{ textDecoration: "underline", cursor: "pointer", fontWeight: "700" }} onClick={onGetStarted}>Start Free Trial →</span>
+      </div>
+
+      {/* MAIN NAVBAR */}
+      <nav className="flex items-center px-8 py-5 sticky top-0 z-50"
+        style={{ borderBottom: `1px solid ${COLORS.blue}30`, backgroundColor: COLORS.darker + "f8", backdropFilter: "blur(16px)", gap: "24px", boxShadow: `0 4px 24px rgba(0,229,255,0.05)` }}
+        onClick={e => e.stopPropagation()}>
+        <div className="flex items-center gap-3" style={{ flexShrink: 0 }}>
+          <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ backgroundColor: COLORS.blue }}>
+            <Shield size={20} color="white" />
           </div>
-          <span className="font-black text-xl" style={{ color: COLORS.text }}>AIPET</span>
+          <span style={{ color: COLORS.text, fontSize: "22px", fontWeight: "900", letterSpacing: "-0.02em" }}>AIPET</span>
         </div>
-        {/* Nav links — absolutely centered */}
-        <div className="absolute left-0 right-0 flex justify-center" style={{ pointerEvents: "none" }}>
-        <div className="hidden md:flex items-center gap-8" style={{ pointerEvents: "auto" }}>
-          {[
-            { label: t("nav.features"), id: "features" },
-            { label: t("nav.howItWorks"), id: "how-it-works" },
-            { label: t("nav.pricing"), id: "pricing" },
-          ].map((link, i) => (
-            <button key={i}
-              onClick={() => document.getElementById(link.id)?.scrollIntoView({ behavior: 'smooth' })}
-              className="font-semibold transition-all"
-              style={{ color: COLORS.muted, textDecoration: "none", background: "none", border: "none", cursor: "pointer", fontSize: "15px" }}
-              onMouseEnter={e => e.target.style.color = COLORS.blue}
-              onMouseLeave={e => e.target.style.color = COLORS.muted}>
-              {link.label}
+        <div className="flex items-center justify-center" style={{ flex: 1, paddingLeft: "80px" }}>
+          <div className="hidden md:flex items-center gap-6">
+            {[
+              { label: t("nav.features"), id: "features", menu: null },
+              { label: t("nav.platform"), id: null, menu: "platform" },
+              { label: t("nav.howItWorks"), id: "how-it-works", menu: null },
+              { label: t("nav.solutions"), id: null, menu: "solutions" },
+              { label: t("nav.pricing"), id: "pricing", menu: null },
+              { label: t("nav.company"), id: null, menu: "company" },
+            ].map((link, i) => (
+              <div key={i} style={{ position: "relative" }}>
+                <button
+                  onClick={() => { if (link.id) { document.getElementById(link.id)?.scrollIntoView({ behavior: "smooth" }); setActiveDropdown(null); } else { setActiveDropdown(activeDropdown === link.menu ? null : link.menu); }}}
+                  style={{ color: activeDropdown === link.menu ? COLORS.blue : COLORS.text, background: "none", border: "none", cursor: "pointer", fontSize: "15px", fontWeight: "500", display: "flex", alignItems: "center", gap: "4px" }}
+                  onMouseEnter={e => { e.currentTarget.style.color = COLORS.blue; }}
+                  onMouseLeave={e => { if (activeDropdown !== link.menu) e.currentTarget.style.color = COLORS.text; }}>
+                  {link.label}
+                  {link.menu && <span style={{ fontSize: "10px" }}>▾</span>}
+                </button>
+                {link.menu && activeDropdown === link.menu && (
+                  <div className="absolute top-full mt-2 rounded-xl border p-3"
+                    style={{ backgroundColor: COLORS.card, borderColor: COLORS.border, minWidth: "220px", left: "50%", transform: "translateX(-50%)", zIndex: 999, boxShadow: "0 8px 32px rgba(0,0,0,0.4)" }}>
+                    {NAV_MENUS[link.menu].map((item, j) => (
+                      <div key={j} className="px-3 py-2 rounded-lg cursor-pointer"
+                        onMouseEnter={e => e.currentTarget.style.backgroundColor = COLORS.blue + "15"}
+                        onMouseLeave={e => e.currentTarget.style.backgroundColor = "transparent"}>
+                        <div style={{ color: COLORS.text, fontSize: "14px", fontWeight: "600" }}>{item.label}</div>
+                        <div style={{ color: COLORS.muted, fontSize: "12px" }}>{item.desc}</div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </div>
+        <div className="flex items-center gap-3" style={{ flexShrink: 0 }}>
+          <div style={{ position: "relative" }}>
+            <button onClick={e => { e.stopPropagation(); setLangOpen(!langOpen); setActiveDropdown(null); }}
+              style={{ background: "none", border: `1px solid ${langOpen ? COLORS.blue : COLORS.border}`, cursor: "pointer", color: COLORS.muted, fontSize: "14px", padding: "6px 12px", borderRadius: "8px", display: "flex", alignItems: "center", gap: "6px" }}>
+              🌍 {LANGUAGES.find(l => l.code === i18n.language)?.label || "EN"}
             </button>
-          ))}
-        </div>
-        </div>
-        {/* Right side */}
-        <div className="flex items-center gap-3" style={{ flex: 1, justifyContent: "flex-end" }}>
-          <select
-            value={i18n.language}
-            onChange={e => i18n.changeLanguage(e.target.value)}
-            style={{
-              backgroundColor: COLORS.card,
-              color: COLORS.text,
-              border: `1px solid ${COLORS.border}`,
-              borderRadius: '8px',
-              padding: '6px 10px',
-              fontSize: '13px',
-              cursor: 'pointer',
-              outline: 'none',
-            }}>
-            <option value="en">🇬🇧 EN</option>
-            <option value="fr">🇫🇷 FR</option>
-            <option value="de">🇩🇪 DE</option>
-            <option value="ja">🇯🇵 JA</option>
-            <option value="es">🇪🇸 ES</option>
-            <option value="zh">🇨🇳 ZH</option>
-            <option value="ar">🇸🇦 AR</option>
-            <option value="pt">🇧🇷 PT</option>
-            <option value="it">🇮🇹 IT</option>
-            <option value="nl">🇳🇱 NL</option>
-          </select>
-          <button onClick={onLogin}
-            className="text-sm font-semibold px-4 py-2 rounded-xl transition-all"
-            style={{ color: COLORS.muted }}>
+            {langOpen && (
+              <div style={{ position: "absolute", top: "100%", right: 0, marginTop: "8px", backgroundColor: COLORS.card, border: `1px solid ${COLORS.border}`, minWidth: "160px", zIndex: 999, boxShadow: "0 8px 32px rgba(0,0,0,0.4)", borderRadius: "12px", padding: "8px" }}
+                onClick={e => e.stopPropagation()}>
+                {LANGUAGES.map((lang, j) => (
+                  <button key={j} onClick={() => { i18n.changeLanguage(lang.code); setLangOpen(false); }}
+                    style={{ width: "100%", textAlign: "left", padding: "8px 12px", borderRadius: "8px", background: i18n.language === lang.code ? COLORS.blue + "20" : "none", color: i18n.language === lang.code ? COLORS.blue : COLORS.text, border: "none", cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center", fontSize: "14px" }}
+                    onMouseEnter={e => { if (i18n.language !== lang.code) e.currentTarget.style.backgroundColor = COLORS.blue + "10"; }}
+                    onMouseLeave={e => { if (i18n.language !== lang.code) e.currentTarget.style.backgroundColor = "transparent"; }}>
+                    <span style={{ fontWeight: "700" }}>{lang.label}</span>
+                    <span style={{ color: COLORS.muted, fontSize: "12px" }}>{lang.name}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+          <button onClick={onLogin} style={{ color: COLORS.muted, background: "none", border: "none", cursor: "pointer", fontSize: "15px", fontWeight: "500", padding: "8px 12px" }}>
             {t('nav.signIn')}
           </button>
-          <button onClick={onGetStarted}
-            className="text-sm font-bold px-5 py-2 rounded-xl transition-all"
-            style={{ backgroundColor: COLORS.blue, color: "white" }}>
+          <button onClick={onGetStarted} style={{ backgroundColor: COLORS.blue, color: "white", border: "none", cursor: "pointer", fontSize: "15px", fontWeight: "700", padding: "10px 22px", borderRadius: "10px" }}>
             {t('nav.getStarted')}
           </button>
         </div>
       </nav>
 
-      {/* Hero section */}
-      <div className="max-w-5xl mx-auto px-8 py-24 text-center">
-        <div className="inline-flex items-center gap-2 px-4 py-2 rounded-full border mb-8"
-          style={{
-            backgroundColor: COLORS.blue + "15",
-            borderColor: COLORS.blue + "40"
-          }}>
-          <div className="w-2 h-2 rounded-full animate-pulse"
-            style={{ backgroundColor: COLORS.blue }} />
-          <span className="text-xs font-bold" style={{ color: COLORS.blue }}>
-            {t('hero.badge')}
-          </span>
+      {/* HERO SECTION */}
+      <div style={{ background: `radial-gradient(ellipse at 50% 0%, ${COLORS.blue}12 0%, transparent 60%)`, padding: "80px 32px 60px", textAlign: "center", maxWidth: "1200px", margin: "0 auto" }}>
+        <div style={{ display: "inline-flex", alignItems: "center", gap: "8px", padding: "6px 16px", borderRadius: "100px", border: `1px solid ${COLORS.blue}40`, backgroundColor: COLORS.blue + "10", marginBottom: "32px" }}>
+          <div style={{ width: "8px", height: "8px", borderRadius: "50%", backgroundColor: COLORS.blue, animation: "pulse 2s infinite" }} />
+          <span style={{ color: COLORS.blue, fontSize: "13px", fontWeight: "600" }}>{t('hero.badge')}</span>
         </div>
-
-        <h1 className="text-5xl font-black mb-6 leading-tight"
-          style={{ color: COLORS.text }}>
+        <h1 style={{ fontSize: "clamp(36px, 5vw, 64px)", fontWeight: "900", color: COLORS.text, lineHeight: "1.1", marginBottom: "24px", letterSpacing: "-0.03em" }}>
           {t('hero.title1')}
           <br />
           <span style={{ color: COLORS.blue }}>{t('hero.title2')}</span>
         </h1>
-
-        <p className="text-lg mb-10 max-w-2xl mx-auto leading-relaxed"
-          style={{ color: COLORS.muted }}>
+        <p style={{ fontSize: "18px", color: COLORS.muted, maxWidth: "640px", margin: "0 auto 40px", lineHeight: "1.7" }}>
           {t('hero.subtitle')}
         </p>
-
-        <div className="flex items-center justify-center gap-4">
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "16px", flexWrap: "wrap" }}>
           <button onClick={onGetStarted}
-            className="px-8 py-4 rounded-xl font-bold text-base transition-all"
-            style={{ backgroundColor: COLORS.blue, color: "white" }}>
+            style={{ backgroundColor: COLORS.blue, color: "white", border: "none", cursor: "pointer", fontSize: "16px", fontWeight: "700", padding: "14px 32px", borderRadius: "12px", boxShadow: `0 0 32px ${COLORS.blue}40` }}>
             {t('hero.cta')}
           </button>
-
+          <button onClick={onGetStarted}
+            style={{ backgroundColor: "transparent", color: COLORS.blue, border: `2px solid ${COLORS.blue}`, cursor: "pointer", fontSize: "16px", fontWeight: "700", padding: "14px 32px", borderRadius: "12px" }}>
+            {t('nav.requestDemo')} →
+          </button>
+        </div>
+        {/* Trust badges */}
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "center", gap: "32px", marginTop: "48px", flexWrap: "wrap" }}>
+          {["NIS2 Compliant", "NIST CSF 2.0", "ISO 27001", "OWASP IoT Top 10"].map((badge, i) => (
+            <div key={i} style={{ display: "flex", alignItems: "center", gap: "8px" }}>
+              <div style={{ width: "6px", height: "6px", borderRadius: "50%", backgroundColor: COLORS.low }} />
+              <span style={{ color: COLORS.muted, fontSize: "13px", fontWeight: "500" }}>{badge}</span>
+            </div>
+          ))}
         </div>
       </div>
 
-      {/* Stats bar */}
-      <div className="border-y py-6 mb-12" style={{ borderColor: COLORS.blue + "30", backgroundColor: COLORS.blue + "05" }}>
-        <div className="max-w-5xl mx-auto px-8">
-          <div className="grid grid-cols-4 gap-4 text-center">
+      {/* STATS BAR */}
+      <div style={{ borderTop: `1px solid ${COLORS.blue}20`, borderBottom: `1px solid ${COLORS.blue}20`, backgroundColor: COLORS.blue + "05", padding: "24px 32px" }}>
+        <div style={{ maxWidth: "1200px", margin: "0 auto", display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "16px", textAlign: "center" }}>
+          {[
+            { value: "60 sec", label: t('stats.scanSpeed') },
+            { value: "7", label: t('stats.attackModules') },
+            { value: "3", label: t('stats.frameworks') },
+            { value: "100%", label: t('stats.nis2') },
+          ].map((stat, i) => (
+            <div key={i}>
+              <div style={{ fontSize: "28px", fontWeight: "900", color: COLORS.blue, marginBottom: "4px" }}>{stat.value}</div>
+              <div style={{ fontSize: "13px", color: COLORS.muted }}>{stat.label}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* HOW IT WORKS */}
+      <div id="how-it-works" style={{ maxWidth: "1200px", margin: "0 auto", padding: "80px 32px" }}>
+        <div style={{ textAlign: "center", marginBottom: "60px" }}>
+          <h2 style={{ fontSize: "36px", fontWeight: "900", color: COLORS.text, marginBottom: "12px" }}>{t('howItWorks.title')}</h2>
+          <p style={{ color: COLORS.muted, fontSize: "16px" }}>{t('howItWorks.subtitle')}</p>
+        </div>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "32px" }}>
+          {[
+            { step: "01", title: t('howItWorks.step1Title'), desc: t('howItWorks.step1Desc'), color: COLORS.blue },
+            { step: "02", title: t('howItWorks.step2Title'), desc: t('howItWorks.step2Desc'), color: COLORS.purple },
+            { step: "03", title: t('howItWorks.step3Title'), desc: t('howItWorks.step3Desc'), color: COLORS.low },
+          ].map((item, i) => (
+            <div key={i} style={{ padding: "32px", borderRadius: "16px", border: `1px solid ${item.color}30`, backgroundColor: item.color + "08", position: "relative" }}>
+              <div style={{ fontSize: "48px", fontWeight: "900", color: item.color, opacity: 0.3, marginBottom: "16px", lineHeight: 1 }}>{item.step}</div>
+              <h3 style={{ fontSize: "20px", fontWeight: "800", color: item.color, marginBottom: "12px" }}>{item.title}</h3>
+              <p style={{ color: COLORS.muted, fontSize: "15px", lineHeight: "1.6" }}>{item.desc}</p>
+              {i < 2 && <div style={{ position: "absolute", right: "-20px", top: "50%", transform: "translateY(-50%)", color: COLORS.border, fontSize: "24px", zIndex: 1 }}>→</div>}
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* FEATURES */}
+      <div id="features" style={{ backgroundColor: COLORS.card, padding: "80px 32px" }}>
+        <div style={{ maxWidth: "1200px", margin: "0 auto" }}>
+          <div style={{ textAlign: "center", marginBottom: "60px" }}>
+            <h2 style={{ fontSize: "36px", fontWeight: "900", color: COLORS.text, marginBottom: "12px" }}>Everything you need to secure your IoT</h2>
+            <p style={{ color: COLORS.muted, fontSize: "16px" }}>Seven AI-powered modules working together</p>
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "24px" }}>
             {[
-              { value: "60 sec", label: t('stats.scanSpeed') },
-              { value: "7", label: t('stats.attackModules') },
-              { value: "3", label: t('stats.frameworks') },
-              { value: "100%", label: t('stats.nis2') },
-            ].map((stat, i) => (
-              <div key={i}>
-                <div className="text-2xl font-black mb-1" style={{ color: COLORS.blue }}>{stat.value}</div>
-                <div className="text-xs" style={{ color: COLORS.muted }}>{stat.label}</div>
+              { icon: Shield, color: COLORS.blue, title: t('features.attackModules'), desc: t('features.attackModulesDesc') },
+              { icon: Zap, color: COLORS.critical, title: t('features.explainableAI'), desc: t('features.explainableAIDesc') },
+              { icon: Lock, color: COLORS.low, title: t('features.owasp'), desc: t('features.owaspDesc') },
+              { icon: Activity, color: COLORS.purple, title: t('features.dashboard'), desc: t('features.dashboardDesc') },
+              { icon: CreditCard, color: COLORS.high, title: t('features.api'), desc: t('features.apiDesc') },
+              { icon: FileText, color: COLORS.blue, title: t('features.reports'), desc: t('features.reportsDesc') },
+            ].map((feature, i) => (
+              <div key={i} style={{ padding: "28px", borderRadius: "16px", border: `1px solid ${feature.color}30`, backgroundColor: COLORS.darker, transition: "all 0.2s" }}
+                onMouseEnter={e => { e.currentTarget.style.borderColor = feature.color; e.currentTarget.style.transform = "translateY(-4px)"; e.currentTarget.style.boxShadow = `0 16px 40px ${feature.color}15`; }}
+                onMouseLeave={e => { e.currentTarget.style.borderColor = feature.color + "30"; e.currentTarget.style.transform = "translateY(0)"; e.currentTarget.style.boxShadow = "none"; }}>
+                <div style={{ width: "48px", height: "48px", borderRadius: "12px", backgroundColor: feature.color + "20", display: "flex", alignItems: "center", justifyContent: "center", marginBottom: "16px" }}>
+                  <feature.icon size={22} style={{ color: feature.color }} />
+                </div>
+                <h3 style={{ fontSize: "16px", fontWeight: "700", color: COLORS.text, marginBottom: "8px" }}>{feature.title}</h3>
+                <p style={{ color: COLORS.muted, fontSize: "14px", lineHeight: "1.6" }}>{feature.desc}</p>
               </div>
             ))}
           </div>
         </div>
       </div>
 
-      {/* How it works */}
-      <div id="how-it-works" className="max-w-5xl mx-auto px-8 pb-16">
-        <div className="text-center mb-10">
-          <h2 className="text-3xl font-black mb-3" style={{ color: COLORS.text }}>{t('howItWorks.title')}</h2>
-          <p className="text-sm" style={{ color: COLORS.muted }}>{t('howItWorks.subtitle')}</p>
+      {/* PRICING */}
+      <div id="pricing" style={{ maxWidth: "1200px", margin: "0 auto", padding: "80px 32px" }}>
+        <div style={{ textAlign: "center", marginBottom: "48px" }}>
+          <h2 style={{ fontSize: "36px", fontWeight: "900", color: COLORS.text, marginBottom: "12px" }}>{t('pricing.title')}</h2>
+          <p style={{ color: COLORS.muted, fontSize: "16px" }}>{t('pricing.subtitle')}</p>
         </div>
-        <div className="grid grid-cols-3 gap-8">
-          {[
-            { step: "01", title: t('howItWorks.step1Title'), desc: t('howItWorks.step1Desc'), color: COLORS.blue },
-            { step: "02", title: t('howItWorks.step2Title'), desc: t('howItWorks.step2Desc'), color: COLORS.purple },
-            { step: "03", title: t('howItWorks.step3Title'), desc: t('howItWorks.step3Desc'), color: COLORS.low },
-          ].map((item, i) => (
-            <div key={i} className="relative">
-              <div className="text-6xl font-black mb-4 opacity-20" style={{ color: item.color }}>{item.step}</div>
-              <h3 className="text-xl font-black mb-3" style={{ color: item.color }}>{item.title}</h3>
-              <p className="text-sm leading-relaxed" style={{ color: COLORS.muted }}>{item.desc}</p>
-              {i < 2 && (
-                <div className="absolute top-8 right-0 text-2xl" style={{ color: COLORS.border }}>→</div>
-              )}
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* Feature grid */}
-      <div id="features" className="max-w-5xl mx-auto px-8 pb-20">
-        <div className="grid grid-cols-3 gap-6 mb-20">
-          {[
-            {
-              icon: Shield,
-              color: COLORS.blue,
-              title: t('features.attackModules'),
-              desc: t('features.attackModulesDesc')
-            },
-            {
-              icon: Zap,
-              color: COLORS.critical,
-              title: t('features.explainableAI'),
-              desc: t('features.explainableAIDesc')
-            },
-            {
-              icon: Lock,
-              color: COLORS.low,
-              title: t('features.owasp'),
-              desc: t('features.owaspDesc')
-            },
-            {
-              icon: Activity,
-              color: COLORS.purple,
-              title: t('features.dashboard'),
-              desc: t('features.dashboardDesc')
-            },
-            {
-              icon: CreditCard,
-              color: COLORS.high,
-              title: t('features.api'),
-              desc: t('features.apiDesc')
-            },
-            {
-              icon: FileText,
-              color: COLORS.muted,
-              title: t('features.reports'),
-              desc: t('features.reportsDesc')
-            },
-          ].map((feature, i) => (
-            <div key={i} className="rounded-2xl border p-6 transition-all"
-              style={{ backgroundColor: COLORS.card, borderColor: feature.color + "40", boxShadow: `0 0 20px ${feature.color}10` }}>
-              <div className="w-10 h-10 rounded-xl flex items-center justify-center mb-4"
-                style={{ backgroundColor: feature.color + "20" }}>
-                <feature.icon size={20} style={{ color: feature.color }} />
-              </div>
-              <h3 className="font-bold mb-2" style={{ color: COLORS.text }}>
-                {feature.title}
-              </h3>
-              <p className="text-sm leading-relaxed" style={{ color: COLORS.muted }}>
-                {feature.desc}
-              </p>
-            </div>
-          ))}
-        </div>
-
-        {/* Pricing section */}
-        <div id="pricing" className="text-center mb-12">
-          <h2 className="text-3xl font-black mb-3" style={{ color: COLORS.text }}>
-            {t('pricing.title')}
-          </h2>
-          <p className="text-sm" style={{ color: COLORS.muted }}>
-            {t('pricing.subtitle')}
-          </p>
-        </div>
-
         {/* Currency switcher */}
-        <div className="flex items-center justify-center gap-2 mb-8">
+        <div style={{ display: "flex", justifyContent: "center", gap: "8px", marginBottom: "40px" }}>
           {[
             { code: 'GBP', symbol: '£', label: 'GBP' },
             { code: 'USD', symbol: '$', label: 'USD' },
             { code: 'EUR', symbol: '€', label: 'EUR' },
             { code: 'JPY', symbol: '¥', label: 'JPY' },
           ].map(c => (
-            <button key={c.code}
-              onClick={() => setCurrency(c)}
-              className="px-4 py-2 rounded-lg text-sm font-bold transition-all"
-              style={{
-                backgroundColor: currency.code === c.code ? COLORS.blue : COLORS.card,
-                color: currency.code === c.code ? 'white' : COLORS.muted,
-                border: `1px solid ${currency.code === c.code ? COLORS.blue : COLORS.border}`,
-              }}>
+            <button key={c.code} onClick={() => setCurrency(c)}
+              style={{ padding: "8px 16px", borderRadius: "8px", fontSize: "14px", fontWeight: "700", cursor: "pointer", backgroundColor: currency.code === c.code ? COLORS.blue : COLORS.card, color: currency.code === c.code ? "white" : COLORS.muted, border: `1px solid ${currency.code === c.code ? COLORS.blue : COLORS.border}` }}>
               {c.symbol} {c.label}
             </button>
           ))}
         </div>
-
-        <div className="grid grid-cols-3 gap-6 mb-20">
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "24px" }}>
           {[
-            {
-              name: t('plans.free'),
-              price: `${currency.symbol}0`,
-              period: t('pricing.forever'),
-              color: COLORS.muted,
-              features: t('planFeatures.free', { returnObjects: true }),
-              cta: t('pricing.getStarted'),
-            },
-            {
-              name: t('plans.professional'),
-              price: `${currency.symbol}${CURRENCY_PRICES[currency.code].professional}`,
-              period: t('pricing.perMonth'),
-              color: COLORS.blue,
-              popular: true,
-              features: t('planFeatures.pro', { returnObjects: true }),
-              cta: t('pricing.startTrial'),
-            },
-            {
-              name: t('plans.enterprise'),
-              price: `${currency.symbol}${CURRENCY_PRICES[currency.code].enterprise}`,
-              period: t('pricing.perMonth'),
-              color: COLORS.purple,
-              features: t('planFeatures.ent', { returnObjects: true }),
-              cta: t('pricing.contactSales'),
-            },
+            { name: t('plans.free'), price: `${currency.symbol}0`, period: t('pricing.forever'), color: COLORS.muted, features: t('planFeatures.free', { returnObjects: true }), cta: t('pricing.getStarted') },
+            { name: t('plans.professional'), price: `${currency.symbol}${CURRENCY_PRICES[currency.code].professional}`, period: t('pricing.perMonth'), color: COLORS.blue, popular: true, features: t('planFeatures.pro', { returnObjects: true }), cta: t('pricing.startTrial') },
+            { name: t('plans.enterprise'), price: `${currency.symbol}${CURRENCY_PRICES[currency.code].enterprise}`, period: t('pricing.perMonth'), color: COLORS.purple, features: t('planFeatures.ent', { returnObjects: true }), cta: t('pricing.contactSales') },
           ].map((plan, i) => (
-            <div key={i}
-              className="rounded-2xl border p-6 flex flex-col relative overflow-hidden"
-              style={{
-                backgroundColor: COLORS.card,
-                borderColor: plan.color,
-                boxShadow: `0 0 20px ${plan.color}20`
-              }}>
+            <div key={i} style={{ padding: "32px", borderRadius: "20px", border: `1px solid ${plan.color}50`, backgroundColor: COLORS.card, position: "relative", boxShadow: plan.popular ? `0 0 40px ${plan.color}20` : "none", transform: plan.popular ? "scale(1.03)" : "scale(1)" }}>
               {plan.popular && (
-                <div className="absolute top-0 right-0 px-3 py-1 text-xs font-bold rounded-bl-xl"
-                  style={{ backgroundColor: plan.color, color: "white" }}>
+                <div style={{ position: "absolute", top: "-12px", left: "50%", transform: "translateX(-50%)", backgroundColor: plan.color, color: "white", padding: "4px 16px", borderRadius: "100px", fontSize: "12px", fontWeight: "700" }}>
                   {t("pricing.popular")}
                 </div>
               )}
-              <h3 className="font-black text-lg mb-2" style={{ color: plan.color }}>
-                {plan.name}
-              </h3>
-              <div className="flex items-baseline gap-1 mb-6">
-                <span className="text-3xl font-black" style={{ color: COLORS.text }}>
-                  {plan.price}
-                </span>
-                <span className="text-sm" style={{ color: COLORS.muted }}>
-                  /{plan.period}
-                </span>
+              <h3 style={{ fontSize: "18px", fontWeight: "800", color: plan.color, marginBottom: "8px" }}>{plan.name}</h3>
+              <div style={{ display: "flex", alignItems: "baseline", gap: "4px", marginBottom: "24px" }}>
+                <span style={{ fontSize: "40px", fontWeight: "900", color: COLORS.text }}>{plan.price}</span>
+                <span style={{ color: COLORS.muted, fontSize: "14px" }}>/{plan.period}</span>
               </div>
-              <div className="flex-1 space-y-2 mb-6">
-                {plan.features.map((f, j) => (
-                  <div key={j} className="flex items-center gap-2">
-                    <Check size={14} style={{ color: plan.color }} />
-                    <span className="text-sm" style={{ color: COLORS.muted }}>{f}</span>
+              <div style={{ marginBottom: "24px" }}>
+                {(Array.isArray(plan.features) ? plan.features : []).map((f, j) => (
+                  <div key={j} style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "8px" }}>
+                    <div style={{ width: "16px", height: "16px", borderRadius: "50%", backgroundColor: plan.color + "20", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                      <Check size={10} style={{ color: plan.color }} />
+                    </div>
+                    <span style={{ color: COLORS.muted, fontSize: "14px" }}>{f}</span>
                   </div>
                 ))}
               </div>
-              <button onClick={onGetStarted}
-                className="w-full py-3 rounded-xl font-bold text-sm transition-all"
-                style={{
-                  backgroundColor: plan.popular ? plan.color : "transparent",
-                  color: plan.popular ? "white" : plan.color,
-                  border: `1px solid ${plan.color}`
-                }}>
+              <button onClick={onGetStarted} style={{ width: "100%", padding: "12px", borderRadius: "12px", fontSize: "15px", fontWeight: "700", cursor: "pointer", backgroundColor: plan.popular ? plan.color : "transparent", color: plan.popular ? "white" : plan.color, border: `2px solid ${plan.color}` }}>
                 {plan.cta}
               </button>
             </div>
           ))}
         </div>
+      </div>
 
-        {/* Final CTA */}
-        <div className="text-center rounded-2xl border p-16 mb-12"
-          style={{ backgroundColor: COLORS.card, borderColor: COLORS.blue + "40", background: `linear-gradient(135deg, ${COLORS.card} 0%, rgba(0,229,255,0.05) 100%)` }}>
-          <h2 className="text-3xl font-black mb-4" style={{ color: COLORS.text }}>
-            {t('cta.title')}
-          </h2>
-          <p className="text-sm mb-8 max-w-lg mx-auto" style={{ color: COLORS.muted }}>
-            {t('cta.subtitle')}
-          </p>
-          <div className="flex items-center justify-center gap-4">
-            <button onClick={onGetStarted}
-              className="px-10 py-4 rounded-xl font-bold text-base transition-all"
-              style={{ backgroundColor: COLORS.blue, color: "white" }}>
-              {t('cta.getStarted')}
-            </button>
-            <button onClick={onLogin}
-              className="px-10 py-4 rounded-xl font-bold text-base transition-all"
-              style={{ backgroundColor: "transparent", color: COLORS.blue, border: `1px solid ${COLORS.blue}` }}>
-              {t('cta.signIn')}
-            </button>
-          </div>
-        </div>
-
-        {/* Footer */}
-        <div className="text-center border-t pt-8"
-          style={{ borderColor: COLORS.border }}>
-          <div className="flex items-center justify-center gap-6 mb-4">
-            <button onClick={() => setLegalPage('privacy')}
-              className="text-xs transition-all"
-              style={{ color: COLORS.muted }}>
-              {t('footer.privacy')}
-            </button>
-            <button onClick={() => setLegalPage('terms')}
-              className="text-xs transition-all"
-              style={{ color: COLORS.muted }}>
-              {t('footer.terms')}
-            </button>
-            <button onClick={() => setLegalPage('cookies')}
-              className="text-xs transition-all"
-              style={{ color: COLORS.muted }}>
-              {t('footer.cookie')}
-            </button>
-            <a href="https://github.com/Yallewbinyam/AIPET"
-              className="text-xs"
-              style={{ color: COLORS.blue }}>
-              GitHub
-            </a>
-          </div>
-          <p className="text-xs" style={{ color: COLORS.muted }}>
-            AIPET Cloud v3.0.0 — Developed as part of MSc Cyber Security research
-            at Coventry University · MIT Licence
-          </p>
+      {/* FINAL CTA */}
+      <div style={{ background: `linear-gradient(135deg, ${COLORS.blue}15, ${COLORS.purple}10)`, border: `1px solid ${COLORS.blue}30`, borderRadius: "24px", padding: "64px 32px", textAlign: "center", margin: "0 32px 80px", maxWidth: "1136px", marginLeft: "auto", marginRight: "auto" }}>
+        <h2 style={{ fontSize: "36px", fontWeight: "900", color: COLORS.text, marginBottom: "16px" }}>{t('cta.title')}</h2>
+        <p style={{ color: COLORS.muted, fontSize: "16px", marginBottom: "32px" }}>{t('cta.subtitle')}</p>
+        <div style={{ display: "flex", justifyContent: "center", gap: "16px" }}>
+          <button onClick={onGetStarted} style={{ backgroundColor: COLORS.blue, color: "white", border: "none", cursor: "pointer", fontSize: "16px", fontWeight: "700", padding: "14px 36px", borderRadius: "12px", boxShadow: `0 0 32px ${COLORS.blue}40` }}>
+            {t('cta.getStarted')}
+          </button>
+          <button onClick={onLogin} style={{ backgroundColor: "transparent", color: COLORS.blue, border: `2px solid ${COLORS.blue}`, cursor: "pointer", fontSize: "16px", fontWeight: "700", padding: "14px 36px", borderRadius: "12px" }}>
+            {t('cta.signIn')}
+          </button>
         </div>
       </div>
+
+      {/* FOOTER */}
+      <div style={{ borderTop: `1px solid ${COLORS.border}`, backgroundColor: COLORS.card, padding: "60px 32px 32px" }}>
+        <div style={{ maxWidth: "1200px", margin: "0 auto" }}>
+          <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr 1fr", gap: "48px", marginBottom: "48px" }}>
+            {/* Brand */}
+            <div>
+              <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "16px" }}>
+                <div style={{ width: "36px", height: "36px", borderRadius: "10px", backgroundColor: COLORS.blue, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                  <Shield size={18} color="white" />
+                </div>
+                <span style={{ fontSize: "20px", fontWeight: "900", color: COLORS.text }}>AIPET</span>
+              </div>
+              <p style={{ color: COLORS.muted, fontSize: "14px", lineHeight: "1.7", maxWidth: "280px" }}>
+                AI-Powered IoT Security Platform. Built as MSc Cyber Security research at Coventry University.
+              </p>
+              <div style={{ display: "flex", gap: "8px", marginTop: "16px" }}>
+                {["NIS2", "NIST", "ISO 27001"].map((b, i) => (
+                  <span key={i} style={{ padding: "4px 10px", borderRadius: "6px", fontSize: "11px", fontWeight: "700", backgroundColor: COLORS.blue + "20", color: COLORS.blue, border: `1px solid ${COLORS.blue}30` }}>{b}</span>
+                ))}
+              </div>
+            </div>
+            {/* Solutions */}
+            <div>
+              <h4 style={{ color: COLORS.text, fontSize: "14px", fontWeight: "700", marginBottom: "16px", textTransform: "uppercase", letterSpacing: "0.05em" }}>Solutions</h4>
+              {["Healthcare & NHS", "Manufacturing", "Smart Buildings", "Universities", "MSPs"].map((item, i) => (
+                <div key={i} style={{ color: COLORS.muted, fontSize: "14px", marginBottom: "10px", cursor: "pointer" }}
+                  onMouseEnter={e => e.currentTarget.style.color = COLORS.blue}
+                  onMouseLeave={e => e.currentTarget.style.color = COLORS.muted}>
+                  {item}
+                </div>
+              ))}
+            </div>
+            {/* Platform */}
+            <div>
+              <h4 style={{ color: COLORS.text, fontSize: "14px", fontWeight: "700", marginBottom: "16px", textTransform: "uppercase", letterSpacing: "0.05em" }}>Platform</h4>
+              {["AIPET Scan", "AIPET Explain", "AIPET Score", "AIPET Map", "AIPET Predict", "AIPET Watch", "AIPET Ask"].map((item, i) => (
+                <div key={i} style={{ color: COLORS.muted, fontSize: "14px", marginBottom: "10px", cursor: "pointer" }}
+                  onMouseEnter={e => e.currentTarget.style.color = COLORS.blue}
+                  onMouseLeave={e => e.currentTarget.style.color = COLORS.muted}>
+                  {item}
+                </div>
+              ))}
+            </div>
+            {/* Company */}
+            <div>
+              <h4 style={{ color: COLORS.text, fontSize: "14px", fontWeight: "700", marginBottom: "16px", textTransform: "uppercase", letterSpacing: "0.05em" }}>Company</h4>
+              {["About AIPET", "Research", "Contact Us", "Events", "GitHub"].map((item, i) => (
+                <div key={i} style={{ color: COLORS.muted, fontSize: "14px", marginBottom: "10px", cursor: "pointer" }}
+                  onMouseEnter={e => e.currentTarget.style.color = COLORS.blue}
+                  onMouseLeave={e => e.currentTarget.style.color = COLORS.muted}>
+                  {item}
+                </div>
+              ))}
+            </div>
+          </div>
+          {/* Bottom bar */}
+          <div style={{ borderTop: `1px solid ${COLORS.border}`, paddingTop: "24px", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "16px" }}>
+            <p style={{ color: COLORS.muted, fontSize: "13px" }}>
+              © 2026 AIPET Cloud · AIPET Cloud v3.0.0 — Developed as part of MSc Cyber Security research at Coventry University · MIT Licence
+            </p>
+            <div style={{ display: "flex", gap: "24px" }}>
+              {[
+                { label: t('footer.privacy'), page: 'privacy' },
+                { label: t('footer.terms'), page: 'terms' },
+                { label: t('footer.cookie'), page: 'cookies' },
+              ].map((link, i) => (
+                <button key={i} onClick={() => setLegalPage(link.page)}
+                  style={{ color: COLORS.muted, background: "none", border: "none", cursor: "pointer", fontSize: "13px" }}
+                  onMouseEnter={e => e.currentTarget.style.color = COLORS.blue}
+                  onMouseLeave={e => e.currentTarget.style.color = COLORS.muted}>
+                  {link.label}
+                </button>
+              ))}
+              <a href="https://github.com/Yallewbinyam/AIPET" style={{ color: COLORS.blue, fontSize: "13px" }}>GitHub</a>
+            </div>
+          </div>
+        </div>
+      </div>
+
     </div>
   );
 }
@@ -3159,7 +3182,11 @@ function LoginPage({ onLogin }) {
 
         {/* Form card */}
         <div className="rounded-2xl border p-8"
-          style={{ backgroundColor: COLORS.card, borderColor: COLORS.border }}>
+          style={{
+            backgroundColor: COLORS.card,
+            borderColor: COLORS.blue + "40",
+            boxShadow: `0 0 40px ${COLORS.blue}15`,
+          }}>
 
           <h2 className="text-xl font-black mb-6" style={{ color: COLORS.text }}>
             {isRegister ? "Create your account" : "Sign in to AIPET"}
@@ -4746,17 +4773,31 @@ export default function App() {
                     Modules Executed
                   </h3>
                   <div className="space-y-2">
-                    {(summary.modules_run || []).map((m, i) => (
-                      <div key={i} className="flex items-center gap-3 p-3 rounded-xl"
-                        style={{ backgroundColor: COLORS.darker }}>
-                        <CheckCircle size={16} style={{ color: COLORS.low }} />
-                        <span className="text-sm font-medium" style={{ color: COLORS.text }}>{m}</span>
-                        <span className="ml-auto text-xs px-2 py-0.5 rounded-full"
-                          style={{ backgroundColor: COLORS.low + "20", color: COLORS.low }}>
-                          DONE
-                        </span>
-                      </div>
-                    ))}
+                    {[
+                      "Module 1: Recon",
+                      "Module 2: MQTT Scanner",
+                      "Module 3: CoAP Scanner",
+                      "Module 4: HTTP Scanner",
+                      "Module 5: Firmware Analysis",
+                      "Module 6: AI Engine",
+                      "Module 7: Report",
+                    ].map((m, i) => {
+                      const ran = (summary.modules_run || []).some(r => r.includes(m.split(": ")[1]) || m.includes(r));
+                      return (
+                        <div key={i} className="flex items-center gap-3 p-3 rounded-xl"
+                          style={{ backgroundColor: COLORS.darker }}>
+                          <CheckCircle size={16} style={{ color: ran ? COLORS.low : COLORS.muted }} />
+                          <span className="text-sm font-medium" style={{ color: ran ? COLORS.text : COLORS.muted }}>{m}</span>
+                          <span className="ml-auto text-xs px-2 py-0.5 rounded-full"
+                            style={{
+                              backgroundColor: ran ? COLORS.low + "20" : COLORS.muted + "20",
+                              color: ran ? COLORS.low : COLORS.muted
+                            }}>
+                            {ran ? "DONE" : "NOT DETECTED"}
+                          </span>
+                        </div>
+                      );
+                    })}
                   </div>
                 </div>
               </div>

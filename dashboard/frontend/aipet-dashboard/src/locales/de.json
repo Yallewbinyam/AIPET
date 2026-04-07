@@ -4,12 +4,16 @@
     "getStarted": "Kostenlos Starten",
     "features": "Funktionen",
     "howItWorks": "So funktioniert es",
-    "pricing": "Preise"
+    "pricing": "Preise",
+    "platform": "Plattform",
+    "solutions": "Lösungen",
+    "company": "Unternehmen",
+    "requestDemo": "Demo Anfordern"
   },
   "hero": {
     "badge": "MSc Cybersicherheitsforschung — Universität Coventry",
-    "title1": "KI-gestützte IoT-Sicherheit",
-    "title2": "für das moderne Unternehmen",
+    "title1": "Finden Sie Genau Heraus, Wie Hacker Angreifen",
+    "title2": "Ihre IoT-Geräte — Bevor Sie Es Tun",
     "subtitle": "AIPET automatisiert die Erkennung, Prüfung und Priorisierung von Schwachstellen auf Ihren IoT-Geräten — mit erklärbarer KI, die Ihnen nicht nur sagt, was anfällig ist, sondern genau warum.",
     "cta": "Kostenlos Starten"
   },
