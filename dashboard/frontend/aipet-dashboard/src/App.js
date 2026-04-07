@@ -2718,6 +2718,203 @@ function Toast({ toast }) {
     </div>
   );
 }
+
+function NetworkCanvas() {
+  const canvasRef = useRef(null);
+
+  useEffect(() => {
+    const canvas = canvasRef.current;
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+    let animationId;
+    let nodes = [];
+    let packets = [];
+    let tick = 0;
+
+    const resize = () => {
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
+    };
+    resize();
+    window.addEventListener('resize', resize);
+
+    // Node types
+    const NODE_TYPES = [
+      { type: 'device',    color: '#00e5ff', glow: '#00e5ff', radius: 3,  count: 35 },
+      { type: 'gateway',   color: '#a855f7', glow: '#a855f7', radius: 5,  count: 8  },
+      { type: 'vulnerable',color: '#ff4444', glow: '#ff4444', radius: 4,  count: 6  },
+      { type: 'secure',    color: '#00ff88', glow: '#00ff88', radius: 3,  count: 8  },
+    ];
+
+    // Create nodes
+    NODE_TYPES.forEach(nt => {
+      for (let i = 0; i < nt.count; i++) {
+        nodes.push({
+          x: Math.random() * canvas.width,
+          y: Math.random() * canvas.height,
+          vx: (Math.random() - 0.5) * 0.3,
+          vy: (Math.random() - 0.5) * 0.3,
+          radius: nt.radius,
+          color: nt.color,
+          glow: nt.glow,
+          type: nt.type,
+          pulse: Math.random() * Math.PI * 2,
+          pulseSpeed: 0.02 + Math.random() * 0.02,
+          opacity: 0.7 + Math.random() * 0.3,
+        });
+      }
+    });
+
+    const drawGlow = (x, y, radius, color, intensity) => {
+      const gradient = ctx.createRadialGradient(x, y, 0, x, y, radius * 4);
+      gradient.addColorStop(0, color.replace(')', `, ${intensity})`).replace('rgb', 'rgba'));
+      gradient.addColorStop(1, 'rgba(0,0,0,0)');
+      ctx.beginPath();
+      ctx.arc(x, y, radius * 4, 0, Math.PI * 2);
+      ctx.fillStyle = gradient;
+      ctx.fill();
+    };
+
+    const hexToRgb = hex => {
+      const r = parseInt(hex.slice(1,3),16);
+      const g = parseInt(hex.slice(3,5),16);
+      const b = parseInt(hex.slice(5,7),16);
+      return `${r},${g},${b}`;
+    };
+
+    const draw = () => {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+      tick++;
+
+      // Spawn data packets occasionally
+      if (tick % 60 === 0 && nodes.length > 1) {
+        const from = nodes[Math.floor(Math.random() * nodes.length)];
+        const to = nodes[Math.floor(Math.random() * nodes.length)];
+        if (from !== to) {
+          packets.push({ x: from.x, y: from.y, tx: to.x, ty: to.y, progress: 0, color: from.color, speed: 0.015 });
+        }
+      }
+
+      // Draw connections
+      for (let i = 0; i < nodes.length; i++) {
+        for (let j = i + 1; j < nodes.length; j++) {
+          const dx = nodes[i].x - nodes[j].x;
+          const dy = nodes[i].y - nodes[j].y;
+          const dist = Math.sqrt(dx * dx + dy * dy);
+          if (dist < 180) {
+            const alpha = 0.2 * (1 - dist / 180);
+            const grad = ctx.createLinearGradient(nodes[i].x, nodes[i].y, nodes[j].x, nodes[j].y);
+            grad.addColorStop(0, `rgba(${hexToRgb(nodes[i].color)}, ${alpha})`);
+            grad.addColorStop(1, `rgba(${hexToRgb(nodes[j].color)}, ${alpha})`);
+            ctx.beginPath();
+            ctx.moveTo(nodes[i].x, nodes[i].y);
+            ctx.lineTo(nodes[j].x, nodes[j].y);
+            ctx.strokeStyle = grad;
+            ctx.lineWidth = 0.8;
+            ctx.stroke();
+          }
+        }
+      }
+
+      // Draw data packets
+      packets = packets.filter(p => p.progress < 1);
+      packets.forEach(p => {
+        p.progress += p.speed;
+        p.tx = p.tx || p.x;
+        p.ty = p.ty || p.y;
+        const x = p.x + (p.tx - p.x) * p.progress;
+        const y = p.y + (p.ty - p.y) * p.progress;
+        ctx.beginPath();
+        ctx.arc(x, y, 2, 0, Math.PI * 2);
+        ctx.fillStyle = p.color;
+        ctx.fill();
+        // Packet glow
+        const pg = ctx.createRadialGradient(x, y, 0, x, y, 8);
+        pg.addColorStop(0, `rgba(${hexToRgb(p.color)}, 0.4)`);
+        pg.addColorStop(1, 'rgba(0,0,0,0)');
+        ctx.beginPath();
+        ctx.arc(x, y, 8, 0, Math.PI * 2);
+        ctx.fillStyle = pg;
+        ctx.fill();
+      });
+
+      // Draw nodes
+      nodes.forEach(node => {
+        node.x += node.vx;
+        node.y += node.vy;
+        if (node.x < 0 || node.x > canvas.width) node.vx *= -1;
+        if (node.y < 0 || node.y > canvas.height) node.vy *= -1;
+        node.pulse += node.pulseSpeed;
+
+        const pulseFactor = 1 + 0.3 * Math.sin(node.pulse);
+        const r = node.radius * pulseFactor;
+        const rgb = hexToRgb(node.color);
+
+        // Outer glow
+        const glowGrad = ctx.createRadialGradient(node.x, node.y, 0, node.x, node.y, r * 6);
+        glowGrad.addColorStop(0, `rgba(${rgb}, 0.3)`);
+        glowGrad.addColorStop(1, 'rgba(0,0,0,0)');
+        ctx.beginPath();
+        ctx.arc(node.x, node.y, r * 6, 0, Math.PI * 2);
+        ctx.fillStyle = glowGrad;
+        ctx.fill();
+
+        // Node ring (for gateway and vulnerable)
+        if (node.type === 'gateway' || node.type === 'vulnerable') {
+          ctx.beginPath();
+          ctx.arc(node.x, node.y, r * 2.5, 0, Math.PI * 2);
+          ctx.strokeStyle = `rgba(${rgb}, 0.3)`;
+          ctx.lineWidth = 1;
+          ctx.stroke();
+        }
+
+        // Attack pulse for vulnerable nodes
+        if (node.type === 'vulnerable') {
+          const pulseR = r * (3 + 2 * Math.abs(Math.sin(node.pulse * 2)));
+          ctx.beginPath();
+          ctx.arc(node.x, node.y, pulseR, 0, Math.PI * 2);
+          ctx.strokeStyle = `rgba(255, 68, 68, ${0.3 * (1 - Math.abs(Math.sin(node.pulse * 2)))})`;
+          ctx.lineWidth = 1.5;
+          ctx.stroke();
+        }
+
+        // Core node
+        ctx.beginPath();
+        ctx.arc(node.x, node.y, r, 0, Math.PI * 2);
+        ctx.fillStyle = `rgba(${rgb}, ${node.opacity})`;
+        ctx.fill();
+
+        // Inner highlight
+        ctx.beginPath();
+        ctx.arc(node.x - r * 0.3, node.y - r * 0.3, r * 0.4, 0, Math.PI * 2);
+        ctx.fillStyle = `rgba(255, 255, 255, 0.4)`;
+        ctx.fill();
+      });
+
+      animationId = requestAnimationFrame(draw);
+    };
+
+    draw();
+    return () => {
+      cancelAnimationFrame(animationId);
+      window.removeEventListener('resize', resize);
+    };
+  }, []);
+
+  return (
+    <canvas ref={canvasRef} style={{
+      position: "fixed",
+      top: 0,
+      left: 0,
+      width: "100%",
+      height: "100%",
+      pointerEvents: "none",
+      zIndex: 0,
+      opacity: 0.5,
+    }} />
+  );
+}
+
 function LandingPage({ onGetStarted, onLogin, setLegalPage }) {
   const { t, i18n } = useTranslation();
   const [currency, setCurrency] = useState({ code: 'GBP', symbol: '£' });
@@ -2777,7 +2974,9 @@ function LandingPage({ onGetStarted, onLogin, setLegalPage }) {
   ];
 
   return (
-    <div className="min-h-screen" style={{ backgroundColor: COLORS.darker, fontFamily: "Inter, sans-serif" }} onClick={() => { setActiveDropdown(null); setLangOpen(false); }}>
+    <div className="min-h-screen" style={{ backgroundColor: COLORS.darker, fontFamily: "Inter, sans-serif", position: "relative" }} onClick={() => { setActiveDropdown(null); setLangOpen(false); }}>
+      <NetworkCanvas />
+      <div style={{ position: "relative", zIndex: 1 }}>
 
       {/* TOP ANNOUNCEMENT BAR */}
       <div style={{ width: "100%", background: `linear-gradient(90deg, ${COLORS.blue}cc, #0099cc, ${COLORS.blue}cc)`, borderBottom: `1px solid ${COLORS.blue}`, color: "white", textAlign: "center", padding: "10px 32px", fontSize: "14px", fontWeight: "600" }}>
@@ -3113,6 +3312,7 @@ function LandingPage({ onGetStarted, onLogin, setLegalPage }) {
         </div>
       </div>
 
+    </div>
     </div>
   );
 }
