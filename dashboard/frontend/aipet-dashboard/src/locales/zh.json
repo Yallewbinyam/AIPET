@@ -111,13 +111,13 @@
       "MSP"
     ],
     "platform": [
-      "AIPET Scan",
-      "AIPET Explain",
-      "AIPET Score",
-      "AIPET Map",
-      "AIPET Predict",
-      "AIPET Watch",
-      "AIPET Ask"
+      "IoT扫描",
+      "AI解释",
+      "风险评分",
+      "网络地图",
+      "CVE预测",
+      "监控",
+      "AI助手"
     ],
     "company": [
       "关于AIPET",

@@ -111,13 +111,13 @@
       "MSPs"
     ],
     "platform": [
-      "AIPET Scan",
-      "AIPET Explain",
-      "AIPET Score",
-      "AIPET Map",
-      "AIPET Predict",
-      "AIPET Watch",
-      "AIPET Ask"
+      "Scansione IoT",
+      "Spiegazione IA",
+      "Punteggio Rischio",
+      "Mappa Rete",
+      "Previsione CVE",
+      "Sorveglianza",
+      "Assistente IA"
     ],
     "company": [
       "Chi siamo",
