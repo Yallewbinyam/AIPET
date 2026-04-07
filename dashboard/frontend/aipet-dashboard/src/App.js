@@ -2939,8 +2939,8 @@ function LandingPage({ onGetStarted, onLogin, setLegalPage }) {
       <div id="features" style={{ backgroundColor: COLORS.card, padding: "80px 32px" }}>
         <div style={{ maxWidth: "1200px", margin: "0 auto" }}>
           <div style={{ textAlign: "center", marginBottom: "60px" }}>
-            <h2 style={{ fontSize: "36px", fontWeight: "900", color: COLORS.text, marginBottom: "12px" }}>Everything you need to secure your IoT</h2>
-            <p style={{ color: COLORS.muted, fontSize: "16px" }}>Seven AI-powered modules working together</p>
+            <h2 style={{ fontSize: "36px", fontWeight: "900", color: COLORS.text, marginBottom: "12px" }}>{t("featuresTitle")}</h2>
+            <p style={{ color: COLORS.muted, fontSize: "16px" }}>{t("featuresSubtitle")}</p>
           </div>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "24px" }}>
             {[
@@ -3047,7 +3047,7 @@ function LandingPage({ onGetStarted, onLogin, setLegalPage }) {
                 <span style={{ fontSize: "20px", fontWeight: "900", color: COLORS.text }}>AIPET</span>
               </div>
               <p style={{ color: COLORS.muted, fontSize: "14px", lineHeight: "1.7", maxWidth: "280px" }}>
-                AI-Powered IoT Security Platform. Built as MSc Cyber Security research at Coventry University.
+                {t('footerTagline')}
               </p>
               <div style={{ display: "flex", gap: "8px", marginTop: "16px" }}>
                 {["NIS2", "NIST", "ISO 27001"].map((b, i) => (
@@ -3057,8 +3057,8 @@ function LandingPage({ onGetStarted, onLogin, setLegalPage }) {
             </div>
             {/* Solutions */}
             <div>
-              <h4 style={{ color: COLORS.text, fontSize: "14px", fontWeight: "700", marginBottom: "16px", textTransform: "uppercase", letterSpacing: "0.05em" }}>Solutions</h4>
-              {["Healthcare & NHS", "Manufacturing", "Smart Buildings", "Universities", "MSPs"].map((item, i) => (
+              <h4 style={{ color: COLORS.text, fontSize: "14px", fontWeight: "700", marginBottom: "16px", textTransform: "uppercase", letterSpacing: "0.05em" }}>{t('footerSolutions')}</h4>
+              {t('footerItems.solutions', { returnObjects: true }).map((item, i) => (
                 <div key={i} style={{ color: COLORS.muted, fontSize: "14px", marginBottom: "10px", cursor: "pointer" }}
                   onMouseEnter={e => e.currentTarget.style.color = COLORS.blue}
                   onMouseLeave={e => e.currentTarget.style.color = COLORS.muted}>
@@ -3068,8 +3068,8 @@ function LandingPage({ onGetStarted, onLogin, setLegalPage }) {
             </div>
             {/* Platform */}
             <div>
-              <h4 style={{ color: COLORS.text, fontSize: "14px", fontWeight: "700", marginBottom: "16px", textTransform: "uppercase", letterSpacing: "0.05em" }}>Platform</h4>
-              {["AIPET Scan", "AIPET Explain", "AIPET Score", "AIPET Map", "AIPET Predict", "AIPET Watch", "AIPET Ask"].map((item, i) => (
+              <h4 style={{ color: COLORS.text, fontSize: "14px", fontWeight: "700", marginBottom: "16px", textTransform: "uppercase", letterSpacing: "0.05em" }}>{t('footerPlatform')}</h4>
+              {t('footerItems.platform', { returnObjects: true }).map((item, i) => (
                 <div key={i} style={{ color: COLORS.muted, fontSize: "14px", marginBottom: "10px", cursor: "pointer" }}
                   onMouseEnter={e => e.currentTarget.style.color = COLORS.blue}
                   onMouseLeave={e => e.currentTarget.style.color = COLORS.muted}>
@@ -3079,8 +3079,8 @@ function LandingPage({ onGetStarted, onLogin, setLegalPage }) {
             </div>
             {/* Company */}
             <div>
-              <h4 style={{ color: COLORS.text, fontSize: "14px", fontWeight: "700", marginBottom: "16px", textTransform: "uppercase", letterSpacing: "0.05em" }}>Company</h4>
-              {["About AIPET", "Research", "Contact Us", "Events", "GitHub"].map((item, i) => (
+              <h4 style={{ color: COLORS.text, fontSize: "14px", fontWeight: "700", marginBottom: "16px", textTransform: "uppercase", letterSpacing: "0.05em" }}>{t('footerCompany')}</h4>
+              {t('footerItems.company', { returnObjects: true }).map((item, i) => (
                 <div key={i} style={{ color: COLORS.muted, fontSize: "14px", marginBottom: "10px", cursor: "pointer" }}
                   onMouseEnter={e => e.currentTarget.style.color = COLORS.blue}
                   onMouseLeave={e => e.currentTarget.style.color = COLORS.muted}>

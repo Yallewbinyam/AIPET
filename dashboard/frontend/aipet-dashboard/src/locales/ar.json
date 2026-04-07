@@ -98,5 +98,36 @@
     "attackModules": "وحدات الهجوم",
     "frameworks": "أطر الامتثال",
     "nis2": "تغطية NIS2"
-  }
+  },
+  "footerSolutions": "الحلول",
+  "footerPlatform": "المنصة",
+  "footerCompany": "الشركة",
+  "footerItems": {
+    "solutions": [
+      "الرعاية الصحية",
+      "التصنيع",
+      "المباني الذكية",
+      "الجامعات",
+      "MSPs"
+    ],
+    "platform": [
+      "AIPET Scan",
+      "AIPET Explain",
+      "AIPET Score",
+      "AIPET Map",
+      "AIPET Predict",
+      "AIPET Watch",
+      "AIPET Ask"
+    ],
+    "company": [
+      "عن AIPET",
+      "البحث",
+      "اتصل بنا",
+      "الفعاليات",
+      "GitHub"
+    ]
+  },
+  "footerTagline": "منصة أمان IoT مدعومة بالذكاء الاصطناعي. تم تطويرها كبحث ماجستير في جامعة كوفنتري.",
+  "featuresTitle": "كل ما تحتاجه لتأمين IoT الخاص بك",
+  "featuresSubtitle": "سبعة وحدات مدعومة بالذكاء الاصطناعي تعمل معاً"
 }

@@ -98,5 +98,36 @@
     "attackModules": "攻击模块",
     "frameworks": "合规框架",
     "nis2": "NIS2覆盖"
-  }
+  },
+  "footerSolutions": "解决方案",
+  "footerPlatform": "平台",
+  "footerCompany": "公司",
+  "footerItems": {
+    "solutions": [
+      "医疗健康",
+      "制造业",
+      "智能建筑",
+      "大学",
+      "MSP"
+    ],
+    "platform": [
+      "AIPET Scan",
+      "AIPET Explain",
+      "AIPET Score",
+      "AIPET Map",
+      "AIPET Predict",
+      "AIPET Watch",
+      "AIPET Ask"
+    ],
+    "company": [
+      "关于AIPET",
+      "研究",
+      "联系我们",
+      "活动",
+      "GitHub"
+    ]
+  },
+  "footerTagline": "AI驱动的IoT安全平台。作为考文垂大学网络安全硕士研究开发。",
+  "featuresTitle": "保护IoT所需的一切",
+  "featuresSubtitle": "七个AI驱动模块协同工作"
 }

@@ -98,5 +98,36 @@
     "attackModules": "Angriffsmodule",
     "frameworks": "Compliance-Frameworks",
     "nis2": "NIS2-Abdeckung"
-  }
+  },
+  "footerSolutions": "Lösungen",
+  "footerPlatform": "Plattform",
+  "footerCompany": "Unternehmen",
+  "footerItems": {
+    "solutions": [
+      "Gesundheitswesen",
+      "Fertigung",
+      "Intelligente Gebäude",
+      "Universitäten",
+      "MSPs"
+    ],
+    "platform": [
+      "AIPET Scan",
+      "AIPET Explain",
+      "AIPET Score",
+      "AIPET Map",
+      "AIPET Predict",
+      "AIPET Watch",
+      "AIPET Ask"
+    ],
+    "company": [
+      "Über AIPET",
+      "Forschung",
+      "Kontakt",
+      "Veranstaltungen",
+      "GitHub"
+    ]
+  },
+  "footerTagline": "KI-gestützte IoT-Sicherheitsplattform. Entwickelt als MSc-Forschung an der Universität Coventry.",
+  "featuresTitle": "Alles was Sie zur IoT-Sicherheit brauchen",
+  "featuresSubtitle": "Sieben KI-gestützte Module arbeiten zusammen"
 }

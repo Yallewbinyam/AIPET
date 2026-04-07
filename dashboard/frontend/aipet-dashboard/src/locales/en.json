@@ -98,5 +98,36 @@
     "attackModules": "Attack modules",
     "frameworks": "Compliance frameworks",
     "nis2": "NIS2 coverage"
-  }
+  },
+  "footerSolutions": "Solutions",
+  "footerPlatform": "Platform",
+  "footerCompany": "Company",
+  "footerItems": {
+    "solutions": [
+      "Healthcare & NHS",
+      "Manufacturing",
+      "Smart Buildings",
+      "Universities",
+      "MSPs"
+    ],
+    "platform": [
+      "AIPET Scan",
+      "AIPET Explain",
+      "AIPET Score",
+      "AIPET Map",
+      "AIPET Predict",
+      "AIPET Watch",
+      "AIPET Ask"
+    ],
+    "company": [
+      "About AIPET",
+      "Research",
+      "Contact Us",
+      "Events",
+      "GitHub"
+    ]
+  },
+  "footerTagline": "AI-Powered IoT Security Platform. Built as MSc Cyber Security research at Coventry University.",
+  "featuresTitle": "Everything you need to secure your IoT",
+  "featuresSubtitle": "Seven AI-powered modules working together"
 }

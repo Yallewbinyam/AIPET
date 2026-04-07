@@ -98,5 +98,36 @@
     "attackModules": "攻撃モジュール",
     "frameworks": "コンプライアンス",
     "nis2": "NIS2対応"
-  }
+  },
+  "footerSolutions": "ソリューション",
+  "footerPlatform": "プラットフォーム",
+  "footerCompany": "会社",
+  "footerItems": {
+    "solutions": [
+      "医療・NHS",
+      "製造業",
+      "スマートビル",
+      "大学",
+      "MSP"
+    ],
+    "platform": [
+      "AIPET Scan",
+      "AIPET Explain",
+      "AIPET Score",
+      "AIPET Map",
+      "AIPET Predict",
+      "AIPET Watch",
+      "AIPET Ask"
+    ],
+    "company": [
+      "AIPETについて",
+      "研究",
+      "お問い合わせ",
+      "イベント",
+      "GitHub"
+    ]
+  },
+  "footerTagline": "AIを活用したIoTセキュリティプラットフォーム。コベントリー大学のMSc研究として開発。",
+  "featuresTitle": "IoTセキュリティに必要なすべて",
+  "featuresSubtitle": "7つのAIモジュールが連携して動作"
 }

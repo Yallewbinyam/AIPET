@@ -98,5 +98,36 @@
     "attackModules": "Moduli di attacco",
     "frameworks": "Framework di conformità",
     "nis2": "Copertura NIS2"
-  }
+  },
+  "footerSolutions": "Soluzioni",
+  "footerPlatform": "Piattaforma",
+  "footerCompany": "Azienda",
+  "footerItems": {
+    "solutions": [
+      "Sanità & NHS",
+      "Produzione",
+      "Edifici Intelligenti",
+      "Università",
+      "MSPs"
+    ],
+    "platform": [
+      "AIPET Scan",
+      "AIPET Explain",
+      "AIPET Score",
+      "AIPET Map",
+      "AIPET Predict",
+      "AIPET Watch",
+      "AIPET Ask"
+    ],
+    "company": [
+      "Chi siamo",
+      "Ricerca",
+      "Contattaci",
+      "Eventi",
+      "GitHub"
+    ]
+  },
+  "footerTagline": "Piattaforma di sicurezza IoT alimentata da AI. Sviluppata come ricerca MSc all'Università di Coventry.",
+  "featuresTitle": "Tutto ciò di cui hai bisogno per proteggere il tuo IoT",
+  "featuresSubtitle": "Sette moduli alimentati da AI che lavorano insieme"
 }

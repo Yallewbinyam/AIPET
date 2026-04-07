@@ -98,5 +98,36 @@
     "attackModules": "Aanvalsmodules",
     "frameworks": "Nalevingsframeworks",
     "nis2": "NIS2-dekking"
-  }
+  },
+  "footerSolutions": "Oplossingen",
+  "footerPlatform": "Platform",
+  "footerCompany": "Bedrijf",
+  "footerItems": {
+    "solutions": [
+      "Gezondheidszorg & NHS",
+      "Productie",
+      "Slimme Gebouwen",
+      "Universiteiten",
+      "MSPs"
+    ],
+    "platform": [
+      "AIPET Scan",
+      "AIPET Explain",
+      "AIPET Score",
+      "AIPET Map",
+      "AIPET Predict",
+      "AIPET Watch",
+      "AIPET Ask"
+    ],
+    "company": [
+      "Over AIPET",
+      "Onderzoek",
+      "Neem contact op",
+      "Evenementen",
+      "GitHub"
+    ]
+  },
+  "footerTagline": "AI-aangedreven IoT-beveiligingsplatform. Ontwikkeld als MSc-onderzoek aan de Universiteit van Coventry.",
+  "featuresTitle": "Alles wat u nodig heeft om uw IoT te beveiligen",
+  "featuresSubtitle": "Zeven AI-aangedreven modules die samenwerken"
 }
