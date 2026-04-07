@@ -2919,6 +2919,566 @@ function NetworkCanvas() {
 // ============================================================
 // ABOUT PAGE
 // ============================================================
+
+// ============================================================
+// PLATFORM PAGE
+// ============================================================
+function PlatformPage({ onBack, onGetStarted }) {
+  const [expanded, setExpanded] = useState(null);
+
+  const MODULES = [
+    {
+      id: "scan",
+      name: "AIPET Scan",
+      tagline: "Discover every IoT device in your network",
+      icon: "🔍",
+      color: "#00e5ff",
+      description: "AIPET Scan automatically discovers and fingerprints every IoT device on your network. Using seven specialised attack modules — MQTT, CoAP, HTTP, Firmware Analysis, Recon, AI Engine, and Report Generation — it performs a comprehensive security assessment in under 60 seconds.",
+      features: [
+        "Automatic device discovery across all subnets",
+        "7 specialised IoT attack modules",
+        "MQTT, CoAP, HTTP, and Firmware analysis",
+        "Complete scan in under 60 seconds",
+        "Supports parallel scanning across multiple networks",
+        "Full audit trail and scan history",
+      ],
+      stats: [{ value: "60s", label: "Scan time" }, { value: "7", label: "Attack modules" }, { value: "100%", label: "OWASP coverage" }],
+    },
+    {
+      id: "explain",
+      name: "AIPET Explain",
+      tagline: "AI-powered explanations for every vulnerability",
+      icon: "🧠",
+      color: "#a855f7",
+      description: "Powered by Claude AI and SHAP explainability, AIPET Explain transforms complex vulnerability data into clear, actionable intelligence. It tells you not just what is vulnerable — but exactly why, using machine learning predictions that security teams and executives both understand.",
+      features: [
+        "Claude AI-powered plain English explanations",
+        "SHAP values showing exactly why each device is at risk",
+        "Executive summary reports for board presentations",
+        "Technical deep-dive for security engineers",
+        "Automated report generation in PDF format",
+        "Context-aware remediation recommendations",
+      ],
+      stats: [{ value: "SHAP", label: "Explainability" }, { value: "Claude", label: "AI engine" }, { value: "PDF", label: "Export format" }],
+    },
+    {
+      id: "score",
+      name: "AIPET Score",
+      tagline: "Quantify the financial impact of every vulnerability",
+      icon: "💰",
+      color: "#f59e0b",
+      description: "AIPET Score calculates the real financial exposure of your IoT vulnerabilities using IBM Cost of a Data Breach 2024 and NCSC data. It gives your CISO and board a clear answer to the question: what would this breach actually cost us?",
+      features: [
+        "Financial risk calculation using IBM/NCSC 2024 data",
+        "Per-device and per-finding cost breakdown",
+        "Industry-specific breach cost benchmarking",
+        "Risk prioritisation by financial impact",
+        "Board-ready financial exposure reports",
+        "ROI calculation for security investments",
+      ],
+      stats: [{ value: "£$€¥", label: "Multi-currency" }, { value: "IBM", label: "Data source" }, { value: "2024", label: "Latest data" }],
+    },
+    {
+      id: "map",
+      name: "AIPET Map",
+      tagline: "Visualise attack paths across your IoT network",
+      icon: "🗺️",
+      color: "#00e5ff",
+      description: "AIPET Map uses D3.js to render a live, interactive network topology showing exactly how an attacker would move through your IoT infrastructure. See the complete attack chain — from initial access to full network compromise — visualised in real time.",
+      features: [
+        "Interactive D3.js network topology visualisation",
+        "Complete attack path mapping",
+        "Device relationship and dependency mapping",
+        "Critical path identification",
+        "Export network diagram as PNG/PDF",
+        "Real-time updates as new devices are discovered",
+      ],
+      stats: [{ value: "D3.js", label: "Technology" }, { value: "Live", label: "Updates" }, { value: "Interactive", label: "Visualisation" }],
+    },
+    {
+      id: "predict",
+      name: "AIPET Predict",
+      tagline: "Live CVE intelligence matched to your devices",
+      icon: "⚡",
+      color: "#f59e0b",
+      description: "AIPET Predict connects to the NIST National Vulnerability Database in real time, matching newly published CVEs against your specific device inventory. Know within minutes when a new vulnerability affects your infrastructure — before attackers exploit it.",
+      features: [
+        "Real-time NVD API integration",
+        "Automatic CVE matching to your device inventory",
+        "CVSS score and weaponisation percentage tracking",
+        "Priority alerting for critical vulnerabilities",
+        "Historical CVE trend analysis",
+        "Automated notification for new critical CVEs",
+      ],
+      stats: [{ value: "NVD", label: "Data source" }, { value: "Real-time", label: "Updates" }, { value: "CVSS", label: "Scoring" }],
+    },
+    {
+      id: "watch",
+      name: "AIPET Watch",
+      tagline: "Continuous anomaly detection for your IoT network",
+      icon: "👁️",
+      color: "#00ff88",
+      description: "AIPET Watch uses Scapy-based passive network monitoring to establish behavioural baselines for every IoT device and detect anomalies in real time. When a device starts behaving unusually — unexpected ports, unusual traffic patterns — you know immediately.",
+      features: [
+        "Passive network monitoring using Scapy",
+        "Automatic baseline establishment per device",
+        "Real-time anomaly detection and alerting",
+        "Device behaviour profiling",
+        "Network traffic analysis",
+        "Incident timeline and forensic data",
+      ],
+      stats: [{ value: "Scapy", label: "Technology" }, { value: "24/7", label: "Monitoring" }, { value: "Real-time", label: "Alerts" }],
+    },
+    {
+      id: "ask",
+      name: "AIPET Ask",
+      tagline: "Your AI security assistant, always available",
+      icon: "💬",
+      color: "#a855f7",
+      description: "AIPET Ask is a Claude AI-powered security assistant that answers any question about your IoT security posture in natural language. Ask about your vulnerabilities, compliance status, remediation steps, or anything else — and get expert-level answers instantly.",
+      features: [
+        "Claude AI-powered natural language interface",
+        "Context-aware answers based on your actual scan data",
+        "Compliance guidance for NIS2, NIST, ISO 27001",
+        "Remediation step-by-step assistance",
+        "Security best practice recommendations",
+        "Available 24/7, no waiting for a consultant",
+      ],
+      stats: [{ value: "Claude", label: "AI engine" }, { value: "24/7", label: "Available" }, { value: "NL", label: "Interface" }],
+    },
+  ];
+
+  return (
+    <div style={{ backgroundColor: COLORS.darker, minHeight: "100vh", fontFamily: "Inter, sans-serif" }}>
+      <NetworkCanvas />
+      <div style={{ position: "relative", zIndex: 1 }}>
+
+        {/* Navbar */}
+        <nav style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "20px 48px", borderBottom: `1px solid ${COLORS.border}`, backgroundColor: COLORS.darker + "f8", backdropFilter: "blur(16px)", position: "sticky", top: 0, zIndex: 50 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "12px", cursor: "pointer" }} onClick={onBack}>
+            <div style={{ width: "36px", height: "36px", borderRadius: "10px", backgroundColor: COLORS.blue, display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <Shield size={18} color="white" />
+            </div>
+            <span style={{ fontSize: "20px", fontWeight: "900", color: COLORS.text }}>AIPET</span>
+          </div>
+          <div style={{ display: "flex", gap: "16px" }}>
+            <button onClick={onBack} style={{ color: COLORS.muted, background: "none", border: "none", cursor: "pointer", fontSize: "15px" }}>← Back</button>
+            <button onClick={onGetStarted} style={{ backgroundColor: COLORS.blue, color: "white", border: "none", cursor: "pointer", fontSize: "15px", fontWeight: "700", padding: "10px 24px", borderRadius: "10px" }}>Get Started Free</button>
+          </div>
+        </nav>
+
+        {/* Hero */}
+        <div style={{ maxWidth: "1100px", margin: "0 auto", padding: "80px 48px 60px", textAlign: "center" }}>
+          <div style={{ display: "inline-flex", alignItems: "center", gap: "8px", padding: "6px 16px", borderRadius: "100px", border: `1px solid ${COLORS.blue}40`, backgroundColor: COLORS.blue + "10", marginBottom: "32px" }}>
+            <div style={{ width: "8px", height: "8px", borderRadius: "50%", backgroundColor: COLORS.blue }} />
+            <span style={{ color: COLORS.blue, fontSize: "13px", fontWeight: "600" }}>The Platform</span>
+          </div>
+          <h1 style={{ fontSize: "52px", fontWeight: "900", color: COLORS.text, lineHeight: "1.1", marginBottom: "24px", letterSpacing: "-0.03em" }}>
+            Seven Modules.
+            <span style={{ color: COLORS.blue }}> One Platform.</span>
+          </h1>
+          <p style={{ fontSize: "18px", color: COLORS.muted, lineHeight: "1.7", maxWidth: "680px", margin: "0 auto 48px" }}>
+            Every module in AIPET is designed to work together — from discovery to explanation to compliance. Click any module to explore its capabilities.
+          </p>
+          {/* Module quick nav */}
+          <div style={{ display: "flex", flexWrap: "wrap", gap: "8px", justifyContent: "center" }}>
+            {MODULES.map((m, i) => (
+              <button key={i} onClick={() => setExpanded(expanded === m.id ? null : m.id)}
+                style={{ padding: "8px 16px", borderRadius: "100px", fontSize: "13px", fontWeight: "600", cursor: "pointer", backgroundColor: expanded === m.id ? m.color + "20" : COLORS.card, color: expanded === m.id ? m.color : COLORS.muted, border: `1px solid ${expanded === m.id ? m.color : COLORS.border}`, transition: "all 0.2s" }}>
+                {m.icon} {m.name}
+              </button>
+            ))}
+          </div>
+        </div>
+
+        {/* Modules */}
+        <div style={{ maxWidth: "1100px", margin: "0 auto", padding: "0 48px 80px" }}>
+          {MODULES.map((module, i) => (
+            <div key={i} style={{ marginBottom: "16px", borderRadius: "20px", border: `1px solid ${expanded === module.id ? module.color + "60" : COLORS.border}`, backgroundColor: COLORS.card, overflow: "hidden", transition: "all 0.3s", boxShadow: expanded === module.id ? `0 0 40px ${module.color}15` : "none" }}>
+
+              {/* Module header — always visible */}
+              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "24px 32px", cursor: "pointer" }}
+                onClick={() => setExpanded(expanded === module.id ? null : module.id)}>
+                <div style={{ display: "flex", alignItems: "center", gap: "20px" }}>
+                  <div style={{ width: "52px", height: "52px", borderRadius: "14px", backgroundColor: module.color + "20", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "24px", flexShrink: 0 }}>
+                    {module.icon}
+                  </div>
+                  <div>
+                    <div style={{ fontSize: "18px", fontWeight: "800", color: module.color, marginBottom: "4px" }}>{module.name}</div>
+                    <div style={{ fontSize: "14px", color: COLORS.muted }}>{module.tagline}</div>
+                  </div>
+                </div>
+                <div style={{ display: "flex", alignItems: "center", gap: "24px" }}>
+                  {module.stats.map((s, j) => (
+                    <div key={j} style={{ textAlign: "center" }}>
+                      <div style={{ fontSize: "16px", fontWeight: "800", color: module.color }}>{s.value}</div>
+                      <div style={{ fontSize: "11px", color: COLORS.muted, textTransform: "uppercase", letterSpacing: "0.05em" }}>{s.label}</div>
+                    </div>
+                  ))}
+                  <div style={{ color: COLORS.muted, fontSize: "20px", transition: "transform 0.3s", transform: expanded === module.id ? "rotate(180deg)" : "rotate(0deg)" }}>▾</div>
+                </div>
+              </div>
+
+              {/* Expanded content */}
+              {expanded === module.id && (
+                <div style={{ padding: "0 32px 32px", borderTop: `1px solid ${module.color}20` }}>
+                  <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "32px", paddingTop: "32px" }}>
+                    <div>
+                      <p style={{ color: COLORS.muted, fontSize: "15px", lineHeight: "1.8", marginBottom: "24px" }}>{module.description}</p>
+                      <button onClick={onGetStarted} style={{ backgroundColor: module.color, color: "white", border: "none", cursor: "pointer", fontSize: "14px", fontWeight: "700", padding: "12px 24px", borderRadius: "10px" }}>
+                        Try {module.name} Free →
+                      </button>
+                    </div>
+                    <div>
+                      <div style={{ fontSize: "13px", fontWeight: "700", color: COLORS.muted, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: "16px" }}>Key Capabilities</div>
+                      {module.features.map((f, j) => (
+                        <div key={j} style={{ display: "flex", alignItems: "flex-start", gap: "10px", marginBottom: "12px" }}>
+                          <div style={{ width: "18px", height: "18px", borderRadius: "50%", backgroundColor: module.color + "20", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, marginTop: "2px" }}>
+                            <Check size={10} style={{ color: module.color }} />
+                          </div>
+                          <span style={{ color: COLORS.text, fontSize: "14px", lineHeight: "1.5" }}>{f}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+
+        {/* Tech stack */}
+        <div style={{ backgroundColor: COLORS.card, padding: "80px 48px" }}>
+          <div style={{ maxWidth: "1100px", margin: "0 auto", textAlign: "center" }}>
+            <h2 style={{ fontSize: "36px", fontWeight: "900", color: COLORS.text, marginBottom: "12px" }}>Built on Enterprise Technology</h2>
+            <p style={{ color: COLORS.muted, fontSize: "16px", marginBottom: "48px" }}>Production-grade stack, research-grade intelligence</p>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "20px" }}>
+              {[
+                { category: "Backend", items: ["Flask + Gunicorn", "PostgreSQL 17", "Celery + Redis", "Docker"] },
+                { category: "AI & ML", items: ["Claude AI (Anthropic)", "SHAP Explainability", "Random Forest", "NVD API"] },
+                { category: "Frontend", items: ["React", "D3.js", "Stripe Billing", "react-i18next"] },
+                { category: "Security", items: ["JWT Authentication", "Rate Limiting", "Nginx + SSL", "13/13 Audit Checks"] },
+              ].map((stack, i) => (
+                <div key={i} style={{ padding: "24px", borderRadius: "16px", border: `1px solid ${COLORS.border}`, backgroundColor: COLORS.darker, textAlign: "left" }}>
+                  <div style={{ fontSize: "12px", fontWeight: "700", color: COLORS.blue, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: "16px" }}>{stack.category}</div>
+                  {stack.items.map((item, j) => (
+                    <div key={j} style={{ color: COLORS.muted, fontSize: "14px", marginBottom: "8px", display: "flex", alignItems: "center", gap: "8px" }}>
+                      <div style={{ width: "4px", height: "4px", borderRadius: "50%", backgroundColor: COLORS.blue }} />
+                      {item}
+                    </div>
+                  ))}
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* CTA */}
+        <div style={{ maxWidth: "900px", margin: "80px auto", padding: "0 48px" }}>
+          <div style={{ background: `linear-gradient(135deg, ${COLORS.blue}15, ${COLORS.purple}10)`, border: `1px solid ${COLORS.blue}30`, borderRadius: "24px", padding: "64px 48px", textAlign: "center" }}>
+            <h2 style={{ fontSize: "36px", fontWeight: "900", color: COLORS.text, marginBottom: "16px" }}>See All 7 Modules in Action</h2>
+            <p style={{ color: COLORS.muted, fontSize: "16px", marginBottom: "32px" }}>Free forever. No credit card. Full platform access in 60 seconds.</p>
+            <button onClick={onGetStarted} style={{ backgroundColor: COLORS.blue, color: "white", border: "none", cursor: "pointer", fontSize: "16px", fontWeight: "700", padding: "14px 36px", borderRadius: "12px", boxShadow: `0 0 32px ${COLORS.blue}40` }}>
+              Get Started Free →
+            </button>
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div style={{ borderTop: `1px solid ${COLORS.border}`, padding: "24px 48px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <p style={{ color: COLORS.muted, fontSize: "13px" }}>© 2026 AIPET Cloud · MIT Licence</p>
+          <button onClick={onBack} style={{ color: COLORS.blue, background: "none", border: "none", cursor: "pointer", fontSize: "13px" }}>← Back to Home</button>
+        </div>
+
+      </div>
+    </div>
+  );
+}
+
+// ============================================================
+// SOLUTIONS PAGE
+// ============================================================
+function SolutionsPage({ onBack, onGetStarted }) {
+  const [activeTab, setActiveTab] = useState("healthcare");
+
+  const SOLUTIONS = {
+    healthcare: {
+      label: "Healthcare & NHS",
+      icon: "🏥",
+      color: "#00e5ff",
+      hero: "Protect Medical IoT Devices. Meet NIS2. Prevent the Next Ransomware Attack.",
+      stat1: { value: "£92M", label: "Average NHS breach cost" },
+      stat2: { value: "NIS2", label: "Legal requirement" },
+      stat3: { value: "100%", label: "Compliance coverage" },
+      challenge: "NHS trusts and healthcare organisations face a perfect storm: thousands of connected medical devices, mandatory NIS2 compliance, and the constant threat of ransomware that can shut down critical patient care systems. In 2017, WannaCry shut down 80% of NHS services. Your IoT devices are the attack surface.",
+      pain: [
+        "Infusion pumps, patient monitors, and CCTV systems on unsecured networks",
+        "NIS2 directive now legally mandates IoT security assessments",
+        "Enterprise security tools cost £50,000+ per year — beyond NHS budgets",
+        "IT teams lack visibility into what IoT devices are even on the network",
+        "One compromised device can cascade across the entire trust",
+      ],
+      solution: [
+        "Discover every medical IoT device on your network in 60 seconds",
+        "Generate NIS2 compliance reports automatically — audit-ready instantly",
+        "AI explains each vulnerability in plain English for non-technical staff",
+        "Financial risk scoring shows the board exactly what a breach would cost",
+        "Professional plan starts at £49/month — affordable for any NHS trust",
+      ],
+      quote: "AIPET gives healthcare organisations enterprise-grade IoT security at a price that actually fits NHS budgets — with the NIS2 compliance reporting they legally need.",
+    },
+    manufacturing: {
+      label: "Manufacturing & OT",
+      icon: "🏭",
+      color: "#f59e0b",
+      hero: "Secure Your Industrial Control Systems Before They Become Attack Vectors.",
+      stat1: { value: "502", label: "Modbus TCP port exposed" },
+      stat2: { value: "OT/ICS", label: "Full coverage" },
+      stat3: { value: "Modbus", label: "Protocol support" },
+      challenge: "Manufacturing facilities run on Modbus PLCs, SCADA systems, and industrial IoT sensors that were never designed with security in mind. A single compromised PLC can halt an entire production line — costing thousands per hour. And with Cyber Essentials now required for UK government contracts, the stakes have never been higher.",
+      pain: [
+        "Modbus TCP devices with no authentication — anyone can read or write registers",
+        "Legacy PLCs and SCADA systems running unpatched firmware for years",
+        "Production lines that cannot afford downtime for security updates",
+        "Cyber Essentials certification required for government supply chain contracts",
+        "OT and IT networks increasingly converging — expanding the attack surface",
+      ],
+      solution: [
+        "AIPET Protocols scans Modbus TCP, Zigbee, and LoRaWAN industrial devices",
+        "Identifies exposed holding registers and coil write access without disrupting operations",
+        "Maps complete attack paths from IoT device to corporate network",
+        "Generates Cyber Essentials-aligned security reports",
+        "Enterprise plan includes API access for SCADA integration",
+      ],
+      quote: "Industrial IoT security doesn't require shutting down production. AIPET scans passively, reports precisely, and tells you exactly what to fix first.",
+    },
+    buildings: {
+      label: "Smart Buildings",
+      icon: "🏢",
+      color: "#a855f7",
+      hero: "Your Building's Smart Devices Are Your Biggest Security Blind Spot.",
+      stat1: { value: "Zigbee", label: "Protocol support" },
+      stat2: { value: "LoRaWAN", label: "Protocol support" },
+      stat3: { value: "1700", label: "LoRaWAN port" },
+      challenge: "Modern smart buildings run thousands of Zigbee sensors, LoRaWAN devices, and IP-connected systems for HVAC, access control, lighting, and CCTV. These devices are rarely audited, often running default credentials, and provide attackers with a foothold into corporate networks.",
+      pain: [
+        "Zigbee networks with unencrypted keys and rogue device vulnerabilities",
+        "LoRaWAN devices susceptible to replay attacks and weak AppKey management",
+        "Building management systems connected to corporate networks without isolation",
+        "Thousands of devices installed by contractors with no security review",
+        "No visibility into what protocols and devices are actually operating",
+      ],
+      solution: [
+        "AIPET Protocols specifically supports Zigbee and LoRaWAN scanning",
+        "Detects unencrypted network keys, rogue devices, and replay vulnerabilities",
+        "Maps all building IoT devices and their network relationships",
+        "Generates ISO 27001-aligned compliance reports for building audits",
+        "One platform covers IT, OT, and building management system security",
+      ],
+      quote: "Smart building security starts with knowing what's on your network. AIPET gives you complete visibility — and tells you exactly what to fix.",
+    },
+    universities: {
+      label: "Universities & Research",
+      icon: "🎓",
+      color: "#00ff88",
+      hero: "Universities Are the #1 Target for Ransomware. Your IoT Lab is the Entry Point.",
+      stat1: { value: "Top 3", label: "Ransomware target" },
+      stat2: { value: "£49", label: "Per month" },
+      stat3: { value: "Research", label: "Academic backing" },
+      challenge: "Universities operate open networks with thousands of IoT devices — research equipment, smart campus sensors, student accommodation devices — and limited security budgets. Newcastle, Hertfordshire, and dozens of other UK universities have been hit by ransomware that entered through poorly secured IoT devices.",
+      pain: [
+        "Open academic networks with minimal access control",
+        "Research IoT devices connected directly to university networks",
+        "Student-owned devices creating unmanaged endpoints",
+        "Limited IT security budgets compared to enterprise organisations",
+        "GDPR and data protection obligations for student and research data",
+      ],
+      solution: [
+        "Affordable Professional plan at £49/month — within any university IT budget",
+        "Scans research lab IoT devices without disrupting ongoing experiments",
+        "Academic research backing gives peer credibility to security findings",
+        "GDPR-aligned compliance reporting for data protection officers",
+        "Special research collaboration pricing available — contact us",
+      ],
+      quote: "Built as MSc research at Coventry University, AIPET understands the unique security challenges of academic environments — and is priced for them.",
+    },
+    msps: {
+      label: "Managed Service Providers",
+      icon: "🔧",
+      color: "#00e5ff",
+      hero: "Add IoT Security to Your Service Portfolio. One Platform, All Your Clients.",
+      stat1: { value: "£499", label: "Enterprise plan" },
+      stat2: { value: "API", label: "Full access" },
+      stat3: { value: "Multi", label: "Client support" },
+      challenge: "MSPs are increasingly asked by clients about IoT security — but most lack the tools to deliver it affordably. Enterprise IoT security platforms require per-client licensing that makes the economics impossible. AIPET's Enterprise plan gives MSPs a single platform to protect all their clients.",
+      pain: [
+        "Clients asking about IoT security but no affordable tool to offer",
+        "Per-client enterprise licensing makes IoT security economically unviable",
+        "No API access to integrate IoT security into existing MSP workflows",
+        "Compliance requirements (NIS2, ISO 27001) becoming client demands",
+        "Competitor MSPs starting to offer IoT security — risk of losing clients",
+      ],
+      solution: [
+        "Enterprise plan at £499/month includes full API access",
+        "Integrate AIPET scanning into your existing RMM and PSA tools",
+        "Generate white-label compliance reports for your clients",
+        "One platform covers NHS, manufacturing, and smart building clients",
+        "Reseller pricing available for MSPs with 5+ clients",
+      ],
+      quote: "AIPET gives MSPs a competitive edge — add IoT security to your portfolio at a price that makes commercial sense for you and your clients.",
+    },
+  };
+
+  const tabs = Object.keys(SOLUTIONS);
+  const active = SOLUTIONS[activeTab];
+
+  return (
+    <div style={{ backgroundColor: COLORS.darker, minHeight: "100vh", fontFamily: "Inter, sans-serif" }}>
+      <NetworkCanvas />
+      <div style={{ position: "relative", zIndex: 1 }}>
+
+        {/* Navbar */}
+        <nav style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "20px 48px", borderBottom: `1px solid ${COLORS.border}`, backgroundColor: COLORS.darker + "f8", backdropFilter: "blur(16px)", position: "sticky", top: 0, zIndex: 50 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "12px", cursor: "pointer" }} onClick={onBack}>
+            <div style={{ width: "36px", height: "36px", borderRadius: "10px", backgroundColor: COLORS.blue, display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <Shield size={18} color="white" />
+            </div>
+            <span style={{ fontSize: "20px", fontWeight: "900", color: COLORS.text }}>AIPET</span>
+          </div>
+          <div style={{ display: "flex", gap: "16px" }}>
+            <button onClick={onBack} style={{ color: COLORS.muted, background: "none", border: "none", cursor: "pointer", fontSize: "15px" }}>← Back</button>
+            <button onClick={onGetStarted} style={{ backgroundColor: COLORS.blue, color: "white", border: "none", cursor: "pointer", fontSize: "15px", fontWeight: "700", padding: "10px 24px", borderRadius: "10px" }}>Get Started Free</button>
+          </div>
+        </nav>
+
+        {/* Hero */}
+        <div style={{ maxWidth: "1100px", margin: "0 auto", padding: "80px 48px 60px", textAlign: "center" }}>
+          <div style={{ display: "inline-flex", alignItems: "center", gap: "8px", padding: "6px 16px", borderRadius: "100px", border: `1px solid ${COLORS.blue}40`, backgroundColor: COLORS.blue + "10", marginBottom: "32px" }}>
+            <div style={{ width: "8px", height: "8px", borderRadius: "50%", backgroundColor: COLORS.blue }} />
+            <span style={{ color: COLORS.blue, fontSize: "13px", fontWeight: "600" }}>Solutions by Industry</span>
+          </div>
+          <h1 style={{ fontSize: "52px", fontWeight: "900", color: COLORS.text, lineHeight: "1.1", marginBottom: "24px", letterSpacing: "-0.03em" }}>
+            Built for
+            <span style={{ color: COLORS.blue }}> Your Industry</span>
+          </h1>
+          <p style={{ fontSize: "18px", color: COLORS.muted, lineHeight: "1.7", maxWidth: "680px", margin: "0 auto" }}>
+            Every industry has unique IoT security challenges. AIPET is designed to address them all — with industry-specific compliance, protocols, and reporting.
+          </p>
+        </div>
+
+        {/* Industry tabs */}
+        <div style={{ maxWidth: "1100px", margin: "0 auto", padding: "0 48px" }}>
+          <div style={{ display: "flex", gap: "8px", marginBottom: "32px", flexWrap: "wrap" }}>
+            {tabs.map(tab => (
+              <button key={tab} onClick={() => setActiveTab(tab)}
+                style={{ padding: "10px 20px", borderRadius: "100px", fontSize: "14px", fontWeight: "600", cursor: "pointer", backgroundColor: activeTab === tab ? SOLUTIONS[tab].color + "20" : COLORS.card, color: activeTab === tab ? SOLUTIONS[tab].color : COLORS.muted, border: `1px solid ${activeTab === tab ? SOLUTIONS[tab].color : COLORS.border}`, transition: "all 0.2s" }}>
+                {SOLUTIONS[tab].icon} {SOLUTIONS[tab].label}
+              </button>
+            ))}
+          </div>
+
+          {/* Active solution content */}
+          <div style={{ borderRadius: "24px", border: `1px solid ${active.color}30`, backgroundColor: COLORS.card, overflow: "hidden", boxShadow: `0 0 60px ${active.color}10` }}>
+
+            {/* Solution hero */}
+            <div style={{ padding: "48px", background: `linear-gradient(135deg, ${active.color}12, transparent)`, borderBottom: `1px solid ${active.color}20` }}>
+              <div style={{ fontSize: "48px", marginBottom: "16px" }}>{active.icon}</div>
+              <h2 style={{ fontSize: "28px", fontWeight: "900", color: COLORS.text, marginBottom: "32px", maxWidth: "700px", lineHeight: "1.3" }}>{active.hero}</h2>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(3, auto)", gap: "32px" }}>
+                {[active.stat1, active.stat2, active.stat3].map((s, i) => (
+                  <div key={i}>
+                    <div style={{ fontSize: "24px", fontWeight: "900", color: active.color, marginBottom: "4px" }}>{s.value}</div>
+                    <div style={{ color: COLORS.muted, fontSize: "13px", textTransform: "uppercase", letterSpacing: "0.05em" }}>{s.label}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Challenge + Solution */}
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0" }}>
+              <div style={{ padding: "40px 48px", borderRight: `1px solid ${COLORS.border}` }}>
+                <div style={{ fontSize: "12px", fontWeight: "700", color: "#ff4444", textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: "20px" }}>⚠ The Challenge</div>
+                <p style={{ color: COLORS.muted, fontSize: "15px", lineHeight: "1.8", marginBottom: "24px" }}>{active.challenge}</p>
+                <div style={{ space: "12px" }}>
+                  {active.pain.map((p, i) => (
+                    <div key={i} style={{ display: "flex", gap: "10px", marginBottom: "12px", alignItems: "flex-start" }}>
+                      <div style={{ color: "#ff4444", fontSize: "16px", flexShrink: 0, marginTop: "2px" }}>✕</div>
+                      <span style={{ color: COLORS.muted, fontSize: "14px", lineHeight: "1.5" }}>{p}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+              <div style={{ padding: "40px 48px" }}>
+                <div style={{ fontSize: "12px", fontWeight: "700", color: active.color, textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: "20px" }}>✓ The AIPET Solution</div>
+                <div style={{ marginBottom: "24px" }}>
+                  {active.solution.map((s, i) => (
+                    <div key={i} style={{ display: "flex", gap: "10px", marginBottom: "12px", alignItems: "flex-start" }}>
+                      <div style={{ width: "18px", height: "18px", borderRadius: "50%", backgroundColor: active.color + "20", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, marginTop: "2px" }}>
+                        <Check size={10} style={{ color: active.color }} />
+                      </div>
+                      <span style={{ color: COLORS.text, fontSize: "14px", lineHeight: "1.5" }}>{s}</span>
+                    </div>
+                  ))}
+                </div>
+                <blockquote style={{ borderLeft: `3px solid ${active.color}`, paddingLeft: "16px", color: COLORS.muted, fontSize: "14px", lineHeight: "1.7", fontStyle: "italic", margin: "24px 0" }}>
+                  "{active.quote}"
+                </blockquote>
+                <button onClick={onGetStarted} style={{ backgroundColor: active.color, color: "white", border: "none", cursor: "pointer", fontSize: "15px", fontWeight: "700", padding: "12px 28px", borderRadius: "10px" }}>
+                  Get Started Free →
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Compliance coverage */}
+        <div style={{ maxWidth: "1100px", margin: "80px auto 0", padding: "0 48px" }}>
+          <div style={{ textAlign: "center", marginBottom: "48px" }}>
+            <h2 style={{ fontSize: "32px", fontWeight: "900", color: COLORS.text, marginBottom: "12px" }}>Compliance Coverage Across Every Industry</h2>
+            <p style={{ color: COLORS.muted, fontSize: "16px" }}>One platform. Every major security framework.</p>
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "20px", marginBottom: "80px" }}>
+            {[
+              { name: "NIS2", region: "European Union", desc: "Mandatory for operators of essential services. AIPET generates audit-ready NIS2 compliance reports automatically.", color: COLORS.blue },
+              { name: "NIST CSF 2.0", region: "United States", desc: "Required for US federal contractors. AIPET maps findings to all 6 NIST functions: Govern, Identify, Protect, Detect, Respond, Recover.", color: COLORS.purple },
+              { name: "ISO 27001", region: "Global", desc: "The international standard for information security. AIPET covers all relevant ISO 27001 controls for IoT security.", color: COLORS.low },
+            ].map((item, i) => (
+              <div key={i} style={{ padding: "28px", borderRadius: "16px", border: `1px solid ${item.color}30`, backgroundColor: COLORS.card }}>
+                <div style={{ fontSize: "22px", fontWeight: "900", color: item.color, marginBottom: "4px" }}>{item.name}</div>
+                <div style={{ fontSize: "12px", color: COLORS.muted, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: "16px" }}>{item.region}</div>
+                <p style={{ color: COLORS.muted, fontSize: "14px", lineHeight: "1.6" }}>{item.desc}</p>
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* CTA */}
+        <div style={{ maxWidth: "900px", margin: "0 auto 80px", padding: "0 48px" }}>
+          <div style={{ background: `linear-gradient(135deg, ${COLORS.blue}15, ${COLORS.purple}10)`, border: `1px solid ${COLORS.blue}30`, borderRadius: "24px", padding: "64px 48px", textAlign: "center" }}>
+            <h2 style={{ fontSize: "36px", fontWeight: "900", color: COLORS.text, marginBottom: "16px" }}>Ready to Protect Your Organisation?</h2>
+            <p style={{ color: COLORS.muted, fontSize: "16px", marginBottom: "32px" }}>Free forever. No credit card. Full compliance reporting from day one.</p>
+            <div style={{ display: "flex", justifyContent: "center", gap: "16px" }}>
+              <button onClick={onGetStarted} style={{ backgroundColor: COLORS.blue, color: "white", border: "none", cursor: "pointer", fontSize: "16px", fontWeight: "700", padding: "14px 36px", borderRadius: "12px", boxShadow: `0 0 32px ${COLORS.blue}40` }}>
+                Get Started Free →
+              </button>
+              <button onClick={onGetStarted} style={{ backgroundColor: "transparent", color: COLORS.blue, border: `2px solid ${COLORS.blue}`, cursor: "pointer", fontSize: "16px", fontWeight: "700", padding: "14px 36px", borderRadius: "12px" }}>
+                Request Demo
+              </button>
+            </div>
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div style={{ borderTop: `1px solid ${COLORS.border}`, padding: "24px 48px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <p style={{ color: COLORS.muted, fontSize: "13px" }}>© 2026 AIPET Cloud · MIT Licence</p>
+          <button onClick={onBack} style={{ color: COLORS.blue, background: "none", border: "none", cursor: "pointer", fontSize: "13px" }}>← Back to Home</button>
+        </div>
+
+      </div>
+    </div>
+  );
+}
+
 function AboutPage({ onBack, onGetStarted }) {
   return (
     <div style={{ backgroundColor: COLORS.darker, minHeight: "100vh", fontFamily: "Inter, sans-serif" }}>
@@ -3259,20 +3819,20 @@ function LandingPage({ onGetStarted, onLogin, setLegalPage, setActivePage }) {
 
   const NAV_MENUS = {
     platform: [
-      { label: "AIPET Scan", desc: "Discover IoT vulnerabilities" },
-      { label: "AIPET Explain", desc: "AI-powered explanations" },
-      { label: "AIPET Score", desc: "Financial risk exposure" },
-      { label: "AIPET Map", desc: "Network attack paths" },
-      { label: "AIPET Predict", desc: "Live CVE intelligence" },
-      { label: "AIPET Watch", desc: "Anomaly detection" },
-      { label: "AIPET Ask", desc: "AI security assistant" },
+      { label: "AIPET Scan", desc: "Discover IoT vulnerabilities", action: () => setActivePage('platform') },
+      { label: "AIPET Explain", desc: "AI-powered explanations", action: () => setActivePage('platform') },
+      { label: "AIPET Score", desc: "Financial risk exposure", action: () => setActivePage('platform') },
+      { label: "AIPET Map", desc: "Network attack paths", action: () => setActivePage('platform') },
+      { label: "AIPET Predict", desc: "Live CVE intelligence", action: () => setActivePage('platform') },
+      { label: "AIPET Watch", desc: "Anomaly detection", action: () => setActivePage('platform') },
+      { label: "AIPET Ask", desc: "AI security assistant", action: () => setActivePage('platform') },
     ],
     solutions: [
-      { label: "Healthcare & NHS", desc: "NIS2 compliant IoT audits" },
-      { label: "Manufacturing", desc: "OT/ICS security" },
-      { label: "Smart Buildings", desc: "Zigbee & LoRaWAN security" },
-      { label: "Universities", desc: "Research lab IoT protection" },
-      { label: "MSPs", desc: "Multi-client security platform" },
+      { label: "Healthcare & NHS", desc: "NIS2 compliant IoT audits", action: () => setActivePage('solutions') },
+      { label: "Manufacturing", desc: "OT/ICS security", action: () => setActivePage('solutions') },
+      { label: "Smart Buildings", desc: "Zigbee & LoRaWAN security", action: () => setActivePage('solutions') },
+      { label: "Universities", desc: "Research lab IoT protection", action: () => setActivePage('solutions') },
+      { label: "MSPs", desc: "Multi-client security platform", action: () => setActivePage('solutions') },
     ],
     company: [
       { label: "About AIPET", desc: "Our mission and research", action: () => setActivePage('about') },
@@ -3580,7 +4140,7 @@ function LandingPage({ onGetStarted, onLogin, setLegalPage, setActivePage }) {
             <div>
               <h4 style={{ color: COLORS.text, fontSize: "14px", fontWeight: "700", marginBottom: "16px", textTransform: "uppercase", letterSpacing: "0.05em" }}>{t('footerSolutions')}</h4>
               {t('footerItems.solutions', { returnObjects: true }).map((item, i) => (
-                <div key={i} style={{ color: COLORS.muted, fontSize: "14px", marginBottom: "10px", cursor: "pointer" }}
+                <div key={i} onClick={() => setActivePage('solutions')} style={{ color: COLORS.muted, fontSize: "14px", marginBottom: "10px", cursor: "pointer" }}
                   onMouseEnter={e => e.currentTarget.style.color = COLORS.blue}
                   onMouseLeave={e => e.currentTarget.style.color = COLORS.muted}>
                   {item}
@@ -3591,7 +4151,7 @@ function LandingPage({ onGetStarted, onLogin, setLegalPage, setActivePage }) {
             <div>
               <h4 style={{ color: COLORS.text, fontSize: "14px", fontWeight: "700", marginBottom: "16px", textTransform: "uppercase", letterSpacing: "0.05em" }}>{t('footerPlatform')}</h4>
               {t('footerItems.platform', { returnObjects: true }).map((item, i) => (
-                <div key={i} style={{ color: COLORS.muted, fontSize: "14px", marginBottom: "10px", cursor: "pointer" }}
+                <div key={i} onClick={() => setActivePage('platform')} style={{ color: COLORS.muted, fontSize: "14px", marginBottom: "10px", cursor: "pointer" }}
                   onMouseEnter={e => e.currentTarget.style.color = COLORS.blue}
                   onMouseLeave={e => e.currentTarget.style.color = COLORS.muted}>
                   {item}
@@ -4852,6 +5412,12 @@ export default function App() {
     }
     if (activePage === 'contact') {
       return <ContactPage onBack={() => setActivePage(null)} />;
+    }
+    if (activePage === 'platform') {
+      return <PlatformPage onBack={() => setActivePage(null)} onGetStarted={() => setShowLanding(false)} />;
+    }
+    if (activePage === 'solutions') {
+      return <SolutionsPage onBack={() => setActivePage(null)} onGetStarted={() => setShowLanding(false)} />;
     }
     if (showLanding) {
       return (
