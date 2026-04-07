@@ -2915,7 +2915,328 @@ function NetworkCanvas() {
   );
 }
 
-function LandingPage({ onGetStarted, onLogin, setLegalPage }) {
+
+// ============================================================
+// ABOUT PAGE
+// ============================================================
+function AboutPage({ onBack, onGetStarted }) {
+  return (
+    <div style={{ backgroundColor: COLORS.darker, minHeight: "100vh", fontFamily: "Inter, sans-serif" }}>
+      <NetworkCanvas />
+      <div style={{ position: "relative", zIndex: 1 }}>
+
+        {/* Navbar */}
+        <nav style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "20px 48px", borderBottom: `1px solid ${COLORS.border}`, backgroundColor: COLORS.darker + "f8", backdropFilter: "blur(16px)", position: "sticky", top: 0, zIndex: 50 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "12px", cursor: "pointer" }} onClick={onBack}>
+            <div style={{ width: "36px", height: "36px", borderRadius: "10px", backgroundColor: COLORS.blue, display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <Shield size={18} color="white" />
+            </div>
+            <span style={{ fontSize: "20px", fontWeight: "900", color: COLORS.text }}>AIPET</span>
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
+            <button onClick={onBack} style={{ color: COLORS.muted, background: "none", border: "none", cursor: "pointer", fontSize: "15px", display: "flex", alignItems: "center", gap: "6px" }}>
+              ← Back
+            </button>
+            <button onClick={onGetStarted} style={{ backgroundColor: COLORS.blue, color: "white", border: "none", cursor: "pointer", fontSize: "15px", fontWeight: "700", padding: "10px 24px", borderRadius: "10px" }}>
+              Get Started Free
+            </button>
+          </div>
+        </nav>
+
+        {/* Hero */}
+        <div style={{ maxWidth: "900px", margin: "0 auto", padding: "80px 48px 60px", textAlign: "center" }}>
+          <div style={{ display: "inline-flex", alignItems: "center", gap: "8px", padding: "6px 16px", borderRadius: "100px", border: `1px solid ${COLORS.blue}40`, backgroundColor: COLORS.blue + "10", marginBottom: "32px" }}>
+            <div style={{ width: "8px", height: "8px", borderRadius: "50%", backgroundColor: COLORS.blue }} />
+            <span style={{ color: COLORS.blue, fontSize: "13px", fontWeight: "600" }}>About AIPET</span>
+          </div>
+          <h1 style={{ fontSize: "52px", fontWeight: "900", color: COLORS.text, lineHeight: "1.1", marginBottom: "24px", letterSpacing: "-0.03em" }}>
+            Democratising
+            <span style={{ color: COLORS.blue }}> Enterprise IoT Security</span>
+          </h1>
+          <p style={{ fontSize: "18px", color: COLORS.muted, lineHeight: "1.8", maxWidth: "700px", margin: "0 auto" }}>
+            Built as advanced cybersecurity research at Coventry University, AIPET delivers enterprise-grade IoT security to every organisation — regardless of size or budget.
+          </p>
+        </div>
+
+        {/* Mission Statement */}
+        <div style={{ maxWidth: "900px", margin: "0 auto 80px", padding: "0 48px" }}>
+          <div style={{ background: `linear-gradient(135deg, ${COLORS.blue}12, ${COLORS.purple}08)`, border: `1px solid ${COLORS.blue}30`, borderRadius: "24px", padding: "48px" }}>
+            <div style={{ fontSize: "13px", fontWeight: "700", color: COLORS.blue, letterSpacing: "0.1em", textTransform: "uppercase", marginBottom: "24px" }}>Our Mission</div>
+            <blockquote style={{ fontSize: "20px", color: COLORS.text, lineHeight: "1.8", fontStyle: "italic", margin: "0 0 32px 0", borderLeft: `3px solid ${COLORS.blue}`, paddingLeft: "24px" }}>
+              "The IoT security market is broken. Enterprises spend millions on tools that tell them what is vulnerable — but not why, not what it costs, and not how to fix it. Meanwhile, thousands of hospitals, manufacturers, and critical infrastructure operators remain exposed because enterprise pricing puts proper security out of reach.
+              <br /><br />
+              AIPET was built to change that. Our AI doesn't just find vulnerabilities. It explains the complete attack chain, quantifies financial exposure, maps against NIS2, NIST CSF 2.0, and ISO 27001, and provides exact remediation steps. In plain English. In 60 seconds.
+              <br /><br />
+              Because every organisation — regardless of size or budget — deserves to know exactly how they would be attacked, and exactly how to stop it."
+            </blockquote>
+            <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
+              <div style={{ width: "48px", height: "48px", borderRadius: "50%", backgroundColor: COLORS.blue, display: "flex", alignItems: "center", justifyContent: "center", fontSize: "20px", fontWeight: "900", color: "white" }}>B</div>
+              <div>
+                <div style={{ color: COLORS.text, fontWeight: "700", fontSize: "16px" }}>Binyam Yallew</div>
+                <div style={{ color: COLORS.muted, fontSize: "14px" }}>Founder, AIPET Cloud · MSc Cyber Security (Ethical Hacking), Coventry University</div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* The Builder */}
+        <div style={{ maxWidth: "900px", margin: "0 auto 80px", padding: "0 48px" }}>
+          <h2 style={{ fontSize: "36px", fontWeight: "900", color: COLORS.text, marginBottom: "48px", textAlign: "center" }}>The Builder</h2>
+          <div style={{ display: "grid", gridTemplateColumns: "1fr 2fr", gap: "48px", alignItems: "start" }}>
+            <div style={{ textAlign: "center" }}>
+              <div style={{ width: "120px", height: "120px", borderRadius: "50%", backgroundColor: COLORS.blue + "20", border: `2px solid ${COLORS.blue}`, display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px", fontSize: "48px", fontWeight: "900", color: COLORS.blue }}>B</div>
+              <div style={{ color: COLORS.text, fontWeight: "700", fontSize: "18px" }}>Binyam Yallew</div>
+              <div style={{ color: COLORS.blue, fontSize: "14px", marginBottom: "16px" }}>Founder & Lead Developer</div>
+              <a href="https://github.com/Yallewbinyam/AIPET" target="_blank" rel="noreferrer"
+                style={{ display: "inline-flex", alignItems: "center", gap: "6px", color: COLORS.muted, fontSize: "13px", textDecoration: "none", padding: "6px 12px", borderRadius: "8px", border: `1px solid ${COLORS.border}` }}
+                onMouseEnter={e => e.currentTarget.style.borderColor = COLORS.blue}
+                onMouseLeave={e => e.currentTarget.style.borderColor = COLORS.border}>
+                GitHub →
+              </a>
+            </div>
+            <div>
+              <p style={{ color: COLORS.muted, fontSize: "16px", lineHeight: "1.8", marginBottom: "24px" }}>
+                Software developer, ethical hacker, security researcher, and founder of AIPET. Currently completing an MSc in Cyber Security with specialisation in Ethical Hacking at Coventry University (2024–2026).
+              </p>
+              <p style={{ color: COLORS.muted, fontSize: "16px", lineHeight: "1.8", marginBottom: "32px" }}>
+                AIPET was developed as an MSc dissertation project under academic supervision at Coventry University — combining real-world penetration testing expertise with AI/ML research to create a platform that addresses genuine gaps in the IoT security market.
+              </p>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px" }}>
+                {[
+                  { label: "Institution", value: "Coventry University" },
+                  { label: "Degree", value: "MSc Cyber Security" },
+                  { label: "Specialisation", value: "Ethical Hacking" },
+                  { label: "Supervisor", value: "Dr Dan" },
+                  { label: "Graduation", value: "November 2026" },
+                  { label: "Contact", value: "yallewb@coventry.ac.uk" },
+                ].map((item, i) => (
+                  <div key={i} style={{ padding: "16px", borderRadius: "12px", backgroundColor: COLORS.card, border: `1px solid ${COLORS.border}` }}>
+                    <div style={{ color: COLORS.muted, fontSize: "11px", fontWeight: "700", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: "4px" }}>{item.label}</div>
+                    <div style={{ color: COLORS.text, fontSize: "14px", fontWeight: "600" }}>{item.value}</div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* What makes AIPET different */}
+        <div style={{ backgroundColor: COLORS.card, padding: "80px 48px" }}>
+          <div style={{ maxWidth: "900px", margin: "0 auto" }}>
+            <h2 style={{ fontSize: "36px", fontWeight: "900", color: COLORS.text, marginBottom: "12px", textAlign: "center" }}>What Makes AIPET Different</h2>
+            <p style={{ color: COLORS.muted, fontSize: "16px", textAlign: "center", marginBottom: "48px" }}>The only IoT security platform that explains the complete attack story</p>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "24px" }}>
+              {[
+                { icon: "🧠", title: "Explainable AI", desc: "SHAP-powered explanations tell you exactly why each device is vulnerable — not just that it is. No other platform does this.", color: COLORS.blue },
+                { icon: "💰", title: "Financial Risk Scoring", desc: "Quantifies the financial impact of each vulnerability using IBM and NCSC 2024 breach data. Your board will understand this.", color: COLORS.purple },
+                { icon: "📋", title: "Instant Compliance", desc: "Generates NIS2, NIST CSF 2.0, and ISO 27001 compliance reports automatically. What used to take weeks now takes seconds.", color: COLORS.low },
+                { icon: "⚡", title: "60 Second Scans", desc: "Full IoT network assessment in under 60 seconds. Enterprise tools take days to deploy. AIPET takes minutes.", color: COLORS.high },
+                { icon: "🌍", title: "Global Ready", desc: "Available in 10 languages, 4 currencies, and compliant with regulations across EU, USA, and Asia.", color: COLORS.blue },
+                { icon: "🔬", title: "Academic Research", desc: "Built on peer-reviewed cybersecurity research at Coventry University. Not just a product — a scientific contribution.", color: COLORS.purple },
+              ].map((item, i) => (
+                <div key={i} style={{ padding: "28px", borderRadius: "16px", border: `1px solid ${item.color}30`, backgroundColor: COLORS.darker, transition: "all 0.2s" }}
+                  onMouseEnter={e => { e.currentTarget.style.borderColor = item.color; e.currentTarget.style.transform = "translateY(-4px)"; }}
+                  onMouseLeave={e => { e.currentTarget.style.borderColor = item.color + "30"; e.currentTarget.style.transform = "translateY(0)"; }}>
+                  <div style={{ fontSize: "32px", marginBottom: "16px" }}>{item.icon}</div>
+                  <h3 style={{ fontSize: "16px", fontWeight: "700", color: COLORS.text, marginBottom: "8px" }}>{item.title}</h3>
+                  <p style={{ color: COLORS.muted, fontSize: "14px", lineHeight: "1.6" }}>{item.desc}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+
+        {/* Academic backing */}
+        <div style={{ maxWidth: "900px", margin: "0 auto", padding: "80px 48px" }}>
+          <div style={{ textAlign: "center", marginBottom: "48px" }}>
+            <h2 style={{ fontSize: "36px", fontWeight: "900", color: COLORS.text, marginBottom: "12px" }}>Academic Backing</h2>
+            <p style={{ color: COLORS.muted, fontSize: "16px" }}>Research-grade security, accessible pricing</p>
+          </div>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "24px", textAlign: "center" }}>
+            {[
+              { value: "NIS2", label: "EU Compliance", color: COLORS.blue },
+              { value: "NIST", label: "USA Framework", color: COLORS.purple },
+              { value: "ISO 27001", label: "Global Standard", color: COLORS.low },
+            ].map((item, i) => (
+              <div key={i} style={{ padding: "32px", borderRadius: "16px", border: `1px solid ${item.color}40`, backgroundColor: COLORS.card }}>
+                <div style={{ fontSize: "28px", fontWeight: "900", color: item.color, marginBottom: "8px" }}>{item.value}</div>
+                <div style={{ color: COLORS.muted, fontSize: "14px" }}>{item.label}</div>
+              </div>
+            ))}
+          </div>
+          <div style={{ textAlign: "center", marginTop: "48px", padding: "32px", borderRadius: "16px", border: `1px solid ${COLORS.border}`, backgroundColor: COLORS.card }}>
+            <div style={{ color: COLORS.muted, fontSize: "15px", lineHeight: "1.8" }}>
+              AIPET is developed under academic supervision at <span style={{ color: COLORS.blue, fontWeight: "700" }}>Coventry University</span> as part of an MSc Cyber Security dissertation.
+              Supervised by <span style={{ color: COLORS.text, fontWeight: "700" }}>Dr Dan</span>.
+              Contact: <a href="mailto:yallewb@coventry.ac.uk" style={{ color: COLORS.blue }}>yallewb@coventry.ac.uk</a>
+            </div>
+          </div>
+        </div>
+
+        {/* CTA */}
+        <div style={{ background: `linear-gradient(135deg, ${COLORS.blue}15, ${COLORS.purple}10)`, border: `1px solid ${COLORS.blue}30`, borderRadius: "24px", padding: "64px 48px", textAlign: "center", margin: "0 48px 80px", maxWidth: "804px", marginLeft: "auto", marginRight: "auto" }}>
+          <h2 style={{ fontSize: "32px", fontWeight: "900", color: COLORS.text, marginBottom: "16px" }}>Ready to secure your IoT infrastructure?</h2>
+          <p style={{ color: COLORS.muted, fontSize: "16px", marginBottom: "32px" }}>Join organisations already using AIPET to protect their IoT devices.</p>
+          <button onClick={onGetStarted} style={{ backgroundColor: COLORS.blue, color: "white", border: "none", cursor: "pointer", fontSize: "16px", fontWeight: "700", padding: "14px 36px", borderRadius: "12px", boxShadow: `0 0 32px ${COLORS.blue}40` }}>
+            Get Started Free →
+          </button>
+        </div>
+
+        {/* Footer */}
+        <div style={{ borderTop: `1px solid ${COLORS.border}`, padding: "24px 48px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <p style={{ color: COLORS.muted, fontSize: "13px" }}>© 2026 AIPET Cloud · MIT Licence</p>
+          <button onClick={onBack} style={{ color: COLORS.blue, background: "none", border: "none", cursor: "pointer", fontSize: "13px" }}>← Back to Home</button>
+        </div>
+
+      </div>
+    </div>
+  );
+}
+
+// ============================================================
+// CONTACT PAGE
+// ============================================================
+function ContactPage({ onBack }) {
+  const [form, setForm] = useState({ name: "", email: "", organisation: "", subject: "General Inquiry", message: "" });
+  const [status, setStatus] = useState(null);
+  const [loading, setLoading] = useState(false);
+
+  const subjects = ["General Inquiry", "Request Demo", "Technical Support", "Partnership", "Research Collaboration", "Press & Media"];
+
+  const handleSubmit = async () => {
+    if (!form.name || !form.email || !form.message) {
+      setStatus({ type: "error", text: "Please fill in all required fields." });
+      return;
+    }
+    setLoading(true);
+    // Simulate sending
+    await new Promise(r => setTimeout(r, 1500));
+    setStatus({ type: "success", text: "Message sent successfully! We will respond within 24 hours." });
+    setLoading(false);
+    setForm({ name: "", email: "", organisation: "", subject: "General Inquiry", message: "" });
+  };
+
+  const inputStyle = { width: "100%", padding: "14px 16px", borderRadius: "12px", border: `1px solid ${COLORS.border}`, backgroundColor: COLORS.darker, color: COLORS.text, fontSize: "15px", fontFamily: "Inter, sans-serif", outline: "none", boxSizing: "border-box", WebkitBoxShadow: `0 0 0 1000px ${COLORS.darker} inset`, WebkitTextFillColor: COLORS.text };
+
+  return (
+    <div style={{ backgroundColor: COLORS.darker, minHeight: "100vh", fontFamily: "Inter, sans-serif" }}>
+      <NetworkCanvas />
+      <div style={{ position: "relative", zIndex: 1 }}>
+
+        {/* Navbar */}
+        <nav style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "20px 48px", borderBottom: `1px solid ${COLORS.border}`, backgroundColor: COLORS.darker + "f8", backdropFilter: "blur(16px)", position: "sticky", top: 0, zIndex: 50 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "12px", cursor: "pointer" }} onClick={onBack}>
+            <div style={{ width: "36px", height: "36px", borderRadius: "10px", backgroundColor: COLORS.blue, display: "flex", alignItems: "center", justifyContent: "center" }}>
+              <Shield size={18} color="white" />
+            </div>
+            <span style={{ fontSize: "20px", fontWeight: "900", color: COLORS.text }}>AIPET</span>
+          </div>
+          <button onClick={onBack} style={{ color: COLORS.muted, background: "none", border: "none", cursor: "pointer", fontSize: "15px" }}>← Back</button>
+        </nav>
+
+        {/* Hero */}
+        <div style={{ maxWidth: "900px", margin: "0 auto", padding: "80px 48px 60px", textAlign: "center" }}>
+          <div style={{ display: "inline-flex", alignItems: "center", gap: "8px", padding: "6px 16px", borderRadius: "100px", border: `1px solid ${COLORS.blue}40`, backgroundColor: COLORS.blue + "10", marginBottom: "32px" }}>
+            <div style={{ width: "8px", height: "8px", borderRadius: "50%", backgroundColor: COLORS.blue }} />
+            <span style={{ color: COLORS.blue, fontSize: "13px", fontWeight: "600" }}>Get In Touch</span>
+          </div>
+          <h1 style={{ fontSize: "48px", fontWeight: "900", color: COLORS.text, lineHeight: "1.1", marginBottom: "20px", letterSpacing: "-0.03em" }}>
+            Let's Talk About
+            <span style={{ color: COLORS.blue }}> IoT Security</span>
+          </h1>
+          <p style={{ fontSize: "17px", color: COLORS.muted, lineHeight: "1.7" }}>
+            Whether you want a demo, have a technical question, or want to explore a research collaboration — we respond within 24 hours.
+          </p>
+        </div>
+
+        {/* Content */}
+        <div style={{ maxWidth: "900px", margin: "0 auto", padding: "0 48px 80px", display: "grid", gridTemplateColumns: "1fr 1.5fr", gap: "48px", alignItems: "start" }}>
+
+          {/* Left — contact info */}
+          <div>
+            <h3 style={{ fontSize: "20px", fontWeight: "800", color: COLORS.text, marginBottom: "24px" }}>Contact Information</h3>
+            {[
+              { icon: "📧", label: "Email", value: "yallewb@coventry.ac.uk", link: "mailto:yallewb@coventry.ac.uk" },
+              { icon: "🎓", label: "Institution", value: "Coventry University", link: null },
+              { icon: "🔬", label: "Research", value: "MSc Cyber Security (Ethical Hacking)", link: null },
+              { icon: "👨‍💻", label: "GitHub", value: "github.com/Yallewbinyam/AIPET", link: "https://github.com/Yallewbinyam/AIPET" },
+            ].map((item, i) => (
+              <div key={i} style={{ display: "flex", gap: "16px", marginBottom: "24px", padding: "16px", borderRadius: "12px", border: `1px solid ${COLORS.border}`, backgroundColor: COLORS.card }}>
+                <div style={{ fontSize: "24px" }}>{item.icon}</div>
+                <div>
+                  <div style={{ color: COLORS.muted, fontSize: "12px", fontWeight: "700", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: "4px" }}>{item.label}</div>
+                  {item.link ? (
+                    <a href={item.link} target="_blank" rel="noreferrer" style={{ color: COLORS.blue, fontSize: "14px", textDecoration: "none" }}>{item.value}</a>
+                  ) : (
+                    <div style={{ color: COLORS.text, fontSize: "14px", fontWeight: "600" }}>{item.value}</div>
+                  )}
+                </div>
+              </div>
+            ))}
+
+            {/* Response time */}
+            <div style={{ padding: "20px", borderRadius: "12px", backgroundColor: COLORS.blue + "10", border: `1px solid ${COLORS.blue}30` }}>
+              <div style={{ color: COLORS.blue, fontSize: "13px", fontWeight: "700", marginBottom: "8px" }}>⚡ Response Time</div>
+              <div style={{ color: COLORS.muted, fontSize: "13px", lineHeight: "1.6" }}>We typically respond within 24 hours on weekdays. For urgent security matters, email directly.</div>
+            </div>
+          </div>
+
+          {/* Right — contact form */}
+          <div style={{ padding: "36px", borderRadius: "20px", border: `1px solid ${COLORS.border}`, backgroundColor: COLORS.card, boxShadow: `0 0 40px ${COLORS.blue}08` }}>
+            <h3 style={{ fontSize: "20px", fontWeight: "800", color: COLORS.text, marginBottom: "24px" }}>Send a Message</h3>
+
+            {status && (
+              <div style={{ padding: "14px 16px", borderRadius: "12px", marginBottom: "20px", backgroundColor: status.type === "success" ? COLORS.low + "20" : COLORS.critical + "20", border: `1px solid ${status.type === "success" ? COLORS.low : COLORS.critical}40`, color: status.type === "success" ? COLORS.low : COLORS.critical, fontSize: "14px" }}>
+                {status.text}
+              </div>
+            )}
+
+            <div style={{ marginBottom: "16px" }}>
+              <label style={{ display: "block", color: COLORS.muted, fontSize: "12px", fontWeight: "700", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: "8px" }}>Full Name *</label>
+              <input value={form.name} onChange={e => setForm({...form, name: e.target.value})} placeholder="John Smith" style={inputStyle} />
+            </div>
+
+            <div style={{ marginBottom: "16px" }}>
+              <label style={{ display: "block", color: COLORS.muted, fontSize: "12px", fontWeight: "700", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: "8px" }}>Email Address *</label>
+              <input type="email" value={form.email} onChange={e => setForm({...form, email: e.target.value})} placeholder="you@company.com" style={inputStyle} />
+            </div>
+
+            <div style={{ marginBottom: "16px" }}>
+              <label style={{ display: "block", color: COLORS.muted, fontSize: "12px", fontWeight: "700", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: "8px" }}>Organisation</label>
+              <input value={form.organisation} onChange={e => setForm({...form, organisation: e.target.value})} placeholder="Your company or institution" style={inputStyle} />
+            </div>
+
+            <div style={{ marginBottom: "16px" }}>
+              <label style={{ display: "block", color: COLORS.muted, fontSize: "12px", fontWeight: "700", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: "8px" }}>Subject</label>
+              <select value={form.subject} onChange={e => setForm({...form, subject: e.target.value})} style={{ ...inputStyle }}>
+                {subjects.map((s, i) => <option key={i} value={s}>{s}</option>)}
+              </select>
+            </div>
+
+            <div style={{ marginBottom: "24px" }}>
+              <label style={{ display: "block", color: COLORS.muted, fontSize: "12px", fontWeight: "700", textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: "8px" }}>Message *</label>
+              <textarea value={form.message} onChange={e => setForm({...form, message: e.target.value})} placeholder="Tell us about your IoT security needs..." rows={5} style={{ ...inputStyle, resize: "vertical" }} />
+            </div>
+
+            <button onClick={handleSubmit} disabled={loading}
+              style={{ width: "100%", padding: "14px", borderRadius: "12px", backgroundColor: loading ? COLORS.border : COLORS.blue, color: "white", border: "none", cursor: loading ? "not-allowed" : "pointer", fontSize: "16px", fontWeight: "700", fontFamily: "Inter, sans-serif", boxShadow: loading ? "none" : `0 0 24px ${COLORS.blue}40` }}>
+              {loading ? "Sending..." : "Send Message →"}
+            </button>
+          </div>
+        </div>
+
+        {/* Footer */}
+        <div style={{ borderTop: `1px solid ${COLORS.border}`, padding: "24px 48px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <p style={{ color: COLORS.muted, fontSize: "13px" }}>© 2026 AIPET Cloud · MIT Licence</p>
+          <button onClick={onBack} style={{ color: COLORS.blue, background: "none", border: "none", cursor: "pointer", fontSize: "13px" }}>← Back to Home</button>
+        </div>
+
+      </div>
+    </div>
+  );
+}
+
+function LandingPage({ onGetStarted, onLogin, setLegalPage, setActivePage }) {
   const { t, i18n } = useTranslation();
   const [currency, setCurrency] = useState({ code: 'GBP', symbol: '£' });
 
@@ -2954,9 +3275,9 @@ function LandingPage({ onGetStarted, onLogin, setLegalPage }) {
       { label: "MSPs", desc: "Multi-client security platform" },
     ],
     company: [
-      { label: "About AIPET", desc: "Our mission and research" },
-      { label: "Contact Us", desc: "Get in touch" },
-      { label: "GitHub", desc: "Open source contributions" },
+      { label: "About AIPET", desc: "Our mission and research", action: () => setActivePage('about') },
+      { label: "Contact Us", desc: "Get in touch", action: () => setActivePage('contact') },
+      { label: "GitHub", desc: "Open source contributions", action: () => window.open('https://github.com/Yallewbinyam/AIPET', '_blank') },
     ],
   };
 
@@ -3018,6 +3339,7 @@ function LandingPage({ onGetStarted, onLogin, setLegalPage }) {
                     style={{ backgroundColor: COLORS.card, borderColor: COLORS.border, minWidth: "220px", left: "50%", transform: "translateX(-50%)", zIndex: 999, boxShadow: "0 8px 32px rgba(0,0,0,0.4)" }}>
                     {NAV_MENUS[link.menu].map((item, j) => (
                       <div key={j} className="px-3 py-2 rounded-lg cursor-pointer"
+                        onClick={() => { if (item.action) { item.action(); setActiveDropdown(null); } }}
                         onMouseEnter={e => e.currentTarget.style.backgroundColor = COLORS.blue + "15"}
                         onMouseLeave={e => e.currentTarget.style.backgroundColor = "transparent"}>
                         <div style={{ color: COLORS.text, fontSize: "14px", fontWeight: "600" }}>{item.label}</div>
@@ -3279,11 +3601,17 @@ function LandingPage({ onGetStarted, onLogin, setLegalPage }) {
             {/* Company */}
             <div>
               <h4 style={{ color: COLORS.text, fontSize: "14px", fontWeight: "700", marginBottom: "16px", textTransform: "uppercase", letterSpacing: "0.05em" }}>{t('footerCompany')}</h4>
-              {t('footerItems.company', { returnObjects: true }).map((item, i) => (
-                <div key={i} style={{ color: COLORS.muted, fontSize: "14px", marginBottom: "10px", cursor: "pointer" }}
+              {[
+                { label: t('footerItems.company', { returnObjects: true })[0], action: () => setActivePage('about') },
+                { label: t('footerItems.company', { returnObjects: true })[1], action: () => setActivePage('about') },
+                { label: t('footerItems.company', { returnObjects: true })[2], action: () => setActivePage('contact') },
+                { label: t('footerItems.company', { returnObjects: true })[3], action: () => setActivePage('contact') },
+                { label: t('footerItems.company', { returnObjects: true })[4], action: () => window.open('https://github.com/Yallewbinyam/AIPET', '_blank') },
+              ].map((item, i) => (
+                <div key={i} onClick={item.action} style={{ color: COLORS.muted, fontSize: "14px", marginBottom: "10px", cursor: "pointer" }}
                   onMouseEnter={e => e.currentTarget.style.color = COLORS.blue}
                   onMouseLeave={e => e.currentTarget.style.color = COLORS.muted}>
-                  {item}
+                  {item.label}
                 </div>
               ))}
             </div>
@@ -4352,6 +4680,7 @@ export default function App() {
   const [token, setToken] = useState(localStorage.getItem("aipet_token") || "");
   const [showLanding, setShowLanding] = useState(!localStorage.getItem("aipet_token"));
   const [legalPage, setLegalPage] = useState(null);
+  const [activePage, setActivePage] = useState(null);
   const [toast, setToast] = useState(null);
 
   const showToast = (message, type = "success") => {
@@ -4518,12 +4847,19 @@ export default function App() {
         />
       );
     }
+    if (activePage === 'about') {
+      return <AboutPage onBack={() => setActivePage(null)} onGetStarted={() => setShowLanding(false)} />;
+    }
+    if (activePage === 'contact') {
+      return <ContactPage onBack={() => setActivePage(null)} />;
+    }
     if (showLanding) {
       return (
         <LandingPage
           onGetStarted={() => setShowLanding(false)}
           onLogin={() => setShowLanding(false)}
           setLegalPage={setLegalPage}
+          setActivePage={setActivePage}
         />
       );
     }
