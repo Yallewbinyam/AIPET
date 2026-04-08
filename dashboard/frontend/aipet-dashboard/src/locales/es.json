@@ -129,5 +129,32 @@
   },
   "footerTagline": "Plataforma de seguridad IoT impulsada por IA. Desarrollada como investigación MSc en la Universidad de Coventry.",
   "featuresTitle": "Todo lo que necesita para asegurar su IoT",
-  "featuresSubtitle": "Siete módulos impulsados por IA trabajando juntos"
+  "featuresSubtitle": "Siete módulos impulsados por IA trabajando juntos",
+  "platformPage": {
+    "badge": "La Plataforma",
+    "title1": "Siete Módulos.",
+    "title2": "Una Plataforma.",
+    "subtitle": "Cada módulo en AIPET está diseñado para trabajar junto — desde el descubrimiento hasta el cumplimiento.",
+    "techTitle": "Construido sobre Tecnología Enterprise",
+    "techSubtitle": "Stack de producción, inteligencia de investigación",
+    "ctaTitle": "Ver los 7 Módulos en Acción",
+    "ctaSubtitle": "Gratis para siempre. Sin tarjeta de crédito. Acceso completo en 60 segundos.",
+    "tryModule": "Probar",
+    "tryFree": "Gratis →",
+    "capabilities": "Capacidades Clave"
+  },
+  "solutionsPage": {
+    "badge": "Soluciones por Industria",
+    "title1": "Construido para",
+    "title2": "Su Industria",
+    "subtitle": "Cada industria tiene desafíos únicos de seguridad IoT. AIPET está diseñado para abordarlos todos.",
+    "challenge": "El Desafío",
+    "solution": "La Solución AIPET",
+    "complianceTitle": "Cobertura de Cumplimiento en Todas las Industrias",
+    "complianceSubtitle": "Una plataforma. Todos los marcos de seguridad principales.",
+    "ctaTitle": "¿Listo para Proteger su Organización?",
+    "ctaSubtitle": "Gratis para siempre. Sin tarjeta de crédito. Informes de cumplimiento desde el primer día.",
+    "requestDemo": "Solicitar Demo",
+    "getStarted": "Empezar Gratis →"
+  }
 }

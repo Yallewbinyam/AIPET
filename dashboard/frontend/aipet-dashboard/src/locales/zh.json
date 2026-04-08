@@ -129,5 +129,32 @@
   },
   "footerTagline": "AI驱动的IoT安全平台。作为考文垂大学网络安全硕士研究开发。",
   "featuresTitle": "保护IoT所需的一切",
-  "featuresSubtitle": "七个AI驱动模块协同工作"
+  "featuresSubtitle": "七个AI驱动模块协同工作",
+  "platformPage": {
+    "badge": "平台",
+    "title1": "七个模块。",
+    "title2": "一个平台。",
+    "subtitle": "AIPET的每个模块都设计为协同工作——从发现到解释再到合规。",
+    "techTitle": "基于企业级技术构建",
+    "techSubtitle": "生产级堆栈，研究级智能",
+    "ctaTitle": "查看全部7个模块的运行",
+    "ctaSubtitle": "永久免费。无需信用卡。60秒内完整访问。",
+    "tryModule": "试用",
+    "tryFree": "免费 →",
+    "capabilities": "核心功能"
+  },
+  "solutionsPage": {
+    "badge": "行业解决方案",
+    "title1": "专为",
+    "title2": "您的行业构建",
+    "subtitle": "每个行业都有独特的IoT安全挑战。AIPET旨在解决所有这些挑战。",
+    "challenge": "挑战",
+    "solution": "AIPET解决方案",
+    "complianceTitle": "覆盖所有行业的合规性",
+    "complianceSubtitle": "一个平台。所有主要安全框架。",
+    "ctaTitle": "准备好保护您的组织了吗？",
+    "ctaSubtitle": "永久免费。无需信用卡。从第一天起完整的合规报告。",
+    "requestDemo": "申请演示",
+    "getStarted": "免费开始 →"
+  }
 }

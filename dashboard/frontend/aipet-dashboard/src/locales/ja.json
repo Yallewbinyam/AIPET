@@ -129,5 +129,32 @@
   },
   "footerTagline": "AIを活用したIoTセキュリティプラットフォーム。コベントリー大学のMSc研究として開発。",
   "featuresTitle": "IoTセキュリティに必要なすべて",
-  "featuresSubtitle": "7つのAIモジュールが連携して動作"
+  "featuresSubtitle": "7つのAIモジュールが連携して動作",
+  "platformPage": {
+    "badge": "プラットフォーム",
+    "title1": "7つのモジュール。",
+    "title2": "1つのプラットフォーム。",
+    "subtitle": "AIPETの各モジュールは連携するよう設計されています — 発見から説明、コンプライアンスまで。",
+    "techTitle": "エンタープライズ技術で構築",
+    "techSubtitle": "本番グレードのスタック、研究グレードの知性",
+    "ctaTitle": "全7モジュールの動作を見る",
+    "ctaSubtitle": "永久無料。クレジットカード不要。60秒でフルアクセス。",
+    "tryModule": "試す",
+    "tryFree": "無料 →",
+    "capabilities": "主な機能"
+  },
+  "solutionsPage": {
+    "badge": "業界別ソリューション",
+    "title1": "あなたの業界のために",
+    "title2": "構築されました",
+    "subtitle": "各業界には固有のIoTセキュリティの課題があります。AIPETはすべてに対応するよう設計されています。",
+    "challenge": "課題",
+    "solution": "AIPETのソリューション",
+    "complianceTitle": "全業界のコンプライアンスカバレッジ",
+    "complianceSubtitle": "1つのプラットフォーム。すべての主要セキュリティフレームワーク。",
+    "ctaTitle": "組織を保護する準備はできていますか？",
+    "ctaSubtitle": "永久無料。クレジットカード不要。初日から完全なコンプライアンスレポート。",
+    "requestDemo": "デモを申請",
+    "getStarted": "無料で始める →"
+  }
 }

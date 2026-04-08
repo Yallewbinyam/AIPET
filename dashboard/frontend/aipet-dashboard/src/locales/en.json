@@ -129,5 +129,32 @@
   },
   "footerTagline": "AI-Powered IoT Security Platform. Built as MSc Cyber Security research at Coventry University.",
   "featuresTitle": "Everything you need to secure your IoT",
-  "featuresSubtitle": "Seven AI-powered modules working together"
+  "featuresSubtitle": "Seven AI-powered modules working together",
+  "platformPage": {
+    "badge": "The Platform",
+    "title1": "Seven Modules.",
+    "title2": "One Platform.",
+    "subtitle": "Every module in AIPET is designed to work together — from discovery to explanation to compliance. Click any module to explore its capabilities.",
+    "techTitle": "Built on Enterprise Technology",
+    "techSubtitle": "Production-grade stack, research-grade intelligence",
+    "ctaTitle": "See All 7 Modules in Action",
+    "ctaSubtitle": "Free forever. No credit card. Full platform access in 60 seconds.",
+    "tryModule": "Try",
+    "tryFree": "Free →",
+    "capabilities": "Key Capabilities"
+  },
+  "solutionsPage": {
+    "badge": "Solutions by Industry",
+    "title1": "Built for",
+    "title2": "Your Industry",
+    "subtitle": "Every industry has unique IoT security challenges. AIPET is designed to address them all.",
+    "challenge": "The Challenge",
+    "solution": "The AIPET Solution",
+    "complianceTitle": "Compliance Coverage Across Every Industry",
+    "complianceSubtitle": "One platform. Every major security framework.",
+    "ctaTitle": "Ready to Protect Your Organisation?",
+    "ctaSubtitle": "Free forever. No credit card. Full compliance reporting from day one.",
+    "requestDemo": "Request Demo",
+    "getStarted": "Get Started Free →"
+  }
 }

@@ -2924,6 +2924,7 @@ function NetworkCanvas() {
 // PLATFORM PAGE
 // ============================================================
 function PlatformPage({ onBack, onGetStarted }) {
+  const { t } = useTranslation();
   const [expanded, setExpanded] = useState(null);
 
   const MODULES = [
@@ -3071,14 +3072,14 @@ function PlatformPage({ onBack, onGetStarted }) {
         <div style={{ maxWidth: "1100px", margin: "0 auto", padding: "80px 48px 60px", textAlign: "center" }}>
           <div style={{ display: "inline-flex", alignItems: "center", gap: "8px", padding: "6px 16px", borderRadius: "100px", border: `1px solid ${COLORS.blue}40`, backgroundColor: COLORS.blue + "10", marginBottom: "32px" }}>
             <div style={{ width: "8px", height: "8px", borderRadius: "50%", backgroundColor: COLORS.blue }} />
-            <span style={{ color: COLORS.blue, fontSize: "13px", fontWeight: "600" }}>The Platform</span>
+            <span style={{ color: COLORS.blue, fontSize: "13px", fontWeight: "600" }}>{t("platformPage.badge")}</span>
           </div>
           <h1 style={{ fontSize: "52px", fontWeight: "900", color: COLORS.text, lineHeight: "1.1", marginBottom: "24px", letterSpacing: "-0.03em" }}>
-            Seven Modules.
-            <span style={{ color: COLORS.blue }}> One Platform.</span>
+            {t("platformPage.title1")}
+            <span style={{ color: COLORS.blue }}> {t("platformPage.title2")}</span>
           </h1>
           <p style={{ fontSize: "18px", color: COLORS.muted, lineHeight: "1.7", maxWidth: "680px", margin: "0 auto 48px" }}>
-            Every module in AIPET is designed to work together — from discovery to explanation to compliance. Click any module to explore its capabilities.
+            {t("platformPage.subtitle")}
           </p>
           {/* Module quick nav */}
           <div style={{ display: "flex", flexWrap: "wrap", gap: "8px", justifyContent: "center" }}>
@@ -3130,7 +3131,7 @@ function PlatformPage({ onBack, onGetStarted }) {
                       </button>
                     </div>
                     <div>
-                      <div style={{ fontSize: "13px", fontWeight: "700", color: COLORS.muted, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: "16px" }}>Key Capabilities</div>
+                      <div style={{ fontSize: "13px", fontWeight: "700", color: COLORS.muted, textTransform: "uppercase", letterSpacing: "0.08em", marginBottom: "16px" }}>{t("platformPage.capabilities")}</div>
                       {module.features.map((f, j) => (
                         <div key={j} style={{ display: "flex", alignItems: "flex-start", gap: "10px", marginBottom: "12px" }}>
                           <div style={{ width: "18px", height: "18px", borderRadius: "50%", backgroundColor: module.color + "20", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0, marginTop: "2px" }}>
@@ -3150,8 +3151,8 @@ function PlatformPage({ onBack, onGetStarted }) {
         {/* Tech stack */}
         <div style={{ backgroundColor: COLORS.card, padding: "80px 48px" }}>
           <div style={{ maxWidth: "1100px", margin: "0 auto", textAlign: "center" }}>
-            <h2 style={{ fontSize: "36px", fontWeight: "900", color: COLORS.text, marginBottom: "12px" }}>Built on Enterprise Technology</h2>
-            <p style={{ color: COLORS.muted, fontSize: "16px", marginBottom: "48px" }}>Production-grade stack, research-grade intelligence</p>
+            <h2 style={{ fontSize: "36px", fontWeight: "900", color: COLORS.text, marginBottom: "12px" }}>{t("platformPage.techTitle")}</h2>
+            <p style={{ color: COLORS.muted, fontSize: "16px", marginBottom: "48px" }}>{t("platformPage.techSubtitle")}</p>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "20px" }}>
               {[
                 { category: "Backend", items: ["Flask + Gunicorn", "PostgreSQL 17", "Celery + Redis", "Docker"] },
@@ -3176,8 +3177,8 @@ function PlatformPage({ onBack, onGetStarted }) {
         {/* CTA */}
         <div style={{ maxWidth: "900px", margin: "80px auto", padding: "0 48px" }}>
           <div style={{ background: `linear-gradient(135deg, ${COLORS.blue}15, ${COLORS.purple}10)`, border: `1px solid ${COLORS.blue}30`, borderRadius: "24px", padding: "64px 48px", textAlign: "center" }}>
-            <h2 style={{ fontSize: "36px", fontWeight: "900", color: COLORS.text, marginBottom: "16px" }}>See All 7 Modules in Action</h2>
-            <p style={{ color: COLORS.muted, fontSize: "16px", marginBottom: "32px" }}>Free forever. No credit card. Full platform access in 60 seconds.</p>
+            <h2 style={{ fontSize: "36px", fontWeight: "900", color: COLORS.text, marginBottom: "16px" }}>{t("platformPage.ctaTitle")}</h2>
+            <p style={{ color: COLORS.muted, fontSize: "16px", marginBottom: "32px" }}>{t("platformPage.ctaSubtitle")}</p>
             <button onClick={onGetStarted} style={{ backgroundColor: COLORS.blue, color: "white", border: "none", cursor: "pointer", fontSize: "16px", fontWeight: "700", padding: "14px 36px", borderRadius: "12px", boxShadow: `0 0 32px ${COLORS.blue}40` }}>
               Get Started Free →
             </button>
@@ -3199,6 +3200,7 @@ function PlatformPage({ onBack, onGetStarted }) {
 // SOLUTIONS PAGE
 // ============================================================
 function SolutionsPage({ onBack, onGetStarted }) {
+  const { t } = useTranslation();
   const [activeTab, setActiveTab] = useState("healthcare");
 
   const SOLUTIONS = {
@@ -3355,14 +3357,14 @@ function SolutionsPage({ onBack, onGetStarted }) {
         <div style={{ maxWidth: "1100px", margin: "0 auto", padding: "80px 48px 60px", textAlign: "center" }}>
           <div style={{ display: "inline-flex", alignItems: "center", gap: "8px", padding: "6px 16px", borderRadius: "100px", border: `1px solid ${COLORS.blue}40`, backgroundColor: COLORS.blue + "10", marginBottom: "32px" }}>
             <div style={{ width: "8px", height: "8px", borderRadius: "50%", backgroundColor: COLORS.blue }} />
-            <span style={{ color: COLORS.blue, fontSize: "13px", fontWeight: "600" }}>Solutions by Industry</span>
+            <span style={{ color: COLORS.blue, fontSize: "13px", fontWeight: "600" }}>{t("solutionsPage.badge")}</span>
           </div>
           <h1 style={{ fontSize: "52px", fontWeight: "900", color: COLORS.text, lineHeight: "1.1", marginBottom: "24px", letterSpacing: "-0.03em" }}>
-            Built for
-            <span style={{ color: COLORS.blue }}> Your Industry</span>
+            {t("solutionsPage.title1")}
+            <span style={{ color: COLORS.blue }}> {t("solutionsPage.title2")}</span>
           </h1>
           <p style={{ fontSize: "18px", color: COLORS.muted, lineHeight: "1.7", maxWidth: "680px", margin: "0 auto" }}>
-            Every industry has unique IoT security challenges. AIPET is designed to address them all — with industry-specific compliance, protocols, and reporting.
+            {t("solutionsPage.subtitle")}
           </p>
         </div>
 
@@ -3397,7 +3399,7 @@ function SolutionsPage({ onBack, onGetStarted }) {
             {/* Challenge + Solution */}
             <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "0" }}>
               <div style={{ padding: "40px 48px", borderRight: `1px solid ${COLORS.border}` }}>
-                <div style={{ fontSize: "12px", fontWeight: "700", color: "#ff4444", textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: "20px" }}>⚠ The Challenge</div>
+                <div style={{ fontSize: "12px", fontWeight: "700", color: "#ff4444", textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: "20px" }}>⚠ {t("solutionsPage.challenge")}</div>
                 <p style={{ color: COLORS.muted, fontSize: "15px", lineHeight: "1.8", marginBottom: "24px" }}>{active.challenge}</p>
                 <div style={{ space: "12px" }}>
                   {active.pain.map((p, i) => (
@@ -3409,7 +3411,7 @@ function SolutionsPage({ onBack, onGetStarted }) {
                 </div>
               </div>
               <div style={{ padding: "40px 48px" }}>
-                <div style={{ fontSize: "12px", fontWeight: "700", color: active.color, textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: "20px" }}>✓ The AIPET Solution</div>
+                <div style={{ fontSize: "12px", fontWeight: "700", color: active.color, textTransform: "uppercase", letterSpacing: "0.1em", marginBottom: "20px" }}>✓ {t("solutionsPage.solution")}</div>
                 <div style={{ marginBottom: "24px" }}>
                   {active.solution.map((s, i) => (
                     <div key={i} style={{ display: "flex", gap: "10px", marginBottom: "12px", alignItems: "flex-start" }}>
@@ -3434,8 +3436,8 @@ function SolutionsPage({ onBack, onGetStarted }) {
         {/* Compliance coverage */}
         <div style={{ maxWidth: "1100px", margin: "80px auto 0", padding: "0 48px" }}>
           <div style={{ textAlign: "center", marginBottom: "48px" }}>
-            <h2 style={{ fontSize: "32px", fontWeight: "900", color: COLORS.text, marginBottom: "12px" }}>Compliance Coverage Across Every Industry</h2>
-            <p style={{ color: COLORS.muted, fontSize: "16px" }}>One platform. Every major security framework.</p>
+            <h2 style={{ fontSize: "32px", fontWeight: "900", color: COLORS.text, marginBottom: "12px" }}>{t("solutionsPage.complianceTitle")}</h2>
+            <p style={{ color: COLORS.muted, fontSize: "16px" }}>{t("solutionsPage.complianceSubtitle")}</p>
           </div>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "20px", marginBottom: "80px" }}>
             {[
@@ -3455,8 +3457,8 @@ function SolutionsPage({ onBack, onGetStarted }) {
         {/* CTA */}
         <div style={{ maxWidth: "900px", margin: "0 auto 80px", padding: "0 48px" }}>
           <div style={{ background: `linear-gradient(135deg, ${COLORS.blue}15, ${COLORS.purple}10)`, border: `1px solid ${COLORS.blue}30`, borderRadius: "24px", padding: "64px 48px", textAlign: "center" }}>
-            <h2 style={{ fontSize: "36px", fontWeight: "900", color: COLORS.text, marginBottom: "16px" }}>Ready to Protect Your Organisation?</h2>
-            <p style={{ color: COLORS.muted, fontSize: "16px", marginBottom: "32px" }}>Free forever. No credit card. Full compliance reporting from day one.</p>
+            <h2 style={{ fontSize: "36px", fontWeight: "900", color: COLORS.text, marginBottom: "16px" }}>{t("solutionsPage.ctaTitle")}</h2>
+            <p style={{ color: COLORS.muted, fontSize: "16px", marginBottom: "32px" }}>{t("solutionsPage.ctaSubtitle")}</p>
             <div style={{ display: "flex", justifyContent: "center", gap: "16px" }}>
               <button onClick={onGetStarted} style={{ backgroundColor: COLORS.blue, color: "white", border: "none", cursor: "pointer", fontSize: "16px", fontWeight: "700", padding: "14px 36px", borderRadius: "12px", boxShadow: `0 0 32px ${COLORS.blue}40` }}>
                 Get Started Free →

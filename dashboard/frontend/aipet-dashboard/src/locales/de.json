@@ -129,5 +129,32 @@
   },
   "footerTagline": "KI-gestützte IoT-Sicherheitsplattform. Entwickelt als MSc-Forschung an der Universität Coventry.",
   "featuresTitle": "Alles was Sie zur IoT-Sicherheit brauchen",
-  "featuresSubtitle": "Sieben KI-gestützte Module arbeiten zusammen"
+  "featuresSubtitle": "Sieben KI-gestützte Module arbeiten zusammen",
+  "platformPage": {
+    "badge": "Die Plattform",
+    "title1": "Sieben Module.",
+    "title2": "Eine Plattform.",
+    "subtitle": "Jedes Modul in AIPET ist so konzipiert, dass es zusammenarbeitet — von der Entdeckung bis zur Compliance.",
+    "techTitle": "Auf Enterprise-Technologie aufgebaut",
+    "techSubtitle": "Produktions-Stack, Forschungs-Intelligenz",
+    "ctaTitle": "Alle 7 Module in Aktion sehen",
+    "ctaSubtitle": "Kostenlos für immer. Keine Kreditkarte. Voller Plattformzugang in 60 Sekunden.",
+    "tryModule": "Ausprobieren",
+    "tryFree": "Kostenlos →",
+    "capabilities": "Hauptfunktionen"
+  },
+  "solutionsPage": {
+    "badge": "Lösungen nach Branche",
+    "title1": "Gebaut für",
+    "title2": "Ihre Branche",
+    "subtitle": "Jede Branche hat einzigartige IoT-Sicherheitsherausforderungen. AIPET ist darauf ausgelegt, alle zu lösen.",
+    "challenge": "Die Herausforderung",
+    "solution": "Die AIPET-Lösung",
+    "complianceTitle": "Compliance-Abdeckung für alle Branchen",
+    "complianceSubtitle": "Eine Plattform. Jedes große Sicherheits-Framework.",
+    "ctaTitle": "Bereit, Ihre Organisation zu schützen?",
+    "ctaSubtitle": "Kostenlos für immer. Keine Kreditkarte. Vollständige Compliance-Berichte ab Tag eins.",
+    "requestDemo": "Demo Anfordern",
+    "getStarted": "Kostenlos Starten →"
+  }
 }

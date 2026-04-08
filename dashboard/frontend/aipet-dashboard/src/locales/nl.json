@@ -129,5 +129,32 @@
   },
   "footerTagline": "AI-aangedreven IoT-beveiligingsplatform. Ontwikkeld als MSc-onderzoek aan de Universiteit van Coventry.",
   "featuresTitle": "Alles wat u nodig heeft om uw IoT te beveiligen",
-  "featuresSubtitle": "Zeven AI-aangedreven modules die samenwerken"
+  "featuresSubtitle": "Zeven AI-aangedreven modules die samenwerken",
+  "platformPage": {
+    "badge": "Het Platform",
+    "title1": "Zeven Modules.",
+    "title2": "Één Platform.",
+    "subtitle": "Elke module in AIPET is ontworpen om samen te werken — van ontdekking tot uitleg tot naleving.",
+    "techTitle": "Gebouwd op Enterprise Technologie",
+    "techSubtitle": "Productieklasse stack, onderzoeksklasse intelligentie",
+    "ctaTitle": "Alle 7 Modules in Actie Zien",
+    "ctaSubtitle": "Gratis voor altijd. Geen creditcard. Volledige toegang in 60 seconden.",
+    "tryModule": "Proberen",
+    "tryFree": "Gratis →",
+    "capabilities": "Belangrijkste Mogelijkheden"
+  },
+  "solutionsPage": {
+    "badge": "Oplossingen per Sector",
+    "title1": "Gebouwd voor",
+    "title2": "Uw Sector",
+    "subtitle": "Elke sector heeft unieke IoT-beveiligingsuitdagingen. AIPET is ontworpen om ze allemaal aan te pakken.",
+    "challenge": "De Uitdaging",
+    "solution": "De AIPET-oplossing",
+    "complianceTitle": "Nalevingsdekking in Alle Sectoren",
+    "complianceSubtitle": "Één platform. Elk groot beveiligingsframework.",
+    "ctaTitle": "Klaar om Uw Organisatie te Beschermen?",
+    "ctaSubtitle": "Gratis voor altijd. Geen creditcard. Volledige nalevingsrapporten vanaf dag één.",
+    "requestDemo": "Demo Aanvragen",
+    "getStarted": "Gratis Beginnen →"
+  }
 }
