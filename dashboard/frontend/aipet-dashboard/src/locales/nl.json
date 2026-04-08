@@ -141,7 +141,14 @@
     "ctaSubtitle": "Gratis voor altijd. Geen creditcard. Volledige toegang in 60 seconden.",
     "tryModule": "Proberen",
     "tryFree": "Gratis →",
-    "capabilities": "Belangrijkste Mogelijkheden"
+    "capabilities": "Belangrijkste Mogelijkheden",
+    "scan_tagline": "Ontdek elk IoT-apparaat in uw netwerk",
+    "explain_tagline": "AI-aangedreven uitleg voor elke kwetsbaarheid",
+    "score_tagline": "Kwantificeer de financiële impact van elke kwetsbaarheid",
+    "map_tagline": "Visualiseer aanvalspaden in uw IoT-netwerk",
+    "predict_tagline": "Live CVE-intelligentie afgestemd op uw apparaten",
+    "watch_tagline": "Continue anomaliedetectie voor uw IoT-netwerk",
+    "ask_tagline": "Uw AI-beveiligingsassistent, altijd beschikbaar"
   },
   "solutionsPage": {
     "badge": "Oplossingen per Sector",

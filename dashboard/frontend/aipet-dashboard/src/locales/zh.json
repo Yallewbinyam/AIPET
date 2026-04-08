@@ -141,7 +141,14 @@
     "ctaSubtitle": "永久免费。无需信用卡。60秒内完整访问。",
     "tryModule": "试用",
     "tryFree": "免费 →",
-    "capabilities": "核心功能"
+    "capabilities": "核心功能",
+    "scan_tagline": "发现网络中的每个IoT设备",
+    "explain_tagline": "每个漏洞的AI驱动解释",
+    "score_tagline": "量化每个漏洞的财务影响",
+    "map_tagline": "可视化IoT网络中的攻击路径",
+    "predict_tagline": "与您的设备匹配的实时CVE情报",
+    "watch_tagline": "IoT网络的持续异常检测",
+    "ask_tagline": "您的AI安全助手，始终可用"
   },
   "solutionsPage": {
     "badge": "行业解决方案",

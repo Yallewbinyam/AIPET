@@ -141,7 +141,14 @@
     "ctaSubtitle": "Free forever. No credit card. Full platform access in 60 seconds.",
     "tryModule": "Try",
     "tryFree": "Free →",
-    "capabilities": "Key Capabilities"
+    "capabilities": "Key Capabilities",
+    "scan_tagline": "Discover every IoT device in your network",
+    "explain_tagline": "AI-powered explanations for every vulnerability",
+    "score_tagline": "Quantify the financial impact of every vulnerability",
+    "map_tagline": "Visualise attack paths across your IoT network",
+    "predict_tagline": "Live CVE intelligence matched to your devices",
+    "watch_tagline": "Continuous anomaly detection for your IoT network",
+    "ask_tagline": "Your AI security assistant, always available"
   },
   "solutionsPage": {
     "badge": "Solutions by Industry",

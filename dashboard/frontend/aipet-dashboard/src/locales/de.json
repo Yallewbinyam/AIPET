@@ -141,7 +141,14 @@
     "ctaSubtitle": "Kostenlos für immer. Keine Kreditkarte. Voller Plattformzugang in 60 Sekunden.",
     "tryModule": "Ausprobieren",
     "tryFree": "Kostenlos →",
-    "capabilities": "Hauptfunktionen"
+    "capabilities": "Hauptfunktionen",
+    "scan_tagline": "Entdecken Sie jedes IoT-Gerät in Ihrem Netzwerk",
+    "explain_tagline": "KI-gestützte Erklärungen für jede Schwachstelle",
+    "score_tagline": "Quantifizieren Sie die finanzielle Auswirkung jeder Schwachstelle",
+    "map_tagline": "Visualisieren Sie Angriffspfade in Ihrem IoT-Netzwerk",
+    "predict_tagline": "Live CVE-Intelligenz für Ihre Geräte",
+    "watch_tagline": "Kontinuierliche Anomalieerkennung für Ihr IoT-Netzwerk",
+    "ask_tagline": "Ihr KI-Sicherheitsassistent, immer verfügbar"
   },
   "solutionsPage": {
     "badge": "Lösungen nach Branche",

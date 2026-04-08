@@ -141,7 +141,14 @@
     "ctaSubtitle": "永久無料。クレジットカード不要。60秒でフルアクセス。",
     "tryModule": "試す",
     "tryFree": "無料 →",
-    "capabilities": "主な機能"
+    "capabilities": "主な機能",
+    "scan_tagline": "ネットワーク上のすべてのIoTデバイスを発見",
+    "explain_tagline": "すべての脆弱性にAI説明",
+    "score_tagline": "各脆弱性の財務的影響を定量化",
+    "map_tagline": "IoTネットワーク上の攻撃経路を可視化",
+    "predict_tagline": "デバイスに合わせたライブCVEインテリジェンス",
+    "watch_tagline": "IoTネットワークの継続的な異常検出",
+    "ask_tagline": "常時利用可能なAIセキュリティアシスタント"
   },
   "solutionsPage": {
     "badge": "業界別ソリューション",

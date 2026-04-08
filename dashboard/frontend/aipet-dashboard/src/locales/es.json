@@ -141,7 +141,14 @@
     "ctaSubtitle": "Gratis para siempre. Sin tarjeta de crédito. Acceso completo en 60 segundos.",
     "tryModule": "Probar",
     "tryFree": "Gratis →",
-    "capabilities": "Capacidades Clave"
+    "capabilities": "Capacidades Clave",
+    "scan_tagline": "Descubra cada dispositivo IoT en su red",
+    "explain_tagline": "Explicaciones IA para cada vulnerabilidad",
+    "score_tagline": "Cuantifique el impacto financiero de cada vulnerabilidad",
+    "map_tagline": "Visualice rutas de ataque en su red IoT",
+    "predict_tagline": "Inteligencia CVE en tiempo real para sus dispositivos",
+    "watch_tagline": "Detección continua de anomalías para su red IoT",
+    "ask_tagline": "Su asistente IA de seguridad, siempre disponible"
   },
   "solutionsPage": {
     "badge": "Soluciones por Industria",

@@ -2931,7 +2931,7 @@ function PlatformPage({ onBack, onGetStarted }) {
     {
       id: "scan",
       name: "AIPET Scan",
-      tagline: "Discover every IoT device in your network",
+      tagline: t("platformPage.scan_tagline"),
       icon: "🔍",
       color: "#00e5ff",
       description: "AIPET Scan automatically discovers and fingerprints every IoT device on your network. Using seven specialised attack modules — MQTT, CoAP, HTTP, Firmware Analysis, Recon, AI Engine, and Report Generation — it performs a comprehensive security assessment in under 60 seconds.",
@@ -2948,7 +2948,7 @@ function PlatformPage({ onBack, onGetStarted }) {
     {
       id: "explain",
       name: "AIPET Explain",
-      tagline: "AI-powered explanations for every vulnerability",
+      tagline: t("platformPage.explain_tagline"),
       icon: "🧠",
       color: "#a855f7",
       description: "Powered by Claude AI and SHAP explainability, AIPET Explain transforms complex vulnerability data into clear, actionable intelligence. It tells you not just what is vulnerable — but exactly why, using machine learning predictions that security teams and executives both understand.",
@@ -2965,7 +2965,7 @@ function PlatformPage({ onBack, onGetStarted }) {
     {
       id: "score",
       name: "AIPET Score",
-      tagline: "Quantify the financial impact of every vulnerability",
+      tagline: t("platformPage.score_tagline"),
       icon: "💰",
       color: "#f59e0b",
       description: "AIPET Score calculates the real financial exposure of your IoT vulnerabilities using IBM Cost of a Data Breach 2024 and NCSC data. It gives your CISO and board a clear answer to the question: what would this breach actually cost us?",
@@ -2982,7 +2982,7 @@ function PlatformPage({ onBack, onGetStarted }) {
     {
       id: "map",
       name: "AIPET Map",
-      tagline: "Visualise attack paths across your IoT network",
+      tagline: t("platformPage.map_tagline"),
       icon: "🗺️",
       color: "#00e5ff",
       description: "AIPET Map uses D3.js to render a live, interactive network topology showing exactly how an attacker would move through your IoT infrastructure. See the complete attack chain — from initial access to full network compromise — visualised in real time.",
@@ -2999,7 +2999,7 @@ function PlatformPage({ onBack, onGetStarted }) {
     {
       id: "predict",
       name: "AIPET Predict",
-      tagline: "Live CVE intelligence matched to your devices",
+      tagline: t("platformPage.predict_tagline"),
       icon: "⚡",
       color: "#f59e0b",
       description: "AIPET Predict connects to the NIST National Vulnerability Database in real time, matching newly published CVEs against your specific device inventory. Know within minutes when a new vulnerability affects your infrastructure — before attackers exploit it.",
@@ -3016,7 +3016,7 @@ function PlatformPage({ onBack, onGetStarted }) {
     {
       id: "watch",
       name: "AIPET Watch",
-      tagline: "Continuous anomaly detection for your IoT network",
+      tagline: t("platformPage.watch_tagline"),
       icon: "👁️",
       color: "#00ff88",
       description: "AIPET Watch uses Scapy-based passive network monitoring to establish behavioural baselines for every IoT device and detect anomalies in real time. When a device starts behaving unusually — unexpected ports, unusual traffic patterns — you know immediately.",
@@ -3033,7 +3033,7 @@ function PlatformPage({ onBack, onGetStarted }) {
     {
       id: "ask",
       name: "AIPET Ask",
-      tagline: "Your AI security assistant, always available",
+      tagline: t("platformPage.ask_tagline"),
       icon: "💬",
       color: "#a855f7",
       description: "AIPET Ask is a Claude AI-powered security assistant that answers any question about your IoT security posture in natural language. Ask about your vulnerabilities, compliance status, remediation steps, or anything else — and get expert-level answers instantly.",
