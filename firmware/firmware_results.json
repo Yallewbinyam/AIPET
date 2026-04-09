@@ -1,6 +1,6 @@
 {
     "target": "lab/fake_firmware",
-    "scan_time": "2026-04-02 09:19:49",
+    "scan_time": "2026-04-09 16:01:03",
     "analyses": [
         {
             "analysis": "Binwalk Scan",

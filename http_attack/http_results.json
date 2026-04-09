@@ -1,401 +1,48 @@
 {
-    "target": "localhost",
-    "port": 8080,
+    "target": "192.168.56.105",
+    "port": 80,
     "scheme": "http",
-    "scan_time": "2026-04-02 09:19:49",
+    "scan_time": "2026-04-09 16:01:03",
     "attacks": [
         {
             "attack": "Default Credential Testing",
-            "host": "localhost",
-            "port": 8080,
+            "host": "192.168.56.105",
+            "port": 80,
             "credentials_tried": 24,
-            "valid_credentials": [
-                {
-                    "username": "admin",
-                    "password": "admin",
-                    "endpoint": "/admin",
-                    "method": "HTTP Basic Auth"
-                },
-                {
-                    "username": "admin",
-                    "password": "password",
-                    "endpoint": "/admin",
-                    "method": "HTTP Basic Auth"
-                },
-                {
-                    "username": "admin",
-                    "password": "admin123",
-                    "endpoint": "/admin",
-                    "method": "HTTP Basic Auth"
-                },
-                {
-                    "username": "admin",
-                    "password": "1234",
-                    "endpoint": "/admin",
-                    "method": "HTTP Basic Auth"
-                },
-                {
-                    "username": "admin",
-                    "password": "",
-                    "endpoint": "/admin",
-                    "method": "HTTP Basic Auth"
-                },
-                {
-                    "username": "root",
-                    "password": "root",
-                    "endpoint": "/admin",
-                    "method": "HTTP Basic Auth"
-                },
-                {
-                    "username": "root",
-                    "password": "password",
-                    "endpoint": "/admin",
-                    "method": "HTTP Basic Auth"
-                },
-                {
-                    "username": "root",
-                    "password": "",
-                    "endpoint": "/admin",
-                    "method": "HTTP Basic Auth"
-                },
-                {
-                    "username": "admin",
-                    "password": "admin",
-                    "endpoint": "/config",
-                    "method": "HTTP Basic Auth"
-                },
-                {
-                    "username": "admin",
-                    "password": "password",
-                    "endpoint": "/config",
-                    "method": "HTTP Basic Auth"
-                },
-                {
-                    "username": "admin",
-                    "password": "admin123",
-                    "endpoint": "/config",
-                    "method": "HTTP Basic Auth"
-                },
-                {
-                    "username": "admin",
-                    "password": "1234",
-                    "endpoint": "/config",
-                    "method": "HTTP Basic Auth"
-                },
-                {
-                    "username": "admin",
-                    "password": "",
-                    "endpoint": "/config",
-                    "method": "HTTP Basic Auth"
-                },
-                {
-                    "username": "root",
-                    "password": "root",
-                    "endpoint": "/config",
-                    "method": "HTTP Basic Auth"
-                },
-                {
-                    "username": "root",
-                    "password": "password",
-                    "endpoint": "/config",
-                    "method": "HTTP Basic Auth"
-                },
-                {
-                    "username": "root",
-                    "password": "",
-                    "endpoint": "/config",
-                    "method": "HTTP Basic Auth"
-                },
-                {
-                    "username": "admin",
-                    "password": "admin",
-                    "endpoint": "/management",
-                    "method": "HTTP Basic Auth"
-                },
-                {
-                    "username": "admin",
-                    "password": "password",
-                    "endpoint": "/management",
-                    "method": "HTTP Basic Auth"
-                },
-                {
-                    "username": "admin",
-                    "password": "admin123",
-                    "endpoint": "/management",
-                    "method": "HTTP Basic Auth"
-                },
-                {
-                    "username": "admin",
-                    "password": "1234",
-                    "endpoint": "/management",
-                    "method": "HTTP Basic Auth"
-                },
-                {
-                    "username": "admin",
-                    "password": "",
-                    "endpoint": "/management",
-                    "method": "HTTP Basic Auth"
-                },
-                {
-                    "username": "root",
-                    "password": "root",
-                    "endpoint": "/management",
-                    "method": "HTTP Basic Auth"
-                },
-                {
-                    "username": "root",
-                    "password": "password",
-                    "endpoint": "/management",
-                    "method": "HTTP Basic Auth"
-                },
-                {
-                    "username": "root",
-                    "password": "",
-                    "endpoint": "/management",
-                    "method": "HTTP Basic Auth"
-                }
-            ],
+            "valid_credentials": [],
             "login_endpoints": [],
-            "finding": "Default credentials valid \u2014 24 credential set(s) found",
-            "severity": "CRITICAL"
+            "finding": "No login endpoints found",
+            "severity": "INFO"
         },
         {
             "attack": "Admin Interface Discovery",
-            "host": "localhost",
-            "port": 8080,
-            "admin_found": [
-                {
-                    "path": "/admin",
-                    "status": 200,
-                    "size": 345,
-                    "sensitive": [
-                        "password",
-                        "login",
-                        "admin",
-                        "firmware"
-                    ]
-                },
-                {
-                    "path": "/management",
-                    "status": 200,
-                    "size": 71,
-                    "sensitive": [
-                        "password",
-                        "admin"
-                    ]
-                },
-                {
-                    "path": "/config",
-                    "status": 200,
-                    "size": 275,
-                    "sensitive": [
-                        "password",
-                        "secret",
-                        "api_key",
-                        "key",
-                        "ssid",
-                        "wifi",
-                        "admin",
-                        "firmware"
-                    ]
-                },
-                {
-                    "path": "/setup",
-                    "status": 200,
-                    "size": 105,
-                    "sensitive": [
-                        "auth"
-                    ]
-                }
-            ],
-            "sensitive_files": [
-                {
-                    "path": "/config.bak",
-                    "status": 200,
-                    "size": 275,
-                    "sensitive": [
-                        "password",
-                        "secret",
-                        "api_key",
-                        "key",
-                        "ssid",
-                        "wifi",
-                        "admin",
-                        "firmware"
-                    ]
-                },
-                {
-                    "path": "/firmware",
-                    "status": 200,
-                    "size": 133,
-                    "sensitive": [
-                        "version",
-                        "model"
-                    ]
-                },
-                {
-                    "path": "/diag",
-                    "status": 200,
-                    "size": 123,
-                    "sensitive": [
-                        "password",
-                        "secret",
-                        "api_key",
-                        "key",
-                        "admin"
-                    ]
-                },
-                {
-                    "path": "/status",
-                    "status": 200,
-                    "size": 202,
-                    "sensitive": [
-                        "secret",
-                        "api_key",
-                        "key",
-                        "firmware",
-                        "location"
-                    ]
-                }
-            ],
-            "sensitive_responses": [
-                {
-                    "path": "/admin",
-                    "patterns": [
-                        "password",
-                        "login",
-                        "admin",
-                        "firmware"
-                    ],
-                    "preview": "\n<html><body>\n<h1>Admin Panel</h1>\n<p>Welcome admin \u00e2\u0080\u0094 full device control</p>\n<p>Device ID: SmartSensor-X100</p>\n<p>Firmware: 1.2.3</p>\n<form method='POST' action='/admin/login'>\nUsername: <input na"
-                },
-                {
-                    "path": "/management",
-                    "patterns": [
-                        "password",
-                        "admin"
-                    ],
-                    "preview": "{\n  \"status\": \"management interface active\",\n  \"password\": \"admin123\"\n}"
-                },
-                {
-                    "path": "/config",
-                    "patterns": [
-                        "password",
-                        "secret",
-                        "api_key",
-                        "key",
-                        "ssid",
-                        "wifi",
-                        "admin",
-                        "firmware"
-                    ],
-                    "preview": "{\n  \"device_id\": \"SmartSensor-X100\",\n  \"firmware\": \"1.2.3\",\n  \"admin_user\": \"admin\",\n  \"admin_password\": \"admin123\",\n  \"api_key\": \"SECRET_API_KEY_12345\",\n  \"wifi_ssid\": \"HomeNetwork\",\n  \"wifi_password"
-                },
-                {
-                    "path": "/setup",
-                    "patterns": [
-                        "auth"
-                    ],
-                    "preview": "\n<html><body>\n<h1>Device Setup</h1>\n<p>Initial configuration page \u00e2\u0080\u0094 no auth required</p>\n</body></html>"
-                },
-                {
-                    "path": "/config.bak",
-                    "patterns": [
-                        "password",
-                        "secret",
-                        "api_key",
-                        "key",
-                        "ssid",
-                        "wifi",
-                        "admin",
-                        "firmware"
-                    ],
-                    "preview": "{\n  \"device_id\": \"SmartSensor-X100\",\n  \"firmware\": \"1.2.3\",\n  \"admin_user\": \"admin\",\n  \"admin_password\": \"admin123\",\n  \"api_key\": \"SECRET_API_KEY_12345\",\n  \"wifi_ssid\": \"HomeNetwork\",\n  \"wifi_password"
-                },
-                {
-                    "path": "/firmware",
-                    "patterns": [
-                        "version",
-                        "model"
-                    ],
-                    "preview": "{\n  \"version\": \"1.2.3\",\n  \"model\": \"SmartSensor-X100\",\n  \"update_url\": \"http://update.vulntech.com\",\n  \"last_updated\": \"2021-03-15\"\n}"
-                },
-                {
-                    "path": "/diag",
-                    "patterns": [
-                        "password",
-                        "secret",
-                        "api_key",
-                        "key",
-                        "admin"
-                    ],
-                    "preview": "{\n  \"cpu\": \"45%\",\n  \"memory\": \"62%\",\n  \"uptime\": \"15 days\",\n  \"password\": \"admin123\",\n  \"api_key\": \"SECRET_API_KEY_12345\"\n}"
-                },
-                {
-                    "path": "/status",
-                    "patterns": [
-                        "secret",
-                        "api_key",
-                        "key",
-                        "firmware",
-                        "location"
-                    ],
-                    "preview": "{\n  \"device\": \"SmartSensor-X100\",\n  \"firmware\": \"1.2.3\",\n  \"temperature\": \"22.5\",\n  \"humidity\": \"65\",\n  \"location\": \"server_room\",\n  \"mqtt_broker\": \"192.168.1.100\",\n  \"api_key\": \"SECRET_API_KEY_12345\""
-                }
-            ],
-            "finding": "8 interface(s) found \u2014 8 exposing sensitive data",
-            "severity": "CRITICAL"
+            "host": "192.168.56.105",
+            "port": 80,
+            "admin_found": [],
+            "sensitive_files": [],
+            "sensitive_responses": [],
+            "finding": "No admin interfaces discovered",
+            "severity": "INFO"
         },
         {
             "attack": "API Security Testing",
-            "host": "localhost",
-            "apis_found": [
-                "/api/v1/sensors",
-                "/api/v1/config"
-            ],
-            "unauthenticated": [
-                {
-                    "path": "/api/v1/sensors",
-                    "method": "GET",
-                    "size": 120
-                },
-                {
-                    "path": "/api/v1/config",
-                    "method": "GET",
-                    "size": 275
-                }
-            ],
-            "sensitive_apis": [
-                {
-                    "path": "/api/v1/sensors",
-                    "patterns": [
-                        "location"
-                    ],
-                    "preview": "{\n  \"temperature\": \"22.5\",\n  \"humidity\": \"65\",\n  \"pressure\": \"1013\",\n  \"location\": \"server_room\",\n  \"status\": \"active\"\n}"
-                },
-                {
-                    "path": "/api/v1/config",
-                    "patterns": [
-                        "password",
-                        "secret",
-                        "api_key",
-                        "key",
-                        "ssid",
-                        "wifi",
-                        "admin",
-                        "firmware"
-                    ],
-                    "preview": "{\n  \"device_id\": \"SmartSensor-X100\",\n  \"firmware\": \"1.2.3\",\n  \"admin_user\": \"admin\",\n  \"admin_password\": \"admin123\",\n  \"api_key\": \"SECRET_API_KEY_12345\",\n  \"wifi_ssid\": \"HomeNetwork\",\n  \"wifi_password\": \"wifipass123\",\n  \"mqtt_broker\": \"192.168.1.100\",\n  \"mqtt_port\": \"1883\"\n}"
-                }
-            ],
+            "host": "192.168.56.105",
+            "apis_found": [],
+            "unauthenticated": [],
+            "sensitive_apis": [],
             "injectable_apis": [],
-            "finding": "2 API(s) found \u2014 2 exposing sensitive data without authentication",
-            "severity": "CRITICAL"
+            "finding": "No API endpoints found",
+            "severity": "INFO"
         },
         {
             "attack": "Common Vulnerability Scan",
-            "host": "localhost",
+            "host": "192.168.56.105",
             "vulnerabilities": [
+                {
+                    "type": "Dangerous HTTP Method",
+                    "detail": "OPTIONS method accepted",
+                    "severity": "MEDIUM"
+                },
                 {
                     "type": "Missing Security Headers",
                     "detail": "Missing: X-Frame-Options, X-Content-Type-Options, Content-Security-Policy, Strict-Transport-Security",
@@ -403,18 +50,18 @@
                 },
                 {
                     "type": "Server Version Disclosure",
-                    "detail": "Server header: BaseHTTP/0.6 Python/3.13.12",
+                    "detail": "Server header: Apache/2.4.66 (Debian)",
                     "severity": "LOW"
                 }
             ],
-            "finding": "2 vulnerability/vulnerabilities found",
-            "severity": "LOW"
+            "finding": "3 vulnerability/vulnerabilities found",
+            "severity": "MEDIUM"
         }
     ],
     "summary": {
-        "critical": 3,
+        "critical": 0,
         "high": 0,
-        "medium": 0,
-        "info": 1
+        "medium": 1,
+        "info": 3
     }
 }

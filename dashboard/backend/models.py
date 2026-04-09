@@ -339,3 +339,31 @@ class ComplianceResult(db.Model):
             "controls":   self.controls,
             "created_at": str(self.created_at),
         }
+
+
+class ProtocolScan(db.Model):
+    __tablename__ = "protocol_scans"
+
+    id           = db.Column(db.Integer,     primary_key=True)
+    user_id      = db.Column(db.Integer,     db.ForeignKey("users.id"), nullable=False)
+    protocol     = db.Column(db.String(50),  nullable=False)
+    target       = db.Column(db.String(255), nullable=False)
+    status       = db.Column(db.String(50),  default="running")
+    findings     = db.Column(db.JSON,        nullable=True)
+    device_count = db.Column(db.Integer,     default=0)
+    risk_level   = db.Column(db.String(50),  default="unknown")
+    created_at   = db.Column(db.DateTime,    default=lambda: datetime.now(timezone.utc))
+    completed_at = db.Column(db.DateTime,    nullable=True)
+
+    def to_dict(self):
+        return {
+            "id":           self.id,
+            "protocol":     self.protocol,
+            "target":       self.target,
+            "status":       self.status,
+            "findings":     self.findings,
+            "device_count": self.device_count,
+            "risk_level":   self.risk_level,
+            "created_at":   str(self.created_at),
+            "completed_at": str(self.completed_at),
+        }
