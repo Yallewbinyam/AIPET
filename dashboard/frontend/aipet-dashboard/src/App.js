@@ -4498,6 +4498,260 @@ function LoginPage({ onLogin }) {
 }
 
 
+
+// ============================================================
+// AIPET TERMINAL
+// ============================================================
+function TerminalPage({ token, showToast, findings }) {
+  const terminalRef = useRef(null);
+  const [input, setInput] = useState('');
+  const [history, setHistory] = useState([
+    { type: 'system', text: '╔═══════════════════════════════════════════════════╗' },
+    { type: 'system', text: '║           AIPET Terminal v1.0.0                   ║' },
+    { type: 'system', text: '║     AI-Powered IoT Security Command Center        ║' },
+    { type: 'system', text: '╚═══════════════════════════════════════════════════╝' },
+    { type: 'system', text: '' },
+    { type: 'info',   text: 'Type "help" to see available commands.' },
+    { type: 'info',   text: 'Type "fixes" to see pre-loaded fix commands from your findings.' },
+    { type: 'system', text: '' },
+  ]);
+  const [cmdHistory, setCmdHistory] = useState([]);
+  const [historyIdx, setHistoryIdx] = useState(-1);
+  const inputRef = useRef(null);
+
+  const PRELOADED_FIXES = {
+    'no_firewall':           { cmd: 'sudo ufw enable && sudo ufw default deny incoming && sudo ufw allow ssh', desc: 'Enable firewall and deny incoming traffic' },
+    'unencrypted_mqtt':      { cmd: 'sudo systemctl stop mosquitto && sudo nano /etc/mosquitto/mosquitto.conf', desc: 'Stop MQTT broker and configure TLS encryption' },
+    'default_credentials':   { cmd: 'passwd && echo "Change default credentials immediately"', desc: 'Change default credentials' },
+    'open_telnet':           { cmd: 'sudo systemctl disable telnet && sudo systemctl stop telnet', desc: 'Disable and stop Telnet service' },
+    'open_ftp':              { cmd: 'sudo systemctl disable vsftpd && sudo ufw deny 21', desc: 'Disable FTP and block port 21' },
+    'weak_ssh':              { cmd: 'sudo nano /etc/ssh/sshd_config && sudo systemctl restart ssh', desc: 'Harden SSH configuration' },
+    'http_exposed':          { cmd: 'sudo ufw deny 80 && sudo ufw deny 8080', desc: 'Block HTTP ports' },
+    'snmp_exposed':          { cmd: 'sudo systemctl stop snmpd && sudo ufw deny 161', desc: 'Disable SNMP service' },
+  };
+
+  const COMMANDS = {
+    help: () => [
+      { type: 'info', text: '╔═══════════════════════════════════════╗' },
+      { type: 'info', text: '║         Available Commands            ║' },
+      { type: 'info', text: '╠═══════════════════════════════════════╣' },
+      { type: 'cmd',  text: '  help          Show this help message' },
+      { type: 'cmd',  text: '  fixes         Show pre-loaded fix commands' },
+      { type: 'cmd',  text: '  findings      List all open findings' },
+      { type: 'cmd',  text: '  fix <name>    Show fix command for finding' },
+      { type: 'cmd',  text: '  scan          Instructions to run a new scan' },
+      { type: 'cmd',  text: '  status        Show current security status' },
+      { type: 'cmd',  text: '  clear         Clear terminal' },
+      { type: 'info', text: '╚═══════════════════════════════════════╝' },
+    ],
+    fixes: () => {
+      const lines = [
+        { type: 'success', text: '╔═══════════════════════════════════════════════════════════╗' },
+        { type: 'success', text: '║           Pre-loaded Fix Commands                         ║' },
+        { type: 'success', text: '╚═══════════════════════════════════════════════════════════╝' },
+        { type: 'system', text: '' },
+      ];
+      const openFindings = (findings || []).filter(f => f.status === 'open');
+      if (openFindings.length === 0) {
+        lines.push({ type: 'info', text: 'No open findings found. Run a scan first.' });
+      } else {
+        openFindings.forEach((f, i) => {
+          const fixKey = f.title?.toLowerCase().replace(/ /g,'_');
+          const fix = PRELOADED_FIXES[fixKey] || PRELOADED_FIXES[f.title];
+          lines.push({ type: 'warn', text: `[${i+1}] ${f.title} — ${f.severity?.toUpperCase()} — ${f.ip}` });
+          if (fix) {
+            lines.push({ type: 'cmd', text: `    $ ${fix.cmd}` });
+            lines.push({ type: 'muted', text: `    → ${fix.desc}` });
+          } else {
+            lines.push({ type: 'muted', text: `    → Type: fix ${f.title?.toLowerCase().replace(/ /g,'_')} for details` });
+          }
+          lines.push({ type: 'system', text: '' });
+        });
+      }
+      return lines;
+    },
+    findings: () => {
+      const open = (findings || []).filter(f => f.status === 'open');
+      if (open.length === 0) return [{ type: 'info', text: 'No open findings. Your network is clean!' }];
+      return [
+        { type: 'warn', text: `Found ${open.length} open finding(s):` },
+        { type: 'system', text: '' },
+        ...open.map((f,i) => ({ type: f.severity==='critical'?'error':f.severity==='high'?'warn':'info', text: `  [${i+1}] ${f.title} | ${f.severity?.toUpperCase()} | ${f.ip}` })),
+      ];
+    },
+    status: () => [
+      { type: 'system', text: '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━' },
+      { type: 'info',   text: '  AIPET Terminal — Security Status' },
+      { type: 'system', text: '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━' },
+      { type: 'cmd',    text: `  Open Findings:    ${(findings||[]).filter(f=>f.status==='open').length}` },
+      { type: 'cmd',    text: `  Fixed Findings:   ${(findings||[]).filter(f=>f.status==='fixed').length}` },
+      { type: 'cmd',    text: `  Total Findings:   ${(findings||[]).length}` },
+      { type: 'system', text: '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━' },
+    ],
+    scan: () => [
+      { type: 'info', text: 'To run a new scan, use the "New Scan" button in the sidebar.' },
+      { type: 'info', text: 'Or use the AIPET API:' },
+      { type: 'cmd',  text: '  curl -X POST https://aipet.io/api/scan/start' },
+      { type: 'cmd',  text: '    -H "X-API-Key: your_key_here"' },
+      { type: 'cmd',  text: '    -d {"target": "192.168.1.0/24", "mode": "live"}' },
+    ],
+    clear: () => 'clear',
+  };
+
+  const processCommand = (cmd) => {
+    const parts = cmd.trim().split(' ');
+    const base = parts[0].toLowerCase();
+    const args = parts.slice(1);
+
+    const newHistory = [...history, { type: 'prompt', text: `aipet@terminal:~$ ${cmd}` }];
+
+    if (base === 'clear') { setHistory([{ type: 'info', text: 'Terminal cleared. Type "help" for commands.' }]); return; }
+
+    if (base === 'fix' && args.length > 0) {
+      const key = args.join('_');
+      const fix = PRELOADED_FIXES[key];
+      if (fix) {
+        setHistory([...newHistory,
+          { type: 'success', text: `Fix command for: ${key}` },
+          { type: 'system',  text: '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━' },
+          { type: 'cmd',     text: `$ ${fix.cmd}` },
+          { type: 'muted',   text: fix.desc },
+          { type: 'system',  text: '━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━' },
+          { type: 'warn',    text: '⚠ Copy and run this command on your target device.' },
+        ]);
+      } else {
+        setHistory([...newHistory, { type: 'error', text: `No fix found for: ${key}. Type "fixes" to see all available fixes.` }]);
+      }
+      return;
+    }
+
+    if (COMMANDS[base]) {
+      const result = COMMANDS[base](args);
+      setHistory([...newHistory, ...(Array.isArray(result) ? result : [])]);
+    } else if (cmd.trim() === '') {
+      setHistory([...newHistory]);
+    } else {
+      setHistory([...newHistory, { type: 'error', text: `Command not found: ${base}. Type "help" for available commands.` }]);
+    }
+  };
+
+  const handleKeyDown = (e) => {
+    if (e.key === 'Enter') {
+      processCommand(input);
+      setCmdHistory(prev => [input, ...prev]);
+      setHistoryIdx(-1);
+      setInput('');
+    } else if (e.key === 'ArrowUp') {
+      e.preventDefault();
+      const idx = historyIdx + 1;
+      if (idx < cmdHistory.length) { setHistoryIdx(idx); setInput(cmdHistory[idx]); }
+    } else if (e.key === 'ArrowDown') {
+      e.preventDefault();
+      const idx = historyIdx - 1;
+      if (idx < 0) { setHistoryIdx(-1); setInput(''); }
+      else { setHistoryIdx(idx); setInput(cmdHistory[idx]); }
+    }
+  };
+
+  useEffect(() => {
+    if (terminalRef.current) terminalRef.current.scrollTop = terminalRef.current.scrollHeight;
+  }, [history]);
+
+  const getColor = (type) => {
+    switch(type) {
+      case 'prompt':  return '#00e5ff';
+      case 'success': return '#00ff88';
+      case 'error':   return '#ff4444';
+      case 'warn':    return '#f59e0b';
+      case 'info':    return '#a855f7';
+      case 'cmd':     return '#00e5ff';
+      case 'muted':   return '#475569';
+      case 'system':  return '#1e3a4a';
+      default:        return '#e2e8f0';
+    }
+  };
+
+  return (
+    <div style={{ height: '100%', display: 'flex', flexDirection: 'column', gap: '16px' }}>
+      {/* Header */}
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <div>
+          <h2 style={{ fontSize: '20px', fontWeight: '800', color: '#e2e8f0', margin: 0, display: 'flex', alignItems: 'center', gap: '10px' }}>
+            <span style={{ color: '#00e5ff' }}>{'>'}_</span> AIPET Terminal
+          </h2>
+          <p style={{ fontSize: '13px', color: '#475569', margin: '4px 0 0' }}>
+            Security command center — pre-loaded with fix commands from your findings
+          </p>
+        </div>
+        <div style={{ display: 'flex', gap: '8px' }}>
+          <button onClick={() => setHistory([{ type: 'info', text: 'Terminal cleared.' }])}
+            style={{ padding: '8px 16px', borderRadius: '8px', backgroundColor: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)', color: '#64748b', fontSize: '13px', cursor: 'pointer' }}>
+            Clear
+          </button>
+          <button onClick={() => processCommand('fixes')}
+            style={{ padding: '8px 16px', borderRadius: '8px', backgroundColor: 'rgba(0,229,255,0.1)', border: '1px solid rgba(0,229,255,0.3)', color: '#00e5ff', fontSize: '13px', cursor: 'pointer', fontWeight: '600' }}>
+            Load Fixes
+          </button>
+        </div>
+      </div>
+
+      {/* Terminal window */}
+      <div style={{ flex: 1, backgroundColor: '#020810', borderRadius: '16px', border: '1px solid rgba(0,229,255,0.2)', boxShadow: '0 0 40px rgba(0,229,255,0.05)', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+        {/* Terminal title bar */}
+        <div style={{ padding: '10px 16px', backgroundColor: '#0a1628', borderBottom: '1px solid rgba(0,229,255,0.1)', display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <div style={{ width: '12px', height: '12px', borderRadius: '50%', backgroundColor: '#ff5f57' }} />
+          <div style={{ width: '12px', height: '12px', borderRadius: '50%', backgroundColor: '#febc2e' }} />
+          <div style={{ width: '12px', height: '12px', borderRadius: '50%', backgroundColor: '#28c840' }} />
+          <span style={{ marginLeft: '8px', fontSize: '12px', color: '#475569', fontFamily: 'monospace' }}>aipet@terminal:~</span>
+        </div>
+
+        {/* Output */}
+        <div ref={terminalRef} style={{ flex: 1, overflowY: 'auto', padding: '16px', fontFamily: "'JetBrains Mono', 'Courier New', monospace", fontSize: '13px', lineHeight: '1.6' }}>
+          {history.map((line, i) => (
+            <div key={i} style={{ color: getColor(line.type), whiteSpace: 'pre-wrap', wordBreak: 'break-all' }}>
+              {line.text || ' '}
+            </div>
+          ))}
+        </div>
+
+        {/* Input */}
+        <div style={{ padding: '12px 16px', borderTop: '1px solid rgba(0,229,255,0.1)', backgroundColor: '#020810', display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <span style={{ color: '#00e5ff', fontFamily: 'monospace', fontSize: '13px', flexShrink: 0 }}>aipet@terminal:~$</span>
+          <input
+            ref={inputRef}
+            value={input}
+            onChange={e => setInput(e.target.value)}
+            onKeyDown={handleKeyDown}
+            autoFocus
+            placeholder="Type a command..."
+            style={{
+              flex: 1, backgroundColor: 'transparent', border: 'none', outline: 'none',
+              color: '#00e5ff', fontFamily: "'JetBrains Mono', monospace", fontSize: '13px',
+              caretColor: '#00e5ff',
+            }}
+          />
+          <button onClick={() => { processCommand(input); setCmdHistory(p=>[input,...p]); setInput(''); }}
+            style={{ padding: '6px 14px', borderRadius: '6px', backgroundColor: 'rgba(0,229,255,0.1)', border: '1px solid rgba(0,229,255,0.3)', color: '#00e5ff', fontSize: '12px', cursor: 'pointer', fontWeight: '600', fontFamily: 'monospace' }}>
+            RUN
+          </button>
+        </div>
+      </div>
+
+      {/* Quick commands */}
+      <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+        {['help', 'findings', 'fixes', 'status', 'scan'].map((cmd, i) => (
+          <button key={i} onClick={() => { processCommand(cmd); }}
+            style={{ padding: '6px 14px', borderRadius: '8px', backgroundColor: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)', color: '#64748b', fontSize: '12px', cursor: 'pointer', fontFamily: 'monospace' }}
+            onMouseEnter={e => { e.currentTarget.style.borderColor = 'rgba(0,229,255,0.3)'; e.currentTarget.style.color = '#00e5ff'; }}
+            onMouseLeave={e => { e.currentTarget.style.borderColor = 'rgba(255,255,255,0.08)'; e.currentTarget.style.color = '#64748b'; }}>
+            {cmd}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function ProtocolsPage({ token, showToast, currentPlan }) {
   const [protocol, setProtocol] = useState("modbus");
   const [target,   setTarget]   = useState("");
@@ -5312,6 +5566,7 @@ const NAV_ITEMS = [
   { id: "predict",   label: "CVE Intel",     icon: AlertTriangle, group: "intel"    },
   { id: "ask",       label: "Ask AIPET",     icon: Shield,        group: "intel"    },
   { id: "protocols", label: "Protocols",     icon: Cpu,           group: "intel"    },
+  { id: "terminal",  label: "Terminal",      icon: Shield,        group: "intel"    },
   { id: "ai",        label: "AI Analysis",   icon: Shield,        group: "reports"  },
   { id: "reports",   label: "Reports",       icon: FileText,      group: "reports"  },
   { id: "compliance",label: "Compliance",     icon: Lock,          group: "reports"  },
@@ -6174,6 +6429,9 @@ export default function App() {
           {/* PRICING */}
           {activeTab === "protocols" && (
             <ProtocolsPage token={token} showToast={showToast} currentPlan={usage?.plan} />
+          )}
+          {activeTab === "terminal" && (
+            <TerminalPage token={token} showToast={showToast} findings={findings} />
           )}
           {activeTab === "compliance" && (
             <CompliancePage token={token} showToast={showToast} currentPlan={usage?.plan} />
