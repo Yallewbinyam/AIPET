@@ -503,6 +503,25 @@ def create_app(config_name="development"):
                             s.status       = "complete"
                             s.completed_at = datetime.now()
                             db.session.commit()
+                            # Fire Slack/Teams alerts for critical/high findings
+                            try:
+                                from dashboard.backend.settings.routes import notify_finding
+                                from dashboard.backend.models import Finding
+                                critical_findings = Finding.query.filter_by(
+                                    scan_id=scan.id
+                                ).filter(
+                                    Finding.severity.in_(["CRITICAL", "HIGH"])
+                                ).all()
+                                for f in critical_findings:
+                                    notify_finding(user_id, {
+                                        "ip":         f.target,
+                                        "name":       f.name,
+                                        "severity":   f.severity,
+                                        "risk_score": f.risk_score,
+                                        "fix":        f.remediation,
+                                    })
+                            except Exception as notify_err:
+                                print(f"Alert notification error: {notify_err}")
                     scan_status["running"]   = False
                     scan_status["progress"]  = 100
                     scan_status["message"]   = "Scan complete"
