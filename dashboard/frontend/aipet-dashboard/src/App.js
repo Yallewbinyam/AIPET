@@ -2157,6 +2157,30 @@ function RiskReductionBar({ findings, token, scans }) {
   );
 }
 
+
+// MITRE ATT&CK Mapping for IoT findings
+const MITRE_ATTACK = {
+  "open_telnet":          { id: "T1021.004", name: "Remote Services: Telnet", tactic: "Lateral Movement", groups: "APT28, Lazarus Group", risk: "critical" },
+  "default_credentials":  { id: "T1078.001", name: "Valid Accounts: Default", tactic: "Initial Access", groups: "FIN7, APT33", risk: "critical" },
+  "unencrypted_mqtt":     { id: "T1040",     name: "Network Sniffing", tactic: "Credential Access", groups: "APT28, Carbanak", risk: "high" },
+  "no_firewall":          { id: "T1190",     name: "Exploit Public-Facing App", tactic: "Initial Access", groups: "APT41, Lazarus", risk: "high" },
+  "open_ftp":             { id: "T1021.002", name: "Remote Services: FTP", tactic: "Lateral Movement", groups: "APT33, FIN8", risk: "high" },
+  "weak_ssh":             { id: "T1110.001", name: "Brute Force: SSH", tactic: "Credential Access", groups: "APT28, Rocke", risk: "high" },
+  "http_exposed":         { id: "T1190",     name: "Exploit Public-Facing App", tactic: "Initial Access", groups: "APT41, APT29", risk: "medium" },
+  "snmp_exposed":         { id: "T1046",     name: "Network Service Discovery", tactic: "Discovery", groups: "APT28, Turla", risk: "medium" },
+  "open_rdp":             { id: "T1021.001", name: "Remote Services: RDP", tactic: "Lateral Movement", groups: "FIN6, APT41", risk: "critical" },
+  "mqtt_no_auth":         { id: "T1078",     name: "Valid Accounts", tactic: "Initial Access", groups: "Sandworm, APT33", risk: "critical" },
+  "coap_exposed":         { id: "T1046",     name: "Network Service Discovery", tactic: "Discovery", groups: "APT28", risk: "medium" },
+  "firmware_vulnerable":  { id: "T1195.003", name: "Supply Chain Compromise", tactic: "Initial Access", groups: "APT41, Lazarus", risk: "critical" },
+  "default":              { id: "T1190",     name: "Exploit Public-Facing App", tactic: "Initial Access", groups: "Multiple APTs", risk: "medium" },
+};
+
+function getMitreInfo(attack) {
+  if (!attack) return MITRE_ATTACK.default;
+  const key = attack.toLowerCase().replace(/ /g, "_");
+  return MITRE_ATTACK[key] || MITRE_ATTACK.default;
+}
+
 function FindingRow({ finding, token, onStatusUpdate }) {
   const [open, setOpen]           = useState(false);
   const [showFix, setShowFix]     = useState(false);
@@ -2228,7 +2252,33 @@ function FindingRow({ finding, token, onStatusUpdate }) {
         </div>
         {open && (
           <div className="px-4 pb-4 pt-2 border-t" style={{ borderColor: COLORS.border }}>
-            <p className="text-sm leading-relaxed" style={{ color: COLORS.muted }}>{finding.description}</p>
+            <p className="text-sm leading-relaxed mb-3" style={{ color: COLORS.muted }}>{finding.description}</p>
+            {/* MITRE ATT&CK Badge */}
+            {(() => {
+              const mitre = getMitreInfo(finding.attack);
+              return (
+                <div style={{ display: "flex", alignItems: "flex-start", gap: "10px", padding: "12px 14px", borderRadius: "10px", backgroundColor: "rgba(255,68,68,0.06)", border: "1px solid rgba(255,68,68,0.2)", marginTop: "8px" }}>
+                  <div style={{ flexShrink: 0, padding: "4px 8px", borderRadius: "6px", backgroundColor: "rgba(255,68,68,0.15)", border: "1px solid rgba(255,68,68,0.3)" }}>
+                    <div style={{ fontSize: "10px", fontWeight: "800", color: "#ff4444", fontFamily: "monospace", letterSpacing: "0.05em" }}>MITRE</div>
+                    <div style={{ fontSize: "11px", fontWeight: "700", color: "#ff6666", fontFamily: "monospace" }}>{mitre.id}</div>
+                  </div>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: "8px", flexWrap: "wrap" }}>
+                      <span style={{ fontSize: "13px", fontWeight: "700", color: COLORS.text }}>{mitre.name}</span>
+                      <span style={{ fontSize: "11px", padding: "2px 8px", borderRadius: "100px", backgroundColor: "rgba(245,158,11,0.15)", color: "#f59e0b", border: "1px solid rgba(245,158,11,0.3)", fontWeight: "600" }}>{mitre.tactic}</span>
+                    </div>
+                    <div style={{ fontSize: "12px", color: COLORS.muted, marginTop: "4px" }}>
+                      🔴 Known threat groups: <span style={{ color: "#ff8888", fontWeight: "600" }}>{mitre.groups}</span>
+                    </div>
+                  </div>
+                  <a href={`https://attack.mitre.org/techniques/${mitre.id.replace(".", "/")}`} target="_blank" rel="noreferrer"
+                    style={{ fontSize: "11px", color: COLORS.blue, textDecoration: "none", flexShrink: 0, padding: "4px 8px", borderRadius: "6px", border: `1px solid ${COLORS.blue}40`, backgroundColor: `${COLORS.blue}10` }}
+                    onClick={e => e.stopPropagation()}>
+                    View →
+                  </a>
+                </div>
+              );
+            })()}
           </div>
         )}
       </div>
