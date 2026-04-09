@@ -2727,202 +2727,299 @@ function NetworkCanvas() {
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
     let animationId;
-    let nodes = [];
-    let packets = [];
     let tick = 0;
 
-    const resize = () => {
-      canvas.width = window.innerWidth;
-      canvas.height = window.innerHeight;
-    };
+    // Pick random theme per session
+    const THEMES = ['network_storm', 'quiet_network', 'deep_space', 'matrix_rain', 'heartbeat', 'galaxy', 'storm_warning'];
+    const theme = THEMES[Math.floor(Math.random() * THEMES.length)];
+
+    const resize = () => { canvas.width = window.innerWidth; canvas.height = window.innerHeight; };
     resize();
     window.addEventListener('resize', resize);
 
-    // Node types
-    const NODE_TYPES = [
-      { type: 'device',    color: '#00e5ff', glow: '#00e5ff', radius: 3,  count: 35 },
-      { type: 'gateway',   color: '#a855f7', glow: '#a855f7', radius: 5,  count: 8  },
-      { type: 'vulnerable',color: '#ff4444', glow: '#ff4444', radius: 4,  count: 6  },
-      { type: 'secure',    color: '#00ff88', glow: '#00ff88', radius: 3,  count: 8  },
-    ];
+    // ── Shared helpers ──────────────────────────────────────
+    const hex2rgb = h => ({ r: parseInt(h.slice(1,3),16), g: parseInt(h.slice(3,5),16), b: parseInt(h.slice(5,7),16) });
+    const rgba = (h, a) => { const {r,g,b} = hex2rgb(h); return `rgba(${r},${g},${b},${a})`; };
 
-    // Create nodes
-    NODE_TYPES.forEach(nt => {
-      for (let i = 0; i < nt.count; i++) {
+    // ── Theme: Network Storm ─────────────────────────────────
+    const initStorm = () => {
+      let nodes = [], packets = [];
+      for (let i = 0; i < 70; i++) {
+        const type = i < 10 ? 'vuln' : i < 20 ? 'gateway' : 'device';
         nodes.push({
-          x: Math.random() * canvas.width,
-          y: Math.random() * canvas.height,
-          vx: (Math.random() - 0.5) * 0.3,
-          vy: (Math.random() - 0.5) * 0.3,
-          radius: nt.radius,
-          color: nt.color,
-          glow: nt.glow,
-          type: nt.type,
-          pulse: Math.random() * Math.PI * 2,
-          pulseSpeed: 0.02 + Math.random() * 0.02,
-          opacity: 0.7 + Math.random() * 0.3,
+          x: Math.random() * canvas.width, y: Math.random() * canvas.height,
+          vx: (Math.random()-0.5)*0.3, vy: (Math.random()-0.5)*0.3,
+          r: type==='gateway' ? 3 : type==='vuln' ? 2 : 1.2,
+          color: type==='vuln' ? '#00b4cc' : type==='gateway' ? '#00e5ff' : '#007a8a',
+          pulse: Math.random()*Math.PI*2, type,
         });
       }
-    });
-
-    const drawGlow = (x, y, radius, color, intensity) => {
-      const gradient = ctx.createRadialGradient(x, y, 0, x, y, radius * 4);
-      gradient.addColorStop(0, color.replace(')', `, ${intensity})`).replace('rgb', 'rgba'));
-      gradient.addColorStop(1, 'rgba(0,0,0,0)');
-      ctx.beginPath();
-      ctx.arc(x, y, radius * 4, 0, Math.PI * 2);
-      ctx.fillStyle = gradient;
-      ctx.fill();
+      return { nodes, packets };
     };
-
-    const hexToRgb = hex => {
-      const r = parseInt(hex.slice(1,3),16);
-      const g = parseInt(hex.slice(3,5),16);
-      const b = parseInt(hex.slice(5,7),16);
-      return `${r},${g},${b}`;
-    };
-
-    const draw = () => {
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-      tick++;
-
-      // Spawn data packets occasionally
-      if (tick % 60 === 0 && nodes.length > 1) {
-        const from = nodes[Math.floor(Math.random() * nodes.length)];
-        const to = nodes[Math.floor(Math.random() * nodes.length)];
-        if (from !== to) {
-          packets.push({ x: from.x, y: from.y, tx: to.x, ty: to.y, progress: 0, color: from.color, speed: 0.015 });
+    const drawStorm = (state) => {
+      ctx.clearRect(0,0,canvas.width,canvas.height);
+      const {nodes, packets} = state;
+      if (tick%45===0 && nodes.length>1) {
+        const a=nodes[Math.floor(Math.random()*nodes.length)], b=nodes[Math.floor(Math.random()*nodes.length)];
+        if(a!==b) packets.push({x:a.x,y:a.y,tx:b.x,ty:b.y,prog:0,color:a.color,speed:0.02});
+      }
+      for (let i=0;i<nodes.length;i++) for (let j=i+1;j<nodes.length;j++) {
+        const dx=nodes[i].x-nodes[j].x, dy=nodes[i].y-nodes[j].y, d=Math.sqrt(dx*dx+dy*dy);
+        if(d<160) {
+          const g=ctx.createLinearGradient(nodes[i].x,nodes[i].y,nodes[j].x,nodes[j].y);
+          g.addColorStop(0,rgba(nodes[i].color,0.18*(1-d/160)));
+          g.addColorStop(1,rgba(nodes[j].color,0.18*(1-d/160)));
+          ctx.beginPath(); ctx.moveTo(nodes[i].x,nodes[i].y); ctx.lineTo(nodes[j].x,nodes[j].y);
+          ctx.strokeStyle=g; ctx.lineWidth=0.8; ctx.stroke();
         }
       }
-
-      // Draw connections
-      for (let i = 0; i < nodes.length; i++) {
-        for (let j = i + 1; j < nodes.length; j++) {
-          const dx = nodes[i].x - nodes[j].x;
-          const dy = nodes[i].y - nodes[j].y;
-          const dist = Math.sqrt(dx * dx + dy * dy);
-          if (dist < 180) {
-            const alpha = 0.2 * (1 - dist / 180);
-            const grad = ctx.createLinearGradient(nodes[i].x, nodes[i].y, nodes[j].x, nodes[j].y);
-            grad.addColorStop(0, `rgba(${hexToRgb(nodes[i].color)}, ${alpha})`);
-            grad.addColorStop(1, `rgba(${hexToRgb(nodes[j].color)}, ${alpha})`);
-            ctx.beginPath();
-            ctx.moveTo(nodes[i].x, nodes[i].y);
-            ctx.lineTo(nodes[j].x, nodes[j].y);
-            ctx.strokeStyle = grad;
-            ctx.lineWidth = 0.8;
-            ctx.stroke();
-          }
+      state.packets = packets.filter(p=>p.prog<1);
+      state.packets.forEach(p => {
+        p.prog+=p.speed;
+        const x=p.x+(p.tx-p.x)*p.prog, y=p.y+(p.ty-p.y)*p.prog;
+        const pg=ctx.createRadialGradient(x,y,0,x,y,8);
+        pg.addColorStop(0,rgba(p.color,0.6)); pg.addColorStop(1,'rgba(0,0,0,0)');
+        ctx.beginPath(); ctx.arc(x,y,8,0,Math.PI*2); ctx.fillStyle=pg; ctx.fill();
+        ctx.beginPath(); ctx.arc(x,y,2,0,Math.PI*2); ctx.fillStyle=p.color; ctx.fill();
+      });
+      nodes.forEach(n => {
+        n.x+=n.vx; n.y+=n.vy;
+        if(n.x<0||n.x>canvas.width) n.vx*=-1;
+        if(n.y<0||n.y>canvas.height) n.vy*=-1;
+        n.pulse+=0.03;
+        const pf=1+0.3*Math.sin(n.pulse), r=n.r*pf;
+        const {r:cr,g:cg,b:cb}=hex2rgb(n.color);
+        const glow=ctx.createRadialGradient(n.x,n.y,0,n.x,n.y,r*6);
+        glow.addColorStop(0,`rgba(${cr},${cg},${cb},0.25)`); glow.addColorStop(1,'rgba(0,0,0,0)');
+        ctx.beginPath(); ctx.arc(n.x,n.y,r*6,0,Math.PI*2); ctx.fillStyle=glow; ctx.fill();
+        if(n.type==='vuln') {
+          const pr=r*(3+2*Math.abs(Math.sin(n.pulse*2)));
+          ctx.beginPath(); ctx.arc(n.x,n.y,pr,0,Math.PI*2);
+          ctx.strokeStyle=`rgba(255,68,68,${0.25*(1-Math.abs(Math.sin(n.pulse*2)))})`; ctx.lineWidth=1.5; ctx.stroke();
         }
+        ctx.beginPath(); ctx.arc(n.x,n.y,r,0,Math.PI*2); ctx.fillStyle=`rgba(${cr},${cg},${cb},0.85)`; ctx.fill();
+        ctx.beginPath(); ctx.arc(n.x-r*0.3,n.y-r*0.3,r*0.4,0,Math.PI*2); ctx.fillStyle='rgba(255,255,255,0.35)'; ctx.fill();
+      });
+    };
+
+    // ── Theme: Quiet Network ─────────────────────────────────
+    const initQuiet = () => {
+      let nodes = [];
+      for (let i=0;i<45;i++) nodes.push({
+        x:Math.random()*canvas.width, y:Math.random()*canvas.height,
+        vx:(Math.random()-0.5)*0.15, vy:(Math.random()-0.5)*0.15,
+        r:Math.random()*2+1.5, pulse:Math.random()*Math.PI*2,
+        color: Math.random()>0.7 ? '#00ff88' : '#00e5ff',
+      });
+      return { nodes };
+    };
+    const drawQuiet = (state) => {
+      ctx.clearRect(0,0,canvas.width,canvas.height);
+      const {nodes}=state;
+      for (let i=0;i<nodes.length;i++) for (let j=i+1;j<nodes.length;j++) {
+        const dx=nodes[i].x-nodes[j].x, dy=nodes[i].y-nodes[j].y, d=Math.sqrt(dx*dx+dy*dy);
+        if(d<200) { ctx.beginPath(); ctx.moveTo(nodes[i].x,nodes[i].y); ctx.lineTo(nodes[j].x,nodes[j].y); ctx.strokeStyle=`rgba(0,229,255,${0.08*(1-d/200)})`; ctx.lineWidth=0.5; ctx.stroke(); }
       }
-
-      // Draw data packets
-      packets = packets.filter(p => p.progress < 1);
-      packets.forEach(p => {
-        p.progress += p.speed;
-        p.tx = p.tx || p.x;
-        p.ty = p.ty || p.y;
-        const x = p.x + (p.tx - p.x) * p.progress;
-        const y = p.y + (p.ty - p.y) * p.progress;
-        ctx.beginPath();
-        ctx.arc(x, y, 2, 0, Math.PI * 2);
-        ctx.fillStyle = p.color;
-        ctx.fill();
-        // Packet glow
-        const pg = ctx.createRadialGradient(x, y, 0, x, y, 8);
-        pg.addColorStop(0, `rgba(${hexToRgb(p.color)}, 0.4)`);
-        pg.addColorStop(1, 'rgba(0,0,0,0)');
-        ctx.beginPath();
-        ctx.arc(x, y, 8, 0, Math.PI * 2);
-        ctx.fillStyle = pg;
-        ctx.fill();
+      nodes.forEach(n => {
+        n.x+=n.vx; n.y+=n.vy; n.pulse+=0.015;
+        if(n.x<0||n.x>canvas.width) n.vx*=-1;
+        if(n.y<0||n.y>canvas.height) n.vy*=-1;
+        const r=n.r*(1+0.2*Math.sin(n.pulse));
+        const {r:cr,g:cg,b:cb}=hex2rgb(n.color);
+        const glow=ctx.createRadialGradient(n.x,n.y,0,n.x,n.y,r*5);
+        glow.addColorStop(0,`rgba(${cr},${cg},${cb},0.15)`); glow.addColorStop(1,'rgba(0,0,0,0)');
+        ctx.beginPath(); ctx.arc(n.x,n.y,r*5,0,Math.PI*2); ctx.fillStyle=glow; ctx.fill();
+        ctx.beginPath(); ctx.arc(n.x,n.y,r,0,Math.PI*2); ctx.fillStyle=`rgba(${cr},${cg},${cb},0.7)`; ctx.fill();
       });
-
-      // Draw nodes
-      nodes.forEach(node => {
-        node.x += node.vx;
-        node.y += node.vy;
-        if (node.x < 0 || node.x > canvas.width) node.vx *= -1;
-        if (node.y < 0 || node.y > canvas.height) node.vy *= -1;
-        node.pulse += node.pulseSpeed;
-
-        const pulseFactor = 1 + 0.3 * Math.sin(node.pulse);
-        const r = node.radius * pulseFactor;
-        const rgb = hexToRgb(node.color);
-
-        // Outer glow
-        const glowGrad = ctx.createRadialGradient(node.x, node.y, 0, node.x, node.y, r * 6);
-        glowGrad.addColorStop(0, `rgba(${rgb}, 0.3)`);
-        glowGrad.addColorStop(1, 'rgba(0,0,0,0)');
-        ctx.beginPath();
-        ctx.arc(node.x, node.y, r * 6, 0, Math.PI * 2);
-        ctx.fillStyle = glowGrad;
-        ctx.fill();
-
-        // Node ring (for gateway and vulnerable)
-        if (node.type === 'gateway' || node.type === 'vulnerable') {
-          ctx.beginPath();
-          ctx.arc(node.x, node.y, r * 2.5, 0, Math.PI * 2);
-          ctx.strokeStyle = `rgba(${rgb}, 0.3)`;
-          ctx.lineWidth = 1;
-          ctx.stroke();
-        }
-
-        // Attack pulse for vulnerable nodes
-        if (node.type === 'vulnerable') {
-          const pulseR = r * (3 + 2 * Math.abs(Math.sin(node.pulse * 2)));
-          ctx.beginPath();
-          ctx.arc(node.x, node.y, pulseR, 0, Math.PI * 2);
-          ctx.strokeStyle = `rgba(255, 68, 68, ${0.3 * (1 - Math.abs(Math.sin(node.pulse * 2)))})`;
-          ctx.lineWidth = 1.5;
-          ctx.stroke();
-        }
-
-        // Core node
-        ctx.beginPath();
-        ctx.arc(node.x, node.y, r, 0, Math.PI * 2);
-        ctx.fillStyle = `rgba(${rgb}, ${node.opacity})`;
-        ctx.fill();
-
-        // Inner highlight
-        ctx.beginPath();
-        ctx.arc(node.x - r * 0.3, node.y - r * 0.3, r * 0.4, 0, Math.PI * 2);
-        ctx.fillStyle = `rgba(255, 255, 255, 0.4)`;
-        ctx.fill();
-      });
-
-      animationId = requestAnimationFrame(draw);
     };
 
-    draw();
-    return () => {
-      cancelAnimationFrame(animationId);
-      window.removeEventListener('resize', resize);
+    // ── Theme: Deep Space ────────────────────────────────────
+    const initSpace = () => {
+      let stars=[], nebula=[];
+      for(let i=0;i<120;i++) stars.push({x:Math.random()*canvas.width,y:Math.random()*canvas.height,r:Math.random()*1.5+0.3,twinkle:Math.random()*Math.PI*2,speed:0.005+Math.random()*0.02});
+      for(let i=0;i<8;i++) nebula.push({x:Math.random()*canvas.width,y:Math.random()*canvas.height,r:80+Math.random()*120,color:Math.random()>0.5?'#00e5ff':'#a855f7',opacity:0.03+Math.random()*0.04});
+      return {stars,nebula};
     };
+    const drawSpace = (state) => {
+      ctx.clearRect(0,0,canvas.width,canvas.height);
+      state.nebula.forEach(n => {
+        const g=ctx.createRadialGradient(n.x,n.y,0,n.x,n.y,n.r);
+        g.addColorStop(0,n.color.replace(')',`,${n.opacity})`).replace('rgb','rgba').replace('#00e5ff',`rgba(0,229,255,${n.opacity})`).replace('#a855f7',`rgba(168,85,247,${n.opacity})`));
+        g.addColorStop(1,'rgba(0,0,0,0)');
+        const {r,g:gr,b}=hex2rgb(n.color);
+        const grd=ctx.createRadialGradient(n.x,n.y,0,n.x,n.y,n.r);
+        grd.addColorStop(0,`rgba(${r},${gr},${b},${n.opacity})`); grd.addColorStop(1,'rgba(0,0,0,0)');
+        ctx.beginPath(); ctx.arc(n.x,n.y,n.r,0,Math.PI*2); ctx.fillStyle=grd; ctx.fill();
+      });
+      state.stars.forEach(s => {
+        s.twinkle+=s.speed;
+        const opacity=0.3+0.7*Math.abs(Math.sin(s.twinkle));
+        ctx.beginPath(); ctx.arc(s.x,s.y,s.r,0,Math.PI*2); ctx.fillStyle=`rgba(0,229,255,${opacity})`; ctx.fill();
+      });
+    };
+
+    // ── Theme: Matrix Rain ───────────────────────────────────
+    const initMatrix = () => {
+      const cols=Math.floor(canvas.width/18);
+      const drops=Array(cols).fill(0).map(()=>Math.random()*canvas.height);
+      const chars='01アイウエオカキクケコセキュリティIoTAIPET'.split('');
+      return {drops,cols,chars};
+    };
+    const drawMatrix = (state) => {
+      ctx.fillStyle='rgba(3,7,18,0.08)'; ctx.fillRect(0,0,canvas.width,canvas.height);
+      const {drops,cols,chars}=state;
+      ctx.font='13px monospace';
+      for(let i=0;i<cols;i++) {
+        const char=chars[Math.floor(Math.random()*chars.length)];
+        const y=drops[i];
+        ctx.fillStyle=`rgba(0,229,255,${0.15+Math.random()*0.3})`; 
+        ctx.fillText(char,i*18,y);
+        if(y>canvas.height&&Math.random()>0.975) drops[i]=0;
+        drops[i]+=14;
+      }
+    };
+
+    // ── Theme: Heartbeat ────────────────────────────────────
+    const initHeartbeat = () => ({ waves:[], tick:0 });
+    const drawHeartbeat = (state) => {
+      ctx.clearRect(0,0,canvas.width,canvas.height);
+      state.tick++;
+      if(state.tick%80===0) state.waves.push({progress:0,color:Math.random()>0.5?'#00e5ff':'#00ff88'});
+      state.waves=state.waves.filter(w=>w.progress<1);
+      const lines=[0.25,0.5,0.75];
+      lines.forEach((yp,li) => {
+        const y=canvas.height*yp;
+        ctx.beginPath(); ctx.moveTo(0,y);
+        for(let x=0;x<canvas.width;x+=2) {
+          const t=x/canvas.width*8*Math.PI+state.tick*0.02+li;
+          const amp=8+4*Math.sin(state.tick*0.01+li);
+          const spike=(Math.sin(t*3)>0.97)?30:0;
+          ctx.lineTo(x,y+Math.sin(t)*amp+spike);
+        }
+        ctx.strokeStyle=`rgba(0,229,255,${0.08+li*0.04})`; ctx.lineWidth=1.5; ctx.stroke();
+      });
+      state.waves.forEach(w => {
+        w.progress+=0.008;
+        const maxR=Math.max(canvas.width,canvas.height)*0.8;
+        const r=maxR*w.progress;
+        const {r:cr,g:cg,b:cb}=hex2rgb(w.color);
+        ctx.beginPath(); ctx.arc(canvas.width/2,canvas.height/2,r,0,Math.PI*2);
+        ctx.strokeStyle=`rgba(${cr},${cg},${cb},${0.12*(1-w.progress)})`; ctx.lineWidth=1; ctx.stroke();
+      });
+    };
+
+    // ── Theme: Galaxy ────────────────────────────────────────
+    const initGalaxy = () => {
+      const cx=canvas.width/2, cy=canvas.height/2;
+      let nodes=[];
+      for(let i=0;i<60;i++) {
+        const angle=Math.random()*Math.PI*2;
+        const dist=30+Math.random()*(Math.min(canvas.width,canvas.height)*0.42);
+        const isCenter=i<5;
+        nodes.push({
+          angle, dist, speed:(0.0005+Math.random()*0.001)*(Math.random()>0.5?1:-1),
+          r: isCenter?6:Math.random()*2.5+1,
+          color: isCenter?'#a855f7':Math.random()>0.6?'#00e5ff':'#00ff88',
+          pulse:Math.random()*Math.PI*2, cx, cy,
+        });
+      }
+      return {nodes,cx,cy};
+    };
+    const drawGalaxy = (state) => {
+      ctx.clearRect(0,0,canvas.width,canvas.height);
+      const {nodes}=state;
+      nodes.forEach(n => { n.angle+=n.speed; n.pulse+=0.02; });
+      for(let i=0;i<nodes.length;i++) for(let j=i+1;j<nodes.length;j++) {
+        const ax=state.cx+Math.cos(nodes[i].angle)*nodes[i].dist;
+        const ay=state.cy+Math.sin(nodes[i].angle)*nodes[i].dist;
+        const bx=state.cx+Math.cos(nodes[j].angle)*nodes[j].dist;
+        const by=state.cy+Math.sin(nodes[j].angle)*nodes[j].dist;
+        const d=Math.sqrt((ax-bx)**2+(ay-by)**2);
+        if(d<130) { ctx.beginPath(); ctx.moveTo(ax,ay); ctx.lineTo(bx,by); ctx.strokeStyle=`rgba(0,229,255,${0.1*(1-d/130)})`; ctx.lineWidth=0.6; ctx.stroke(); }
+      }
+      nodes.forEach(n => {
+        const x=state.cx+Math.cos(n.angle)*n.dist;
+        const y=state.cy+Math.sin(n.angle)*n.dist;
+        const r=n.r*(1+0.25*Math.sin(n.pulse));
+        const {r:cr,g:cg,b:cb}=hex2rgb(n.color);
+        const glow=ctx.createRadialGradient(x,y,0,x,y,r*5);
+        glow.addColorStop(0,`rgba(${cr},${cg},${cb},0.3)`); glow.addColorStop(1,'rgba(0,0,0,0)');
+        ctx.beginPath(); ctx.arc(x,y,r*5,0,Math.PI*2); ctx.fillStyle=glow; ctx.fill();
+        ctx.beginPath(); ctx.arc(x,y,r,0,Math.PI*2); ctx.fillStyle=`rgba(${cr},${cg},${cb},0.9)`; ctx.fill();
+      });
+    };
+
+    // ── Theme: Storm Warning ─────────────────────────────────
+    const initStormWarning = () => {
+      let nodes=[];
+      for(let i=0;i<50;i++) nodes.push({
+        x:Math.random()*canvas.width, y:Math.random()*canvas.height,
+        vx:(Math.random()-0.5)*0.6, vy:(Math.random()-0.5)*0.6,
+        r:Math.random()*3+1.5, pulse:Math.random()*Math.PI*2,
+        color:Math.random()>0.6?'#ff4444':Math.random()>0.5?'#f59e0b':'#00e5ff',
+      });
+      return {nodes,lightning:[]};
+    };
+    const drawStormWarning = (state) => {
+      ctx.clearRect(0,0,canvas.width,canvas.height);
+      const {nodes}=state;
+      if(tick%30===0&&Math.random()>0.4) {
+        const a=nodes[Math.floor(Math.random()*nodes.length)];
+        const b=nodes[Math.floor(Math.random()*nodes.length)];
+        state.lightning.push({x1:a.x,y1:a.y,x2:b.x,y2:b.y,life:1});
+      }
+      state.lightning=state.lightning.filter(l=>l.life>0);
+      state.lightning.forEach(l => {
+        l.life-=0.08;
+        ctx.beginPath(); ctx.moveTo(l.x1,l.y1); ctx.lineTo(l.x2,l.y2);
+        ctx.strokeStyle=`rgba(255,68,68,${l.life*0.8})`; ctx.lineWidth=l.life*2; ctx.stroke();
+        const glow=ctx.createLinearGradient(l.x1,l.y1,l.x2,l.y2);
+        glow.addColorStop(0,`rgba(255,68,68,${l.life*0.3})`); glow.addColorStop(1,'rgba(0,0,0,0)');
+        ctx.beginPath(); ctx.moveTo(l.x1,l.y1); ctx.lineTo(l.x2,l.y2);
+        ctx.strokeStyle=glow; ctx.lineWidth=l.life*8; ctx.stroke();
+      });
+      for(let i=0;i<nodes.length;i++) for(let j=i+1;j<nodes.length;j++) {
+        const dx=nodes[i].x-nodes[j].x, dy=nodes[i].y-nodes[j].y, d=Math.sqrt(dx*dx+dy*dy);
+        if(d<140) { ctx.beginPath(); ctx.moveTo(nodes[i].x,nodes[i].y); ctx.lineTo(nodes[j].x,nodes[j].y); ctx.strokeStyle=`rgba(245,158,11,${0.15*(1-d/140)})`; ctx.lineWidth=0.7; ctx.stroke(); }
+      }
+      nodes.forEach(n => {
+        n.x+=n.vx; n.y+=n.vy; n.pulse+=0.04;
+        if(n.x<0||n.x>canvas.width) n.vx*=-1;
+        if(n.y<0||n.y>canvas.height) n.vy*=-1;
+        const r=n.r*(1+0.3*Math.sin(n.pulse));
+        const {r:cr,g:cg,b:cb}=hex2rgb(n.color);
+        const glow=ctx.createRadialGradient(n.x,n.y,0,n.x,n.y,r*5);
+        glow.addColorStop(0,`rgba(${cr},${cg},${cb},0.3)`); glow.addColorStop(1,'rgba(0,0,0,0)');
+        ctx.beginPath(); ctx.arc(n.x,n.y,r*5,0,Math.PI*2); ctx.fillStyle=glow; ctx.fill();
+        ctx.beginPath(); ctx.arc(n.x,n.y,r,0,Math.PI*2); ctx.fillStyle=`rgba(${cr},${cg},${cb},0.9)`; ctx.fill();
+      });
+    };
+
+    // ── Initialize and run ───────────────────────────────────
+    let state;
+    let drawFn;
+    if(theme==='network_storm') { state=initStorm(); drawFn=drawStorm; }
+    else if(theme==='quiet_network') { state=initQuiet(); drawFn=drawQuiet; }
+    else if(theme==='deep_space') { state=initSpace(); drawFn=drawSpace; }
+    else if(theme==='matrix_rain') { state=initMatrix(); drawFn=drawMatrix; }
+    else if(theme==='heartbeat') { state=initHeartbeat(); drawFn=drawHeartbeat; }
+    else if(theme==='galaxy') { state=initGalaxy(); drawFn=drawGalaxy; }
+    else { state=initStormWarning(); drawFn=drawStormWarning; }
+
+    const loop = () => { tick++; drawFn(state); animationId=requestAnimationFrame(loop); };
+    loop();
+
+    return () => { cancelAnimationFrame(animationId); window.removeEventListener('resize', resize); };
   }, []);
 
   return (
     <canvas ref={canvasRef} style={{
-      position: "fixed",
-      top: 0,
-      left: 0,
-      width: "100%",
-      height: "100%",
-      pointerEvents: "none",
-      zIndex: 0,
-      opacity: 0.5,
+      position: "fixed", top:0, left:0, width:"100%", height:"100%",
+      pointerEvents:"none", zIndex:0, opacity:0.25,
     }} />
   );
 }
 
-
-// ============================================================
-// ABOUT PAGE
-// ============================================================
-
-// ============================================================
-// PLATFORM PAGE
-// ============================================================
 function PlatformPage({ onBack, onGetStarted }) {
   const { t } = useTranslation();
   const [expanded, setExpanded] = useState(null);
