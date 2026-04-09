@@ -4794,6 +4794,7 @@ function CompliancePage({ token, showToast, currentPlan }) {
 }
 
 function PricingPage({ currentPlan, onUpgrade, usageLoaded }) {
+  const { t } = useTranslation();
   const [currency, setCurrency] = useState({ code: 'GBP', symbol: '£' });
 
   const CURRENCY_PRICES = {
