@@ -5495,6 +5495,8 @@ function SettingsPage({ token, showToast }) {
   const [saving, setSaving] = useState(false);
   const [testingSlack, setTestingSlack] = useState(false);
   const [testingTeams, setTestingTeams] = useState(false);
+  const [saved, setSaved] = useState(false);
+
   useEffect(() => {
     axios.get("http://localhost:5001/api/settings", {
       headers: { Authorization: `Bearer ${token}` }
@@ -5506,6 +5508,7 @@ function SettingsPage({ token, showToast }) {
       setNotifyCve(r.data.notify_cve);
     }).catch(() => {});
   }, [token]);
+
   const save = async () => {
     setSaving(true);
     try {
@@ -5513,10 +5516,13 @@ function SettingsPage({ token, showToast }) {
         slack_webhook_url: slack, teams_webhook_url: teams,
         notify_critical: notifyCritical, notify_high: notifyHigh, notify_cve: notifyCve
       }, { headers: { Authorization: `Bearer ${token}` } });
+      setSaved(true);
+      setTimeout(() => setSaved(false), 3000);
       showToast("Settings saved successfully", "success");
     } catch { showToast("Failed to save settings", "error"); }
     setSaving(false);
   };
+
   const testSlack = async () => {
     if (!slack) { showToast("Enter a Slack webhook URL first", "error"); return; }
     setTestingSlack(true);
@@ -5524,9 +5530,10 @@ function SettingsPage({ token, showToast }) {
       await axios.post("http://localhost:5001/api/settings/test-slack",
         { slack_webhook_url: slack }, { headers: { Authorization: `Bearer ${token}` } });
       showToast("Test message sent to Slack!", "success");
-    } catch { showToast("Slack test failed — check your webhook URL", "error"); }
+    } catch { showToast("Slack test failed - check your webhook URL", "error"); }
     setTestingSlack(false);
   };
+
   const testTeams = async () => {
     if (!teams) { showToast("Enter a Teams webhook URL first", "error"); return; }
     setTestingTeams(true);
@@ -5534,55 +5541,83 @@ function SettingsPage({ token, showToast }) {
       await axios.post("http://localhost:5001/api/settings/test-teams",
         { teams_webhook_url: teams }, { headers: { Authorization: `Bearer ${token}` } });
       showToast("Test message sent to Teams!", "success");
-    } catch { showToast("Teams test failed — check your webhook URL", "error"); }
+    } catch { showToast("Teams test failed - check your webhook URL", "error"); }
     setTestingTeams(false);
   };
-  const C = { bg: "#030712", card: "#0f1729", border: "#1e3a5f", blue: "#00b4d8", text: "#e2e8f0", muted: "#64748b" };
+
+  const C = { card: "#0f1729", border: "#1e3a5f", blue: "#00b4d8", text: "#e2e8f0", muted: "#64748b", green: "#10b981" };
+
+  const Toggle = ({ value, onChange }) => (
+    <div onClick={() => onChange(!value)} style={{ width: "44px", height: "24px", borderRadius: "12px", background: value ? C.blue : "#1e3a5f", cursor: "pointer", position: "relative", transition: "background 0.2s", flexShrink: 0 }}>
+      <div style={{ position: "absolute", top: "3px", left: value ? "23px" : "3px", width: "18px", height: "18px", borderRadius: "50%", background: "#fff", transition: "left 0.2s" }} />
+    </div>
+  );
+
+  const StatusBadge = ({ connected }) => (
+    <span style={{ display: "inline-flex", alignItems: "center", gap: "5px", padding: "3px 10px", borderRadius: "100px", fontSize: "11px", fontWeight: "600", background: connected ? "#10b98120" : "#64748b20", color: connected ? C.green : C.muted, border: `1px solid ${connected ? "#10b98140" : "#64748b40"}` }}>
+      <span style={{ width: "6px", height: "6px", borderRadius: "50%", background: connected ? C.green : C.muted, display: "inline-block" }} />
+      {connected ? "Connected" : "Not configured"}
+    </span>
+  );
+
+  const WebhookCard = ({ icon, title, color, value, onChange, placeholder, onTest, testing }) => (
+    <div style={{ background: C.card, border: `1px solid ${value ? C.blue + "60" : C.border}`, borderRadius: "16px", padding: "24px", marginBottom: "16px", transition: "border 0.2s" }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "16px" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+          <div style={{ width: "36px", height: "36px", borderRadius: "8px", background: color + "20", border: `1px solid ${color}40`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: "18px" }}>{icon}</div>
+          <span style={{ color: C.text, fontWeight: "700", fontSize: "16px" }}>{title}</span>
+        </div>
+        <StatusBadge connected={!!value} />
+      </div>
+      <input
+        style={{ width: "100%", padding: "11px 14px", borderRadius: "8px", background: "#060d1a", border: `1px solid ${value ? C.blue + "60" : C.border}`, color: C.text, fontSize: "13px", outline: "none", boxSizing: "border-box", transition: "border 0.2s", fontFamily: "JetBrains Mono, monospace" }}
+        placeholder={placeholder} value={value} onChange={e => onChange(e.target.value)}
+      />
+      <div style={{ marginTop: "12px", display: "flex", alignItems: "center", gap: "10px" }}>
+        <button onClick={onTest} disabled={testing}
+          style={{ padding: "8px 18px", borderRadius: "8px", border: `1px solid ${color}60`, background: color + "15", color: color, fontWeight: "600", fontSize: "13px", cursor: "pointer", opacity: testing ? 0.6 : 1, transition: "all 0.2s" }}>
+          {testing ? "Sending..." : "Send Test Message"}
+        </button>
+        <span style={{ fontSize: "12px", color: C.muted }}>Verify your webhook is working</span>
+      </div>
+    </div>
+  );
+
   return (
-    <div style={{ padding: "32px", maxWidth: "680px" }}>
-      <h2 style={{ color: C.text, fontSize: "22px", fontWeight: "700", marginBottom: "8px" }}>Alert Settings</h2>
-      <p style={{ color: C.muted, fontSize: "14px", marginBottom: "32px" }}>Configure Slack and Teams webhooks to receive real-time security alerts.</p>
-      <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: "12px", padding: "24px", marginBottom: "20px" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "16px" }}>
-          <span style={{ fontSize: "20px" }}>💬</span>
-          <span style={{ color: C.text, fontWeight: "600", fontSize: "16px" }}>Slack</span>
-        </div>
-        <input style={{ width: "100%", padding: "10px 14px", borderRadius: "8px", background: "#0a1628", border: `1px solid ${C.border}`, color: C.text, fontSize: "14px", outline: "none", boxSizing: "border-box" }}
-          placeholder="https://hooks.slack.com/services/..." value={slack} onChange={e => setSlack(e.target.value)} />
-        <button onClick={testSlack} disabled={testingSlack}
-          style={{ marginTop: "12px", padding: "10px 20px", borderRadius: "8px", border: "none", background: "#4A154B", color: "#fff", fontWeight: "600", fontSize: "14px", cursor: "pointer", opacity: testingSlack ? 0.6 : 1 }}>
-          {testingSlack ? "Sending..." : "Send Test Message"}
-        </button>
+    <div style={{ padding: "32px", maxWidth: "720px" }}>
+      <div style={{ marginBottom: "32px" }}>
+        <h2 style={{ color: C.text, fontSize: "24px", fontWeight: "700", marginBottom: "6px" }}>Alert Settings</h2>
+        <p style={{ color: C.muted, fontSize: "14px" }}>Get real-time security alerts in Slack or Microsoft Teams when critical threats are detected.</p>
       </div>
-      <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: "12px", padding: "24px", marginBottom: "20px" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "16px" }}>
-          <span style={{ fontSize: "20px" }}>🟦</span>
-          <span style={{ color: C.text, fontWeight: "600", fontSize: "16px" }}>Microsoft Teams</span>
-        </div>
-        <input style={{ width: "100%", padding: "10px 14px", borderRadius: "8px", background: "#0a1628", border: `1px solid ${C.border}`, color: C.text, fontSize: "14px", outline: "none", boxSizing: "border-box" }}
-          placeholder="https://outlook.office.com/webhook/..." value={teams} onChange={e => setTeams(e.target.value)} />
-        <button onClick={testTeams} disabled={testingTeams}
-          style={{ marginTop: "12px", padding: "10px 20px", borderRadius: "8px", border: "none", background: "#464EB8", color: "#fff", fontWeight: "600", fontSize: "14px", cursor: "pointer", opacity: testingTeams ? 0.6 : 1 }}>
-          {testingTeams ? "Sending..." : "Send Test Message"}
-        </button>
+      <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: "12px", padding: "16px 20px", marginBottom: "24px", display: "flex", alignItems: "center", gap: "10px" }}>
+        <span style={{ fontSize: "16px" }}>💡</span>
+        <span style={{ color: C.muted, fontSize: "13px" }}>In Slack: <strong style={{ color: C.text }}>Apps → Incoming Webhooks</strong>. In Teams: <strong style={{ color: C.text }}>Connectors → Incoming Webhook</strong>.</span>
       </div>
-      <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: "12px", padding: "24px", marginBottom: "28px" }}>
-        <p style={{ color: C.text, fontWeight: "600", fontSize: "16px", marginBottom: "16px" }}>Notify me when...</p>
+      <WebhookCard icon="💬" title="Slack" color="#4A154B" value={slack} onChange={setSlack}
+        placeholder="https://hooks.slack.com/services/T.../B.../..."
+        onTest={testSlack} testing={testingSlack} />
+      <WebhookCard icon="🟦" title="Microsoft Teams" color="#464EB8" value={teams} onChange={setTeams}
+        placeholder="https://outlook.office.com/webhook/..."
+        onTest={testTeams} testing={testingTeams} />
+      <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: "16px", padding: "24px", marginBottom: "28px" }}>
+        <p style={{ color: C.text, fontWeight: "700", fontSize: "16px", marginBottom: "20px" }}>Notification Preferences</p>
         {[
-          { label: "Critical severity findings", value: notifyCritical, set: setNotifyCritical },
-          { label: "High severity findings",     value: notifyHigh,     set: setNotifyHigh     },
-          { label: "New CVEs match my devices",  value: notifyCve,      set: setNotifyCve      },
-        ].map(({ label, value, set }) => (
-          <label key={label} style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "14px", cursor: "pointer" }}>
-            <input type="checkbox" checked={value} onChange={e => set(e.target.checked)}
-              style={{ width: "16px", height: "16px", accentColor: C.blue }} />
-            <span style={{ color: C.text, fontSize: "14px" }}>{label}</span>
-          </label>
+          { label: "Critical severity findings", desc: "Immediate alert for CRITICAL vulnerabilities", value: notifyCritical, set: setNotifyCritical },
+          { label: "High severity findings",     desc: "Alert for HIGH severity vulnerabilities",     value: notifyHigh,     set: setNotifyHigh     },
+          { label: "New CVEs match my devices",  desc: "Alert when new CVEs affect your device inventory", value: notifyCve, set: setNotifyCve },
+        ].map(({ label, desc, value, set }) => (
+          <div key={label} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 0", borderBottom: `1px solid ${C.border}40` }}>
+            <div>
+              <div style={{ color: C.text, fontSize: "14px", fontWeight: "600", marginBottom: "2px" }}>{label}</div>
+              <div style={{ color: C.muted, fontSize: "12px" }}>{desc}</div>
+            </div>
+            <Toggle value={value} onChange={set} />
+          </div>
         ))}
       </div>
       <button onClick={save} disabled={saving}
-        style={{ padding: "12px 32px", borderRadius: "8px", border: "none", background: C.blue, color: "#fff", fontWeight: "600", fontSize: "14px", cursor: "pointer", opacity: saving ? 0.6 : 1 }}>
-        {saving ? "Saving..." : "Save Settings"}
+        style={{ width: "100%", padding: "14px", borderRadius: "10px", border: "none", background: saved ? C.green : C.blue, color: "#fff", fontWeight: "700", fontSize: "15px", cursor: "pointer", opacity: saving ? 0.7 : 1, transition: "background 0.3s" }}>
+        {saving ? "Saving..." : saved ? "Saved!" : "Save Settings"}
       </button>
     </div>
   );
