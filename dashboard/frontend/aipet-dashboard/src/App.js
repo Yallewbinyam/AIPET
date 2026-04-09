@@ -5631,16 +5631,16 @@ export default function App() {
             width: "100%",
             padding: "8px",
             borderRadius: "8px",
-            border: "1px solid rgba(255,61,61,0.2)",
-            backgroundColor: "rgba(255,61,61,0.08)",
-            color: "#ff3d3d",
+            border: "1px solid rgba(255,255,255,0.06)",
+            backgroundColor: "rgba(255,255,255,0.02)",
+            color: "#64748b",
             fontSize: "12px",
             cursor: "pointer",
             display: "flex", alignItems: "center", justifyContent: "center", gap: "6px",
             transition: "all 0.15s",
           }}
-          onMouseEnter={e => e.currentTarget.style.backgroundColor = "rgba(255,61,61,0.15)"}
-          onMouseLeave={e => e.currentTarget.style.backgroundColor = "rgba(255,61,61,0.08)"}
+          onMouseEnter={e => e.currentTarget.style.backgroundColor = "rgba(255,255,255,0.06)"}
+          onMouseLeave={e => e.currentTarget.style.backgroundColor = "rgba(255,255,255,0.02)"}
           >
             <X size={12} /> Sign Out
           </button>
