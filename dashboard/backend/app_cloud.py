@@ -33,6 +33,7 @@ from dashboard.backend.watch.routes import watch_bp
 from dashboard.backend.ask.routes import ask_bp
 from dashboard.backend.compliance.routes import compliance_bp
 from dashboard.backend.protocols.routes import protocols_bp
+from dashboard.backend.settings.routes import settings_bp
 from dashboard.backend.monitoring.logger import setup_logging, get_logger
 from dashboard.backend.security import init_security
 from dashboard.backend.monitoring.logger import (
@@ -128,6 +129,7 @@ def create_app(config_name="development"):
     app.register_blueprint(ask_bp)
     app.register_blueprint(compliance_bp)
     app.register_blueprint(protocols_bp)
+    app.register_blueprint(settings_bp)
     app.register_blueprint(api_keys_bp, url_prefix='/api/keys')
 
     # Setup logging

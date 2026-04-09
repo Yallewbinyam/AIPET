@@ -367,3 +367,25 @@ class ProtocolScan(db.Model):
             "created_at":   str(self.created_at),
             "completed_at": str(self.completed_at),
         }
+
+
+class UserSettings(db.Model):
+    __tablename__ = "user_settings"
+    id                = db.Column(db.Integer,     primary_key=True)
+    user_id           = db.Column(db.Integer,     db.ForeignKey("users.id"), nullable=False, unique=True)
+    slack_webhook_url = db.Column(db.Text,        nullable=True)
+    teams_webhook_url = db.Column(db.Text,        nullable=True)
+    notify_critical   = db.Column(db.Boolean,     default=True)
+    notify_high       = db.Column(db.Boolean,     default=True)
+    notify_cve        = db.Column(db.Boolean,     default=False)
+    created_at        = db.Column(db.DateTime,    default=lambda: datetime.now(timezone.utc))
+    updated_at        = db.Column(db.DateTime,    default=lambda: datetime.now(timezone.utc))
+
+    def to_dict(self):
+        return {
+            "slack_webhook_url": self.slack_webhook_url or '',
+            "teams_webhook_url": self.teams_webhook_url or '',
+            "notify_critical":   self.notify_critical,
+            "notify_high":       self.notify_high,
+            "notify_cve":        self.notify_cve,
+        }
