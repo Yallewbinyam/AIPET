@@ -30,7 +30,7 @@ import {
   ChevronDown, ChevronUp, Cpu, Lock,
   Wifi, Globe, FileText, Zap, Eye,
   TrendingUp, AlertOctagon, Info, CreditCard,
-  Star, Check, X
+  Star, Check, X, Settings
 } from "lucide-react";
 
 const API      = "http://localhost:5001/api";
@@ -5476,6 +5476,7 @@ const NAV_ITEMS = [
   { id: "pricing",   label: "Pricing",       icon: Zap,           group: "account"  },
   { id: "billing",   label: "Billing",       icon: Lock,          group: "account"  },
   { id: "apikeys",   label: "API Keys",      icon: CreditCard,    group: "account"  },
+  { id: "settings",  label: "Settings",      icon: Settings,      group: "account"  },
 ];
 
 const NAV_GROUPS = [
@@ -5484,6 +5485,108 @@ const NAV_GROUPS = [
   { id: "reports", label: "Reports"      },
   { id: "account", label: "Account"      },
 ];
+
+function SettingsPage({ token, showToast }) {
+  const [slack, setSlack] = useState("");
+  const [teams, setTeams] = useState("");
+  const [notifyCritical, setNotifyCritical] = useState(true);
+  const [notifyHigh, setNotifyHigh] = useState(true);
+  const [notifyCve, setNotifyCve] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [testingSlack, setTestingSlack] = useState(false);
+  const [testingTeams, setTestingTeams] = useState(false);
+  useEffect(() => {
+    axios.get("http://localhost:5001/api/settings", {
+      headers: { Authorization: `Bearer ${token}` }
+    }).then(r => {
+      setSlack(r.data.slack_webhook_url || "");
+      setTeams(r.data.teams_webhook_url || "");
+      setNotifyCritical(r.data.notify_critical);
+      setNotifyHigh(r.data.notify_high);
+      setNotifyCve(r.data.notify_cve);
+    }).catch(() => {});
+  }, [token]);
+  const save = async () => {
+    setSaving(true);
+    try {
+      await axios.put("http://localhost:5001/api/settings", {
+        slack_webhook_url: slack, teams_webhook_url: teams,
+        notify_critical: notifyCritical, notify_high: notifyHigh, notify_cve: notifyCve
+      }, { headers: { Authorization: `Bearer ${token}` } });
+      showToast("Settings saved successfully", "success");
+    } catch { showToast("Failed to save settings", "error"); }
+    setSaving(false);
+  };
+  const testSlack = async () => {
+    if (!slack) { showToast("Enter a Slack webhook URL first", "error"); return; }
+    setTestingSlack(true);
+    try {
+      await axios.post("http://localhost:5001/api/settings/test-slack",
+        { slack_webhook_url: slack }, { headers: { Authorization: `Bearer ${token}` } });
+      showToast("Test message sent to Slack!", "success");
+    } catch { showToast("Slack test failed — check your webhook URL", "error"); }
+    setTestingSlack(false);
+  };
+  const testTeams = async () => {
+    if (!teams) { showToast("Enter a Teams webhook URL first", "error"); return; }
+    setTestingTeams(true);
+    try {
+      await axios.post("http://localhost:5001/api/settings/test-teams",
+        { teams_webhook_url: teams }, { headers: { Authorization: `Bearer ${token}` } });
+      showToast("Test message sent to Teams!", "success");
+    } catch { showToast("Teams test failed — check your webhook URL", "error"); }
+    setTestingTeams(false);
+  };
+  const C = { bg: "#030712", card: "#0f1729", border: "#1e3a5f", blue: "#00b4d8", text: "#e2e8f0", muted: "#64748b" };
+  return (
+    <div style={{ padding: "32px", maxWidth: "680px" }}>
+      <h2 style={{ color: C.text, fontSize: "22px", fontWeight: "700", marginBottom: "8px" }}>Alert Settings</h2>
+      <p style={{ color: C.muted, fontSize: "14px", marginBottom: "32px" }}>Configure Slack and Teams webhooks to receive real-time security alerts.</p>
+      <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: "12px", padding: "24px", marginBottom: "20px" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "16px" }}>
+          <span style={{ fontSize: "20px" }}>💬</span>
+          <span style={{ color: C.text, fontWeight: "600", fontSize: "16px" }}>Slack</span>
+        </div>
+        <input style={{ width: "100%", padding: "10px 14px", borderRadius: "8px", background: "#0a1628", border: `1px solid ${C.border}`, color: C.text, fontSize: "14px", outline: "none", boxSizing: "border-box" }}
+          placeholder="https://hooks.slack.com/services/..." value={slack} onChange={e => setSlack(e.target.value)} />
+        <button onClick={testSlack} disabled={testingSlack}
+          style={{ marginTop: "12px", padding: "10px 20px", borderRadius: "8px", border: "none", background: "#4A154B", color: "#fff", fontWeight: "600", fontSize: "14px", cursor: "pointer", opacity: testingSlack ? 0.6 : 1 }}>
+          {testingSlack ? "Sending..." : "Send Test Message"}
+        </button>
+      </div>
+      <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: "12px", padding: "24px", marginBottom: "20px" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "16px" }}>
+          <span style={{ fontSize: "20px" }}>🟦</span>
+          <span style={{ color: C.text, fontWeight: "600", fontSize: "16px" }}>Microsoft Teams</span>
+        </div>
+        <input style={{ width: "100%", padding: "10px 14px", borderRadius: "8px", background: "#0a1628", border: `1px solid ${C.border}`, color: C.text, fontSize: "14px", outline: "none", boxSizing: "border-box" }}
+          placeholder="https://outlook.office.com/webhook/..." value={teams} onChange={e => setTeams(e.target.value)} />
+        <button onClick={testTeams} disabled={testingTeams}
+          style={{ marginTop: "12px", padding: "10px 20px", borderRadius: "8px", border: "none", background: "#464EB8", color: "#fff", fontWeight: "600", fontSize: "14px", cursor: "pointer", opacity: testingTeams ? 0.6 : 1 }}>
+          {testingTeams ? "Sending..." : "Send Test Message"}
+        </button>
+      </div>
+      <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: "12px", padding: "24px", marginBottom: "28px" }}>
+        <p style={{ color: C.text, fontWeight: "600", fontSize: "16px", marginBottom: "16px" }}>Notify me when...</p>
+        {[
+          { label: "Critical severity findings", value: notifyCritical, set: setNotifyCritical },
+          { label: "High severity findings",     value: notifyHigh,     set: setNotifyHigh     },
+          { label: "New CVEs match my devices",  value: notifyCve,      set: setNotifyCve      },
+        ].map(({ label, value, set }) => (
+          <label key={label} style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "14px", cursor: "pointer" }}>
+            <input type="checkbox" checked={value} onChange={e => set(e.target.checked)}
+              style={{ width: "16px", height: "16px", accentColor: C.blue }} />
+            <span style={{ color: C.text, fontSize: "14px" }}>{label}</span>
+          </label>
+        ))}
+      </div>
+      <button onClick={save} disabled={saving}
+        style={{ padding: "12px 32px", borderRadius: "8px", border: "none", background: C.blue, color: "#fff", fontWeight: "600", fontSize: "14px", cursor: "pointer", opacity: saving ? 0.6 : 1 }}>
+        {saving ? "Saving..." : "Save Settings"}
+      </button>
+    </div>
+  );
+}
 
 export default function App() {
   const [data,       setData]       = useState({});
@@ -6359,6 +6462,9 @@ export default function App() {
           )}
 
           {/* API KEYS */}
+          {activeTab === "settings" && (
+            <SettingsPage token={token} showToast={showToast} />
+          )}
           {activeTab === "apikeys" && (
             <ApiKeysPage
               token={token}
