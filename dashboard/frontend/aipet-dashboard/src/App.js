@@ -2181,6 +2181,30 @@ function getMitreInfo(attack) {
   return MITRE_ATTACK[key] || MITRE_ATTACK.default;
 }
 
+
+// Device Fingerprinting Database
+const DEVICE_FINGERPRINTS = {
+  router:   { icon: "🔀", label: "Router/Gateway",    color: "#00e5ff", risk: "High value target — controls all traffic" },
+  sensor:   { icon: "📡", label: "IoT Sensor",         color: "#00b4cc", risk: "Data integrity risk" },
+  camera:   { icon: "📷", label: "IP Camera/CCTV",     color: "#f59e0b", risk: "Privacy risk" },
+  printer:  { icon: "🖨️", label: "Network Printer",   color: "#a855f7", risk: "Data exfiltration risk" },
+  server:   { icon: "🖥️", label: "Server",            color: "#a855f7", risk: "High value — data storage" },
+  plc:      { icon: "⚙️", label: "PLC/SCADA Device",  color: "#ff4444", risk: "Critical infrastructure" },
+  unknown:  { icon: "❓", label: "Unknown Device",     color: "#64748b", risk: "Requires investigation" },
+};
+
+function fingerprintDevice(device) {
+  const findings = device.findings || [];
+  const modules = findings.map(f => (f.module || "").toLowerCase());
+  const attacks = findings.map(f => (f.attack || "").toLowerCase());
+  if (modules.some(m => m.includes("modbus"))) return DEVICE_FINGERPRINTS.plc;
+  if (modules.some(m => m.includes("mqtt") || m.includes("coap"))) return DEVICE_FINGERPRINTS.sensor;
+  if (attacks.some(a => a.includes("camera") || a.includes("rtsp"))) return DEVICE_FINGERPRINTS.camera;
+  if (attacks.some(a => a.includes("print"))) return DEVICE_FINGERPRINTS.printer;
+  if (attacks.some(a => a.includes("http") || a.includes("ssh") || a.includes("ftp"))) return DEVICE_FINGERPRINTS.server;
+  return DEVICE_FINGERPRINTS.router;
+}
+
 function FindingRow({ finding, token, onStatusUpdate }) {
   const [open, setOpen]           = useState(false);
   const [showFix, setShowFix]     = useState(false);
@@ -6449,12 +6473,16 @@ export default function App() {
                   <div className="flex items-start justify-between mb-5">
                     <div className="flex items-center gap-4">
                       <div className="w-14 h-14 rounded-2xl flex items-center justify-center"
-                        style={{ backgroundColor: COLORS.blue + "20" }}>
-                        <Server size={26} style={{ color: COLORS.blue }} />
+                        style={{ backgroundColor: fingerprintDevice(device).color + "20", border: `1px solid ${fingerprintDevice(device).color}30` }}>
+                        <span style={{ fontSize: "26px" }}>{fingerprintDevice(device).icon}</span>
                       </div>
                       <div>
                         <div className="font-black text-xl" style={{ color: COLORS.text }}>{device.target}</div>
-                        <div className="text-sm mt-0.5" style={{ color: COLORS.muted }}>{device.findings?.length || 0} finding{device.findings?.length !== 1 ? "s" : ""} detected</div>
+                        <div style={{ display: "flex", alignItems: "center", gap: "8px", marginTop: "4px" }}>
+                          <span style={{ fontSize: "12px", fontWeight: "700", color: fingerprintDevice(device).color, padding: "2px 8px", borderRadius: "6px", backgroundColor: fingerprintDevice(device).color + "15" }}>{fingerprintDevice(device).label}</span>
+                          <span style={{ fontSize: "11px", color: COLORS.muted }}>{device.findings?.length || 0} finding{device.findings?.length !== 1 ? "s" : ""}</span>
+                        </div>
+                        <div style={{ fontSize: "11px", color: "#ff8888", marginTop: "3px" }}>⚠ {fingerprintDevice(device).risk}</div>
                       </div>
                     </div>
                     <div className="flex items-center gap-3">
