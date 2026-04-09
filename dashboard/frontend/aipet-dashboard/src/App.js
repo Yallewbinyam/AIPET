@@ -5584,41 +5584,118 @@ function SettingsPage({ token, showToast }) {
   );
 
   return (
-    <div style={{ padding: "32px", maxWidth: "720px" }}>
-      <div style={{ marginBottom: "32px" }}>
-        <h2 style={{ color: C.text, fontSize: "24px", fontWeight: "700", marginBottom: "6px" }}>Alert Settings</h2>
-        <p style={{ color: C.muted, fontSize: "14px" }}>Get real-time security alerts in Slack or Microsoft Teams when critical threats are detected.</p>
+    <div style={{ padding: "32px 40px", maxWidth: "900px" }}>
+
+      {/* Header */}
+      <div style={{ marginBottom: "40px" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "12px", marginBottom: "8px" }}>
+          <div style={{ width: "40px", height: "40px", borderRadius: "12px", background: `${C.blue}20`, border: `1px solid ${C.blue}40`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: "20px" }}>🔔</div>
+          <h2 style={{ color: C.text, fontSize: "26px", fontWeight: "800", margin: 0, letterSpacing: "-0.02em" }}>Alert Settings</h2>
+        </div>
+        <p style={{ color: C.muted, fontSize: "14px", margin: 0, paddingLeft: "52px" }}>
+          Get real-time security alerts in Slack or Microsoft Teams when critical threats are detected.
+        </p>
       </div>
-      <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: "12px", padding: "16px 20px", marginBottom: "24px", display: "flex", alignItems: "center", gap: "10px" }}>
-        <span style={{ fontSize: "16px" }}>💡</span>
-        <span style={{ color: C.muted, fontSize: "13px" }}>In Slack: <strong style={{ color: C.text }}>Apps → Incoming Webhooks</strong>. In Teams: <strong style={{ color: C.text }}>Connectors → Incoming Webhook</strong>.</span>
+
+      {/* How to get webhook URL */}
+      <div style={{ background: `${C.blue}08`, border: `1px solid ${C.blue}25`, borderRadius: "14px", padding: "16px 20px", marginBottom: "32px", display: "flex", alignItems: "flex-start", gap: "12px" }}>
+        <span style={{ fontSize: "18px", flexShrink: 0 }}>💡</span>
+        <div>
+          <div style={{ color: C.text, fontSize: "13px", fontWeight: "600", marginBottom: "4px" }}>How to get your webhook URL</div>
+          <span style={{ color: C.muted, fontSize: "13px" }}>
+            Slack: <strong style={{ color: C.blue }}>Apps → Incoming Webhooks → Add New Webhook</strong>
+            &nbsp;&nbsp;·&nbsp;&nbsp;
+            Teams: <strong style={{ color: C.blue }}>Channel → Connectors → Incoming Webhook</strong>
+          </span>
+        </div>
       </div>
-      <WebhookCard icon="💬" title="Slack" color="#4A154B" value={slack} onChange={setSlack}
-        placeholder="https://hooks.slack.com/services/T.../B.../..."
-        onTest={testSlack} testing={testingSlack} />
-      <WebhookCard icon="🟦" title="Microsoft Teams" color="#464EB8" value={teams} onChange={setTeams}
-        placeholder="https://outlook.office.com/webhook/..."
-        onTest={testTeams} testing={testingTeams} />
-      <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: "16px", padding: "24px", marginBottom: "28px" }}>
-        <p style={{ color: C.text, fontWeight: "700", fontSize: "16px", marginBottom: "20px" }}>Notification Preferences</p>
+
+      {/* Integration cards */}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "20px", marginBottom: "24px" }}>
+        {/* Slack */}
+        <div style={{ background: C.card, border: `1px solid ${slack ? "#4A154B80" : C.border}`, borderRadius: "20px", padding: "28px", transition: "all 0.2s", boxShadow: slack ? "0 0 30px rgba(74,21,75,0.15)" : "none" }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "20px" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+              <div style={{ width: "40px", height: "40px", borderRadius: "10px", background: "#4A154B20", border: "1px solid #4A154B40", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "20px" }}>💬</div>
+              <div>
+                <div style={{ color: C.text, fontWeight: "700", fontSize: "15px" }}>Slack</div>
+                <div style={{ color: C.muted, fontSize: "11px" }}>Incoming Webhook</div>
+              </div>
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: "6px", padding: "4px 10px", borderRadius: "100px", background: slack ? "#00ff8820" : `${C.border}30`, border: `1px solid ${slack ? "#00ff8840" : C.border}` }}>
+              <div style={{ width: "6px", height: "6px", borderRadius: "50%", background: slack ? "#00ff88" : C.muted, boxShadow: slack ? "0 0 6px #00ff88" : "none" }} />
+              <span style={{ fontSize: "11px", fontWeight: "600", color: slack ? "#00ff88" : C.muted }}>{slack ? "Configured" : "Not configured"}</span>
+            </div>
+          </div>
+          <input
+            style={{ width: "100%", padding: "12px 14px", borderRadius: "10px", background: "#060d1a", border: `1px solid ${slack ? "#4A154B60" : C.border}`, color: C.text, fontSize: "12px", outline: "none", boxSizing: "border-box", fontFamily: "JetBrains Mono, monospace" }}
+            placeholder="https://hooks.slack.com/services/T.../B.../..." value={slack} onChange={e => setSlack(e.target.value)}
+          />
+          <button onClick={testSlack} disabled={testingSlack || !slack}
+            style={{ marginTop: "14px", width: "100%", padding: "10px", borderRadius: "8px", border: "1px solid #4A154B60", background: "#4A154B20", color: "#c46ec4", fontWeight: "600", fontSize: "13px", cursor: slack ? "pointer" : "not-allowed", opacity: !slack ? 0.5 : 1, transition: "all 0.2s" }}>
+            {testingSlack ? "Sending..." : "🚀 Send Test Message"}
+          </button>
+        </div>
+
+        {/* Teams */}
+        <div style={{ background: C.card, border: `1px solid ${teams ? "#464EB880" : C.border}`, borderRadius: "20px", padding: "28px", transition: "all 0.2s", boxShadow: teams ? "0 0 30px rgba(70,78,184,0.15)" : "none" }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "20px" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+              <div style={{ width: "40px", height: "40px", borderRadius: "10px", background: "#464EB820", border: "1px solid #464EB840", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "20px" }}>🟦</div>
+              <div>
+                <div style={{ color: C.text, fontWeight: "700", fontSize: "15px" }}>Microsoft Teams</div>
+                <div style={{ color: C.muted, fontSize: "11px" }}>Incoming Webhook</div>
+              </div>
+            </div>
+            <div style={{ display: "flex", alignItems: "center", gap: "6px", padding: "4px 10px", borderRadius: "100px", background: teams ? "#00ff8820" : `${C.border}30`, border: `1px solid ${teams ? "#00ff8840" : C.border}` }}>
+              <div style={{ width: "6px", height: "6px", borderRadius: "50%", background: teams ? "#00ff88" : C.muted, boxShadow: teams ? "0 0 6px #00ff88" : "none" }} />
+              <span style={{ fontSize: "11px", fontWeight: "600", color: teams ? "#00ff88" : C.muted }}>{teams ? "Configured" : "Not configured"}</span>
+            </div>
+          </div>
+          <input
+            style={{ width: "100%", padding: "12px 14px", borderRadius: "10px", background: "#060d1a", border: `1px solid ${teams ? "#464EB860" : C.border}`, color: C.text, fontSize: "12px", outline: "none", boxSizing: "border-box", fontFamily: "JetBrains Mono, monospace" }}
+            placeholder="https://outlook.office.com/webhook/..." value={teams} onChange={e => setTeams(e.target.value)}
+          />
+          <button onClick={testTeams} disabled={testingTeams || !teams}
+            style={{ marginTop: "14px", width: "100%", padding: "10px", borderRadius: "8px", border: "1px solid #464EB860", background: "#464EB820", color: "#8b93f0", fontWeight: "600", fontSize: "13px", cursor: teams ? "pointer" : "not-allowed", opacity: !teams ? 0.5 : 1, transition: "all 0.2s" }}>
+            {testingTeams ? "Sending..." : "🚀 Send Test Message"}
+          </button>
+        </div>
+      </div>
+
+      {/* Notification preferences */}
+      <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: "20px", padding: "28px", marginBottom: "28px" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "24px" }}>
+          <div style={{ width: "36px", height: "36px", borderRadius: "10px", background: `${C.blue}15`, border: `1px solid ${C.blue}30`, display: "flex", alignItems: "center", justifyContent: "center", fontSize: "16px" }}>⚙️</div>
+          <div>
+            <div style={{ color: C.text, fontWeight: "700", fontSize: "15px" }}>Notification Preferences</div>
+            <div style={{ color: C.muted, fontSize: "12px" }}>Choose which events trigger alerts</div>
+          </div>
+        </div>
         {[
-          { label: "Critical severity findings", desc: "Immediate alert for CRITICAL vulnerabilities", value: notifyCritical, set: setNotifyCritical },
-          { label: "High severity findings",     desc: "Alert for HIGH severity vulnerabilities",     value: notifyHigh,     set: setNotifyHigh     },
-          { label: "New CVEs match my devices",  desc: "Alert when new CVEs affect your device inventory", value: notifyCve, set: setNotifyCve },
-        ].map(({ label, desc, value, set }) => (
-          <div key={label} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "14px 0", borderBottom: `1px solid ${C.border}40` }}>
-            <div>
-              <div style={{ color: C.text, fontSize: "14px", fontWeight: "600", marginBottom: "2px" }}>{label}</div>
-              <div style={{ color: C.muted, fontSize: "12px" }}>{desc}</div>
+          { label: "Critical severity findings", desc: "Immediate alert for CRITICAL vulnerabilities", value: notifyCritical, set: setNotifyCritical, color: "#ff4444" },
+          { label: "High severity findings", desc: "Alert for HIGH severity vulnerabilities", value: notifyHigh, set: setNotifyHigh, color: "#f59e0b" },
+          { label: "New CVEs match my devices", desc: "Alert when new CVEs affect your device inventory", value: notifyCve, set: setNotifyCve, color: C.blue },
+        ].map(({ label, desc, value, set, color }) => (
+          <div key={label} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "16px", marginBottom: "8px", borderRadius: "12px", background: value ? `${color}08` : "transparent", border: `1px solid ${value ? color + "20" : "transparent"}`, transition: "all 0.2s" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+              <div style={{ width: "8px", height: "8px", borderRadius: "50%", background: value ? color : C.muted, boxShadow: value ? `0 0 8px ${color}` : "none", flexShrink: 0 }} />
+              <div>
+                <div style={{ color: C.text, fontSize: "14px", fontWeight: "600", marginBottom: "2px" }}>{label}</div>
+                <div style={{ color: C.muted, fontSize: "12px" }}>{desc}</div>
+              </div>
             </div>
             <Toggle value={value} onChange={set} />
           </div>
         ))}
       </div>
+
+      {/* Save button */}
       <button onClick={save} disabled={saving}
-        style={{ width: "100%", padding: "14px", borderRadius: "10px", border: "none", background: saved ? C.green : C.blue, color: "#fff", fontWeight: "700", fontSize: "15px", cursor: "pointer", opacity: saving ? 0.7 : 1, transition: "background 0.3s" }}>
-        {saving ? "Saving..." : saved ? "Saved!" : "Save Settings"}
+        style={{ width: "100%", padding: "16px", borderRadius: "12px", border: "none", background: saved ? "#00ff88" : `linear-gradient(135deg, ${C.blue}, #0099cc)`, color: saved ? "#000" : "#fff", fontWeight: "700", fontSize: "16px", cursor: "pointer", opacity: saving ? 0.7 : 1, transition: "all 0.3s", boxShadow: saved ? "0 0 30px #00ff8840" : `0 0 30px ${C.blue}30`, letterSpacing: "-0.01em" }}>
+        {saving ? "Saving..." : saved ? "✓ Settings Saved!" : "Save Settings"}
       </button>
+
     </div>
   );
 }
