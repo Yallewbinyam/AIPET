@@ -5714,7 +5714,7 @@ export default function App() {
             }}>
               {NAV_ITEMS.find(n => n.id === activeTab)?.label || "Overview"}
             </h1>
-            <p style={{ fontSize: "11px", color: "#334155", margin: 0, marginTop: "2px" }}>
+            <p style={{ fontSize: "11px", color: "#64748b", margin: 0, marginTop: "2px" }}>
               {summary?.last_scan ? `Last scan: ${summary.last_scan}` : "No scans yet — run a scan to begin"}
             </p>
           </div>
@@ -5740,8 +5740,10 @@ export default function App() {
                   : "rgba(0,255,148,0.3)"}`,
               }}>
                 <div style={{
-                  width: "6px", height: "6px", borderRadius: "50%",
+                  width: "8px", height: "8px", borderRadius: "50%",
                   backgroundColor: riskScore >= 70 ? "#ff3d3d" : riskScore >= 40 ? "#ffb700" : "#00ff94",
+                  boxShadow: riskScore >= 70 ? "0 0 8px #ff3d3d" : riskScore >= 40 ? "0 0 8px #ffb700" : "0 0 8px #00ff94",
+                  animation: "pulse 2s infinite",
                 }} />
                 <span style={{
                   fontFamily: "'JetBrains Mono', monospace",
@@ -5770,13 +5772,15 @@ export default function App() {
               {usage?.plan || "free"}
             </div>
 
-            {/* User */}
-            <div style={{
-              fontSize: "13px",
-              color: "#64748b",
-              fontWeight: 500,
-            }}>
-              {usage?.name || "User"}
+            {/* User avatar + name */}
+            <div style={{ display: "flex", alignItems: "center", gap: "10px", padding: "6px 12px", borderRadius: "10px", border: "1px solid rgba(255,255,255,0.08)", backgroundColor: "rgba(255,255,255,0.03)", cursor: "pointer" }}>
+              <div style={{ width: "30px", height: "30px", borderRadius: "50%", backgroundColor: COLORS.blue, display: "flex", alignItems: "center", justifyContent: "center", fontSize: "13px", fontWeight: "700", color: "white", flexShrink: 0 }}>
+                {(usage?.name || "U").charAt(0).toUpperCase()}
+              </div>
+              <div>
+                <div style={{ fontSize: "13px", fontWeight: "600", color: "#e2e8f0", lineHeight: "1.2" }}>{usage?.name || "User"}</div>
+                <div style={{ fontSize: "10px", color: "#475569", lineHeight: "1.2" }}>{usage?.email || ""}</div>
+              </div>
             </div>
           </div>
         </div>
@@ -5824,7 +5828,7 @@ export default function App() {
                 <div className="col-span-3 grid grid-cols-3 gap-4">
                   <StatCard title="Devices Discovered" value={summary.devices}
                     icon={Cpu} color={COLORS.purple} />
-                  <StatCard title="Critical Findings" value={summary.findings?.critical || 0}
+                  <StatCard title="Critical Findings" accent={COLORS.critical} value={summary.findings?.critical || 0}
                     icon={AlertOctagon} color={COLORS.critical} />
                   <StatCard title="Total Findings" value={summary.findings?.total || 0}
                     icon={Eye} color={COLORS.blue} />
@@ -5894,8 +5898,9 @@ export default function App() {
                           <span className="text-sm font-medium" style={{ color: ran ? COLORS.text : COLORS.muted }}>{m}</span>
                           <span className="ml-auto text-xs px-2 py-0.5 rounded-full"
                             style={{
-                              backgroundColor: ran ? COLORS.low + "20" : COLORS.muted + "20",
-                              color: ran ? COLORS.low : COLORS.muted
+                              backgroundColor: ran ? COLORS.low + "20" : "rgba(255,255,255,0.03)",
+                              color: ran ? COLORS.low : "#334155",
+                              border: ran ? "none" : "1px solid rgba(255,255,255,0.05)"
                             }}>
                             {ran ? "DONE" : "NOT DETECTED"}
                           </span>
