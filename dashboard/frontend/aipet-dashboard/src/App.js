@@ -2205,9 +2205,180 @@ function fingerprintDevice(device) {
   return DEVICE_FINGERPRINTS.router;
 }
 
+
+// Attack Simulation Data
+const ATTACK_SIMULATIONS = {
+  "open_telnet": {
+    title: "Telnet Remote Access Attack",
+    risk: "CRITICAL",
+    time: "< 2 minutes",
+    skill: "Beginner",
+    steps: [
+      { phase: "1. Reconnaissance", icon: "🔍", color: "#00e5ff", cmd: "nmap -sV -p 23 192.168.1.1", desc: "Attacker discovers Telnet port 23 open and unencrypted" },
+      { phase: "2. Exploitation", icon: "⚡", color: "#ff4444", cmd: "telnet 192.168.1.1", desc: "Attacker connects — no encryption, no certificate required" },
+      { phase: "3. Credential Attack", icon: "🔑", color: "#f59e0b", cmd: "admin/admin, root/root, admin/password", desc: "Tries default credentials — succeeds in seconds" },
+      { phase: "4. Full Control", icon: "💀", color: "#ff4444", cmd: "cat /etc/passwd && ifconfig && netstat -an", desc: "Attacker has full shell access — reads files, pivots network" },
+    ],
+    impact: ["Complete device takeover", "Lateral movement to other devices", "Data exfiltration", "Ransomware deployment"],
+  },
+  "default_credentials": {
+    title: "Default Credentials Attack",
+    risk: "CRITICAL",
+    time: "< 1 minute",
+    skill: "Beginner",
+    steps: [
+      { phase: "1. Discovery", icon: "🔍", color: "#00e5ff", cmd: "nmap -sV 192.168.1.0/24", desc: "Attacker scans network, finds admin panel" },
+      { phase: "2. Credential Stuffing", icon: "⚡", color: "#ff4444", cmd: "hydra -l admin -P /usr/share/wordlists/default-creds.txt http://192.168.1.2", desc: "Automated tool tries thousands of default credentials" },
+      { phase: "3. Login Success", icon: "🔑", color: "#f59e0b", cmd: "admin:admin — LOGIN SUCCESSFUL", desc: "Default credentials accepted — full admin access" },
+      { phase: "4. Persistence", icon: "💀", color: "#ff4444", cmd: "Adding backdoor user: evil:evil123", desc: "Attacker creates persistent backdoor account" },
+    ],
+    impact: ["Admin panel takeover", "Configuration changes", "Backdoor installation", "Network pivot"],
+  },
+  "unencrypted_mqtt": {
+    title: "MQTT Man-in-the-Middle Attack",
+    risk: "HIGH",
+    time: "5-10 minutes",
+    skill: "Intermediate",
+    steps: [
+      { phase: "1. Discovery", icon: "🔍", color: "#00e5ff", cmd: "nmap -p 1883 192.168.1.0/24", desc: "Attacker finds MQTT broker on port 1883" },
+      { phase: "2. Subscribe All Topics", icon: "⚡", color: "#ff4444", cmd: "mosquitto_sub -h 192.168.1.3 -t '#' -v", desc: "Subscribes to ALL topics — reads all IoT messages" },
+      { phase: "3. Data Interception", icon: "🔑", color: "#f59e0b", cmd: "sensor/temp: 23.5C | door/lock: OPEN | alarm: DISABLED", desc: "Reads sensor data, door locks, alarm status in real time" },
+      { phase: "4. Command Injection", icon: "💀", color: "#ff4444", cmd: "mosquitto_pub -h 192.168.1.3 -t 'door/lock' -m 'OPEN'", desc: "Sends fake commands — unlocks doors, disables alarms" },
+    ],
+    impact: ["Real-time sensor data theft", "False command injection", "Physical security bypass", "Building access"],
+  },
+  "no_firewall": {
+    title: "Network Perimeter Breach",
+    risk: "HIGH",
+    time: "10-30 minutes",
+    skill: "Intermediate",
+    steps: [
+      { phase: "1. Port Scan", icon: "🔍", color: "#00e5ff", cmd: "nmap -A -T4 192.168.1.4", desc: "Full port scan reveals all exposed services" },
+      { phase: "2. Service Enumeration", icon: "⚡", color: "#ff4444", cmd: "nmap --script vuln 192.168.1.4", desc: "Vulnerability scripts find exploitable services" },
+      { phase: "3. Exploitation", icon: "🔑", color: "#f59e0b", cmd: "msfconsole > use exploit/multi/handler", desc: "Metasploit exploits vulnerable service — no firewall blocks it" },
+      { phase: "4. Lateral Movement", icon: "💀", color: "#ff4444", cmd: "route add 10.0.0.0/24 via 192.168.1.4", desc: "Uses compromised device as pivot to internal network" },
+    ],
+    impact: ["All services exposed to internet", "Easy lateral movement", "Full network compromise", "Data breach"],
+  },
+  "default": {
+    title: "Generic IoT Attack Simulation",
+    risk: "HIGH",
+    time: "5-15 minutes",
+    skill: "Intermediate",
+    steps: [
+      { phase: "1. Reconnaissance", icon: "🔍", color: "#00e5ff", cmd: "nmap -sV --script=banner TARGET_IP", desc: "Attacker fingerprints device and services" },
+      { phase: "2. Vulnerability Scan", icon: "⚡", color: "#ff4444", cmd: "nmap --script vuln TARGET_IP", desc: "Automated vulnerability discovery" },
+      { phase: "3. Exploitation", icon: "🔑", color: "#f59e0b", cmd: "searchsploit [service_name]", desc: "Finds and uses public exploit for identified vulnerability" },
+      { phase: "4. Post-Exploitation", icon: "💀", color: "#ff4444", cmd: "id && whoami && cat /etc/shadow", desc: "Escalates privileges and extracts sensitive data" },
+    ],
+    impact: ["Device compromise", "Data exfiltration", "Network access", "Persistent backdoor"],
+  },
+};
+
+function getSimulation(attack) {
+  if (!attack) return ATTACK_SIMULATIONS.default;
+  return ATTACK_SIMULATIONS[attack.toLowerCase().replace(/ /g,"_")] || ATTACK_SIMULATIONS.default;
+}
+
+function AttackSimPanel({ finding, onClose }) {
+  const sim = getSimulation(finding.attack);
+  const [activeStep, setActiveStep] = useState(0);
+  const [running, setRunning] = useState(false);
+
+  const runSimulation = async () => {
+    setRunning(true);
+    setActiveStep(0);
+    for (let i = 0; i < sim.steps.length; i++) {
+      await new Promise(r => setTimeout(r, 1200));
+      setActiveStep(i + 1);
+    }
+    setRunning(false);
+  };
+
+  return (
+    <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, backgroundColor: "rgba(0,0,0,0.85)", zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", padding: "20px" }}
+      onClick={onClose}>
+      <div style={{ backgroundColor: "#030712", borderRadius: "24px", border: "1px solid rgba(255,68,68,0.4)", padding: "36px", maxWidth: "720px", width: "100%", maxHeight: "90vh", overflowY: "auto", boxShadow: "0 0 80px rgba(255,68,68,0.25), 0 0 160px rgba(255,68,68,0.1)" }}
+        onClick={e => e.stopPropagation()}>
+
+        {/* Header */}
+        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", marginBottom: "24px" }}>
+          <div>
+            <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "8px" }}>
+              <span style={{ fontSize: "20px" }}>⚡</span>
+              <h3 style={{ color: "#ff4444", fontSize: "20px", fontWeight: "800", margin: 0 }}>Attack Simulation</h3>
+              <span style={{ padding: "3px 10px", borderRadius: "6px", backgroundColor: "rgba(255,68,68,0.15)", color: "#ff4444", fontSize: "11px", fontWeight: "700", border: "1px solid rgba(255,68,68,0.3)" }}>EDUCATIONAL ONLY</span>
+            </div>
+            <div style={{ color: COLORS.text, fontSize: "16px", fontWeight: "700" }}>{sim.title}</div>
+            <div style={{ display: "flex", gap: "16px", marginTop: "8px" }}>
+              <span style={{ color: COLORS.muted, fontSize: "12px" }}>⏱ {sim.time}</span>
+              <span style={{ color: COLORS.muted, fontSize: "12px" }}>🎯 Skill: {sim.skill}</span>
+              <span style={{ color: "#ff4444", fontSize: "12px", fontWeight: "600" }}>Risk: {sim.risk}</span>
+            </div>
+          </div>
+          <button onClick={onClose} style={{ background: "none", border: "none", color: COLORS.muted, cursor: "pointer", fontSize: "20px" }}>✕</button>
+        </div>
+
+        {/* Warning */}
+        <div style={{ padding: "12px 16px", borderRadius: "10px", backgroundColor: "rgba(245,158,11,0.1)", border: "1px solid rgba(245,158,11,0.3)", marginBottom: "24px", fontSize: "13px", color: "#f59e0b" }}>
+          ⚠ This simulation shows how attackers exploit this vulnerability. All commands shown are for educational purposes only. Never run these against systems you don't own.
+        </div>
+
+        {/* Run button */}
+        {!running && activeStep === 0 && (
+          <button onClick={runSimulation}
+            style={{ width: "100%", padding: "16px", borderRadius: "12px", background: "linear-gradient(135deg, rgba(255,68,68,0.2), rgba(255,68,68,0.05))", border: "1px solid rgba(255,68,68,0.5)", color: "#ff4444", fontSize: "16px", fontWeight: "800", cursor: "pointer", marginBottom: "24px", boxShadow: "0 0 30px rgba(255,68,68,0.2)", letterSpacing: "0.02em" }}>
+            ▶ Run Attack Simulation
+          </button>
+        )}
+
+        {/* Attack steps */}
+        <div style={{ marginBottom: "24px" }}>
+          {sim.steps.map((step, i) => (
+            <div key={i} style={{ marginBottom: "12px", opacity: activeStep > i ? 1 : activeStep === i && running ? 0.7 : 0.3, transition: "opacity 0.5s" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "8px" }}>
+                <span style={{ fontSize: "18px" }}>{activeStep > i ? "✅" : step.icon}</span>
+                <span style={{ color: step.color, fontSize: "13px", fontWeight: "700" }}>{step.phase}</span>
+                {activeStep === i + 1 && running && <span style={{ color: "#f59e0b", fontSize: "11px" }}>● Running...</span>}
+              </div>
+              <div style={{ padding: "14px 18px", borderRadius: "10px", backgroundColor: "#000510", border: `1px solid ${step.color}40`, fontFamily: "JetBrains Mono, monospace", fontSize: "13px", color: step.color, marginBottom: "8px", boxShadow: activeStep > i ? `0 0 20px ${step.color}15` : "none", transition: "box-shadow 0.5s" }}>
+                <span style={{ color: "#475569", marginRight: "8px" }}>$</span>{step.cmd}
+              </div>
+              <div style={{ color: COLORS.muted, fontSize: "13px", paddingLeft: "28px" }}>{step.desc}</div>
+            </div>
+          ))}
+        </div>
+
+        {/* Impact */}
+        {activeStep >= sim.steps.length && (
+          <div style={{ padding: "24px", borderRadius: "16px", backgroundColor: "rgba(255,68,68,0.08)", border: "1px solid rgba(255,68,68,0.35)", marginBottom: "20px", boxShadow: "0 0 40px rgba(255,68,68,0.1)" }}>
+            <div style={{ color: "#ff4444", fontWeight: "800", fontSize: "16px", marginBottom: "16px", display: "flex", alignItems: "center", gap: "8px" }}>💀 Attack Complete — Potential Impact:</div>
+            {sim.impact.map((imp, i) => (
+              <div key={i} style={{ display: "flex", alignItems: "center", gap: "8px", color: COLORS.muted, fontSize: "13px", marginBottom: "6px" }}>
+                <div style={{ width: "6px", height: "6px", borderRadius: "50%", backgroundColor: "#ff4444", flexShrink: 0 }} />
+                {imp}
+              </div>
+            ))}
+          </div>
+        )}
+
+        {/* Fix reminder */}
+        <div style={{ padding: "16px", borderRadius: "12px", backgroundColor: "rgba(0,255,136,0.08)", border: "1px solid rgba(0,255,136,0.25)", display: "flex", alignItems: "center", gap: "12px" }}>
+          <span style={{ fontSize: "20px" }}>🛡️</span>
+          <div>
+            <div style={{ color: "#00ff88", fontWeight: "700", fontSize: "13px", marginBottom: "4px" }}>How to prevent this attack</div>
+            <div style={{ color: COLORS.muted, fontSize: "13px" }}>Use the View Fix button to see step-by-step remediation commands.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function FindingRow({ finding, token, onStatusUpdate }) {
   const [open, setOpen]           = useState(false);
   const [showFix, setShowFix]     = useState(false);
+  const [showSim, setShowSim]     = useState(false);
   const [fixStatus, setFixStatus] = useState(finding.fix_status || "open");
   const cfg = SEVERITY_CONFIG[finding.severity] || SEVERITY_CONFIG.INFO;
 
@@ -2225,6 +2396,12 @@ function FindingRow({ finding, token, onStatusUpdate }) {
 
   return (
     <>
+      {showSim && (
+        <AttackSimPanel
+          finding={finding}
+          onClose={() => setShowSim(false)}
+        />
+      )}
       {showFix && (
         <FixPanel
           finding={{ ...finding, fix_status: fixStatus }}
@@ -2268,6 +2445,12 @@ function FindingRow({ finding, token, onStatusUpdate }) {
                 border: `1px solid ${COLORS.blue + "40"}`
               }}>
               View Fix
+            </button>
+            <button
+              onClick={e => { e.stopPropagation(); setShowSim(true); }}
+              className="px-3 py-1.5 rounded-lg text-xs font-bold transition-all"
+              style={{ backgroundColor: "#ff444420", color: "#ff4444", border: "1px solid #ff444440" }}>
+              ⚡ Simulate Attack
             </button>
             {open
               ? <ChevronUp size={16} style={{ color: COLORS.muted }} />
