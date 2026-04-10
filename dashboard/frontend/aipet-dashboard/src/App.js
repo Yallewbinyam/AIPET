@@ -5563,6 +5563,8 @@ const NAV_GROUPS = [
 function SettingsPage({ token, showToast }) {
   const [slack, setSlack] = useState("");
   const [teams, setTeams] = useState("");
+  const [siem, setSiem] = useState("");
+  const [testingSiem, setTestingSiem] = useState(false);
   const [notifyCritical, setNotifyCritical] = useState(true);
   const [notifyHigh, setNotifyHigh] = useState(true);
   const [notifyCve, setNotifyCve] = useState(false);
@@ -5577,6 +5579,7 @@ function SettingsPage({ token, showToast }) {
     }).then(r => {
       setSlack(r.data.slack_webhook_url || "");
       setTeams(r.data.teams_webhook_url || "");
+      setSiem(r.data.siem_webhook_url || "");
       setNotifyCritical(r.data.notify_critical);
       setNotifyHigh(r.data.notify_high);
       setNotifyCve(r.data.notify_cve);
@@ -5587,7 +5590,7 @@ function SettingsPage({ token, showToast }) {
     setSaving(true);
     try {
       await axios.put("http://localhost:5001/api/settings", {
-        slack_webhook_url: slack, teams_webhook_url: teams,
+        slack_webhook_url: slack, teams_webhook_url: teams, siem_webhook_url: siem,
         notify_critical: notifyCritical, notify_high: notifyHigh, notify_cve: notifyCve
       }, { headers: { Authorization: `Bearer ${token}` } });
       setSaved(true);
@@ -5735,6 +5738,40 @@ function SettingsPage({ token, showToast }) {
             {testingTeams ? "Sending..." : "🚀 Send Test Message"}
           </button>
         </div>
+      </div>
+
+      {/* SIEM Webhook */}
+      <div style={{ background: C.card, border: `1px solid ${siem ? "#e11d4880" : C.border}`, borderRadius: "20px", padding: "28px", marginBottom: "20px", transition: "all 0.2s" }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "20px" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+            <div style={{ width: "40px", height: "40px", borderRadius: "10px", background: "#e11d4820", border: "1px solid #e11d4840", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "20px" }}>🔌</div>
+            <div>
+              <div style={{ color: C.text, fontWeight: "700", fontSize: "15px" }}>SIEM Webhook</div>
+              <div style={{ color: C.muted, fontSize: "11px" }}>Splunk HEC · IBM QRadar · Microsoft Sentinel</div>
+            </div>
+          </div>
+          <div style={{ display: "flex", alignItems: "center", gap: "6px", padding: "4px 10px", borderRadius: "100px", background: siem ? "#00ff8820" : `${C.border}30`, border: `1px solid ${siem ? "#00ff8840" : C.border}` }}>
+            <div style={{ width: "6px", height: "6px", borderRadius: "50%", background: siem ? "#00ff88" : C.muted }} />
+            <span style={{ fontSize: "11px", fontWeight: "600", color: siem ? "#00ff88" : C.muted }}>{siem ? "Configured" : "Not configured"}</span>
+          </div>
+        </div>
+        <input
+          style={{ width: "100%", padding: "12px 14px", borderRadius: "10px", background: "#060d1a", border: `1px solid ${siem ? "#e11d4860" : C.border}`, color: C.text, fontSize: "12px", outline: "none", boxSizing: "border-box", fontFamily: "JetBrains Mono, monospace" }}
+          placeholder="https://your-splunk:8088/services/collector or https://qradar/api/..." value={siem} onChange={e => setSiem(e.target.value)}
+        />
+        <button onClick={async () => {
+          setTestingSiem(true);
+          try {
+            const r = await fetch("http://localhost:5001/api/settings/test-siem", { method: "POST", headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` }, body: JSON.stringify({ siem_webhook_url: siem }) });
+            const d = await r.json();
+            if (d.success) showToast("SIEM test event sent!", "success");
+            else showToast(d.error || "Failed", "error");
+          } catch { showToast("Connection failed", "error"); }
+          setTestingSiem(false);
+        }} disabled={testingSiem || !siem}
+          style={{ marginTop: "14px", width: "100%", padding: "10px", borderRadius: "8px", border: "1px solid #e11d4860", background: "#e11d4820", color: "#f43f5e", fontWeight: "600", fontSize: "13px", cursor: siem ? "pointer" : "not-allowed", opacity: !siem ? 0.5 : 1 }}>
+          {testingSiem ? "Sending..." : "🚀 Send Test Event"}
+        </button>
       </div>
 
       {/* Notification preferences */}
