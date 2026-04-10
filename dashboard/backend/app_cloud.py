@@ -697,6 +697,9 @@ app = create_app(
     os.environ.get("FLASK_ENV", "development")
 )
 
+from dashboard.backend.public_scan.routes import public_scan_bp
+app.register_blueprint(public_scan_bp)
+
 if __name__ == "__main__":
     print("=" * 60)
     print("  AIPET Cloud Backend v2")

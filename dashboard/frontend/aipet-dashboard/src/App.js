@@ -3969,6 +3969,133 @@ function ContactPage({ onBack }) {
   );
 }
 
+
+function PublicScanner({ onGetStarted }) {
+  const [target, setTarget] = useState('');
+  const [scanning, setScanning] = useState(false);
+  const [result, setResult] = useState(null);
+  const [error, setError] = useState(null);
+
+  const runScan = async () => {
+    if (!target) return;
+    setScanning(true);
+    setResult(null);
+    setError(null);
+    try {
+      const r = await fetch('http://localhost:5001/api/public/scan', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ target }),
+      });
+      const data = await r.json();
+      if (!r.ok) { setError(data.error || 'Scan failed'); }
+      else setResult(data);
+    } catch (e) { setError('Connection failed. Make sure AIPET backend is running.'); }
+    setScanning(false);
+  };
+
+  const SEVERITY_COLORS = { critical: '#ff4444', high: '#f59e0b', medium: '#00e5ff', low: '#00ff88' };
+
+  return (
+    <div>
+      {/* Input */}
+      <div style={{ display: "flex", gap: "12px", maxWidth: "600px", margin: "0 auto 32px" }}>
+        <input
+          value={target}
+          onChange={e => setTarget(e.target.value)}
+          onKeyDown={e => e.key === 'Enter' && runScan()}
+          placeholder="Enter IP address e.g. 192.168.1.1"
+          style={{ flex: 1, padding: "16px 20px", borderRadius: "12px", border: `1px solid ${COLORS.border}`, backgroundColor: COLORS.darker, color: COLORS.text, fontSize: "16px", outline: "none", fontFamily: "Inter, sans-serif" }}
+        />
+        <button onClick={runScan} disabled={scanning || !target}
+          style={{ padding: "16px 32px", borderRadius: "12px", backgroundColor: COLORS.blue, color: "white", border: "none", cursor: target ? "pointer" : "not-allowed", fontSize: "16px", fontWeight: "700", opacity: !target ? 0.6 : 1, boxShadow: `0 0 24px ${COLORS.blue}40`, whiteSpace: "nowrap" }}>
+          {scanning ? "Scanning..." : "🔍 Scan Now"}
+        </button>
+      </div>
+
+      {/* Scanning animation */}
+      {scanning && (
+        <div style={{ textAlign: "center", padding: "40px" }}>
+          <div style={{ fontSize: "48px", marginBottom: "16px" }}>🔍</div>
+          <div style={{ color: COLORS.blue, fontSize: "16px", fontWeight: "600" }}>Scanning {target}...</div>
+          <div style={{ color: COLORS.muted, fontSize: "13px", marginTop: "8px" }}>Checking {11} common IoT ports</div>
+        </div>
+      )}
+
+      {/* Error */}
+      {error && (
+        <div style={{ padding: "16px", borderRadius: "12px", backgroundColor: "rgba(255,68,68,0.1)", border: "1px solid rgba(255,68,68,0.3)", color: "#ff4444", fontSize: "14px", maxWidth: "600px", margin: "0 auto" }}>
+          ⚠ {error}
+        </div>
+      )}
+
+      {/* Results */}
+      {result && (
+        <div style={{ maxWidth: "700px", margin: "0 auto", textAlign: "left" }}>
+          {/* Summary card */}
+          <div style={{ padding: "28px", borderRadius: "20px", border: `1px solid ${COLORS.blue}30`, backgroundColor: COLORS.darker, marginBottom: "20px", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
+              <div style={{ width: "56px", height: "56px", borderRadius: "14px", backgroundColor: COLORS.blue + "20", display: "flex", alignItems: "center", justifyContent: "center", fontSize: "28px" }}>
+                {result.device_icon}
+              </div>
+              <div>
+                <div style={{ color: COLORS.text, fontSize: "18px", fontWeight: "800" }}>{result.target}</div>
+                <div style={{ color: COLORS.blue, fontSize: "13px", fontWeight: "600" }}>{result.device_type}</div>
+                <div style={{ color: COLORS.muted, fontSize: "12px" }}>Open ports: {result.open_ports.join(', ') || 'None detected'}</div>
+              </div>
+            </div>
+            <div style={{ textAlign: "center" }}>
+              <div style={{ fontSize: "36px", fontWeight: "900", color: SEVERITY_COLORS[result.risk_level?.toLowerCase()] || COLORS.blue }}>{result.risk_score}</div>
+              <div style={{ fontSize: "12px", color: COLORS.muted }}>Risk Score</div>
+              <div style={{ fontSize: "13px", fontWeight: "700", color: SEVERITY_COLORS[result.risk_level?.toLowerCase()] || COLORS.blue }}>{result.risk_level}</div>
+            </div>
+          </div>
+
+          {/* Findings */}
+          {result.findings.length > 0 ? (
+            <div style={{ marginBottom: "20px" }}>
+              <div style={{ color: COLORS.text, fontSize: "15px", fontWeight: "700", marginBottom: "12px" }}>
+                Vulnerabilities Found ({result.total_findings} total — showing top 3)
+              </div>
+              {result.findings.map((f, i) => (
+                <div key={i} style={{ padding: "16px", borderRadius: "12px", border: `1px solid ${SEVERITY_COLORS[f.severity]}30`, backgroundColor: SEVERITY_COLORS[f.severity] + "08", marginBottom: "8px", display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: "12px" }}>
+                  <div>
+                    <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "4px" }}>
+                      <span style={{ fontSize: "12px", fontWeight: "700", color: SEVERITY_COLORS[f.severity], padding: "2px 8px", borderRadius: "6px", backgroundColor: SEVERITY_COLORS[f.severity] + "20" }}>{f.severity.toUpperCase()}</span>
+                      <span style={{ color: COLORS.text, fontSize: "14px", fontWeight: "600" }}>Port {f.port} — {f.name}</span>
+                    </div>
+                    <div style={{ color: COLORS.muted, fontSize: "12px" }}>MITRE: {f.mitre} · Fix: {f.fix}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : (
+            <div style={{ padding: "24px", borderRadius: "12px", backgroundColor: "#00ff8808", border: "1px solid #00ff8830", textAlign: "center", marginBottom: "20px" }}>
+              <div style={{ fontSize: "32px", marginBottom: "8px" }}>✅</div>
+              <div style={{ color: "#00ff88", fontWeight: "700" }}>No open vulnerable ports detected</div>
+              <div style={{ color: COLORS.muted, fontSize: "13px" }}>Sign up for a full 7-module deep scan</div>
+            </div>
+          )}
+
+          {/* CTA */}
+          <div style={{ padding: "24px", borderRadius: "16px", background: `linear-gradient(135deg, ${COLORS.blue}15, ${COLORS.purple}10)`, border: `1px solid ${COLORS.blue}30`, textAlign: "center" }}>
+            <div style={{ color: COLORS.text, fontWeight: "700", fontSize: "16px", marginBottom: "8px" }}>
+              {result.total_findings > 3 ? `+${result.total_findings - 3} more vulnerabilities hidden` : "Want the full report?"}
+            </div>
+            <div style={{ color: COLORS.muted, fontSize: "13px", marginBottom: "16px" }}>
+              Sign up free to see all findings, SHAP AI explanations, financial risk, and compliance reports
+            </div>
+            <button onClick={onGetStarted}
+              style={{ padding: "12px 32px", borderRadius: "10px", backgroundColor: COLORS.blue, color: "white", border: "none", cursor: "pointer", fontSize: "15px", fontWeight: "700", boxShadow: `0 0 24px ${COLORS.blue}40` }}>
+              Get Full Report Free →
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 function LandingPage({ onGetStarted, onLogin, setLegalPage, setActivePage }) {
   const { t, i18n } = useTranslation();
   const [currency, setCurrency] = useState({ code: 'GBP', symbol: '£' });
@@ -4220,6 +4347,27 @@ function LandingPage({ onGetStarted, onLogin, setLegalPage, setActivePage }) {
       </div>
 
       {/* PRICING */}
+      {/* FREE PUBLIC SCANNER */}
+      <div id="free-scan" style={{ backgroundColor: COLORS.card, padding: "80px 32px" }}>
+        <div style={{ maxWidth: "900px", margin: "0 auto", textAlign: "center" }}>
+          <div style={{ display: "inline-flex", alignItems: "center", gap: "8px", padding: "6px 16px", borderRadius: "100px", border: `1px solid ${COLORS.blue}40`, backgroundColor: COLORS.blue + "10", marginBottom: "24px" }}>
+            <div style={{ width: "8px", height: "8px", borderRadius: "50%", backgroundColor: COLORS.blue, animation: "pulse 2s infinite" }} />
+            <span style={{ color: COLORS.blue, fontSize: "13px", fontWeight: "600" }}>Free Public Scanner — No Login Required</span>
+          </div>
+          <h2 style={{ fontSize: "36px", fontWeight: "900", color: COLORS.text, marginBottom: "16px", letterSpacing: "-0.02em" }}>
+            Scan Any IoT Device
+            <span style={{ color: COLORS.blue }}> Right Now</span>
+          </h2>
+          <p style={{ color: COLORS.muted, fontSize: "16px", marginBottom: "40px" }}>
+            Enter an IP address and see vulnerabilities instantly. No signup required.
+          </p>
+
+          {/* Scanner input */}
+          <PublicScanner onGetStarted={onGetStarted} />
+
+        </div>
+      </div>
+
       <div id="pricing" style={{ maxWidth: "1200px", margin: "0 auto", padding: "80px 32px" }}>
         <div style={{ textAlign: "center", marginBottom: "48px" }}>
           <h2 style={{ fontSize: "36px", fontWeight: "900", color: COLORS.text, marginBottom: "12px" }}>{t('pricing.title')}</h2>
