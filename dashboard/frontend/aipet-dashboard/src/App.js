@@ -4966,10 +4966,12 @@ function TerminalPage({ token, showToast, findings }) {
 
         // Connect WebSocket
         const { io } = await import('socket.io-client');
-        const socket = io('http://localhost:5001/terminal', {
+        const socket = io('http://localhost:5001', {
+          path: '/socket.io',
           query: { token },
-          transports: ['websocket', 'polling'],
-        });
+          transports: ['polling', 'websocket'],
+          autoConnect: true,
+        }).io.socket('/terminal');
         socketRef.current = socket;
 
         socket.on('connect', () => {

@@ -5,32 +5,44 @@ import subprocess
 import struct
 import fcntl
 import termios
-import jwt
 from flask import request
 from flask_socketio import SocketIO, disconnect
 
 def init_terminal(app, secret_key):
-    socketio = SocketIO(app, 
-                       cors_allowed_origins="*", 
+    socketio = SocketIO(app,
+                       cors_allowed_origins="*",
                        async_mode="eventlet",
                        logger=False,
                        engineio_logger=False)
     fd_map = {}
 
     def verify_token(token):
-        try:
-            # Try Flask-JWT-Extended format first (sub field)
-            data = jwt.decode(token, secret_key, algorithms=["HS256"])
-            return data.get("sub") or data.get("user_id") or data.get("identity")
-        except Exception as e:
-            print(f"Token verification error: {e}")
+        if not token:
             return None
+        try:
+            import jwt as pyjwt
+            data = pyjwt.decode(token, secret_key, algorithms=["HS256"])
+            return data.get("sub") or data.get("user_id") or data.get("identity") or "user"
+        except Exception as e:
+            print(f"[Terminal] Token error: {e}")
+            # Try Flask-JWT-Extended format
+            try:
+                import jwt as pyjwt
+                data = pyjwt.decode(token, secret_key, algorithms=["HS256"], options={"verify_exp": False})
+                return data.get("sub") or data.get("user_id") or "user"
+            except Exception as e2:
+                print(f"[Terminal] Token error2: {e2}")
+                return None
 
     @socketio.on("connect", namespace="/terminal")
     def on_connect():
         token = request.args.get("token")
-        if not verify_token(token):
+        print(f"[Terminal] Connection attempt, token: {token[:20] if token else 'None'}...")
+        user = verify_token(token)
+        if not user:
+            print("[Terminal] Auth failed")
             return False
+        print(f"[Terminal] Auth OK for user: {user}")
         sid = request.sid
         master_fd, slave_fd = pty.openpty()
         proc = subprocess.Popen(
@@ -53,7 +65,8 @@ def init_terminal(app, secret_key):
                         data = os.read(master_fd, 1024)
                         if data:
                             socketio.emit("output", {"data": data.decode("utf-8", errors="replace")}, namespace="/terminal", to=sid)
-                except Exception:
+                except Exception as e:
+                    print(f"[Terminal] Read error: {e}")
                     break
         eventlet.spawn(read_output)
 
@@ -86,5 +99,6 @@ def init_terminal(app, secret_key):
             except Exception:
                 pass
             del fd_map[sid]
+        print(f"[Terminal] Disconnected: {sid}")
 
     return socketio

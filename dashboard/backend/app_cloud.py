@@ -700,10 +700,14 @@ app = create_app(
 from dashboard.backend.public_scan.routes import public_scan_bp
 app.register_blueprint(public_scan_bp)
 
+
+from dashboard.backend.terminal.routes import init_terminal
+socketio = init_terminal(app, os.environ.get("JWT_SECRET_KEY", "dev-secret"))
+
 if __name__ == "__main__":
     print("=" * 60)
     print("  AIPET Cloud Backend v2")
     print("  Running at: http://localhost:5001")
     print("=" * 60)
-    app.run(host="0.0.0.0", port=5001,
+    socketio.run(app, host="0.0.0.0", port=5001,
             debug=True, use_reloader=False)
