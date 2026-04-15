@@ -4913,113 +4913,131 @@ function TerminalPage({ token, showToast, findings }) {
   const socketRef = useRef(null);
   const fitAddonRef = useRef(null);
   const [connected, setConnected] = useState(false);
-  const [error, setError] = useState(null);
+  const [status, setStatus] = useState('disconnected');
 
   useEffect(() => {
-    // Dynamically import xterm to avoid SSR issues
+    // Dynamically import xterm
     const loadTerminal = async () => {
-      try {
-        const { Terminal } = await import('xterm');
-        const { FitAddon } = await import('@xterm/addon-fit');
-        await import('xterm/css/xterm.css');
+      const { Terminal } = await import('xterm');
+      const { FitAddon } = await import('xterm-addon-fit');
+      await import('xterm/css/xterm.css');
 
-        const term = new Terminal({
-          cursorBlink: true,
-          fontSize: 14,
-          fontFamily: '"JetBrains Mono", "Fira Code", "Courier New", monospace',
-          theme: {
-            background: '#020810',
-            foreground: '#00e5ff',
-            cursor: '#00e5ff',
-            cursorAccent: '#020810',
-            black: '#020810',
-            red: '#ff4444',
-            green: '#00ff88',
-            yellow: '#f59e0b',
-            blue: '#00e5ff',
-            magenta: '#a855f7',
-            cyan: '#00e5ff',
-            white: '#e2e8f0',
-            brightBlack: '#1e3a4a',
-            brightRed: '#ff6666',
-            brightGreen: '#00ffaa',
-            brightYellow: '#fbbf24',
-            brightBlue: '#38bdf8',
-            brightMagenta: '#c084fc',
-            brightCyan: '#67e8f9',
-            brightWhite: '#f8fafc',
-          },
-          allowTransparency: true,
-          scrollback: 1000,
-          rows: 30,
-        });
+      if (!terminalRef.current) return;
 
-        const fitAddon = new FitAddon();
-        term.loadAddon(fitAddon);
-        xtermRef.current = term;
-        fitAddonRef.current = fitAddon;
+      // Create xterm instance
+      const term = new Terminal({
+        cursorBlink: true,
+        fontSize: 14,
+        fontFamily: "'JetBrains Mono', 'Courier New', monospace",
+        theme: {
+          background: '#020810',
+          foreground: '#00e5ff',
+          cursor: '#00e5ff',
+          cursorAccent: '#020810',
+          selection: 'rgba(0,229,255,0.2)',
+          black: '#020810',
+          brightBlack: '#1e3a4a',
+          red: '#ff4444',
+          brightRed: '#ff6666',
+          green: '#00ff88',
+          brightGreen: '#00ffaa',
+          yellow: '#f59e0b',
+          brightYellow: '#fbbf24',
+          blue: '#00e5ff',
+          brightBlue: '#38bdf8',
+          magenta: '#a855f7',
+          brightMagenta: '#c084fc',
+          cyan: '#00e5ff',
+          brightCyan: '#67e8f9',
+          white: '#e2e8f0',
+          brightWhite: '#f8fafc',
+        },
+        scrollback: 1000,
+        rows: 30,
+        cols: 100,
+      });
 
-        if (terminalRef.current) {
-          term.open(terminalRef.current);
-          fitAddon.fit();
+      const fitAddon = new FitAddon();
+      term.loadAddon(fitAddon);
+      term.open(terminalRef.current);
+      fitAddon.fit();
+
+      xtermRef.current = term;
+      fitAddonRef.current = fitAddon;
+
+      // Welcome message
+      term.writeln('[1;36m╔══════════════════════════════════════════════════╗[0m');
+      term.writeln('[1;36m║         AIPET X Terminal v1.0.0                  ║[0m');
+      term.writeln('[1;36m║    AI-Powered IoT Security Command Center         ║[0m');
+      term.writeln('[1;36m╚══════════════════════════════════════════════════╝[0m');
+      term.writeln('');
+      term.writeln('[33mConnecting to secure shell...[0m');
+
+      // Connect WebSocket
+      const { io } = await import('socket.io-client');
+      const socket = io('http://localhost:5001/terminal', {
+        query: { token },
+        transports: ['websocket'],
+        reconnectionAttempts: 3,
+        reconnectionDelay: 2000,
+      });
+
+      socketRef.current = socket;
+
+      socket.on('connect', () => {
+        setConnected(true);
+        setStatus('connected');
+        term.writeln('[32m✓ Connected to AIPET X Terminal[0m');
+        term.writeln('');
+      });
+
+      socket.on('output', (data) => {
+        term.write(data);
+      });
+
+      socket.on('disconnect', () => {
+        setConnected(false);
+        setStatus('disconnected');
+        term.writeln('\r\n\x1b[31m✗ Terminal session ended.\x1b[0m');
+      });
+
+      socket.on('connect_error', () => {
+        setStatus('error');
+        term.writeln('[31m✗ Connection failed. Is the backend running?[0m');
+      });
+
+      // Send keystrokes to backend
+      term.onData((data) => {
+        if (socket.connected) {
+          socket.emit('input', data);
         }
+      });
 
-        // Connect WebSocket
-        const { io } = await import('socket.io-client');
-        const socket = io('http://localhost:5001', {
-          path: '/socket.io',
-          query: { token },
-          transports: ['polling', 'websocket'],
-          autoConnect: true,
-        }).io.socket('/terminal');
-        socketRef.current = socket;
+      // Handle resize
+      const handleResize = () => {
+        fitAddon.fit();
+        socket.emit('resize', { rows: term.rows, cols: term.cols });
+      };
+      window.addEventListener('resize', handleResize);
 
-        socket.on('connect', () => {
-          setConnected(true);
-          setError(null);
-        });
-
-        socket.on('output', (data) => {
-          term.write(data.data);
-        });
-
-        socket.on('disconnect', () => {
-          setConnected(false);
-          term.write('\r\nDisconnected from terminal.\r\n');
-        });
-
-        socket.on('connect_error', (err) => {
-          setError('Connection failed. Make sure the backend is running.');
-          setConnected(false);
-        });
-
-        term.onData((data) => {
-          socket.emit('input', { data });
-        });
-
-        term.onResize(({ rows, cols }) => {
-          socket.emit('resize', { rows, cols });
-        });
-
-        // Handle window resize
-        const handleResize = () => { if (fitAddonRef.current) fitAddonRef.current.fit(); };
-        window.addEventListener('resize', handleResize);
-
-        return () => {
-          window.removeEventListener('resize', handleResize);
-          socket.disconnect();
-          term.dispose();
-        };
-      } catch (err) {
-        setError(`Failed to load terminal: ${err.message}`);
-      }
+      return () => {
+        window.removeEventListener('resize', handleResize);
+        socket.disconnect();
+        term.dispose();
+      };
     };
 
     loadTerminal();
   }, [token]);
 
+  const statusColors = {
+    connected: '#00ff88',
+    disconnected: '#64748b',
+    error: '#ff4444',
+  };
+
   return (
-    <div style={{ height: '100%', display: 'flex', flexDirection: 'column', gap: '12px' }}>
+    <div style={{ height: '100%', display: 'flex', flexDirection: 'column', gap: '16px' }}>
       {/* Header */}
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <div>
@@ -5027,40 +5045,43 @@ function TerminalPage({ token, showToast, findings }) {
             <span style={{ color: '#00e5ff' }}>{'>'}_</span> AIPET X Terminal
           </h2>
           <p style={{ fontSize: '13px', color: '#475569', margin: '4px 0 0' }}>
-            Real Linux shell — fully integrated with AIPET security platform
+            Real-time secure shell — execute commands directly on your security infrastructure
           </p>
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', padding: '6px 12px', borderRadius: '8px', backgroundColor: connected ? 'rgba(0,255,136,0.1)' : 'rgba(255,68,68,0.1)', border: `1px solid ${connected ? 'rgba(0,255,136,0.3)' : 'rgba(255,68,68,0.3)'}` }}>
-            <div style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: connected ? '#00ff88' : '#ff4444', boxShadow: connected ? '0 0 8px #00ff88' : 'none' }} />
-            <span style={{ fontSize: '12px', color: connected ? '#00ff88' : '#ff4444', fontFamily: 'monospace', fontWeight: '600' }}>{connected ? 'CONNECTED' : 'DISCONNECTED'}</span>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+            <div style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: statusColors[status], boxShadow: `0 0 8px ${statusColors[status]}` }} />
+            <span style={{ fontSize: '12px', color: statusColors[status], fontFamily: 'monospace', textTransform: 'uppercase' }}>{status}</span>
           </div>
+          <button
+            onClick={() => { if (socketRef.current) socketRef.current.disconnect(); }}
+            style={{ padding: '8px 16px', borderRadius: '8px', backgroundColor: 'rgba(255,68,68,0.1)', border: '1px solid rgba(255,68,68,0.3)', color: '#ff4444', fontSize: '13px', cursor: 'pointer' }}>
+            Disconnect
+          </button>
         </div>
       </div>
 
-      {error && (
-        <div style={{ padding: '12px 16px', borderRadius: '10px', backgroundColor: 'rgba(255,68,68,0.1)', border: '1px solid rgba(255,68,68,0.3)', color: '#ff4444', fontSize: '13px' }}>
-          ⚠ {error}
-        </div>
-      )}
-
       {/* Terminal window */}
-      <div style={{ flex: 1, backgroundColor: '#020810', borderRadius: '16px', border: '1px solid rgba(0,229,255,0.2)', boxShadow: '0 0 40px rgba(0,229,255,0.05)', overflow: 'hidden', display: 'flex', flexDirection: 'column', minHeight: '500px' }}>
+      <div style={{ flex: 1, backgroundColor: '#020810', borderRadius: '16px', border: `1px solid ${connected ? 'rgba(0,229,255,0.3)' : 'rgba(255,255,255,0.08)'}`, boxShadow: connected ? '0 0 40px rgba(0,229,255,0.08)' : 'none', overflow: 'hidden', display: 'flex', flexDirection: 'column', transition: 'all 0.3s' }}>
         {/* Title bar */}
-        <div style={{ padding: '10px 16px', backgroundColor: '#0a1628', borderBottom: '1px solid rgba(0,229,255,0.1)', display: 'flex', alignItems: 'center', gap: '8px', flexShrink: 0 }}>
+        <div style={{ padding: '10px 16px', backgroundColor: '#0a1628', borderBottom: '1px solid rgba(0,229,255,0.1)', display: 'flex', alignItems: 'center', gap: '8px' }}>
           <div style={{ width: '12px', height: '12px', borderRadius: '50%', backgroundColor: '#ff5f57' }} />
           <div style={{ width: '12px', height: '12px', borderRadius: '50%', backgroundColor: '#febc2e' }} />
           <div style={{ width: '12px', height: '12px', borderRadius: '50%', backgroundColor: '#28c840' }} />
-          <span style={{ marginLeft: '8px', fontSize: '12px', color: '#475569', fontFamily: 'monospace' }}>aipet@terminal:~ — bash</span>
-          <span style={{ marginLeft: 'auto', fontSize: '11px', color: '#1e3a4a', fontFamily: 'monospace' }}>xterm-256color</span>
+          <span style={{ marginLeft: '8px', fontSize: '12px', color: '#475569', fontFamily: 'monospace' }}>aipet@terminal:~ — AIPET X Secure Shell</span>
         </div>
-        {/* xterm.js container */}
-        <div ref={terminalRef} style={{ flex: 1, padding: '8px', backgroundColor: '#020810' }} />
+        {/* xterm.js mount point */}
+        <div ref={terminalRef} style={{ flex: 1, padding: '8px' }} />
+      </div>
+
+      {/* Security notice */}
+      <div style={{ padding: '10px 16px', borderRadius: '10px', backgroundColor: 'rgba(245,158,11,0.05)', border: '1px solid rgba(245,158,11,0.15)', display: 'flex', alignItems: 'center', gap: '8px' }}>
+        <span style={{ color: '#f59e0b', fontSize: '14px' }}>⚠</span>
+        <span style={{ color: '#64748b', fontSize: '12px' }}>This terminal executes real commands on your system. Only run commands you understand and trust.</span>
       </div>
     </div>
   );
 }
-
 
 function ProtocolsPage({ token, showToast, currentPlan }) {
   const [protocol, setProtocol] = useState("modbus");
