@@ -562,7 +562,7 @@ function AskPanel({ token }) {
       <Shield size={48} style={{ color: COLORS.muted }} className="mx-auto mb-4" />
       <div className="text-sm font-bold mb-2" style={{ color: COLORS.text }}>Professional Feature</div>
       <div className="text-xs" style={{ color: COLORS.muted }}>
-        AIPET Ask is available on Professional and Enterprise plans.
+        AIPET X Ask is available on Professional and Enterprise plans.
       </div>
     </div>
   );
@@ -576,7 +576,7 @@ function AskPanel({ token }) {
         <div>
           <div className="flex items-center gap-2 mb-1">
             <div className="w-2 h-2 rounded-full" style={{ backgroundColor: COLORS.cyan, boxShadow: `0 0 8px ${COLORS.cyan}` }} />
-            <div className="text-base font-black" style={{ color: COLORS.text, fontFamily: "'JetBrains Mono', monospace", letterSpacing: "0.05em" }}>AIPET Ask</div>
+            <div className="text-base font-black" style={{ color: COLORS.text, fontFamily: "'JetBrains Mono', monospace", letterSpacing: "0.05em" }}>AIPET X Ask</div>
           </div>
           <div className="text-xs mt-0.5" style={{ color: COLORS.muted }}>
             Ask any security question — Claude AI answers using your actual device data, findings, and financial exposure
@@ -648,7 +648,7 @@ function AskPanel({ token }) {
                   }}>
                   {msg.role === "assistant" && (
                     <div className="text-xs font-bold mb-1" style={{ color: COLORS.blue }}>
-                      AIPET Ask
+                      AIPET X Ask
                     </div>
                   )}
                   <div className="whitespace-pre-wrap">{msg.content}</div>
@@ -665,7 +665,7 @@ function AskPanel({ token }) {
               <div className="flex justify-start">
                 <div className="rounded-xl p-3 text-xs"
                   style={{ backgroundColor: COLORS.dark, color: COLORS.muted, border: `1px solid ${COLORS.border}` }}>
-                  <div className="font-bold mb-1" style={{ color: COLORS.blue }}>AIPET Ask</div>
+                  <div className="font-bold mb-1" style={{ color: COLORS.blue }}>AIPET X Ask</div>
                   Thinking...
                 </div>
               </div>
@@ -807,7 +807,7 @@ function WatchPanel({ token }) {
       <Shield size={48} style={{ color: COLORS.muted }} className="mx-auto mb-4" />
       <div className="text-sm font-bold mb-2" style={{ color: COLORS.text }}>Enterprise Feature</div>
       <div className="text-xs mb-4" style={{ color: COLORS.muted }}>
-        AIPET Watch is available on the Enterprise plan (£499/month).
+        AIPET X Watch is available on the Enterprise plan (£499/month).
       </div>
       <div className="text-xs" style={{ color: COLORS.muted }}>
         Includes 24/7 passive network monitoring, baseline profiling, and anomaly detection.
@@ -822,7 +822,7 @@ function WatchPanel({ token }) {
         style={{ backgroundColor: COLORS.card, borderColor: COLORS.border }}>
         <div>
           <div className="text-sm font-bold" style={{ color: COLORS.text }}>
-            AIPET Watch — Network Monitoring
+            AIPET X Watch — Network Monitoring
           </div>
           <div className="text-xs mt-0.5" style={{ color: COLORS.muted }}>
             {status ? `${status.devices_monitored} devices monitored · ${status.unacked_alerts} unacknowledged alerts` : "No baselines built yet"}
@@ -923,7 +923,7 @@ function WatchPanel({ token }) {
           Deploy the Watch Agent
         </div>
         <div className="text-xs leading-relaxed mb-3" style={{ color: COLORS.muted }}>
-          The AIPET Watch agent runs on your local network and monitors traffic passively.
+          The AIPET X Watch agent runs on your local network and monitors traffic passively.
           It is completely invisible to devices — they cannot detect it.
         </div>
         <div className="rounded-lg p-3 font-mono text-xs"
@@ -1100,7 +1100,7 @@ function PredictPanel({ token, scans }) {
       <AlertTriangle size={48} style={{ color: COLORS.muted }} className="mx-auto mb-4" />
       <div className="text-sm font-bold mb-2" style={{ color: COLORS.text }}>Professional Feature</div>
       <div className="text-xs" style={{ color: COLORS.muted }}>
-        AIPET Predict is available on Professional and Enterprise plans.
+        AIPET X Predict is available on Professional and Enterprise plans.
       </div>
     </div>
   );
@@ -1493,7 +1493,7 @@ function NetworkMap({ token, scans }) {
     <div className="rounded-2xl p-16 border text-center" style={{ backgroundColor: COLORS.card, borderColor: COLORS.border }}>
       <Shield size={48} style={{ color: COLORS.muted }} className="mx-auto mb-4" />
       <div className="text-sm font-bold mb-2" style={{ color: COLORS.text }}>Professional Feature</div>
-      <div className="text-xs" style={{ color: COLORS.muted }}>AIPET Map is available on Professional and Enterprise plans.</div>
+      <div className="text-xs" style={{ color: COLORS.muted }}>AIPET X Map is available on Professional and Enterprise plans.</div>
     </div>
   );
 
@@ -1843,7 +1843,7 @@ function ScorePanel({ findings, token, scans }) {
 
         {error === "upgrade" ? (
           <div className="text-center py-6">
-            <div className="text-xs" style={{ color: COLORS.muted }}>AIPET Score is available on Professional and Enterprise plans.</div>
+            <div className="text-xs" style={{ color: COLORS.muted }}>AIPET X Score is available on Professional and Enterprise plans.</div>
           </div>
         ) : error ? (
           <div className="text-center py-4">
@@ -2775,12 +2775,12 @@ function LegalPage({ page, onBack }) {
       title: "Privacy Policy",
       lastUpdated: "April 2026",
       body: `
-AIPET Cloud ("we", "our", "us") is committed to protecting your privacy.
+AIPET X ("we", "our", "us") is committed to protecting your privacy.
 This policy explains how we collect, use, and protect your personal data
 in accordance with the UK GDPR and Data Protection Act 2018.
 
 1. DATA WE COLLECT
-We collect the following personal data when you use AIPET Cloud:
+We collect the following personal data when you use AIPET X:
 - Name and email address (registration)
 - Payment information (processed by Stripe — we never store card details)
 - Scan targets and results (IoT network data you submit for scanning)
@@ -2789,7 +2789,7 @@ We collect the following personal data when you use AIPET Cloud:
 
 2. HOW WE USE YOUR DATA
 We use your data to:
-- Provide and improve the AIPET Cloud service
+- Provide and improve the AIPET X service
 - Process payments via Stripe
 - Send security alerts and service notifications
 - Comply with legal obligations
@@ -2827,10 +2827,10 @@ This policy was last updated: April 2026.
       title: "Terms of Service",
       lastUpdated: "April 2026",
       body: `
-By using AIPET Cloud, you agree to these Terms of Service.
+By using AIPET X, you agree to these Terms of Service.
 
 1. ACCEPTABLE USE
-AIPET Cloud is a penetration testing tool. You must only use it
+AIPET X is a penetration testing tool. You must only use it
 against systems you own or have explicit written permission to test.
 Using AIPET against systems without authorisation is illegal and
 violates these terms.
@@ -2853,16 +2853,16 @@ Refund requests made within 14 days of payment will be considered.
 Contact us via GitHub Issues with your request.
 
 5. INTELLECTUAL PROPERTY
-AIPET Cloud is open source under the MIT Licence.
+AIPET X is open source under the MIT Licence.
 The core engine is available at https://github.com/Yallewbinyam/AIPET
 
 6. DISCLAIMER
-AIPET Cloud is provided "as is". We make no warranties about
+AIPET X is provided "as is". We make no warranties about
 completeness, reliability, or accuracy of security assessments.
 Security testing should always be performed by qualified professionals.
 
 7. LIMITATION OF LIABILITY
-To the maximum extent permitted by law, AIPET Cloud shall not be
+To the maximum extent permitted by law, AIPET X shall not be
 liable for any indirect, incidental, or consequential damages
 arising from use of the service.
 
@@ -2876,7 +2876,7 @@ Last updated: April 2026.
       title: "Cookie Policy",
       lastUpdated: "April 2026",
       body: `
-AIPET Cloud uses cookies to provide a secure and functional service.
+AIPET X uses cookies to provide a secure and functional service.
 
 1. WHAT ARE COOKIES
 Cookies are small text files stored on your device when you visit
@@ -2899,7 +2899,7 @@ We do not use:
 
 4. MANAGING COOKIES
 You can clear cookies at any time through your browser settings.
-Clearing the authentication cookie will log you out of AIPET Cloud.
+Clearing the authentication cookie will log you out of AIPET X.
 
 5. STRIPE COOKIES
 Our payment processor Stripe may set cookies when you visit the
@@ -3284,11 +3284,11 @@ function PlatformPage({ onBack, onGetStarted }) {
   const MODULES = [
     {
       id: "scan",
-      name: "AIPET Scan",
+      name: "AIPET X Scan",
       tagline: t("platformPage.scan_tagline"),
       icon: "🔍",
       color: "#00e5ff",
-      description: "AIPET Scan automatically discovers and fingerprints every IoT device on your network. Using seven specialised attack modules — MQTT, CoAP, HTTP, Firmware Analysis, Recon, AI Engine, and Report Generation — it performs a comprehensive security assessment in under 60 seconds.",
+      description: "AIPET X Scan automatically discovers and fingerprints every IoT device on your network. Using seven specialised attack modules — MQTT, CoAP, HTTP, Firmware Analysis, Recon, AI Engine, and Report Generation — it performs a comprehensive security assessment in under 60 seconds.",
       features: [
         "Automatic device discovery across all subnets",
         "7 specialised IoT attack modules",
@@ -3301,11 +3301,11 @@ function PlatformPage({ onBack, onGetStarted }) {
     },
     {
       id: "explain",
-      name: "AIPET Explain",
+      name: "AIPET X Explain",
       tagline: t("platformPage.explain_tagline"),
       icon: "🧠",
       color: "#a855f7",
-      description: "Powered by Claude AI and SHAP explainability, AIPET Explain transforms complex vulnerability data into clear, actionable intelligence. It tells you not just what is vulnerable — but exactly why, using machine learning predictions that security teams and executives both understand.",
+      description: "Powered by Claude AI and SHAP explainability, AIPET X Explain transforms complex vulnerability data into clear, actionable intelligence. It tells you not just what is vulnerable — but exactly why, using machine learning predictions that security teams and executives both understand.",
       features: [
         "Claude AI-powered plain English explanations",
         "SHAP values showing exactly why each device is at risk",
@@ -3318,11 +3318,11 @@ function PlatformPage({ onBack, onGetStarted }) {
     },
     {
       id: "score",
-      name: "AIPET Score",
+      name: "AIPET X Score",
       tagline: t("platformPage.score_tagline"),
       icon: "💰",
       color: "#f59e0b",
-      description: "AIPET Score calculates the real financial exposure of your IoT vulnerabilities using IBM Cost of a Data Breach 2024 and NCSC data. It gives your CISO and board a clear answer to the question: what would this breach actually cost us?",
+      description: "AIPET X Score calculates the real financial exposure of your IoT vulnerabilities using IBM Cost of a Data Breach 2024 and NCSC data. It gives your CISO and board a clear answer to the question: what would this breach actually cost us?",
       features: [
         "Financial risk calculation using IBM/NCSC 2024 data",
         "Per-device and per-finding cost breakdown",
@@ -3335,11 +3335,11 @@ function PlatformPage({ onBack, onGetStarted }) {
     },
     {
       id: "map",
-      name: "AIPET Map",
+      name: "AIPET X Map",
       tagline: t("platformPage.map_tagline"),
       icon: "🗺️",
       color: "#00e5ff",
-      description: "AIPET Map uses D3.js to render a live, interactive network topology showing exactly how an attacker would move through your IoT infrastructure. See the complete attack chain — from initial access to full network compromise — visualised in real time.",
+      description: "AIPET X Map uses D3.js to render a live, interactive network topology showing exactly how an attacker would move through your IoT infrastructure. See the complete attack chain — from initial access to full network compromise — visualised in real time.",
       features: [
         "Interactive D3.js network topology visualisation",
         "Complete attack path mapping",
@@ -3352,11 +3352,11 @@ function PlatformPage({ onBack, onGetStarted }) {
     },
     {
       id: "predict",
-      name: "AIPET Predict",
+      name: "AIPET X Predict",
       tagline: t("platformPage.predict_tagline"),
       icon: "⚡",
       color: "#f59e0b",
-      description: "AIPET Predict connects to the NIST National Vulnerability Database in real time, matching newly published CVEs against your specific device inventory. Know within minutes when a new vulnerability affects your infrastructure — before attackers exploit it.",
+      description: "AIPET X Predict connects to the NIST National Vulnerability Database in real time, matching newly published CVEs against your specific device inventory. Know within minutes when a new vulnerability affects your infrastructure — before attackers exploit it.",
       features: [
         "Real-time NVD API integration",
         "Automatic CVE matching to your device inventory",
@@ -3369,11 +3369,11 @@ function PlatformPage({ onBack, onGetStarted }) {
     },
     {
       id: "watch",
-      name: "AIPET Watch",
+      name: "AIPET X Watch",
       tagline: t("platformPage.watch_tagline"),
       icon: "👁️",
       color: "#00ff88",
-      description: "AIPET Watch uses Scapy-based passive network monitoring to establish behavioural baselines for every IoT device and detect anomalies in real time. When a device starts behaving unusually — unexpected ports, unusual traffic patterns — you know immediately.",
+      description: "AIPET X Watch uses Scapy-based passive network monitoring to establish behavioural baselines for every IoT device and detect anomalies in real time. When a device starts behaving unusually — unexpected ports, unusual traffic patterns — you know immediately.",
       features: [
         "Passive network monitoring using Scapy",
         "Automatic baseline establishment per device",
@@ -3386,11 +3386,11 @@ function PlatformPage({ onBack, onGetStarted }) {
     },
     {
       id: "ask",
-      name: "AIPET Ask",
+      name: "AIPET X Ask",
       tagline: t("platformPage.ask_tagline"),
       icon: "💬",
       color: "#a855f7",
-      description: "AIPET Ask is a Claude AI-powered security assistant that answers any question about your IoT security posture in natural language. Ask about your vulnerabilities, compliance status, remediation steps, or anything else — and get expert-level answers instantly.",
+      description: "AIPET X Ask is a Claude AI-powered security assistant that answers any question about your IoT security posture in natural language. Ask about your vulnerabilities, compliance status, remediation steps, or anything else — and get expert-level answers instantly.",
       features: [
         "Claude AI-powered natural language interface",
         "Context-aware answers based on your actual scan data",
@@ -3414,7 +3414,7 @@ function PlatformPage({ onBack, onGetStarted }) {
             <div style={{ width: "36px", height: "36px", borderRadius: "10px", backgroundColor: COLORS.blue, display: "flex", alignItems: "center", justifyContent: "center" }}>
               <Shield size={18} color="white" />
             </div>
-            <span style={{ fontSize: "20px", fontWeight: "900", color: COLORS.text }}>AIPET</span>
+            <span style={{ fontSize: "20px", fontWeight: "900", color: COLORS.text }}>AIPET X</span>
           </div>
           <div style={{ display: "flex", gap: "16px" }}>
             <button onClick={onBack} style={{ color: COLORS.muted, background: "none", border: "none", cursor: "pointer", fontSize: "15px" }}>← Back</button>
@@ -3541,7 +3541,7 @@ function PlatformPage({ onBack, onGetStarted }) {
 
         {/* Footer */}
         <div style={{ borderTop: `1px solid ${COLORS.border}`, padding: "24px 48px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <p style={{ color: COLORS.muted, fontSize: "13px" }}>© 2026 AIPET Cloud · MIT Licence</p>
+          <p style={{ color: COLORS.muted, fontSize: "13px" }}>© 2026 AIPET X · MIT Licence</p>
           <button onClick={onBack} style={{ color: COLORS.blue, background: "none", border: "none", cursor: "pointer", fontSize: "13px" }}>← Back to Home</button>
         </div>
 
@@ -3699,7 +3699,7 @@ function SolutionsPage({ onBack, onGetStarted }) {
             <div style={{ width: "36px", height: "36px", borderRadius: "10px", backgroundColor: COLORS.blue, display: "flex", alignItems: "center", justifyContent: "center" }}>
               <Shield size={18} color="white" />
             </div>
-            <span style={{ fontSize: "20px", fontWeight: "900", color: COLORS.text }}>AIPET</span>
+            <span style={{ fontSize: "20px", fontWeight: "900", color: COLORS.text }}>AIPET X</span>
           </div>
           <div style={{ display: "flex", gap: "16px" }}>
             <button onClick={onBack} style={{ color: COLORS.muted, background: "none", border: "none", cursor: "pointer", fontSize: "15px" }}>← Back</button>
@@ -3826,7 +3826,7 @@ function SolutionsPage({ onBack, onGetStarted }) {
 
         {/* Footer */}
         <div style={{ borderTop: `1px solid ${COLORS.border}`, padding: "24px 48px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <p style={{ color: COLORS.muted, fontSize: "13px" }}>© 2026 AIPET Cloud · MIT Licence</p>
+          <p style={{ color: COLORS.muted, fontSize: "13px" }}>© 2026 AIPET X · MIT Licence</p>
           <button onClick={onBack} style={{ color: COLORS.blue, background: "none", border: "none", cursor: "pointer", fontSize: "13px" }}>← Back to Home</button>
         </div>
 
@@ -3847,7 +3847,7 @@ function AboutPage({ onBack, onGetStarted }) {
             <div style={{ width: "36px", height: "36px", borderRadius: "10px", backgroundColor: COLORS.blue, display: "flex", alignItems: "center", justifyContent: "center" }}>
               <Shield size={18} color="white" />
             </div>
-            <span style={{ fontSize: "20px", fontWeight: "900", color: COLORS.text }}>AIPET</span>
+            <span style={{ fontSize: "20px", fontWeight: "900", color: COLORS.text }}>AIPET X</span>
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
             <button onClick={onBack} style={{ color: COLORS.muted, background: "none", border: "none", cursor: "pointer", fontSize: "15px", display: "flex", alignItems: "center", gap: "6px" }}>
@@ -3889,7 +3889,7 @@ function AboutPage({ onBack, onGetStarted }) {
               <div style={{ width: "48px", height: "48px", borderRadius: "50%", backgroundColor: COLORS.blue, display: "flex", alignItems: "center", justifyContent: "center", fontSize: "20px", fontWeight: "900", color: "white" }}>B</div>
               <div>
                 <div style={{ color: COLORS.text, fontWeight: "700", fontSize: "16px" }}>Binyam Yallew</div>
-                <div style={{ color: COLORS.muted, fontSize: "14px" }}>Founder, AIPET Cloud · MSc Cyber Security (Ethical Hacking), Coventry University</div>
+                <div style={{ color: COLORS.muted, fontSize: "14px" }}>Founder, AIPET X · MSc Cyber Security (Ethical Hacking), Coventry University</div>
               </div>
             </div>
           </div>
@@ -4000,7 +4000,7 @@ function AboutPage({ onBack, onGetStarted }) {
 
         {/* Footer */}
         <div style={{ borderTop: `1px solid ${COLORS.border}`, padding: "24px 48px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <p style={{ color: COLORS.muted, fontSize: "13px" }}>© 2026 AIPET Cloud · MIT Licence</p>
+          <p style={{ color: COLORS.muted, fontSize: "13px" }}>© 2026 AIPET X · MIT Licence</p>
           <button onClick={onBack} style={{ color: COLORS.blue, background: "none", border: "none", cursor: "pointer", fontSize: "13px" }}>← Back to Home</button>
         </div>
 
@@ -4045,7 +4045,7 @@ function ContactPage({ onBack }) {
             <div style={{ width: "36px", height: "36px", borderRadius: "10px", backgroundColor: COLORS.blue, display: "flex", alignItems: "center", justifyContent: "center" }}>
               <Shield size={18} color="white" />
             </div>
-            <span style={{ fontSize: "20px", fontWeight: "900", color: COLORS.text }}>AIPET</span>
+            <span style={{ fontSize: "20px", fontWeight: "900", color: COLORS.text }}>AIPET X</span>
           </div>
           <button onClick={onBack} style={{ color: COLORS.muted, background: "none", border: "none", cursor: "pointer", fontSize: "15px" }}>← Back</button>
         </nav>
@@ -4143,7 +4143,7 @@ function ContactPage({ onBack }) {
 
         {/* Footer */}
         <div style={{ borderTop: `1px solid ${COLORS.border}`, padding: "24px 48px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <p style={{ color: COLORS.muted, fontSize: "13px" }}>© 2026 AIPET Cloud · MIT Licence</p>
+          <p style={{ color: COLORS.muted, fontSize: "13px" }}>© 2026 AIPET X · MIT Licence</p>
           <button onClick={onBack} style={{ color: COLORS.blue, background: "none", border: "none", cursor: "pointer", fontSize: "13px" }}>← Back to Home</button>
         </div>
 
@@ -4302,13 +4302,13 @@ function LandingPage({ onGetStarted, onLogin, setLegalPage, setActivePage }) {
 
   const NAV_MENUS = {
     platform: [
-      { label: "AIPET Scan", desc: "Discover IoT vulnerabilities", action: () => setActivePage('platform') },
-      { label: "AIPET Explain", desc: "AI-powered explanations", action: () => setActivePage('platform') },
-      { label: "AIPET Score", desc: "Financial risk exposure", action: () => setActivePage('platform') },
-      { label: "AIPET Map", desc: "Network attack paths", action: () => setActivePage('platform') },
-      { label: "AIPET Predict", desc: "Live CVE intelligence", action: () => setActivePage('platform') },
-      { label: "AIPET Watch", desc: "Anomaly detection", action: () => setActivePage('platform') },
-      { label: "AIPET Ask", desc: "AI security assistant", action: () => setActivePage('platform') },
+      { label: "AIPET X Scan", desc: "Discover IoT vulnerabilities", action: () => setActivePage('platform') },
+      { label: "AIPET X Explain", desc: "AI-powered explanations", action: () => setActivePage('platform') },
+      { label: "AIPET X Score", desc: "Financial risk exposure", action: () => setActivePage('platform') },
+      { label: "AIPET X Map", desc: "Network attack paths", action: () => setActivePage('platform') },
+      { label: "AIPET X Predict", desc: "Live CVE intelligence", action: () => setActivePage('platform') },
+      { label: "AIPET X Watch", desc: "Anomaly detection", action: () => setActivePage('platform') },
+      { label: "AIPET X Ask", desc: "AI security assistant", action: () => setActivePage('platform') },
     ],
     solutions: [
       { label: "Healthcare & NHS", desc: "NIS2 compliant IoT audits", action: () => setActivePage('solutions') },
@@ -4344,7 +4344,7 @@ function LandingPage({ onGetStarted, onLogin, setLegalPage, setActivePage }) {
 
       {/* TOP ANNOUNCEMENT BAR */}
       <div style={{ width: "100%", background: `linear-gradient(90deg, ${COLORS.blue}cc, #0099cc, ${COLORS.blue}cc)`, borderBottom: `1px solid ${COLORS.blue}`, color: "white", textAlign: "center", padding: "10px 32px", fontSize: "14px", fontWeight: "600" }}>
-        🔒 &nbsp; AIPET Cloud v3.0.0 — AI-Powered IoT Security Platform &nbsp;&nbsp;·&nbsp;&nbsp; NIS2 &nbsp;|&nbsp; NIST CSF 2.0 &nbsp;|&nbsp; ISO 27001 Compliant &nbsp;&nbsp;·&nbsp;&nbsp;
+        🔒 &nbsp; AIPET X v3.0.0 — AI-Powered IoT Security Platform &nbsp;&nbsp;·&nbsp;&nbsp; NIS2 &nbsp;|&nbsp; NIST CSF 2.0 &nbsp;|&nbsp; ISO 27001 Compliant &nbsp;&nbsp;·&nbsp;&nbsp;
         <span style={{ textDecoration: "underline", cursor: "pointer", fontWeight: "700" }} onClick={onGetStarted}>Start Free Trial →</span>
       </div>
 
@@ -4356,7 +4356,7 @@ function LandingPage({ onGetStarted, onLogin, setLegalPage, setActivePage }) {
           <div className="w-10 h-10 rounded-xl flex items-center justify-center" style={{ backgroundColor: COLORS.blue }}>
             <Shield size={20} color="white" />
           </div>
-          <span style={{ color: COLORS.text, fontSize: "22px", fontWeight: "900", letterSpacing: "-0.02em" }}>AIPET</span>
+          <span style={{ color: COLORS.text, fontSize: "22px", fontWeight: "900", letterSpacing: "-0.02em" }}>AIPET X</span>
         </div>
         <div className="flex items-center justify-center" style={{ flex: 1, paddingLeft: "80px" }}>
           <div className="hidden md:flex items-center gap-6">
@@ -4629,7 +4629,7 @@ function LandingPage({ onGetStarted, onLogin, setLegalPage, setActivePage }) {
                 <div style={{ width: "36px", height: "36px", borderRadius: "10px", backgroundColor: COLORS.blue, display: "flex", alignItems: "center", justifyContent: "center" }}>
                   <Shield size={18} color="white" />
                 </div>
-                <span style={{ fontSize: "20px", fontWeight: "900", color: COLORS.text }}>AIPET</span>
+                <span style={{ fontSize: "20px", fontWeight: "900", color: COLORS.text }}>AIPET X</span>
               </div>
               <p style={{ color: COLORS.muted, fontSize: "14px", lineHeight: "1.7", maxWidth: "280px" }}>
                 {t('footerTagline')}
@@ -4683,7 +4683,7 @@ function LandingPage({ onGetStarted, onLogin, setLegalPage, setActivePage }) {
           {/* Bottom bar */}
           <div style={{ borderTop: `1px solid ${COLORS.border}`, paddingTop: "24px", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "16px" }}>
             <p style={{ color: COLORS.muted, fontSize: "13px" }}>
-              © 2026 AIPET Cloud · AIPET Cloud v3.0.0 — Developed as part of MSc Cyber Security research at Coventry University · MIT Licence
+              © 2026 AIPET X · AIPET X v3.0.0 — Developed as part of MSc Cyber Security research at Coventry University · MIT Licence
             </p>
             <div style={{ display: "flex", gap: "24px" }}>
               {[
@@ -4766,7 +4766,7 @@ function LoginPage({ onLogin }) {
             style={{ backgroundColor: COLORS.blue }}>
             <Shield size={32} color="white" />
           </div>
-          <h1 className="text-3xl font-black" style={{ color: COLORS.text }}>AIPET</h1>
+          <h1 className="text-3xl font-black" style={{ color: COLORS.text }}>AIPET X</h1>
           <p className="text-sm mt-1" style={{ color: COLORS.muted }}>
             AI-Powered IoT Security Platform
           </p>
@@ -5024,7 +5024,7 @@ function TerminalPage({ token, showToast, findings }) {
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <div>
           <h2 style={{ fontSize: '20px', fontWeight: '800', color: '#e2e8f0', margin: 0, display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <span style={{ color: '#00e5ff' }}>{'>'}_</span> AIPET Terminal
+            <span style={{ color: '#00e5ff' }}>{'>'}_</span> AIPET X Terminal
           </h2>
           <p style={{ fontSize: '13px', color: '#475569', margin: '4px 0 0' }}>
             Real Linux shell — fully integrated with AIPET security platform
@@ -6356,7 +6356,7 @@ export default function App() {
         <div className="relative w-20 h-20 mx-auto mb-6">
           <Shield size={80} style={{ color: COLORS.blue }} className="animate-pulse" />
         </div>
-        <div className="text-xl font-bold mb-2" style={{ color: COLORS.text }}>AIPET</div>
+        <div className="text-xl font-bold mb-2" style={{ color: COLORS.text }}>AIPET X</div>
         <div className="text-sm" style={{ color: COLORS.muted }}>Loading security dashboard...</div>
       </div>
     </div>
@@ -6414,7 +6414,7 @@ export default function App() {
                 fontSize: "15px",
                 letterSpacing: "0.2em",
                 color: "#e2e8f0",
-              }}>AIPET</div>
+              }}>AIPET X</div>
               <div style={{
                 fontFamily: "'JetBrains Mono', monospace",
                 fontSize: "9px",
@@ -6716,7 +6716,7 @@ export default function App() {
                 <Shield size={40} style={{ color: COLORS.blue }} />
               </div>
               <h2 className="text-2xl font-black mb-3" style={{ color: COLORS.text }}>
-                Welcome to AIPET Cloud
+                Welcome to AIPET X
               </h2>
               <p className="text-sm mb-8 max-w-md" style={{ color: COLORS.muted }}>
                 Run your first IoT security scan to see your risk dashboard,
@@ -6899,7 +6899,7 @@ export default function App() {
              {/* Risk Reduction Score + Executive Report */}
               <RiskReductionBar findings={findings} token={token} scans={data?.scans || []} />
 
-              {/* AIPET Score — Financial Risk */}
+              {/* AIPET X Score — Financial Risk */}
               <ScorePanel findings={findings} token={token} scans={data?.scans || []} />
               
               {/* Controls */}
