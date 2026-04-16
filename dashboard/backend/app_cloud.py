@@ -32,6 +32,8 @@ from dashboard.backend.predict.routes import predict_bp
 from dashboard.backend.watch.routes import watch_bp
 from dashboard.backend.ask.routes import ask_bp
 from dashboard.backend.compliance.routes import compliance_bp
+from dashboard.backend.iam.routes import iam_bp, seed_default_roles
+from dashboard.backend.iam.models import Role, Permission, UserRole, AuditLog, SSOProvider
 from dashboard.backend.protocols.routes import protocols_bp
 from dashboard.backend.settings.routes import settings_bp
 from dashboard.backend.monitoring.logger import setup_logging, get_logger
@@ -112,6 +114,7 @@ def create_app(config_name="development"):
     def apply_auth_rate_limits():
         pass
     # Register blueprints
+    app.register_blueprint(iam_bp)
     app.register_blueprint(auth_bp)
     init_google_oauth(app)
     # Apply strict rate limiting to auth endpoints
