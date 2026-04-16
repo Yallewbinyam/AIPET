@@ -51,6 +51,8 @@ from dashboard.backend.multicloud.routes import multicloud_bp
 from dashboard.backend.multicloud.models import CloudAccount, CloudAsset, CloudFinding
 from dashboard.backend.digitaltwin.routes import twin_bp
 from dashboard.backend.digitaltwin.models import TwinNode, TwinEdge, TwinSnapshot
+from dashboard.backend.redteam.routes import redteam_bp
+from dashboard.backend.redteam.models import RtCampaign, RtAttack
 from dashboard.backend.monitoring.logger import setup_logging, get_logger
 from dashboard.backend.security import init_security
 from dashboard.backend.monitoring.logger import (
@@ -156,6 +158,7 @@ def create_app(config_name="development"):
     app.register_blueprint(otics_bp)
     app.register_blueprint(multicloud_bp)
     app.register_blueprint(twin_bp)
+    app.register_blueprint(redteam_bp)
     app.register_blueprint(api_keys_bp, url_prefix='/api/keys')
 
     # Setup logging

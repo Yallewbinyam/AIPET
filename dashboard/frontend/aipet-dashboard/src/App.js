@@ -6072,6 +6072,7 @@ const NAV_ITEMS = [
   { id: "otics",      label: "OT/ICS",        icon: Cpu,           group: "enterprise" },
   { id: "multicloud", label: "Multi-Cloud",   icon: Shield,        group: "enterprise" },
   { id: "twin",       label: "Digital Twin",  icon: Cpu,           group: "enterprise" },
+  { id: "redteam",    label: "AI Red Team",   icon: Shield,        group: "enterprise" },
   { id: "settings",  label: "Settings",      icon: Settings,      group: "account"  },
 ];
 
@@ -6334,6 +6335,739 @@ function SettingsPage({ token, showToast }) {
   );
 }
 
+
+// ─────────────────────────────────────────────────────────────
+// AIPET X — AI Red Team Page
+//
+// Features:
+//   • Stats bar: campaigns, attacks, success rate, defence score
+//   • Campaign launcher — create and run new campaigns
+//   • MITRE ATT&CK tactic heatmap — visual coverage
+//   • Campaign list with defence score gauge
+//   • Attack timeline — every technique result colour-coded
+//   • AI pentest report generator (Claude API)
+// ─────────────────────────────────────────────────────────────
+function AiRedTeamPage({ token, showToast }) {
+
+  // ── State ─────────────────────────────────────────────────
+  const [stats,      setStats]      = useState(null);
+  const [campaigns,  setCampaigns]  = useState([]);
+  const [techniques, setTechniques] = useState([]);
+  const [attacks,    setAttacks]    = useState([]);
+  const [loading,    setLoading]    = useState(true);
+  const [tab,        setTab]        = useState("campaigns");
+  const [selCampaign,setSelCampaign]= useState(null);
+  const [running,    setRunning]    = useState({});
+  const [report,     setReport]     = useState(null);
+  const [genReport,  setGenReport]  = useState(false);
+
+  // New campaign form
+  const [showAdd,  setShowAdd]  = useState(false);
+  const [newCamp,  setNewCamp]  = useState({
+    name: "", description: "", scope: "192.168.1.0/24",
+    objectives: "Test IoT network defences against MITRE ATT&CK"
+  });
+  const [adding,   setAdding]   = useState(false);
+
+  const H = { headers: { Authorization: `Bearer ${token}` } };
+
+  // Result colours
+  const RESULT_COLOR = {
+    success: { fg: "#ff3b5c", bg: "#ff3b5c12", label: "SUCCESS"  },
+    partial: { fg: "#ffd600", bg: "#ffd60012", label: "PARTIAL"  },
+    blocked: { fg: "#00ff88", bg: "#00ff8812", label: "BLOCKED"  },
+    pending: { fg: "#64748b", bg: "#64748b12", label: "PENDING"  },
+  };
+
+  // Tactic colours
+  const TACTIC_COLOR = {
+    "Initial Access":    "#ff3b5c",
+    "Execution":         "#ff8c00",
+    "Persistence":       "#ffd600",
+    "Lateral Movement":  "#a78bfa",
+    "Collection":        "#00e5ff",
+    "Command and Control":"#00ff88",
+    "Impact":            "#ff3b5c",
+    "Discovery":         "#64748b",
+  };
+
+  const C = {
+    bg: "#030712", card: "#0d1117", surface: "#080f1a",
+    border: "#1e2a3a", borderBright: "#2d3f55",
+    text: "#e2e8f0", muted: "#64748b", faint: "#334155",
+    cyan: "#00e5ff", green: "#00ff88",
+  };
+  const cardStyle = (extra = {}) => ({
+    background: C.card, border: `1px solid ${C.border}`,
+    borderRadius: "16px", padding: "24px", ...extra
+  });
+
+  // ── Fetch all data ────────────────────────────────────────
+  const fetchAll = useCallback(async () => {
+    try {
+      const [stRes, campRes, techRes] = await Promise.all([
+        axios.get(`${API}/redteam/stats`,      H),
+        axios.get(`${API}/redteam/campaigns`,  H),
+        axios.get(`${API}/redteam/techniques`, H),
+      ]);
+      setStats(stRes.data);
+      setCampaigns(campRes.data.campaigns  || []);
+      setTechniques(techRes.data.techniques || []);
+    } catch {
+      showToast("Failed to load Red Team data", "error");
+    } finally {
+      setLoading(false);
+    }
+  }, [token]);
+
+  useEffect(() => { fetchAll(); }, [fetchAll]);
+
+  // ── Load attacks for selected campaign ────────────────────
+  const loadAttacks = async (cid) => {
+    try {
+      const res = await axios.get(
+        `${API}/redteam/campaigns/${cid}/attacks`, H);
+      setAttacks(res.data.attacks || []);
+    } catch {
+      showToast("Failed to load attacks", "error");
+    }
+  };
+
+  // ── Create campaign ───────────────────────────────────────
+  const handleCreate = async () => {
+    if (!newCamp.name) return;
+    setAdding(true);
+    try {
+      const res = await axios.post(
+        `${API}/redteam/campaigns`, newCamp, H);
+      showToast("Campaign created", "success");
+      setShowAdd(false);
+      setNewCamp({ name: "", description: "",
+        scope: "192.168.1.0/24",
+        objectives: "Test IoT network defences" });
+      fetchAll();
+    } catch (e) {
+      showToast(e.response?.data?.error || "Failed", "error");
+    } finally {
+      setAdding(false);
+    }
+  };
+
+  // ── Run campaign ──────────────────────────────────────────
+  const handleRun = async (cid) => {
+    setRunning(prev => ({ ...prev, [cid]: true }));
+    setReport(null);
+    try {
+      const res = await axios.post(
+        `${API}/redteam/campaigns/${cid}/run`, {}, H);
+      showToast(
+        `Campaign complete — score: ${res.data.defence_score}/100`,
+        res.data.defence_score >= 60 ? "success" : "error"
+      );
+      fetchAll();
+      if (selCampaign?.id === cid) loadAttacks(cid);
+    } catch (e) {
+      showToast(e.response?.data?.error || "Run failed", "error");
+    } finally {
+      setRunning(prev => ({ ...prev, [cid]: false }));
+    }
+  };
+
+  // ── Delete campaign ───────────────────────────────────────
+  const handleDelete = async (cid) => {
+    try {
+      await axios.delete(`${API}/redteam/campaigns/${cid}`, H);
+      if (selCampaign?.id === cid) {
+        setSelCampaign(null); setAttacks([]);
+      }
+      fetchAll();
+      showToast("Campaign deleted", "success");
+    } catch {
+      showToast("Failed to delete", "error");
+    }
+  };
+
+  // ── Generate AI report ────────────────────────────────────
+  const handleReport = async (cid) => {
+    setGenReport(true);
+    setReport(null);
+    try {
+      const res = await axios.post(
+        `${API}/redteam/report/${cid}`, {}, H);
+      setReport(res.data);
+      setTab("report");
+      showToast("Report generated", "success");
+    } catch (e) {
+      showToast(e.response?.data?.error || "Report failed", "error");
+    } finally {
+      setGenReport(false);
+    }
+  };
+
+  // ── Defence score gauge ───────────────────────────────────
+  const ScoreGauge = ({ score }) => {
+    const color = score >= 70 ? "#00ff88"
+      : score >= 40 ? "#ffd600" : "#ff3b5c";
+    return (
+      <div style={{ display: "flex", flexDirection: "column",
+        alignItems: "center", gap: "4px" }}>
+        <div style={{ width: "56px", height: "56px",
+          borderRadius: "50%",
+          background: color + "15",
+          border: `3px solid ${color}`,
+          display: "flex", flexDirection: "column",
+          alignItems: "center", justifyContent: "center",
+          boxShadow: `0 0 16px ${color}30` }}>
+          <div style={{ fontSize: "16px", fontWeight: "800",
+            fontFamily: "JetBrains Mono, monospace",
+            color, lineHeight: 1 }}>
+            {score}
+          </div>
+        </div>
+        <div style={{ fontSize: "9px", color,
+          fontWeight: "700", textTransform: "uppercase",
+          letterSpacing: "0.5px" }}>
+          {score >= 70 ? "STRONG" : score >= 40 ? "FAIR" : "WEAK"}
+        </div>
+      </div>
+    );
+  };
+
+  if (loading) return (
+    <div style={{ display: "flex", flexDirection: "column",
+      alignItems: "center", justifyContent: "center",
+      height: "60vh", gap: "16px" }}>
+      <div style={{ width: "48px", height: "48px",
+        border: `3px solid ${C.border}`,
+        borderTop: `3px solid ${C.cyan}`,
+        borderRadius: "50%",
+        animation: "spin 1s linear infinite" }} />
+      <div style={{ color: C.muted, fontSize: "13px",
+        fontFamily: "JetBrains Mono, monospace" }}>
+        Initialising Red Team engine...
+      </div>
+    </div>
+  );
+
+  return (
+    <div style={{ padding: "32px 36px", background: C.bg,
+      minHeight: "100vh", fontFamily: "Inter, sans-serif",
+      color: C.text }}>
+
+      {/* ── Header ──────────────────────────────────────────── */}
+      <div style={{ display: "flex", alignItems: "center",
+        justifyContent: "space-between", marginBottom: "32px" }}>
+        <div style={{ display: "flex", alignItems: "center",
+          gap: "16px" }}>
+          <div style={{ width: "52px", height: "52px",
+            borderRadius: "14px",
+            background: "linear-gradient(135deg, #ff3b5c20, #ff8c0008)",
+            border: "1px solid #ff3b5c35",
+            display: "flex", alignItems: "center",
+            justifyContent: "center", fontSize: "24px",
+            boxShadow: "0 0 20px #ff3b5c15" }}>
+            ⚔️
+          </div>
+          <div>
+            <h1 style={{ margin: 0, fontSize: "26px",
+              fontWeight: "800", letterSpacing: "-0.5px",
+              fontFamily: "JetBrains Mono, monospace",
+              background: "linear-gradient(135deg, #ff3b5c, #ff8c00)",
+              WebkitBackgroundClip: "text",
+              WebkitTextFillColor: "transparent" }}>
+              AI Red Team
+            </h1>
+            <div style={{ fontSize: "13px", color: C.muted,
+              marginTop: "2px" }}>
+              Autonomous attack simulation · MITRE ATT&CK · AI pentest reports
+            </div>
+          </div>
+        </div>
+        <button onClick={() => setShowAdd(!showAdd)}
+          style={{ padding: "10px 22px", borderRadius: "10px",
+            border: "1px solid #ff3b5c35", cursor: "pointer",
+            fontSize: "13px", fontWeight: "700",
+            background: showAdd ? "#ff3b5c20" : "transparent",
+            color: "#ff3b5c", transition: "all 0.2s" }}>
+          {showAdd ? "✕ Cancel" : "+ New Campaign"}
+        </button>
+      </div>
+
+      {/* ── New campaign form ────────────────────────────────── */}
+      {showAdd && (
+        <div style={{ ...cardStyle({ marginBottom: "24px" }),
+          borderColor: "#ff3b5c20" }}>
+          <div style={{ fontSize: "13px", fontWeight: "700",
+            color: "#ff3b5c", marginBottom: "16px" }}>
+            ⚔️ New Red Team Campaign
+          </div>
+          <div style={{ display: "grid",
+            gridTemplateColumns: "1fr 1fr", gap: "12px",
+            marginBottom: "12px" }}>
+            {[
+              { key: "name",        label: "Campaign Name" },
+              { key: "scope",       label: "Target Scope (CIDR / account names)" },
+              { key: "description", label: "Description" },
+              { key: "objectives",  label: "Objectives" },
+            ].map(f => (
+              <div key={f.key}>
+                <div style={{ fontSize: "10px", color: C.muted,
+                  marginBottom: "5px", textTransform: "uppercase",
+                  letterSpacing: "0.5px" }}>{f.label}</div>
+                <input value={newCamp[f.key]}
+                  onChange={e => setNewCamp(p =>
+                    ({ ...p, [f.key]: e.target.value }))}
+                  style={{ width: "100%", padding: "9px 12px",
+                    borderRadius: "8px",
+                    border: `1px solid ${C.borderBright}`,
+                    background: C.surface, color: C.text,
+                    fontSize: "13px", boxSizing: "border-box",
+                    outline: "none" }} />
+              </div>
+            ))}
+          </div>
+          <button onClick={handleCreate} disabled={adding}
+            style={{ padding: "10px 24px", borderRadius: "10px",
+              border: "none", cursor: "pointer",
+              fontSize: "13px", fontWeight: "700",
+              background: "linear-gradient(135deg, #ff3b5c, #ff8c00)",
+              color: "#fff", opacity: adding ? 0.6 : 1 }}>
+            {adding ? "Creating..." : "Create Campaign"}
+          </button>
+        </div>
+      )}
+
+      {/* ── Stats bar ───────────────────────────────────────── */}
+      {stats && (
+        <div style={{ display: "grid",
+          gridTemplateColumns: "repeat(6, 1fr)",
+          gap: "12px", marginBottom: "28px" }}>
+          {[
+            { label: "Campaigns",     value: stats.total_campaigns,   color: "#ff3b5c", icon: "⚔️" },
+            { label: "Attacks Run",   value: stats.total_attacks,     color: "#ff8c00", icon: "🎯" },
+            { label: "Succeeded",     value: stats.success_attacks,   color: "#ff3b5c", icon: "💥" },
+            { label: "Blocked",       value: stats.blocked_attacks,   color: "#00ff88", icon: "🛡️" },
+            { label: "Avg Defence",   value: `${Math.round(stats.avg_defence_score)}`,color: stats.avg_defence_score >= 60 ? "#00ff88" : "#ff8c00", icon: "📊" },
+            { label: "Techniques",    value: techniques.length,       color: "#a78bfa", icon: "🔬" },
+          ].map(s => (
+            <div key={s.label} style={{ ...cardStyle({ padding: "18px" }),
+              borderColor: s.color + "25",
+              boxShadow: `0 0 14px ${s.color}08` }}>
+              <div style={{ fontSize: "20px", marginBottom: "8px" }}>
+                {s.icon}
+              </div>
+              <div style={{ fontSize: "26px", fontWeight: "800",
+                lineHeight: 1,
+                fontFamily: "JetBrains Mono, monospace",
+                color: s.color }}>
+                {s.value}
+              </div>
+              <div style={{ fontSize: "10px", color: C.muted,
+                marginTop: "5px", textTransform: "uppercase",
+                letterSpacing: "0.5px" }}>
+                {s.label}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* ── MITRE ATT&CK tactic heatmap ──────────────────────── */}
+      {stats?.tactics && Object.keys(stats.tactics).length > 0 && (
+        <div style={{ ...cardStyle({ marginBottom: "28px" }) }}>
+          <div style={{ fontSize: "12px", fontWeight: "700",
+            color: C.muted, textTransform: "uppercase",
+            letterSpacing: "1.5px", marginBottom: "16px" }}>
+            MITRE ATT&CK Coverage Heatmap
+          </div>
+          <div style={{ display: "flex", gap: "8px",
+            flexWrap: "wrap" }}>
+            {Object.entries(stats.tactics).map(([tactic, counts]) => {
+              const total   = (counts.success||0) +
+                              (counts.blocked||0) +
+                              (counts.partial||0);
+              const succPct = total > 0
+                ? Math.round((counts.success||0)/total*100) : 0;
+              const color   = TACTIC_COLOR[tactic] || "#a78bfa";
+              return (
+                <div key={tactic} style={{ flex: "1 1 160px",
+                  background: color + "10",
+                  border: `1px solid ${color}25`,
+                  borderRadius: "10px", padding: "12px 14px" }}>
+                  <div style={{ fontSize: "11px", fontWeight: "700",
+                    color, marginBottom: "8px" }}>
+                    {tactic}
+                  </div>
+                  <div style={{ display: "flex", gap: "8px" }}>
+                    {[
+                      { label: "Hit",     value: counts.success||0, color: "#ff3b5c" },
+                      { label: "Part",    value: counts.partial||0, color: "#ffd600" },
+                      { label: "Block",   value: counts.blocked||0, color: "#00ff88" },
+                    ].map(m => (
+                      <div key={m.label} style={{ flex: 1,
+                        textAlign: "center" }}>
+                        <div style={{ fontSize: "16px",
+                          fontWeight: "800",
+                          fontFamily: "JetBrains Mono, monospace",
+                          color: m.color }}>
+                          {m.value}
+                        </div>
+                        <div style={{ fontSize: "9px",
+                          color: C.muted }}>{m.label}</div>
+                      </div>
+                    ))}
+                  </div>
+                  {/* Success rate bar */}
+                  <div style={{ marginTop: "8px", height: "3px",
+                    background: C.faint, borderRadius: "2px" }}>
+                    <div style={{ height: "100%",
+                      width: `${succPct}%`,
+                      background: succPct > 50 ? "#ff3b5c" : "#00ff88",
+                      borderRadius: "2px",
+                      transition: "width 0.5s ease" }} />
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* ── Tab bar ─────────────────────────────────────────── */}
+      <div style={{ display: "flex", gap: "4px", marginBottom: "20px",
+        background: C.card, padding: "4px", borderRadius: "12px",
+        border: `1px solid ${C.border}`, width: "fit-content" }}>
+        {[
+          { id: "campaigns", label: "Campaigns",    count: campaigns.length },
+          { id: "attacks",   label: "Attack Log",   count: attacks.length   },
+          { id: "report",    label: "Pentest Report"                         },
+        ].map(t => (
+          <button key={t.id} onClick={() => setTab(t.id)}
+            style={{ padding: "8px 20px", borderRadius: "9px",
+              border: "none", cursor: "pointer",
+              fontSize: "13px", fontWeight: "600",
+              transition: "all 0.2s",
+              background: tab === t.id
+                ? "linear-gradient(135deg, #ff3b5c20, #ff8c0020)"
+                : "transparent",
+              color: tab === t.id ? C.text : C.muted,
+              boxShadow: tab === t.id
+                ? "inset 0 0 0 1px #ff3b5c30" : "none" }}>
+            {t.label}
+            {t.count !== undefined && (
+              <span style={{ marginLeft: "6px", padding: "1px 6px",
+                borderRadius: "100px", fontSize: "10px",
+                background: tab === t.id ? "#ff3b5c20" : C.border,
+                color: tab === t.id ? "#ff8c00" : C.muted }}>
+                {t.count}
+              </span>
+            )}
+          </button>
+        ))}
+      </div>
+
+      {/* ── Campaigns tab ────────────────────────────────────── */}
+      {tab === "campaigns" && (
+        <div style={{ display: "flex", flexDirection: "column",
+          gap: "12px" }}>
+          {campaigns.map(camp => {
+            const isRunning = running[camp.id];
+            const statusColor = camp.status === "completed"
+              ? "#00ff88" : camp.status === "running"
+              ? "#ffd600" : "#64748b";
+            return (
+              <div key={camp.id} style={{ ...cardStyle(),
+                borderLeft: `3px solid ${statusColor}`,
+                cursor: "pointer",
+                outline: selCampaign?.id === camp.id
+                  ? `1px solid ${statusColor}` : "none" }}
+                onClick={() => {
+                  setSelCampaign(camp);
+                  if (camp.status === "completed") {
+                    loadAttacks(camp.id);
+                    setTab("attacks");
+                  }
+                }}>
+                <div style={{ display: "flex",
+                  alignItems: "center", gap: "16px" }}>
+                  {/* Score gauge */}
+                  {camp.status === "completed" && (
+                    <ScoreGauge score={camp.overall_score} />
+                  )}
+                  {camp.status === "draft" && (
+                    <div style={{ width: "56px", height: "56px",
+                      borderRadius: "50%",
+                      background: "#64748b12",
+                      border: "3px solid #64748b",
+                      display: "flex", alignItems: "center",
+                      justifyContent: "center",
+                      fontSize: "22px", flexShrink: 0 }}>
+                      📋
+                    </div>
+                  )}
+                  {/* Campaign info */}
+                  <div style={{ flex: 1 }}>
+                    <div style={{ display: "flex",
+                      alignItems: "center", gap: "10px",
+                      marginBottom: "5px" }}>
+                      <span style={{ fontWeight: "700",
+                        fontSize: "15px" }}>{camp.name}</span>
+                      <span style={{ padding: "2px 8px",
+                        borderRadius: "100px", fontSize: "10px",
+                        fontWeight: "700",
+                        background: statusColor + "15",
+                        color: statusColor,
+                        textTransform: "uppercase" }}>
+                        {camp.status}
+                      </span>
+                    </div>
+                    {camp.description && (
+                      <div style={{ fontSize: "12px",
+                        color: C.muted, marginBottom: "5px" }}>
+                        {camp.description}
+                      </div>
+                    )}
+                    <div style={{ fontSize: "11px", color: C.faint }}>
+                      Scope: {camp.scope}
+                      {camp.status === "completed" && (
+                        <> · {camp.attack_count} techniques ·{" "}
+                          {camp.success_count} succeeded ·{" "}
+                          {camp.blocked_count} blocked</>
+                      )}
+                    </div>
+                  </div>
+                  {/* Actions */}
+                  <div style={{ display: "flex", gap: "8px",
+                    flexShrink: 0, flexDirection: "column",
+                    alignItems: "flex-end" }}>
+                    {camp.status !== "running" && (
+                      <button
+                        onClick={e => { e.stopPropagation(); handleRun(camp.id); }}
+                        disabled={isRunning}
+                        style={{ padding: "7px 16px",
+                          borderRadius: "8px", border: "none",
+                          cursor: "pointer", fontSize: "12px",
+                          fontWeight: "700",
+                          background: "linear-gradient(135deg, #ff3b5c, #ff8c00)",
+                          color: "#fff",
+                          opacity: isRunning ? 0.6 : 1 }}>
+                        {isRunning ? "Running..." : "▶ Run"}
+                      </button>
+                    )}
+                    {camp.status === "completed" && (
+                      <button
+                        onClick={e => { e.stopPropagation(); handleReport(camp.id); }}
+                        disabled={genReport}
+                        style={{ padding: "7px 16px",
+                          borderRadius: "8px",
+                          border: "1px solid #a78bfa30",
+                          cursor: "pointer", fontSize: "12px",
+                          fontWeight: "600",
+                          background: "#a78bfa10",
+                          color: "#a78bfa",
+                          opacity: genReport ? 0.6 : 1 }}>
+                        {genReport ? "Generating..." : "📄 Report"}
+                      </button>
+                    )}
+                    <button
+                      onClick={e => { e.stopPropagation(); handleDelete(camp.id); }}
+                      style={{ padding: "5px 12px",
+                        borderRadius: "7px",
+                        border: "1px solid #ff3b5c30",
+                        cursor: "pointer", fontSize: "11px",
+                        fontWeight: "600",
+                        background: "#ff3b5c10",
+                        color: "#ff3b5c" }}>
+                      Delete
+                    </button>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* ── Attack Log tab ───────────────────────────────────── */}
+      {tab === "attacks" && (
+        <div>
+          {attacks.length === 0 ? (
+            <div style={{ ...cardStyle({ padding: "48px",
+              textAlign: "center" }), color: C.muted }}>
+              Select a completed campaign to view its attack log.
+            </div>
+          ) : (
+            <div>
+              {/* Campaign summary bar */}
+              {selCampaign && (
+                <div style={{ ...cardStyle({ padding: "16px",
+                  marginBottom: "16px" }),
+                  borderColor: "#ff3b5c20" }}>
+                  <div style={{ display: "flex",
+                    alignItems: "center", gap: "16px" }}>
+                    <ScoreGauge score={selCampaign.overall_score} />
+                    <div>
+                      <div style={{ fontWeight: "700",
+                        fontSize: "14px" }}>{selCampaign.name}</div>
+                      <div style={{ fontSize: "12px",
+                        color: C.muted, marginTop: "3px" }}>
+                        {selCampaign.attack_count} attacks ·{" "}
+                        {selCampaign.success_count} succeeded ·{" "}
+                        {selCampaign.blocked_count} blocked ·{" "}
+                        {selCampaign.duration_sec}s
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+              {/* Attack rows */}
+              <div style={{ display: "flex",
+                flexDirection: "column", gap: "6px" }}>
+                {attacks.map(attack => {
+                  const rc = RESULT_COLOR[attack.result] || RESULT_COLOR.pending;
+                  const tc = TACTIC_COLOR[attack.tactic] || "#a78bfa";
+                  return (
+                    <div key={attack.id} style={{ background: C.card,
+                      border: `1px solid ${C.border}`,
+                      borderLeft: `3px solid ${rc.fg}`,
+                      borderRadius: "10px",
+                      padding: "12px 16px" }}>
+                      <div style={{ display: "flex",
+                        alignItems: "center", gap: "10px" }}>
+                        {/* Result badge */}
+                        <div style={{ padding: "3px 10px",
+                          borderRadius: "100px", fontSize: "10px",
+                          fontWeight: "800", background: rc.bg,
+                          color: rc.fg, whiteSpace: "nowrap",
+                          textTransform: "uppercase",
+                          letterSpacing: "0.5px" }}>
+                          {rc.label}
+                        </div>
+                        {/* MITRE ID */}
+                        <div style={{ padding: "2px 8px",
+                          borderRadius: "6px", fontSize: "11px",
+                          fontWeight: "700", color: "#a78bfa",
+                          background: "#7c3aed10",
+                          border: "1px solid #7c3aed20",
+                          fontFamily: "JetBrains Mono, monospace",
+                          whiteSpace: "nowrap" }}>
+                          {attack.mitre_id}
+                        </div>
+                        {/* Tactic */}
+                        <div style={{ fontSize: "10px",
+                          fontWeight: "700", color: tc,
+                          whiteSpace: "nowrap" }}>
+                          {attack.tactic}
+                        </div>
+                        {/* Technique */}
+                        <div style={{ flex: 1, fontSize: "12px",
+                          fontWeight: "600", color: C.text,
+                          overflow: "hidden",
+                          textOverflow: "ellipsis",
+                          whiteSpace: "nowrap" }}>
+                          {attack.technique}
+                        </div>
+                        {/* Target */}
+                        <div style={{ fontFamily: "JetBrains Mono, monospace",
+                          fontSize: "11px", color: C.muted,
+                          whiteSpace: "nowrap" }}>
+                          {attack.target}
+                        </div>
+                        {/* Blocked by */}
+                        {attack.blocked_by && (
+                          <div style={{ fontSize: "10px",
+                            color: "#00ff88",
+                            whiteSpace: "nowrap",
+                            maxWidth: "140px", overflow: "hidden",
+                            textOverflow: "ellipsis" }}>
+                            ✓ {attack.blocked_by}
+                          </div>
+                        )}
+                      </div>
+                      {/* Impact row */}
+                      {attack.impact && (
+                        <div style={{ marginTop: "5px",
+                          fontSize: "11px", color: C.muted,
+                          paddingLeft: "4px" }}>
+                          {attack.impact}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── Pentest Report tab ───────────────────────────────── */}
+      {tab === "report" && (
+        <div>
+          {!report ? (
+            <div style={{ ...cardStyle({ padding: "48px",
+              textAlign: "center" }), color: C.muted }}>
+              <div style={{ fontSize: "32px",
+                marginBottom: "12px" }}>📄</div>
+              <div style={{ fontSize: "14px",
+                marginBottom: "8px", color: C.text }}>
+                AI Pentest Report Generator
+              </div>
+              <div style={{ fontSize: "13px",
+                color: C.muted, marginBottom: "20px" }}>
+                Click the Report button on any completed campaign
+                to generate a professional penetration test report.
+              </div>
+            </div>
+          ) : (
+            <div style={{ ...cardStyle(),
+              borderColor: "#a78bfa20" }}>
+              <div style={{ display: "flex",
+                alignItems: "center",
+                justifyContent: "space-between",
+                marginBottom: "16px" }}>
+                <div>
+                  <div style={{ fontWeight: "700",
+                    fontSize: "15px" }}>
+                    Penetration Test Report
+                  </div>
+                  <div style={{ fontSize: "11px",
+                    color: C.muted, marginTop: "2px" }}>
+                    {report.campaign?.name} ·{" "}
+                    {report.tokens_used} tokens
+                  </div>
+                </div>
+                <button onClick={() => {
+                    navigator.clipboard.writeText(report.report);
+                    showToast("Report copied", "success");
+                  }}
+                  style={{ padding: "6px 14px",
+                    borderRadius: "8px",
+                    border: "1px solid #a78bfa30",
+                    cursor: "pointer", fontSize: "12px",
+                    fontWeight: "600",
+                    background: "#a78bfa10",
+                    color: "#a78bfa" }}>
+                  Copy
+                </button>
+              </div>
+              <div style={{ fontSize: "13px",
+                lineHeight: "1.75", color: C.text,
+                whiteSpace: "pre-wrap",
+                fontFamily: "Inter, sans-serif",
+                maxHeight: "700px", overflowY: "auto",
+                padding: "16px", borderRadius: "10px",
+                background: C.surface,
+                border: `1px solid ${C.border}` }}>
+                {report.report}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
 
 // ─────────────────────────────────────────────────────────────
 // AIPET X — Digital Twin Page
@@ -12406,6 +13140,9 @@ export default function App() {
           )}
           {activeTab === "team" && (
             <TeamAccessPage token={token} showToast={showToast} />
+          )}
+          {activeTab === "redteam" && (
+            <AiRedTeamPage token={token} showToast={showToast} />
           )}
           {activeTab === "twin" && (
             <DigitalTwinPage token={token} showToast={showToast} />
