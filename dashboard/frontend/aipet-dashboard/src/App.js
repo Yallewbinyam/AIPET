@@ -6070,6 +6070,7 @@ const NAV_ITEMS = [
   { id: "defense",    label: "Auto Defense",  icon: Shield,        group: "enterprise" },
   { id: "aisoc",      label: "AI SOC",        icon: Shield,        group: "enterprise" },
   { id: "otics",      label: "OT/ICS",        icon: Cpu,           group: "enterprise" },
+  { id: "multicloud", label: "Multi-Cloud",   icon: Shield,        group: "enterprise" },
   { id: "settings",  label: "Settings",      icon: Settings,      group: "account"  },
 ];
 
@@ -6332,6 +6333,649 @@ function SettingsPage({ token, showToast }) {
   );
 }
 
+
+// ─────────────────────────────────────────────────────────────
+// AIPET X — Multi-Cloud Security Page
+//
+// Features:
+//   • Stats bar: accounts, assets, public assets, findings
+//   • Provider cards (AWS/Azure/GCP/On-Prem) with per-provider metrics
+//   • Asset inventory — all cloud resources with risk scores
+//   • Findings table — misconfigurations with MITRE mappings
+//   • Scan button per account — triggers security posture assessment
+//   • Register new cloud account form
+// ─────────────────────────────────────────────────────────────
+function MultiCloudPage({ token, showToast }) {
+
+  // ── State ─────────────────────────────────────────────────
+  const [stats,    setStats]    = useState(null);
+  const [accounts, setAccounts] = useState([]);
+  const [assets,   setAssets]   = useState([]);
+  const [findings, setFindings] = useState([]);
+  const [loading,  setLoading]  = useState(true);
+  const [tab,      setTab]      = useState("accounts");
+  const [scanning, setScanning] = useState({});
+
+  // Add account form
+  const [showAdd,  setShowAdd]  = useState(false);
+  const [newAcc,   setNewAcc]   = useState({
+    name: "", provider: "aws", account_id: "", region: "eu-west-2"
+  });
+  const [adding,   setAdding]   = useState(false);
+
+  const H = { headers: { Authorization: `Bearer ${token}` } };
+
+  // Provider metadata
+  const PROVIDER = {
+    aws:    { label: "AWS",         color: "#ff8c00", icon: "☁️",  bg: "#ff8c0012" },
+    azure:  { label: "Azure",       color: "#00e5ff", icon: "🔷",  bg: "#00e5ff12" },
+    gcp:    { label: "GCP",         color: "#00ff88", icon: "🌐",  bg: "#00ff8812" },
+    onprem: { label: "On-Premise",  color: "#a78bfa", icon: "🏢",  bg: "#a78bfa12" },
+  };
+
+  // Asset type icons
+  const ASSET_ICON = {
+    vm:         "🖥️",
+    container:  "📦",
+    iot_hub:    "📡",
+    storage:    "💾",
+    function:   "⚡",
+    database:   "🗄️",
+    network:    "🔌",
+    kubernetes: "☸️",
+  };
+
+  // Severity colours
+  const SEV = {
+    Critical: { fg: "#ff3b5c", bg: "#ff3b5c12", border: "#ff3b5c35" },
+    High:     { fg: "#ff8c00", bg: "#ff8c0012", border: "#ff8c0035" },
+    Medium:   { fg: "#ffd600", bg: "#ffd60012", border: "#ffd60035" },
+    Low:      { fg: "#00e5ff", bg: "#00e5ff12", border: "#00e5ff35" },
+  };
+
+  // Design tokens
+  const C = {
+    bg: "#030712", card: "#0d1117", surface: "#080f1a",
+    border: "#1e2a3a", borderBright: "#2d3f55",
+    text: "#e2e8f0", muted: "#64748b", faint: "#334155",
+    cyan: "#00e5ff", green: "#00ff88",
+  };
+  const cardStyle = (extra = {}) => ({
+    background: C.card, border: `1px solid ${C.border}`,
+    borderRadius: "16px", padding: "24px", ...extra
+  });
+
+  // ── Fetch all data ────────────────────────────────────────
+  const fetchAll = useCallback(async () => {
+    try {
+      const [stRes, accRes, assetRes, findRes] = await Promise.all([
+        axios.get(`${API}/multicloud/stats`,    H),
+        axios.get(`${API}/multicloud/accounts`, H),
+        axios.get(`${API}/multicloud/assets`,   H),
+        axios.get(`${API}/multicloud/findings`, H),
+      ]);
+      setStats(stRes.data);
+      setAccounts(accRes.data.accounts || []);
+      setAssets(assetRes.data.assets   || []);
+      setFindings(findRes.data.findings || []);
+    } catch {
+      showToast("Failed to load Multi-Cloud data", "error");
+    } finally {
+      setLoading(false);
+    }
+  }, [token]);
+
+  useEffect(() => { fetchAll(); }, [fetchAll]);
+
+  // ── Scan account ──────────────────────────────────────────
+  const handleScan = async (accountId, accountName) => {
+    setScanning(prev => ({ ...prev, [accountId]: true }));
+    try {
+      const res = await axios.post(
+        `${API}/multicloud/accounts/${accountId}/scan`, {}, H);
+      showToast(
+        `${accountName} scanned — ${res.data.findings} findings`,
+        res.data.critical > 0 ? "error" : "success"
+      );
+      fetchAll();
+    } catch (e) {
+      showToast(e.response?.data?.error || "Scan failed", "error");
+    } finally {
+      setScanning(prev => ({ ...prev, [accountId]: false }));
+    }
+  };
+
+  // ── Delete account ────────────────────────────────────────
+  const handleDelete = async (id) => {
+    try {
+      await axios.delete(`${API}/multicloud/accounts/${id}`, H);
+      setAccounts(prev => prev.filter(a => a.id !== id));
+      showToast("Account removed", "success");
+      fetchAll();
+    } catch {
+      showToast("Failed to remove account", "error");
+    }
+  };
+
+  // ── Add account ───────────────────────────────────────────
+  const handleAdd = async () => {
+    if (!newAcc.name || !newAcc.provider) return;
+    setAdding(true);
+    try {
+      await axios.post(`${API}/multicloud/accounts`, newAcc, H);
+      showToast("Cloud account registered", "success");
+      setShowAdd(false);
+      setNewAcc({ name: "", provider: "aws",
+        account_id: "", region: "eu-west-2" });
+      fetchAll();
+    } catch (e) {
+      showToast(e.response?.data?.error || "Failed to add account", "error");
+    } finally {
+      setAdding(false);
+    }
+  };
+
+  // Risk score colour
+  const riskColor = (score) => {
+    if (score >= 75) return "#ff3b5c";
+    if (score >= 50) return "#ff8c00";
+    if (score >= 25) return "#ffd600";
+    return "#00ff88";
+  };
+
+  if (loading) return (
+    <div style={{ display: "flex", flexDirection: "column",
+      alignItems: "center", justifyContent: "center",
+      height: "60vh", gap: "16px" }}>
+      <div style={{ width: "48px", height: "48px",
+        border: `3px solid ${C.border}`,
+        borderTop: `3px solid ${C.cyan}`, borderRadius: "50%",
+        animation: "spin 1s linear infinite" }} />
+      <div style={{ color: C.muted, fontSize: "13px",
+        fontFamily: "JetBrains Mono, monospace" }}>
+        Loading cloud posture...
+      </div>
+    </div>
+  );
+
+  return (
+    <div style={{ padding: "32px 36px", background: C.bg,
+      minHeight: "100vh", fontFamily: "Inter, sans-serif",
+      color: C.text }}>
+
+      {/* ── Header ──────────────────────────────────────────── */}
+      <div style={{ display: "flex", alignItems: "center",
+        justifyContent: "space-between", marginBottom: "32px" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
+          <div style={{ width: "52px", height: "52px",
+            borderRadius: "14px",
+            background: "linear-gradient(135deg, #00e5ff20, #00ff8808)",
+            border: "1px solid #00e5ff35",
+            display: "flex", alignItems: "center",
+            justifyContent: "center", fontSize: "24px",
+            boxShadow: "0 0 20px #00e5ff15" }}>
+            ☁️
+          </div>
+          <div>
+            <h1 style={{ margin: 0, fontSize: "26px",
+              fontWeight: "800", letterSpacing: "-0.5px",
+              fontFamily: "JetBrains Mono, monospace",
+              background: "linear-gradient(135deg, #00e5ff, #00ff88)",
+              WebkitBackgroundClip: "text",
+              WebkitTextFillColor: "transparent" }}>
+              Multi-Cloud
+            </h1>
+            <div style={{ fontSize: "13px", color: C.muted,
+              marginTop: "2px" }}>
+              AWS · Azure · GCP · On-Premise · Unified security posture
+            </div>
+          </div>
+        </div>
+        <button onClick={() => setShowAdd(!showAdd)}
+          style={{ padding: "10px 22px", borderRadius: "10px",
+            border: "1px solid #00e5ff35", cursor: "pointer",
+            fontSize: "13px", fontWeight: "700",
+            background: showAdd ? "#00e5ff20" : "transparent",
+            color: C.cyan, transition: "all 0.2s" }}>
+          {showAdd ? "✕ Cancel" : "+ Add Cloud Account"}
+        </button>
+      </div>
+
+      {/* ── Add account form ─────────────────────────────────── */}
+      {showAdd && (
+        <div style={{ ...cardStyle({ marginBottom: "24px" }),
+          borderColor: "#00e5ff25" }}>
+          <div style={{ fontSize: "13px", fontWeight: "700",
+            color: C.cyan, marginBottom: "16px" }}>
+            Register Cloud Account
+          </div>
+          <div style={{ display: "grid",
+            gridTemplateColumns: "2fr 1fr 1fr 1fr",
+            gap: "12px", marginBottom: "16px" }}>
+            {[
+              { key: "name",       label: "Account Name",    ph: "AWS Production — EU West" },
+              { key: "account_id", label: "Account ID",      ph: "123456789012" },
+              { key: "region",     label: "Primary Region",  ph: "eu-west-2" },
+            ].map(f => (
+              <div key={f.key}>
+                <div style={{ fontSize: "10px", color: C.muted,
+                  marginBottom: "5px", textTransform: "uppercase",
+                  letterSpacing: "0.5px" }}>{f.label}</div>
+                <input value={newAcc[f.key]}
+                  onChange={e => setNewAcc(p =>
+                    ({ ...p, [f.key]: e.target.value }))}
+                  placeholder={f.ph}
+                  style={{ width: "100%", padding: "9px 12px",
+                    borderRadius: "8px",
+                    border: `1px solid ${C.borderBright}`,
+                    background: C.surface, color: C.text,
+                    fontSize: "13px", boxSizing: "border-box",
+                    outline: "none" }} />
+              </div>
+            ))}
+            <div>
+              <div style={{ fontSize: "10px", color: C.muted,
+                marginBottom: "5px", textTransform: "uppercase",
+                letterSpacing: "0.5px" }}>Provider</div>
+              <select value={newAcc.provider}
+                onChange={e => setNewAcc(p =>
+                  ({ ...p, provider: e.target.value }))}
+                style={{ width: "100%", padding: "9px 12px",
+                  borderRadius: "8px",
+                  border: `1px solid ${C.borderBright}`,
+                  background: C.surface, color: C.text,
+                  fontSize: "13px", outline: "none" }}>
+                {Object.entries(PROVIDER).map(([k, v]) => (
+                  <option key={k} value={k}>
+                    {v.icon} {v.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+          <button onClick={handleAdd} disabled={adding}
+            style={{ padding: "10px 24px", borderRadius: "10px",
+              border: "none", cursor: "pointer",
+              fontSize: "13px", fontWeight: "700",
+              background: "linear-gradient(135deg, #00e5ff, #00ff88)",
+              color: "#000", opacity: adding ? 0.6 : 1 }}>
+            {adding ? "Registering..." : "Register Account"}
+          </button>
+        </div>
+      )}
+
+      {/* ── Stats bar ───────────────────────────────────────── */}
+      {stats && (
+        <div style={{ display: "grid",
+          gridTemplateColumns: "repeat(6, 1fr)",
+          gap: "12px", marginBottom: "28px" }}>
+          {[
+            { label: "Cloud Accounts",    value: stats.total_accounts,    color: C.cyan,    icon: "☁️" },
+            { label: "Total Assets",      value: stats.total_assets,      color: "#a78bfa", icon: "🖥️" },
+            { label: "Public Assets",     value: stats.public_assets,     color: "#ff8c00", icon: "🌐" },
+            { label: "Unencrypted",       value: stats.unencrypted_assets,color: "#ffd600", icon: "🔓" },
+            { label: "Critical Findings", value: stats.critical_findings, color: "#ff3b5c", icon: "🚨" },
+            { label: "Total Findings",    value: stats.total_findings,    color: "#ff8c00", icon: "🔍" },
+          ].map(s => (
+            <div key={s.label} style={{ ...cardStyle({ padding: "18px" }),
+              borderColor: s.color + "25",
+              boxShadow: `0 0 14px ${s.color}08` }}>
+              <div style={{ fontSize: "20px", marginBottom: "8px" }}>
+                {s.icon}
+              </div>
+              <div style={{ fontSize: "26px", fontWeight: "800",
+                lineHeight: 1,
+                fontFamily: "JetBrains Mono, monospace",
+                color: s.color,
+                textShadow: `0 0 16px ${s.color}50` }}>
+                {s.value}
+              </div>
+              <div style={{ fontSize: "10px", color: C.muted,
+                marginTop: "5px", textTransform: "uppercase",
+                letterSpacing: "0.5px" }}>
+                {s.label}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* ── Provider summary cards ───────────────────────────── */}
+      {stats && (
+        <div style={{ display: "grid",
+          gridTemplateColumns: "repeat(4, 1fr)",
+          gap: "14px", marginBottom: "28px" }}>
+          {Object.entries(PROVIDER).map(([key, meta]) => {
+            const p = stats.providers?.[key] || {};
+            return (
+              <div key={key} style={{ background: C.card,
+                border: `1px solid ${meta.color}25`,
+                borderRadius: "14px", padding: "20px",
+                boxShadow: `0 0 20px ${meta.color}06` }}>
+                <div style={{ display: "flex",
+                  alignItems: "center", gap: "10px",
+                  marginBottom: "14px" }}>
+                  <span style={{ fontSize: "24px" }}>{meta.icon}</span>
+                  <span style={{ fontWeight: "800", fontSize: "15px",
+                    color: meta.color }}>{meta.label}</span>
+                </div>
+                <div style={{ display: "grid",
+                  gridTemplateColumns: "1fr 1fr",
+                  gap: "8px" }}>
+                  {[
+                    { label: "Assets",   value: p.assets   || 0 },
+                    { label: "Findings", value: p.findings || 0 },
+                    { label: "Critical", value: p.critical || 0,
+                      color: p.critical > 0 ? "#ff3b5c" : C.green },
+                    { label: "Accounts", value: p.accounts || 0 },
+                  ].map(m => (
+                    <div key={m.label} style={{ background: C.surface,
+                      borderRadius: "8px", padding: "8px 10px" }}>
+                      <div style={{ fontSize: "18px", fontWeight: "800",
+                        fontFamily: "JetBrains Mono, monospace",
+                        color: m.color || C.text }}>
+                        {m.value}
+                      </div>
+                      <div style={{ fontSize: "10px", color: C.muted,
+                        textTransform: "uppercase",
+                        letterSpacing: "0.5px" }}>
+                        {m.label}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* ── Tab bar ─────────────────────────────────────────── */}
+      <div style={{ display: "flex", gap: "4px", marginBottom: "20px",
+        background: C.card, padding: "4px", borderRadius: "12px",
+        border: `1px solid ${C.border}`, width: "fit-content" }}>
+        {[
+          { id: "accounts", label: "Accounts",  count: accounts.length },
+          { id: "assets",   label: "Assets",    count: assets.length   },
+          { id: "findings", label: "Findings",  count: findings.length },
+        ].map(t => (
+          <button key={t.id} onClick={() => setTab(t.id)}
+            style={{ padding: "8px 20px", borderRadius: "9px",
+              border: "none", cursor: "pointer",
+              fontSize: "13px", fontWeight: "600",
+              transition: "all 0.2s",
+              background: tab === t.id
+                ? "linear-gradient(135deg, #00e5ff20, #00ff8820)"
+                : "transparent",
+              color: tab === t.id ? C.text : C.muted,
+              boxShadow: tab === t.id
+                ? "inset 0 0 0 1px #00e5ff30" : "none" }}>
+            {t.label}
+            <span style={{ marginLeft: "6px", padding: "1px 6px",
+              borderRadius: "100px", fontSize: "10px",
+              background: tab === t.id ? "#00e5ff20" : C.border,
+              color: tab === t.id ? C.cyan : C.muted }}>
+              {t.count}
+            </span>
+          </button>
+        ))}
+      </div>
+
+      {/* ── Accounts tab ─────────────────────────────────────── */}
+      {tab === "accounts" && (
+        <div style={{ display: "flex", flexDirection: "column",
+          gap: "12px" }}>
+          {accounts.map(acc => {
+            const prov = PROVIDER[acc.provider] || PROVIDER.aws;
+            const isScanning = scanning[acc.id];
+            return (
+              <div key={acc.id} style={{ ...cardStyle(),
+                borderLeft: `3px solid ${prov.color}`,
+                boxShadow: `0 0 16px ${prov.color}06` }}>
+                <div style={{ display: "flex",
+                  alignItems: "center", gap: "16px" }}>
+                  {/* Provider icon */}
+                  <div style={{ width: "52px", height: "52px",
+                    borderRadius: "12px", background: prov.bg,
+                    border: `1px solid ${prov.color}30`,
+                    display: "flex", alignItems: "center",
+                    justifyContent: "center", fontSize: "26px",
+                    flexShrink: 0 }}>
+                    {prov.icon}
+                  </div>
+                  {/* Account info */}
+                  <div style={{ flex: 1 }}>
+                    <div style={{ display: "flex",
+                      alignItems: "center", gap: "10px",
+                      marginBottom: "5px" }}>
+                      <span style={{ fontWeight: "700",
+                        fontSize: "15px" }}>{acc.name}</span>
+                      <span style={{ padding: "2px 10px",
+                        borderRadius: "100px", fontSize: "10px",
+                        fontWeight: "800", background: prov.bg,
+                        color: prov.color,
+                        textTransform: "uppercase" }}>
+                        {prov.label}
+                      </span>
+                      <span style={{ padding: "2px 8px",
+                        borderRadius: "100px", fontSize: "10px",
+                        fontWeight: "700",
+                        background: acc.status === "connected"
+                          ? "#00ff8812" : "#ff3b5c12",
+                        color: acc.status === "connected"
+                          ? "#00ff88" : "#ff3b5c" }}>
+                        {acc.status}
+                      </span>
+                    </div>
+                    <div style={{ fontSize: "12px",
+                      color: C.muted }}>
+                      {acc.account_id && `ID: ${acc.account_id} · `}
+                      Region: {acc.region} ·{" "}
+                      {acc.asset_count} assets ·{" "}
+                      {acc.finding_count} findings
+                      {acc.last_scan && ` · Last scan: ${
+                        new Date(acc.last_scan).toLocaleString()}`}
+                    </div>
+                  </div>
+                  {/* Actions */}
+                  <div style={{ display: "flex", gap: "8px",
+                    flexShrink: 0 }}>
+                    <button
+                      onClick={() => handleScan(acc.id, acc.name)}
+                      disabled={isScanning}
+                      style={{ padding: "8px 18px",
+                        borderRadius: "10px",
+                        border: `1px solid ${prov.color}35`,
+                        cursor: "pointer", fontSize: "12px",
+                        fontWeight: "700", background: prov.bg,
+                        color: prov.color,
+                        opacity: isScanning ? 0.6 : 1 }}>
+                      {isScanning ? "Scanning..." : "Scan Now"}
+                    </button>
+                    <button onClick={() => handleDelete(acc.id)}
+                      style={{ padding: "8px 14px",
+                        borderRadius: "10px",
+                        border: "1px solid #ff3b5c30",
+                        cursor: "pointer", fontSize: "12px",
+                        fontWeight: "700", background: "#ff3b5c10",
+                        color: "#ff3b5c" }}>
+                      ✕
+                    </button>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* ── Assets tab ───────────────────────────────────────── */}
+      {tab === "assets" && (
+        <div style={{ display: "flex", flexDirection: "column",
+          gap: "8px" }}>
+          {assets.map(asset => {
+            const prov = PROVIDER[asset.provider] || PROVIDER.aws;
+            const rc   = riskColor(asset.risk_score);
+            return (
+              <div key={asset.id} style={{ background: C.card,
+                border: `1px solid ${C.border}`,
+                borderLeft: `3px solid ${rc}`,
+                borderRadius: "12px", padding: "14px 18px" }}>
+                <div style={{ display: "flex",
+                  alignItems: "center", gap: "12px" }}>
+                  {/* Asset type icon */}
+                  <span style={{ fontSize: "20px", flexShrink: 0 }}>
+                    {ASSET_ICON[asset.asset_type] || "📦"}
+                  </span>
+                  {/* Name + type */}
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontWeight: "600", fontSize: "13px",
+                      marginBottom: "3px" }}>
+                      {asset.name || asset.asset_id}
+                    </div>
+                    <div style={{ display: "flex", gap: "6px",
+                      flexWrap: "wrap" }}>
+                      <span style={{ fontSize: "10px",
+                        fontWeight: "700", color: prov.color,
+                        background: prov.bg, padding: "1px 7px",
+                        borderRadius: "100px",
+                        textTransform: "uppercase" }}>
+                        {prov.label}
+                      </span>
+                      <span style={{ fontSize: "10px",
+                        color: C.muted, background: C.faint + "60",
+                        padding: "1px 7px", borderRadius: "100px" }}>
+                        {asset.asset_type}
+                      </span>
+                      {asset.region && (
+                        <span style={{ fontSize: "10px",
+                          color: C.muted }}>
+                          {asset.region}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                  {/* Public + encrypted flags */}
+                  <div style={{ display: "flex", gap: "6px" }}>
+                    {asset.public && (
+                      <span style={{ padding: "2px 8px",
+                        borderRadius: "100px", fontSize: "10px",
+                        fontWeight: "700", background: "#ff8c0015",
+                        color: "#ff8c00" }}>
+                        PUBLIC
+                      </span>
+                    )}
+                    {!asset.encrypted && (
+                      <span style={{ padding: "2px 8px",
+                        borderRadius: "100px", fontSize: "10px",
+                        fontWeight: "700", background: "#ffd60015",
+                        color: "#ffd600" }}>
+                        UNENCRYPTED
+                      </span>
+                    )}
+                  </div>
+                  {/* Risk score */}
+                  <div style={{ textAlign: "right", flexShrink: 0 }}>
+                    <div style={{ fontSize: "20px", fontWeight: "800",
+                      fontFamily: "JetBrains Mono, monospace",
+                      color: rc }}>
+                      {asset.risk_score}
+                    </div>
+                    <div style={{ fontSize: "10px", color: C.muted,
+                      textTransform: "uppercase" }}>
+                      risk
+                    </div>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* ── Findings tab ─────────────────────────────────────── */}
+      {tab === "findings" && (
+        <div style={{ display: "flex", flexDirection: "column",
+          gap: "8px" }}>
+          {findings.length === 0 && (
+            <div style={{ ...cardStyle({ padding: "48px",
+              textAlign: "center" }), color: C.muted }}>
+              No findings. Scan a cloud account above.
+            </div>
+          )}
+          {findings.map(f => {
+            const col  = SEV[f.severity]       || SEV.High;
+            const prov = PROVIDER[f.provider]  || PROVIDER.aws;
+            return (
+              <div key={f.id} style={{ background: C.card,
+                border: `1px solid ${col.border}`,
+                borderLeft: `3px solid ${col.fg}`,
+                borderRadius: "12px", padding: "14px 18px" }}>
+                <div style={{ display: "flex",
+                  alignItems: "flex-start", gap: "12px" }}>
+                  {/* Severity + provider */}
+                  <div style={{ display: "flex",
+                    flexDirection: "column", gap: "4px",
+                    flexShrink: 0 }}>
+                    <div style={{ padding: "3px 10px",
+                      borderRadius: "100px", fontSize: "10px",
+                      fontWeight: "800", background: col.bg,
+                      color: col.fg, textTransform: "uppercase",
+                      letterSpacing: "0.5px",
+                      textAlign: "center" }}>
+                      {f.severity}
+                    </div>
+                    <div style={{ padding: "2px 8px",
+                      borderRadius: "100px", fontSize: "10px",
+                      fontWeight: "700", background: prov.bg,
+                      color: prov.color, textAlign: "center",
+                      textTransform: "uppercase" }}>
+                      {prov.label}
+                    </div>
+                  </div>
+                  {/* Finding details */}
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontWeight: "700", fontSize: "13px",
+                      marginBottom: "4px" }}>{f.title}</div>
+                    {f.resource && (
+                      <div style={{ fontSize: "11px",
+                        fontFamily: "JetBrains Mono, monospace",
+                        color: "#a78bfa", background: "#7c3aed10",
+                        padding: "2px 8px", borderRadius: "6px",
+                        display: "inline-block",
+                        border: "1px solid #7c3aed20",
+                        marginBottom: "5px" }}>
+                        {f.resource}
+                      </div>
+                    )}
+                    {f.description && (
+                      <div style={{ fontSize: "11px", color: C.muted,
+                        lineHeight: "1.5" }}>
+                        {f.description}
+                      </div>
+                    )}
+                  </div>
+                  {/* MITRE */}
+                  {f.mitre_id && (
+                    <div style={{ padding: "3px 9px",
+                      borderRadius: "7px", fontSize: "11px",
+                      fontWeight: "700", color: "#a78bfa",
+                      background: "#7c3aed15",
+                      border: "1px solid #7c3aed30",
+                      fontFamily: "JetBrains Mono, monospace",
+                      flexShrink: 0 }}>
+                      {f.mitre_id}
+                    </div>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
 
 // ─────────────────────────────────────────────────────────────
 // AIPET X — OT/ICS Security Page
@@ -11090,6 +11734,9 @@ export default function App() {
           )}
           {activeTab === "team" && (
             <TeamAccessPage token={token} showToast={showToast} />
+          )}
+          {activeTab === "multicloud" && (
+            <MultiCloudPage token={token} showToast={showToast} />
           )}
           {activeTab === "otics" && (
             <OtIcsPage token={token} showToast={showToast} />
