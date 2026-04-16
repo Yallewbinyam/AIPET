@@ -6071,6 +6071,7 @@ const NAV_ITEMS = [
   { id: "aisoc",      label: "AI SOC",        icon: Shield,        group: "enterprise" },
   { id: "otics",      label: "OT/ICS",        icon: Cpu,           group: "enterprise" },
   { id: "multicloud", label: "Multi-Cloud",   icon: Shield,        group: "enterprise" },
+  { id: "twin",       label: "Digital Twin",  icon: Cpu,           group: "enterprise" },
   { id: "settings",  label: "Settings",      icon: Settings,      group: "account"  },
 ];
 
@@ -6333,6 +6334,677 @@ function SettingsPage({ token, showToast }) {
   );
 }
 
+
+// ─────────────────────────────────────────────────────────────
+// AIPET X — Digital Twin Page
+//
+// Features:
+//   • Stats bar: nodes, diverged, high risk, edges, unencrypted
+//   • Interactive network graph — SVG canvas with nodes + edges
+//     Nodes colour-coded by risk score
+//     Edges colour-coded by encryption status
+//   • Node details panel — click any node to inspect
+//   • Attack simulation — select node, see blast radius
+//   • Divergence list — all nodes where actual != expected
+//   • Snapshot history
+// ─────────────────────────────────────────────────────────────
+function DigitalTwinPage({ token, showToast }) {
+
+  // ── State ─────────────────────────────────────────────────
+  const [stats,      setStats]      = useState(null);
+  const [nodes,      setNodes]      = useState([]);
+  const [edges,      setEdges]      = useState([]);
+  const [snapshots,  setSnapshots]  = useState([]);
+  const [loading,    setLoading]    = useState(true);
+  const [tab,        setTab]        = useState("graph");
+  const [selected,   setSelected]   = useState(null);   // selected node
+  const [simResult,  setSimResult]  = useState(null);   // simulation result
+  const [simulating, setSimulating] = useState(false);
+  const [syncing,    setSyncing]    = useState(false);
+  const [blastIds,   setBlastIds]   = useState(new Set());
+
+  const H = { headers: { Authorization: `Bearer ${token}` } };
+
+  // Node type icons
+  const NODE_ICON = {
+    sensor:   "📡", gateway: "🔌", plc:    "⚙️",
+    server:   "🖥️", router:  "🛡️", camera: "📷",
+    actuator: "🔧", hub:     "📦",
+  };
+
+  // Risk score → colour
+  const riskColor = (score) => {
+    if (score >= 75) return "#ff3b5c";
+    if (score >= 50) return "#ff8c00";
+    if (score >= 25) return "#ffd600";
+    return "#00ff88";
+  };
+
+  // Design tokens
+  const C = {
+    bg: "#030712", card: "#0d1117", surface: "#080f1a",
+    border: "#1e2a3a", borderBright: "#2d3f55",
+    text: "#e2e8f0", muted: "#64748b", faint: "#334155",
+    cyan: "#00e5ff", green: "#00ff88",
+  };
+  const cardStyle = (extra = {}) => ({
+    background: C.card, border: `1px solid ${C.border}`,
+    borderRadius: "16px", padding: "24px", ...extra
+  });
+
+  // ── Fetch all data ────────────────────────────────────────
+  const fetchAll = useCallback(async () => {
+    try {
+      const [stRes, nRes, eRes, snapRes] = await Promise.all([
+        axios.get(`${API}/twin/stats`,     H),
+        axios.get(`${API}/twin/nodes`,     H),
+        axios.get(`${API}/twin/edges`,     H),
+        axios.get(`${API}/twin/snapshots`, H),
+      ]);
+      setStats(stRes.data);
+      setNodes(nRes.data.nodes       || []);
+      setEdges(eRes.data.edges       || []);
+      setSnapshots(snapRes.data.snapshots || []);
+    } catch {
+      showToast("Failed to load Digital Twin data", "error");
+    } finally {
+      setLoading(false);
+    }
+  }, [token]);
+
+  useEffect(() => { fetchAll(); }, [fetchAll]);
+
+  // ── Sync twin with scan data ──────────────────────────────
+  const handleSync = async () => {
+    setSyncing(true);
+    try {
+      const res = await axios.post(`${API}/twin/sync`, {}, H);
+      showToast(res.data.message, "success");
+      fetchAll();
+    } catch {
+      showToast("Sync failed", "error");
+    } finally {
+      setSyncing(false);
+    }
+  };
+
+  // ── Simulate attack ───────────────────────────────────────
+  const handleSimulate = async (nodeId) => {
+    setSimulating(true);
+    setSimResult(null);
+    setBlastIds(new Set());
+    try {
+      const res = await axios.post(
+        `${API}/twin/simulate/${nodeId}`, {}, H);
+      setSimResult(res.data);
+      const ids = new Set(res.data.blast_radius.map(b => b.node.id));
+      setBlastIds(ids);
+      showToast(
+        `Simulation: ${res.data.affected} devices in blast radius`,
+        res.data.affected > 0 ? "error" : "success"
+      );
+    } catch {
+      showToast("Simulation failed", "error");
+    } finally {
+      setSimulating(false);
+    }
+  };
+
+  // ── Take snapshot ─────────────────────────────────────────
+  const handleSnapshot = async () => {
+    try {
+      await axios.post(`${API}/twin/snapshot`,
+        { label: `Manual snapshot — ${new Date().toLocaleString()}` }, H);
+      showToast("Snapshot saved", "success");
+      fetchAll();
+    } catch {
+      showToast("Snapshot failed", "error");
+    }
+  };
+
+  // ── Network graph renderer ────────────────────────────────
+  // Pure SVG — no external library needed
+  const renderGraph = () => {
+    if (!nodes.length) return null;
+    const W = 800, H_SVG = 560;
+
+    // Build node lookup for edge rendering
+    const nodeMap = {};
+    nodes.forEach(n => { nodeMap[n.id] = n; });
+
+    return (
+      <svg viewBox={`0 0 ${W} ${H_SVG}`}
+        style={{ width: "100%", height: "100%",
+          background: C.surface, borderRadius: "12px" }}>
+
+        {/* Zone labels */}
+        {[
+          { y: 20,  label: "ENTERPRISE",  color: "#00e5ff20" },
+          { y: 130, label: "SUPERVISORY", color: "#a78bfa20" },
+          { y: 240, label: "OPERATIONS",  color: "#ff8c0015" },
+          { y: 360, label: "FIELD",       color: "#ff3b5c10" },
+        ].map(zone => (
+          <g key={zone.label}>
+            <rect x={10} y={zone.y} width={W - 20} height={110}
+              fill={zone.color} rx={8} />
+            <text x={20} y={zone.y + 18} fontSize={10}
+              fill={C.muted} fontFamily="JetBrains Mono, monospace"
+              opacity={0.6} fontWeight="700">
+              {zone.label}
+            </text>
+          </g>
+        ))}
+
+        {/* Edges */}
+        {edges.map(edge => {
+          const src = nodeMap[edge.source_id];
+          const tgt = nodeMap[edge.target_id];
+          if (!src || !tgt) return null;
+          const isBlast = blastIds.has(edge.target_id) ||
+                          blastIds.has(edge.source_id);
+          const color = isBlast ? "#ff3b5c"
+            : edge.encrypted ? "#00e5ff30" : "#ff8c0050";
+          const strokeW = isBlast ? 2 : 1;
+          const dashArr = edge.encrypted ? "none" : "5,4";
+          return (
+            <line key={edge.id}
+              x1={src.x_pos} y1={src.y_pos}
+              x2={tgt.x_pos} y2={tgt.y_pos}
+              stroke={color} strokeWidth={strokeW}
+              strokeDasharray={dashArr}
+              opacity={0.8} />
+          );
+        })}
+
+        {/* Nodes */}
+        {nodes.map(node => {
+          const rc       = riskColor(node.risk_score);
+          const isBlast  = blastIds.has(node.id);
+          const isSel    = selected?.id === node.id;
+          const nodeSize = 22;
+          const glowColor= isBlast ? "#ff3b5c"
+            : node.diverged ? "#ff8c00" : rc;
+
+          return (
+            <g key={node.id}
+              onClick={() => {
+                setSelected(isSel ? null : node);
+                setSimResult(null);
+                setBlastIds(new Set());
+              }}
+              style={{ cursor: "pointer" }}>
+              {/* Glow ring for selected/blast */}
+              {(isSel || isBlast) && (
+                <circle cx={node.x_pos} cy={node.y_pos}
+                  r={nodeSize + 8} fill="none"
+                  stroke={glowColor} strokeWidth={2}
+                  opacity={0.5} />
+              )}
+              {/* Divergence ring */}
+              {node.diverged && !isSel && (
+                <circle cx={node.x_pos} cy={node.y_pos}
+                  r={nodeSize + 4} fill="none"
+                  stroke="#ff8c00" strokeWidth={1.5}
+                  strokeDasharray="4,3" opacity={0.7} />
+              )}
+              {/* Node circle */}
+              <circle cx={node.x_pos} cy={node.y_pos}
+                r={nodeSize}
+                fill={isBlast ? "#ff3b5c20"
+                  : node.diverged ? "#ff8c0015"
+                  : rc + "20"}
+                stroke={isBlast ? "#ff3b5c"
+                  : isSel ? C.cyan : rc}
+                strokeWidth={isSel ? 2.5 : 1.5} />
+              {/* Node icon */}
+              <text x={node.x_pos} y={node.y_pos + 1}
+                textAnchor="middle" dominantBaseline="middle"
+                fontSize={14}>
+                {NODE_ICON[node.node_type] || "📦"}
+              </text>
+              {/* Risk score badge */}
+              <circle cx={node.x_pos + 16} cy={node.y_pos - 16}
+                r={10} fill={rc} />
+              <text x={node.x_pos + 16} y={node.y_pos - 16}
+                textAnchor="middle" dominantBaseline="middle"
+                fontSize={8} fontWeight="800" fill="#000"
+                fontFamily="JetBrains Mono, monospace">
+                {node.risk_score}
+              </text>
+              {/* Node label */}
+              <text x={node.x_pos} y={node.y_pos + nodeSize + 12}
+                textAnchor="middle" fontSize={9}
+                fill={isSel ? C.cyan : C.muted}
+                fontFamily="Inter, sans-serif"
+                fontWeight={isSel ? "700" : "400"}>
+                {node.name.length > 16
+                  ? node.name.slice(0, 14) + ".." : node.name}
+              </text>
+            </g>
+          );
+        })}
+      </svg>
+    );
+  };
+
+  if (loading) return (
+    <div style={{ display: "flex", flexDirection: "column",
+      alignItems: "center", justifyContent: "center",
+      height: "60vh", gap: "16px" }}>
+      <div style={{ width: "48px", height: "48px",
+        border: `3px solid ${C.border}`,
+        borderTop: `3px solid ${C.cyan}`,
+        borderRadius: "50%",
+        animation: "spin 1s linear infinite" }} />
+      <div style={{ color: C.muted, fontSize: "13px",
+        fontFamily: "JetBrains Mono, monospace" }}>
+        Loading Digital Twin...
+      </div>
+    </div>
+  );
+
+  return (
+    <div style={{ padding: "32px 36px", background: C.bg,
+      minHeight: "100vh", fontFamily: "Inter, sans-serif",
+      color: C.text }}>
+
+      {/* ── Header ──────────────────────────────────────────── */}
+      <div style={{ display: "flex", alignItems: "center",
+        justifyContent: "space-between", marginBottom: "32px" }}>
+        <div style={{ display: "flex", alignItems: "center",
+          gap: "16px" }}>
+          <div style={{ width: "52px", height: "52px",
+            borderRadius: "14px",
+            background: "linear-gradient(135deg, #00ff8820, #00e5ff08)",
+            border: "1px solid #00ff8835",
+            display: "flex", alignItems: "center",
+            justifyContent: "center", fontSize: "24px",
+            boxShadow: "0 0 20px #00ff8815" }}>
+            🔮
+          </div>
+          <div>
+            <h1 style={{ margin: 0, fontSize: "26px",
+              fontWeight: "800", letterSpacing: "-0.5px",
+              fontFamily: "JetBrains Mono, monospace",
+              background: "linear-gradient(135deg, #00ff88, #00e5ff)",
+              WebkitBackgroundClip: "text",
+              WebkitTextFillColor: "transparent" }}>
+              Digital Twin
+            </h1>
+            <div style={{ fontSize: "13px", color: C.muted,
+              marginTop: "2px" }}>
+              Live virtual replica · Attack simulation · Divergence detection
+            </div>
+          </div>
+        </div>
+        <div style={{ display: "flex", gap: "10px" }}>
+          <button onClick={handleSnapshot}
+            style={{ padding: "10px 18px", borderRadius: "10px",
+              border: `1px solid ${C.border}`, cursor: "pointer",
+              fontSize: "13px", fontWeight: "600",
+              background: "transparent", color: C.muted }}>
+            📸 Snapshot
+          </button>
+          <button onClick={handleSync} disabled={syncing}
+            style={{ padding: "10px 22px", borderRadius: "10px",
+              border: "1px solid #00ff8835", cursor: "pointer",
+              fontSize: "13px", fontWeight: "700",
+              background: "#00ff8812", color: C.green,
+              opacity: syncing ? 0.6 : 1 }}>
+            {syncing ? "Syncing..." : "⚡ Sync with Scans"}
+          </button>
+        </div>
+      </div>
+
+      {/* ── Stats bar ───────────────────────────────────────── */}
+      {stats && (
+        <div style={{ display: "grid",
+          gridTemplateColumns: "repeat(6, 1fr)",
+          gap: "12px", marginBottom: "28px" }}>
+          {[
+            { label: "Twin Nodes",  value: stats.total_nodes, color: C.cyan,    icon: "🔮" },
+            { label: "Diverged",    value: stats.diverged,    color: "#ff8c00", icon: "⚠️" },
+            { label: "High Risk",   value: stats.high_risk,   color: "#ff3b5c", icon: "🚨" },
+            { label: "Online",      value: stats.online,      color: C.green,   icon: "✅" },
+            { label: "Connections", value: stats.total_edges, color: "#a78bfa", icon: "🔌" },
+            { label: "Unencrypted", value: stats.unenc_edges, color: "#ffd600", icon: "🔓" },
+          ].map(s => (
+            <div key={s.label} style={{ ...cardStyle({ padding: "18px" }),
+              borderColor: s.color + "25",
+              boxShadow: `0 0 14px ${s.color}08` }}>
+              <div style={{ fontSize: "20px", marginBottom: "8px" }}>
+                {s.icon}
+              </div>
+              <div style={{ fontSize: "26px", fontWeight: "800",
+                lineHeight: 1,
+                fontFamily: "JetBrains Mono, monospace",
+                color: s.color }}>
+                {s.value}
+              </div>
+              <div style={{ fontSize: "10px", color: C.muted,
+                marginTop: "5px", textTransform: "uppercase",
+                letterSpacing: "0.5px" }}>
+                {s.label}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* ── Tab bar ─────────────────────────────────────────── */}
+      <div style={{ display: "flex", gap: "4px", marginBottom: "20px",
+        background: C.card, padding: "4px", borderRadius: "12px",
+        border: `1px solid ${C.border}`, width: "fit-content" }}>
+        {[
+          { id: "graph",     label: "Network Graph" },
+          { id: "diverged",  label: `Divergences (${nodes.filter(n=>n.diverged).length})` },
+          { id: "snapshots", label: `Snapshots (${snapshots.length})` },
+        ].map(t => (
+          <button key={t.id} onClick={() => setTab(t.id)}
+            style={{ padding: "8px 20px", borderRadius: "9px",
+              border: "none", cursor: "pointer",
+              fontSize: "13px", fontWeight: "600",
+              transition: "all 0.2s",
+              background: tab === t.id
+                ? "linear-gradient(135deg, #00ff8820, #00e5ff20)"
+                : "transparent",
+              color: tab === t.id ? C.text : C.muted,
+              boxShadow: tab === t.id
+                ? "inset 0 0 0 1px #00ff8830" : "none" }}>
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      {/* ── Network Graph tab ────────────────────────────────── */}
+      {tab === "graph" && (
+        <div style={{ display: "grid",
+          gridTemplateColumns: "1fr 300px", gap: "16px" }}>
+          {/* Graph canvas */}
+          <div style={{ ...cardStyle({ padding: "0",
+            overflow: "hidden", minHeight: "560px" }) }}>
+            {renderGraph()}
+            {/* Legend */}
+            <div style={{ padding: "12px 16px",
+              borderTop: `1px solid ${C.border}`,
+              display: "flex", gap: "16px", flexWrap: "wrap" }}>
+              {[
+                { color: "#00ff88", label: "Low risk (0-24)"    },
+                { color: "#ffd600", label: "Medium (25-49)"     },
+                { color: "#ff8c00", label: "High (50-74)"       },
+                { color: "#ff3b5c", label: "Critical (75+)"     },
+                { color: "#ff8c00", label: "⟳ Diverged",   dash: true },
+                { color: "#ff8c0050", label: "Unencrypted link", line: true },
+              ].map(l => (
+                <div key={l.label} style={{ display: "flex",
+                  alignItems: "center", gap: "6px" }}>
+                  {l.line
+                    ? <div style={{ width: "20px", height: "2px",
+                        borderTop: `2px dashed ${l.color}` }} />
+                    : <div style={{ width: "10px", height: "10px",
+                        borderRadius: "50%",
+                        background: l.color,
+                        border: l.dash
+                          ? `2px dashed #ff8c00` : "none" }} />
+                  }
+                  <span style={{ fontSize: "10px",
+                    color: C.muted }}>{l.label}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Node detail / simulation panel */}
+          <div style={{ display: "flex", flexDirection: "column",
+            gap: "12px" }}>
+            {/* Instructions */}
+            {!selected && (
+              <div style={{ ...cardStyle({ padding: "16px" }),
+                borderColor: "#00e5ff20" }}>
+                <div style={{ fontSize: "12px", color: C.muted,
+                  lineHeight: "1.6" }}>
+                  Click any node on the graph to inspect it and
+                  run attack simulation.
+                </div>
+                <div style={{ marginTop: "10px",
+                  fontSize: "11px", color: C.faint }}>
+                  <div>🔴 Dashed ring = diverged</div>
+                  <div>🔵 Number badge = risk score</div>
+                  <div>⟶ Dashed line = unencrypted</div>
+                </div>
+              </div>
+            )}
+
+            {/* Selected node details */}
+            {selected && (
+              <div style={{ ...cardStyle({ padding: "16px" }),
+                borderColor: `${riskColor(selected.risk_score)}30` }}>
+                <div style={{ display: "flex",
+                  alignItems: "center", gap: "10px",
+                  marginBottom: "12px" }}>
+                  <span style={{ fontSize: "22px" }}>
+                    {NODE_ICON[selected.node_type] || "📦"}
+                  </span>
+                  <div>
+                    <div style={{ fontWeight: "700",
+                      fontSize: "14px" }}>{selected.name}</div>
+                    <div style={{ fontSize: "11px",
+                      color: C.muted }}>{selected.node_type}</div>
+                  </div>
+                </div>
+                {[
+                  { label: "IP",       value: selected.ip_address  },
+                  { label: "Vendor",   value: selected.vendor      },
+                  { label: "Firmware", value: selected.firmware     },
+                  { label: "Zone",     value: selected.zone         },
+                  { label: "Location", value: selected.location     },
+                ].filter(f => f.value).map(f => (
+                  <div key={f.label} style={{ display: "flex",
+                    justifyContent: "space-between",
+                    marginBottom: "5px" }}>
+                    <span style={{ fontSize: "11px",
+                      color: C.muted }}>{f.label}</span>
+                    <span style={{ fontSize: "11px",
+                      color: C.text,
+                      fontFamily: f.label === "IP" || f.label === "Firmware"
+                        ? "JetBrains Mono, monospace" : "inherit" }}>
+                      {f.value}
+                    </span>
+                  </div>
+                ))}
+                {/* Risk score */}
+                <div style={{ marginTop: "10px", padding: "8px",
+                  borderRadius: "8px",
+                  background: riskColor(selected.risk_score) + "15",
+                  border: `1px solid ${riskColor(selected.risk_score)}30`,
+                  display: "flex", justifyContent: "space-between",
+                  alignItems: "center" }}>
+                  <span style={{ fontSize: "11px",
+                    color: C.muted }}>Risk Score</span>
+                  <span style={{ fontSize: "18px", fontWeight: "800",
+                    fontFamily: "JetBrains Mono, monospace",
+                    color: riskColor(selected.risk_score) }}>
+                    {selected.risk_score}
+                  </span>
+                </div>
+                {/* Diverged badge */}
+                {selected.diverged && (
+                  <div style={{ marginTop: "8px", padding: "6px 10px",
+                    borderRadius: "8px", background: "#ff8c0015",
+                    border: "1px solid #ff8c0030",
+                    fontSize: "11px", color: "#ff8c00",
+                    fontWeight: "600" }}>
+                    ⚠️ Diverged — actual ≠ expected state
+                  </div>
+                )}
+                {/* Simulate button */}
+                <button
+                  onClick={() => handleSimulate(selected.id)}
+                  disabled={simulating}
+                  style={{ marginTop: "12px", width: "100%",
+                    padding: "10px", borderRadius: "10px",
+                    border: "none", cursor: "pointer",
+                    fontSize: "13px", fontWeight: "700",
+                    background: "linear-gradient(135deg, #ff3b5c, #ff8c00)",
+                    color: "#fff",
+                    opacity: simulating ? 0.6 : 1 }}>
+                  {simulating ? "Simulating..." : "⚡ Simulate Attack"}
+                </button>
+              </div>
+            )}
+
+            {/* Simulation result */}
+            {simResult && (
+              <div style={{ ...cardStyle({ padding: "16px" }),
+                borderColor: "#ff3b5c30" }}>
+                <div style={{ fontWeight: "700", fontSize: "13px",
+                  color: "#ff3b5c", marginBottom: "10px" }}>
+                  💥 Blast Radius — {simResult.affected} devices
+                </div>
+                {simResult.blast_radius.length === 0 ? (
+                  <div style={{ fontSize: "12px",
+                    color: C.green }}>
+                    ✅ No lateral movement possible from this node.
+                  </div>
+                ) : (
+                  simResult.blast_radius.map((b, i) => (
+                    <div key={i} style={{ padding: "6px 10px",
+                      borderRadius: "8px", marginBottom: "5px",
+                      background: "#ff3b5c10",
+                      border: "1px solid #ff3b5c20" }}>
+                      <div style={{ fontSize: "11px",
+                        fontWeight: "700",
+                        color: "#ff3b5c" }}>
+                        {b.node.name}
+                      </div>
+                      <div style={{ fontSize: "10px",
+                        color: C.muted, marginTop: "2px" }}>
+                        {b.attack_path} · risk:{b.prop_risk}
+                        {b.vector === "unencrypted"
+                          ? " · unencrypted link" : ""}
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ── Divergences tab ──────────────────────────────────── */}
+      {tab === "diverged" && (
+        <div style={{ display: "flex", flexDirection: "column",
+          gap: "10px" }}>
+          {nodes.filter(n => n.diverged).length === 0 && (
+            <div style={{ ...cardStyle({ padding: "48px",
+              textAlign: "center" }), color: C.muted }}>
+              ✅ All nodes match their expected state.
+            </div>
+          )}
+          {nodes.filter(n => n.diverged).map(node => {
+            const rc = riskColor(node.risk_score);
+            let actual = {};
+            try { actual = JSON.parse(node.actual_state || "{}"); }
+            catch {}
+            return (
+              <div key={node.id} style={{ ...cardStyle(),
+                borderLeft: `3px solid ${rc}` }}>
+                <div style={{ display: "flex",
+                  alignItems: "center", gap: "14px" }}>
+                  <span style={{ fontSize: "24px" }}>
+                    {NODE_ICON[node.node_type] || "📦"}
+                  </span>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ display: "flex",
+                      alignItems: "center", gap: "10px",
+                      marginBottom: "5px" }}>
+                      <span style={{ fontWeight: "700",
+                        fontSize: "14px" }}>{node.name}</span>
+                      <span style={{ fontFamily: "JetBrains Mono, monospace",
+                        fontSize: "12px",
+                        color: C.muted }}>{node.ip_address}</span>
+                      <span style={{ padding: "2px 8px",
+                        borderRadius: "100px", fontSize: "10px",
+                        fontWeight: "800", background: rc + "15",
+                        color: rc, textTransform: "uppercase" }}>
+                        {actual.risk_level || "Unknown"}
+                      </span>
+                    </div>
+                    <div style={{ fontSize: "12px", color: C.muted }}>
+                      Findings:{" "}
+                      {(actual.findings || []).map(f =>
+                        typeof f === "object" ? f.attack : f
+                      ).join(", ") || "none recorded"}
+                    </div>
+                  </div>
+                  {/* Risk score ring */}
+                  <div style={{ width: "50px", height: "50px",
+                    borderRadius: "50%", background: rc + "15",
+                    border: `3px solid ${rc}`,
+                    display: "flex", flexDirection: "column",
+                    alignItems: "center", justifyContent: "center",
+                    flexShrink: 0 }}>
+                    <div style={{ fontSize: "16px", fontWeight: "800",
+                      fontFamily: "JetBrains Mono, monospace",
+                      color: rc, lineHeight: 1 }}>
+                      {node.risk_score}
+                    </div>
+                    <div style={{ fontSize: "8px",
+                      color: rc, fontWeight: "700" }}>
+                      RISK
+                    </div>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* ── Snapshots tab ────────────────────────────────────── */}
+      {tab === "snapshots" && (
+        <div style={{ display: "flex", flexDirection: "column",
+          gap: "8px" }}>
+          {snapshots.map(snap => (
+            <div key={snap.id} style={{ background: C.card,
+              border: `1px solid ${C.border}`,
+              borderRadius: "10px", padding: "14px 18px" }}>
+              <div style={{ display: "flex",
+                alignItems: "center", gap: "12px" }}>
+                <div style={{ padding: "3px 10px",
+                  borderRadius: "100px", fontSize: "10px",
+                  fontWeight: "700",
+                  background: snap.snapshot_type === "manual"
+                    ? "#a78bfa20" : "#00e5ff15",
+                  color: snap.snapshot_type === "manual"
+                    ? "#a78bfa" : C.cyan }}>
+                  {snap.snapshot_type}
+                </div>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontWeight: "600",
+                    fontSize: "13px" }}>
+                    {snap.label || "Auto snapshot"}
+                  </div>
+                  <div style={{ fontSize: "11px",
+                    color: C.muted, marginTop: "2px" }}>
+                    {snap.node_count} nodes · {snap.edge_count} edges ·{" "}
+                    {snap.diverged_count} diverged ·{" "}
+                    avg risk: {Math.round(snap.risk_avg)}
+                  </div>
+                </div>
+                <div style={{ fontSize: "11px", color: C.muted,
+                  whiteSpace: "nowrap" }}>
+                  {new Date(snap.created_at).toLocaleString()}
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 // ─────────────────────────────────────────────────────────────
 // AIPET X — Multi-Cloud Security Page
@@ -11734,6 +12406,9 @@ export default function App() {
           )}
           {activeTab === "team" && (
             <TeamAccessPage token={token} showToast={showToast} />
+          )}
+          {activeTab === "twin" && (
+            <DigitalTwinPage token={token} showToast={showToast} />
           )}
           {activeTab === "multicloud" && (
             <MultiCloudPage token={token} showToast={showToast} />
