@@ -4907,6 +4907,165 @@ function LoginPage({ onLogin }) {
 // ============================================================
 // AIPET TERMINAL — Real xterm.js terminal
 // ============================================================
+
+// ============================================================
+// TEAM & ACCESS PAGE (IAM + RBAC)
+// ============================================================
+function TeamAccessPage({ token, showToast }) {
+  const [roles, setRoles] = useState([]);
+  const [auditLog, setAuditLog] = useState([]);
+  const [activeTab, setActiveTab] = useState('roles');
+  const [loading, setLoading] = useState(true);
+
+  const headers = { Authorization: `Bearer ${token}` };
+
+  useEffect(() => {
+    fetchData();
+  }, []);
+
+  const fetchData = async () => {
+    setLoading(true);
+    try {
+      const [rolesRes, auditRes] = await Promise.all([
+        fetch('http://localhost:5001/api/iam/roles', { headers }),
+        fetch('http://localhost:5001/api/iam/audit', { headers }),
+      ]);
+      if (rolesRes.ok) setRoles(await rolesRes.json());
+      if (auditRes.ok) {
+        const data = await auditRes.json();
+        setAuditLog(data.logs || []);
+      }
+    } catch (e) {
+      showToast('Failed to load IAM data', 'error');
+    }
+    setLoading(false);
+  };
+
+  const ROLE_COLORS = {
+    owner:   '#f59e0b',
+    admin:   '#00e5ff',
+    analyst: '#a855f7',
+    viewer:  '#00ff88',
+  };
+
+  const STATUS_COLORS = {
+    success: '#00ff88',
+    failed:  '#ff4444',
+    blocked: '#f59e0b',
+  };
+
+  const tabs = [
+    { id: 'roles',   label: 'Roles & Permissions' },
+    { id: 'audit',   label: 'Audit Log' },
+    { id: 'sso',     label: 'SSO Configuration' },
+  ];
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
+      {/* Header */}
+      <div>
+        <h2 style={{ fontSize: '20px', fontWeight: '800', color: '#e2e8f0', margin: 0 }}>
+          Team & Access Control
+        </h2>
+        <p style={{ fontSize: '13px', color: '#475569', margin: '4px 0 0' }}>
+          Manage roles, permissions, SSO providers, and audit logs
+        </p>
+      </div>
+
+      {/* Tabs */}
+      <div style={{ display: 'flex', gap: '4px', borderBottom: '1px solid #1e293b', paddingBottom: '0' }}>
+        {tabs.map(tab => (
+          <button key={tab.id} onClick={() => setActiveTab(tab.id)}
+            style={{
+              padding: '10px 20px', border: 'none', cursor: 'pointer', fontSize: '13px', fontWeight: '600',
+              backgroundColor: 'transparent',
+              color: activeTab === tab.id ? '#00e5ff' : '#475569',
+              borderBottom: activeTab === tab.id ? '2px solid #00e5ff' : '2px solid transparent',
+              transition: 'all 0.2s',
+            }}>
+            {tab.label}
+          </button>
+        ))}
+      </div>
+
+      {loading ? (
+        <div style={{ textAlign: 'center', color: '#475569', padding: '40px' }}>Loading...</div>
+      ) : (
+        <>
+          {/* Roles Tab */}
+          {activeTab === 'roles' && (
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '16px' }}>
+              {roles.map((role, i) => (
+                <div key={i} style={{ padding: '24px', borderRadius: '16px', border: `1px solid ${(ROLE_COLORS[role.name] || '#00e5ff')}30`, backgroundColor: '#0a1628' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '12px' }}>
+                    <div style={{ width: '10px', height: '10px', borderRadius: '50%', backgroundColor: ROLE_COLORS[role.name] || '#00e5ff' }} />
+                    <span style={{ fontSize: '16px', fontWeight: '700', color: ROLE_COLORS[role.name] || '#00e5ff', textTransform: 'capitalize' }}>{role.name}</span>
+                  </div>
+                  <p style={{ color: '#64748b', fontSize: '13px', margin: '0 0 16px', lineHeight: '1.5' }}>{role.description}</p>
+                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
+                    {role.permissions.length > 0 ? role.permissions.map((perm, j) => (
+                      <span key={j} style={{ padding: '3px 10px', borderRadius: '100px', fontSize: '11px', fontWeight: '600', backgroundColor: 'rgba(0,229,255,0.08)', color: '#00e5ff', border: '1px solid rgba(0,229,255,0.2)' }}>
+                        {perm}
+                      </span>
+                    )) : (
+                      <span style={{ fontSize: '12px', color: '#334155' }}>No permissions assigned yet</span>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* Audit Log Tab */}
+          {activeTab === 'audit' && (
+            <div style={{ backgroundColor: '#0a1628', borderRadius: '16px', border: '1px solid #1e293b', overflow: 'hidden' }}>
+              <div style={{ padding: '16px 20px', borderBottom: '1px solid #1e293b', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                <span style={{ color: '#e2e8f0', fontWeight: '700', fontSize: '14px' }}>Recent Activity</span>
+                <span style={{ color: '#475569', fontSize: '12px' }}>{auditLog.length} events</span>
+              </div>
+              {auditLog.length === 0 ? (
+                <div style={{ padding: '40px', textAlign: 'center', color: '#475569' }}>No audit events yet</div>
+              ) : (
+                auditLog.slice(0, 50).map((log, i) => (
+                  <div key={i} style={{ padding: '12px 20px', borderBottom: '1px solid #0f1f30', display: 'flex', alignItems: 'center', gap: '16px' }}>
+                    <div style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: STATUS_COLORS[log.status] || '#64748b', flexShrink: 0 }} />
+                    <div style={{ flex: 1 }}>
+                      <span style={{ color: '#00e5ff', fontSize: '13px', fontFamily: 'monospace', fontWeight: '600' }}>{log.action}</span>
+                      {log.resource && <span style={{ color: '#475569', fontSize: '12px', marginLeft: '8px' }}>→ {log.resource}</span>}
+                    </div>
+                    <span style={{ color: '#334155', fontSize: '11px', fontFamily: 'monospace' }}>{log.ip_address}</span>
+                    <span style={{ color: '#334155', fontSize: '11px' }}>{new Date(log.timestamp).toLocaleString()}</span>
+                  </div>
+                ))
+              )}
+            </div>
+          )}
+
+          {/* SSO Tab */}
+          {activeTab === 'sso' && (
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px' }}>
+              {[
+                { name: 'Azure AD', icon: '🔵', desc: 'Microsoft Azure Active Directory — enterprise SSO for NHS, manufacturing, and government organisations', status: 'Configure' },
+                { name: 'Okta', icon: '🟡', desc: 'Okta Universal Directory — identity management for modern enterprises with SAML 2.0 support', status: 'Configure' },
+                { name: 'SAML 2.0', icon: '🔐', desc: 'Generic SAML 2.0 provider — connect any SAML-compatible identity provider to AIPET X', status: 'Configure' },
+              ].map((provider, i) => (
+                <div key={i} style={{ padding: '24px', borderRadius: '16px', border: '1px solid #1e293b', backgroundColor: '#0a1628' }}>
+                  <div style={{ fontSize: '32px', marginBottom: '12px' }}>{provider.icon}</div>
+                  <div style={{ fontSize: '16px', fontWeight: '700', color: '#e2e8f0', marginBottom: '8px' }}>{provider.name}</div>
+                  <p style={{ color: '#475569', fontSize: '13px', lineHeight: '1.6', marginBottom: '16px' }}>{provider.desc}</p>
+                  <button style={{ width: '100%', padding: '10px', borderRadius: '10px', backgroundColor: 'rgba(0,229,255,0.08)', border: '1px solid rgba(0,229,255,0.2)', color: '#00e5ff', fontSize: '13px', fontWeight: '600', cursor: 'pointer' }}>
+                    {provider.status} →
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+        </>
+      )}
+    </div>
+  );
+}
+
 function TerminalPage({ token, showToast, findings }) {
   const terminalRef = useRef(null);
   const xtermRef = useRef(null);
@@ -5904,6 +6063,7 @@ const NAV_ITEMS = [
   { id: "pricing",   label: "Pricing",       icon: Zap,           group: "account"  },
   { id: "billing",   label: "Billing",       icon: Lock,          group: "account"  },
   { id: "apikeys",   label: "API Keys",      icon: CreditCard,    group: "account"  },
+  { id: "team",      label: "Team & Access", icon: Shield,        group: "enterprise" },
   { id: "settings",  label: "Settings",      icon: Settings,      group: "account"  },
 ];
 
@@ -5912,6 +6072,7 @@ const NAV_GROUPS = [
   { id: "intel",   label: "Intelligence" },
   { id: "reports", label: "Reports"      },
   { id: "account", label: "Account"      },
+  { id: "enterprise", label: "Enterprise"  },
 ];
 
 function SettingsPage({ token, showToast }) {
@@ -7019,6 +7180,9 @@ export default function App() {
           )}
           {activeTab === "terminal" && (
             <TerminalPage token={token} showToast={showToast} findings={findings} />
+          )}
+          {activeTab === "team" && (
+            <TeamAccessPage token={token} showToast={showToast} />
           )}
           {activeTab === "compliance" && (
             <CompliancePage token={token} showToast={showToast} currentPlan={usage?.plan} />
