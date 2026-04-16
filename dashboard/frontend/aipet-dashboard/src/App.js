@@ -6073,6 +6073,7 @@ const NAV_ITEMS = [
   { id: "multicloud", label: "Multi-Cloud",   icon: Shield,        group: "enterprise" },
   { id: "twin",       label: "Digital Twin",  icon: Cpu,           group: "enterprise" },
   { id: "redteam",    label: "AI Red Team",   icon: Shield,        group: "enterprise" },
+  { id: "marketplace",label: "Marketplace",  icon: Zap,           group: "enterprise" },
   { id: "settings",  label: "Settings",      icon: Settings,      group: "account"  },
 ];
 
@@ -6335,6 +6336,604 @@ function SettingsPage({ token, showToast }) {
   );
 }
 
+
+// ─────────────────────────────────────────────────────────────
+// AIPET X — Marketplace Page
+//
+// Features:
+//   • Stats bar: plugins, installed, verified, categories
+//   • Category filter tabs (All/Integration/Scan/Report/AI/Feed/Widget)
+//   • Plugin grid — icon, name, publisher, rating, install count
+//   • Install/uninstall with one click
+//   • Search bar
+//   • Installed plugins tab
+//   • Submit your own plugin form
+// ─────────────────────────────────────────────────────────────
+function MarketplacePage({ token, showToast }) {
+
+  // ── State ─────────────────────────────────────────────────
+  const [stats,     setStats]     = useState(null);
+  const [plugins,   setPlugins]   = useState([]);
+  const [installed, setInstalled] = useState([]);
+  const [loading,   setLoading]   = useState(true);
+  const [tab,       setTab]       = useState("browse");
+  const [category,  setCategory]  = useState("");
+  const [search,    setSearch]    = useState("");
+  const [installing,setInstalling]= useState({});
+
+  // Submit plugin form
+  const [showSubmit, setShowSubmit] = useState(false);
+  const [newPlugin,  setNewPlugin]  = useState({
+    name: "", description: "", category: "integration",
+    publisher: "", icon: "🔌", free: true, price_gbp: 0, tags: ""
+  });
+  const [submitting, setSubmitting] = useState(false);
+
+  const H = { headers: { Authorization: `Bearer ${token}` } };
+
+  // Category metadata
+  const CATEGORIES = [
+    { id: "",                 label: "All",           icon: "🌐" },
+    { id: "integration",      label: "Integrations",  icon: "🔌" },
+    { id: "scan_module",      label: "Scan Modules",  icon: "🔍" },
+    { id: "report_template",  label: "Reports",       icon: "📋" },
+    { id: "ai_pack",          label: "AI Packs",      icon: "🤖" },
+    { id: "threat_feed",      label: "Threat Feeds",  icon: "🎯" },
+    { id: "dashboard_widget", label: "Widgets",       icon: "📊" },
+  ];
+
+  const CAT_COLOR = {
+    integration:      "#00e5ff",
+    scan_module:      "#ff8c00",
+    report_template:  "#a78bfa",
+    ai_pack:          "#00ff88",
+    threat_feed:      "#ff3b5c",
+    dashboard_widget: "#ffd600",
+  };
+
+  const C = {
+    bg: "#030712", card: "#0d1117", surface: "#080f1a",
+    border: "#1e2a3a", borderBright: "#2d3f55",
+    text: "#e2e8f0", muted: "#64748b", faint: "#334155",
+    cyan: "#00e5ff", green: "#00ff88",
+  };
+  const cardStyle = (extra = {}) => ({
+    background: C.card, border: `1px solid ${C.border}`,
+    borderRadius: "16px", padding: "24px", ...extra
+  });
+
+  // ── Fetch data ────────────────────────────────────────────
+  const fetchAll = useCallback(async () => {
+    try {
+      const params = new URLSearchParams();
+      if (category) params.set("category", category);
+      if (search)   params.set("search", search);
+
+      const [stRes, plRes, instRes] = await Promise.all([
+        axios.get(`${API}/marketplace/stats`, H),
+        axios.get(`${API}/marketplace/plugins?${params}`, H),
+        axios.get(`${API}/marketplace/installed`, H),
+      ]);
+      setStats(stRes.data);
+      setPlugins(plRes.data.plugins   || []);
+      setInstalled(instRes.data.plugins || []);
+    } catch {
+      showToast("Failed to load Marketplace", "error");
+    } finally {
+      setLoading(false);
+    }
+  }, [token, category, search]);
+
+  useEffect(() => { fetchAll(); }, [fetchAll]);
+
+  // ── Install / uninstall ───────────────────────────────────
+  const handleInstall = async (plugin) => {
+    setInstalling(prev => ({ ...prev, [plugin.id]: true }));
+    try {
+      if (plugin.installed) {
+        await axios.delete(`${API}/marketplace/install/${plugin.id}`, H);
+        showToast(`${plugin.name} uninstalled`, "success");
+      } else {
+        await axios.post(`${API}/marketplace/install/${plugin.id}`, {}, H);
+        showToast(`${plugin.name} installed`, "success");
+      }
+      fetchAll();
+    } catch (e) {
+      showToast(e.response?.data?.error || "Action failed", "error");
+    } finally {
+      setInstalling(prev => ({ ...prev, [plugin.id]: false }));
+    }
+  };
+
+  // ── Submit plugin ─────────────────────────────────────────
+  const handleSubmit = async () => {
+    if (!newPlugin.name || !newPlugin.description) return;
+    setSubmitting(true);
+    try {
+      const payload = {
+        ...newPlugin,
+        tags: newPlugin.tags.split(",").map(t => t.trim()).filter(Boolean),
+      };
+      await axios.post(`${API}/marketplace/submit`, payload, H);
+      showToast("Plugin submitted for review", "success");
+      setShowSubmit(false);
+      setNewPlugin({ name: "", description: "", category: "integration",
+        publisher: "", icon: "🔌", free: true, price_gbp: 0, tags: "" });
+      fetchAll();
+    } catch (e) {
+      showToast(e.response?.data?.error || "Submit failed", "error");
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  // ── Star rating renderer ──────────────────────────────────
+  const Stars = ({ rating }) => (
+    <span style={{ fontSize: "11px" }}>
+      {[1,2,3,4,5].map(i => (
+        <span key={i} style={{ color: i <= Math.round(rating)
+          ? "#ffd600" : C.faint }}>★</span>
+      ))}
+    </span>
+  );
+
+  if (loading) return (
+    <div style={{ display: "flex", flexDirection: "column",
+      alignItems: "center", justifyContent: "center",
+      height: "60vh", gap: "16px" }}>
+      <div style={{ width: "48px", height: "48px",
+        border: `3px solid ${C.border}`,
+        borderTop: `3px solid ${C.cyan}`,
+        borderRadius: "50%",
+        animation: "spin 1s linear infinite" }} />
+      <div style={{ color: C.muted, fontSize: "13px",
+        fontFamily: "JetBrains Mono, monospace" }}>
+        Loading Marketplace...
+      </div>
+    </div>
+  );
+
+  return (
+    <div style={{ padding: "32px 36px", background: C.bg,
+      minHeight: "100vh", fontFamily: "Inter, sans-serif",
+      color: C.text }}>
+
+      {/* ── Header ──────────────────────────────────────────── */}
+      <div style={{ display: "flex", alignItems: "center",
+        justifyContent: "space-between", marginBottom: "32px" }}>
+        <div style={{ display: "flex", alignItems: "center",
+          gap: "16px" }}>
+          <div style={{ width: "52px", height: "52px",
+            borderRadius: "14px",
+            background: "linear-gradient(135deg, #ffd60020, #ff8c0008)",
+            border: "1px solid #ffd60035",
+            display: "flex", alignItems: "center",
+            justifyContent: "center", fontSize: "24px",
+            boxShadow: "0 0 20px #ffd60015" }}>
+            🏪
+          </div>
+          <div>
+            <h1 style={{ margin: 0, fontSize: "26px",
+              fontWeight: "800", letterSpacing: "-0.5px",
+              fontFamily: "JetBrains Mono, monospace",
+              background: "linear-gradient(135deg, #ffd600, #ff8c00)",
+              WebkitBackgroundClip: "text",
+              WebkitTextFillColor: "transparent" }}>
+              Marketplace
+            </h1>
+            <div style={{ fontSize: "13px", color: C.muted,
+              marginTop: "2px" }}>
+              Plugins · Integrations · AI Packs · Threat Feeds
+            </div>
+          </div>
+        </div>
+        <button onClick={() => setShowSubmit(!showSubmit)}
+          style={{ padding: "10px 22px", borderRadius: "10px",
+            border: "1px solid #ffd60035", cursor: "pointer",
+            fontSize: "13px", fontWeight: "700",
+            background: showSubmit ? "#ffd60020" : "transparent",
+            color: "#ffd600", transition: "all 0.2s" }}>
+          {showSubmit ? "✕ Cancel" : "+ Submit Plugin"}
+        </button>
+      </div>
+
+      {/* ── Submit plugin form ───────────────────────────────── */}
+      {showSubmit && (
+        <div style={{ ...cardStyle({ marginBottom: "24px" }),
+          borderColor: "#ffd60020" }}>
+          <div style={{ fontSize: "13px", fontWeight: "700",
+            color: "#ffd600", marginBottom: "16px" }}>
+            🔌 Submit Your Plugin
+          </div>
+          <div style={{ display: "grid",
+            gridTemplateColumns: "1fr 1fr 1fr",
+            gap: "12px", marginBottom: "12px" }}>
+            {[
+              { key: "name",        label: "Plugin Name"  },
+              { key: "publisher",   label: "Publisher"    },
+              { key: "icon",        label: "Icon (emoji)" },
+              { key: "description", label: "Description"  },
+              { key: "tags",        label: "Tags (comma separated)" },
+            ].map(f => (
+              <div key={f.key}
+                style={{ gridColumn: f.key === "description"
+                  ? "span 2" : "span 1" }}>
+                <div style={{ fontSize: "10px", color: C.muted,
+                  marginBottom: "5px", textTransform: "uppercase",
+                  letterSpacing: "0.5px" }}>{f.label}</div>
+                <input value={newPlugin[f.key]}
+                  onChange={e => setNewPlugin(p =>
+                    ({ ...p, [f.key]: e.target.value }))}
+                  style={{ width: "100%", padding: "9px 12px",
+                    borderRadius: "8px",
+                    border: `1px solid ${C.borderBright}`,
+                    background: C.surface, color: C.text,
+                    fontSize: "13px", boxSizing: "border-box",
+                    outline: "none" }} />
+              </div>
+            ))}
+            <div>
+              <div style={{ fontSize: "10px", color: C.muted,
+                marginBottom: "5px", textTransform: "uppercase",
+                letterSpacing: "0.5px" }}>Category</div>
+              <select value={newPlugin.category}
+                onChange={e => setNewPlugin(p =>
+                  ({ ...p, category: e.target.value }))}
+                style={{ width: "100%", padding: "9px 12px",
+                  borderRadius: "8px",
+                  border: `1px solid ${C.borderBright}`,
+                  background: C.surface, color: C.text,
+                  fontSize: "13px", outline: "none" }}>
+                {CATEGORIES.filter(c => c.id).map(c => (
+                  <option key={c.id} value={c.id}>
+                    {c.icon} {c.label}
+                  </option>
+                ))}
+              </select>
+            </div>
+          </div>
+          <div style={{ display: "flex", gap: "12px",
+            alignItems: "center", marginBottom: "16px" }}>
+            <label style={{ display: "flex", alignItems: "center",
+              gap: "6px", cursor: "pointer", fontSize: "13px",
+              color: C.muted }}>
+              <input type="checkbox"
+                checked={newPlugin.free}
+                onChange={e => setNewPlugin(p =>
+                  ({ ...p, free: e.target.checked }))} />
+              Free plugin
+            </label>
+            {!newPlugin.free && (
+              <div style={{ display: "flex", alignItems: "center",
+                gap: "8px" }}>
+                <span style={{ fontSize: "13px", color: C.muted }}>
+                  Price (£)
+                </span>
+                <input type="number"
+                  value={newPlugin.price_gbp}
+                  onChange={e => setNewPlugin(p =>
+                    ({ ...p, price_gbp: parseFloat(e.target.value)||0 }))}
+                  style={{ width: "80px", padding: "6px 10px",
+                    borderRadius: "8px",
+                    border: `1px solid ${C.borderBright}`,
+                    background: C.surface, color: C.text,
+                    fontSize: "13px", outline: "none" }} />
+              </div>
+            )}
+          </div>
+          <button onClick={handleSubmit} disabled={submitting}
+            style={{ padding: "10px 24px", borderRadius: "10px",
+              border: "none", cursor: "pointer",
+              fontSize: "13px", fontWeight: "700",
+              background: "linear-gradient(135deg, #ffd600, #ff8c00)",
+              color: "#000", opacity: submitting ? 0.6 : 1 }}>
+            {submitting ? "Submitting..." : "Submit for Review"}
+          </button>
+        </div>
+      )}
+
+      {/* ── Stats bar ───────────────────────────────────────── */}
+      {stats && (
+        <div style={{ display: "grid",
+          gridTemplateColumns: "repeat(5, 1fr)",
+          gap: "14px", marginBottom: "28px" }}>
+          {[
+            { label: "Total Plugins",  value: stats.total_plugins,  color: "#ffd600", icon: "🏪" },
+            { label: "Verified",       value: stats.verified,       color: "#00ff88", icon: "✅" },
+            { label: "Installed",      value: stats.my_installs,    color: C.cyan,    icon: "📦" },
+            { label: "Total Installs", value: stats.total_installs, color: "#a78bfa", icon: "📈" },
+            { label: "Reviews",        value: stats.total_reviews,  color: "#ff8c00", icon: "⭐" },
+          ].map(s => (
+            <div key={s.label} style={{ ...cardStyle({ padding: "20px" }),
+              borderColor: s.color + "25",
+              boxShadow: `0 0 14px ${s.color}08` }}>
+              <div style={{ fontSize: "22px", marginBottom: "8px" }}>
+                {s.icon}
+              </div>
+              <div style={{ fontSize: "28px", fontWeight: "800",
+                lineHeight: 1,
+                fontFamily: "JetBrains Mono, monospace",
+                color: s.color }}>
+                {s.value}
+              </div>
+              <div style={{ fontSize: "10px", color: C.muted,
+                marginTop: "5px", textTransform: "uppercase",
+                letterSpacing: "0.5px" }}>
+                {s.label}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* ── Tab + Search row ─────────────────────────────────── */}
+      <div style={{ display: "flex", gap: "12px",
+        alignItems: "center", marginBottom: "20px",
+        flexWrap: "wrap" }}>
+        <div style={{ display: "flex", gap: "4px",
+          background: C.card, padding: "4px",
+          borderRadius: "12px", border: `1px solid ${C.border}` }}>
+          {[
+            { id: "browse",    label: "Browse"    },
+            { id: "installed", label: `Installed (${installed.length})` },
+          ].map(t => (
+            <button key={t.id} onClick={() => setTab(t.id)}
+              style={{ padding: "7px 18px", borderRadius: "9px",
+                border: "none", cursor: "pointer",
+                fontSize: "13px", fontWeight: "600",
+                transition: "all 0.2s",
+                background: tab === t.id
+                  ? "linear-gradient(135deg, #ffd60020, #ff8c0020)"
+                  : "transparent",
+                color: tab === t.id ? C.text : C.muted,
+                boxShadow: tab === t.id
+                  ? "inset 0 0 0 1px #ffd60030" : "none" }}>
+              {t.label}
+            </button>
+          ))}
+        </div>
+        {/* Search */}
+        <input value={search}
+          onChange={e => setSearch(e.target.value)}
+          placeholder="Search plugins..."
+          style={{ flex: 1, maxWidth: "280px",
+            padding: "9px 14px", borderRadius: "10px",
+            border: `1px solid ${C.borderBright}`,
+            background: C.surface, color: C.text,
+            fontSize: "13px", outline: "none" }} />
+      </div>
+
+      {/* ── Category filters ─────────────────────────────────── */}
+      {tab === "browse" && (
+        <div style={{ display: "flex", gap: "8px",
+          flexWrap: "wrap", marginBottom: "20px" }}>
+          {CATEGORIES.map(cat => (
+            <button key={cat.id}
+              onClick={() => setCategory(cat.id)}
+              style={{ padding: "6px 16px", borderRadius: "100px",
+                border: `1px solid ${category === cat.id
+                  ? (CAT_COLOR[cat.id] || "#ffd600") : C.border}`,
+                cursor: "pointer", fontSize: "12px",
+                fontWeight: "600", transition: "all 0.15s",
+                background: category === cat.id
+                  ? (CAT_COLOR[cat.id] || "#ffd600") + "20"
+                  : "transparent",
+                color: category === cat.id
+                  ? (CAT_COLOR[cat.id] || "#ffd600") : C.muted }}>
+              {cat.icon} {cat.label}
+              {stats?.categories?.[cat.id] !== undefined && cat.id && (
+                <span style={{ marginLeft: "5px", fontSize: "10px",
+                  opacity: 0.7 }}>
+                  ({stats.categories[cat.id]})
+                </span>
+              )}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* ── Browse tab — Plugin grid ──────────────────────────── */}
+      {tab === "browse" && (
+        <div style={{ display: "grid",
+          gridTemplateColumns: "repeat(3, 1fr)",
+          gap: "14px" }}>
+          {plugins.map(plugin => {
+            const catColor = CAT_COLOR[plugin.category] || "#ffd600";
+            const isInst   = plugin.installed;
+            const isLoading= installing[plugin.id];
+            return (
+              <div key={plugin.id} style={{ background: C.card,
+                border: `1px solid ${isInst
+                  ? catColor + "40" : C.border}`,
+                borderRadius: "14px", padding: "20px",
+                transition: "all 0.2s",
+                boxShadow: isInst
+                  ? `0 0 16px ${catColor}10` : "none" }}>
+                {/* Plugin header */}
+                <div style={{ display: "flex",
+                  alignItems: "flex-start", gap: "12px",
+                  marginBottom: "12px" }}>
+                  <div style={{ width: "44px", height: "44px",
+                    borderRadius: "10px", flexShrink: 0,
+                    background: catColor + "15",
+                    border: `1px solid ${catColor}30`,
+                    display: "flex", alignItems: "center",
+                    justifyContent: "center",
+                    fontSize: "22px" }}>
+                    {plugin.icon}
+                  </div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ display: "flex",
+                      alignItems: "center", gap: "6px",
+                      marginBottom: "3px" }}>
+                      <span style={{ fontWeight: "700",
+                        fontSize: "14px", overflow: "hidden",
+                        textOverflow: "ellipsis",
+                        whiteSpace: "nowrap" }}>
+                        {plugin.name}
+                      </span>
+                      {plugin.verified && (
+                        <span style={{ fontSize: "12px",
+                          title: "Verified by AIPET" }}>✅</span>
+                      )}
+                    </div>
+                    <div style={{ fontSize: "11px",
+                      color: C.muted }}>{plugin.publisher}</div>
+                  </div>
+                </div>
+                {/* Category badge */}
+                <div style={{ marginBottom: "10px" }}>
+                  <span style={{ padding: "2px 8px",
+                    borderRadius: "100px", fontSize: "10px",
+                    fontWeight: "700", background: catColor + "15",
+                    color: catColor, textTransform: "uppercase",
+                    letterSpacing: "0.5px" }}>
+                    {plugin.category.replace("_", " ")}
+                  </span>
+                </div>
+                {/* Description */}
+                <div style={{ fontSize: "12px", color: C.muted,
+                  lineHeight: "1.5", marginBottom: "14px",
+                  display: "-webkit-box",
+                  WebkitLineClamp: 2,
+                  WebkitBoxOrient: "vertical",
+                  overflow: "hidden" }}>
+                  {plugin.description}
+                </div>
+                {/* Rating + installs */}
+                <div style={{ display: "flex",
+                  alignItems: "center", gap: "10px",
+                  marginBottom: "14px" }}>
+                  <Stars rating={plugin.avg_rating} />
+                  <span style={{ fontSize: "11px",
+                    color: C.muted }}>
+                    {plugin.avg_rating.toFixed(1)}
+                    ({plugin.review_count})
+                  </span>
+                  <span style={{ marginLeft: "auto",
+                    fontSize: "11px", color: C.muted }}>
+                    {plugin.install_count.toLocaleString()} installs
+                  </span>
+                </div>
+                {/* Price + install button */}
+                <div style={{ display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between" }}>
+                  <span style={{ fontSize: "13px",
+                    fontWeight: "700",
+                    color: plugin.free ? C.green : "#ffd600" }}>
+                    {plugin.free ? "Free" : `£${plugin.price_gbp}/mo`}
+                  </span>
+                  <button onClick={() => handleInstall(plugin)}
+                    disabled={isLoading}
+                    style={{ padding: "7px 18px",
+                      borderRadius: "8px", border: "none",
+                      cursor: "pointer", fontSize: "12px",
+                      fontWeight: "700", transition: "all 0.15s",
+                      background: isInst
+                        ? "#ff3b5c15" : catColor + "20",
+                      color: isInst ? "#ff3b5c" : catColor,
+                      border: `1px solid ${isInst
+                        ? "#ff3b5c30" : catColor + "40"}`,
+                      opacity: isLoading ? 0.6 : 1 }}>
+                    {isLoading ? "..."
+                      : isInst ? "Uninstall" : "Install"}
+                  </button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* ── Installed tab ────────────────────────────────────── */}
+      {tab === "installed" && (
+        <div>
+          {installed.length === 0 ? (
+            <div style={{ ...cardStyle({ padding: "48px",
+              textAlign: "center" }), color: C.muted }}>
+              No plugins installed yet. Browse the marketplace above.
+            </div>
+          ) : (
+            <div style={{ display: "flex",
+              flexDirection: "column", gap: "10px" }}>
+              {installed.map(plugin => {
+                const catColor = CAT_COLOR[plugin.category] || "#ffd600";
+                return (
+                  <div key={plugin.id} style={{ ...cardStyle(),
+                    borderLeft: `3px solid ${catColor}` }}>
+                    <div style={{ display: "flex",
+                      alignItems: "center", gap: "14px" }}>
+                      <div style={{ width: "44px", height: "44px",
+                        borderRadius: "10px", flexShrink: 0,
+                        background: catColor + "15",
+                        border: `1px solid ${catColor}30`,
+                        display: "flex", alignItems: "center",
+                        justifyContent: "center",
+                        fontSize: "22px" }}>
+                        {plugin.icon}
+                      </div>
+                      <div style={{ flex: 1 }}>
+                        <div style={{ display: "flex",
+                          alignItems: "center", gap: "8px",
+                          marginBottom: "3px" }}>
+                          <span style={{ fontWeight: "700",
+                            fontSize: "14px" }}>
+                            {plugin.name}
+                          </span>
+                          {plugin.verified && (
+                            <span style={{ fontSize: "11px" }}>✅</span>
+                          )}
+                          <span style={{ padding: "2px 8px",
+                            borderRadius: "100px", fontSize: "10px",
+                            fontWeight: "700",
+                            background: catColor + "15",
+                            color: catColor }}>
+                            {plugin.category.replace("_"," ")}
+                          </span>
+                          <span style={{ padding: "2px 8px",
+                            borderRadius: "100px", fontSize: "10px",
+                            fontWeight: "700",
+                            background: "#00ff8812",
+                            color: "#00ff88" }}>
+                            Active
+                          </span>
+                        </div>
+                        <div style={{ fontSize: "12px",
+                          color: C.muted }}>
+                          {plugin.description}
+                        </div>
+                        <div style={{ fontSize: "11px",
+                          color: C.faint, marginTop: "3px" }}>
+                          v{plugin.version} ·{" "}
+                          Installed {new Date(
+                            plugin.installed_at).toLocaleDateString()}
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => handleInstall({
+                          ...plugin, installed: true })}
+                        style={{ padding: "7px 16px",
+                          borderRadius: "8px",
+                          border: "1px solid #ff3b5c30",
+                          cursor: "pointer", fontSize: "12px",
+                          fontWeight: "600",
+                          background: "#ff3b5c10",
+                          color: "#ff3b5c",
+                          flexShrink: 0 }}>
+                        Uninstall
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
 
 // ─────────────────────────────────────────────────────────────
 // AIPET X — AI Red Team Page
@@ -13140,6 +13739,9 @@ export default function App() {
           )}
           {activeTab === "team" && (
             <TeamAccessPage token={token} showToast={showToast} />
+          )}
+          {activeTab === "marketplace" && (
+            <MarketplacePage token={token} showToast={showToast} />
           )}
           {activeTab === "redteam" && (
             <AiRedTeamPage token={token} showToast={showToast} />
