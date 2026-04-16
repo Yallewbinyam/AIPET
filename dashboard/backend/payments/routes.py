@@ -25,7 +25,7 @@ def create_checkout_session():
     data = request.get_json()
     plan = data.get('plan')
 
-    if plan not in ('professional', 'enterprise'):
+    if plan not in ('professional', 'enterprise', 'aipet_x'):
         return jsonify({'error': 'Invalid plan'}), 400
 
     data_currency = data.get('currency', 'gbp').lower()
@@ -44,6 +44,12 @@ def create_checkout_session():
             'usd': current_app.config['STRIPE_PRICE_ENTERPRISE_USD'],
             'eur': current_app.config['STRIPE_PRICE_ENTERPRISE_EUR'],
             'jpy': current_app.config['STRIPE_PRICE_ENTERPRISE_JPY'],
+        },
+        'aipet_x': {
+            'gbp': current_app.config['STRIPE_PRICE_AIPET_X'],
+            'usd': current_app.config['STRIPE_PRICE_AIPET_X_USD'],
+            'eur': current_app.config['STRIPE_PRICE_AIPET_X_EUR'],
+            'jpy': current_app.config['STRIPE_PRICE_AIPET_X_JPY'],
         },
     }
     price_id = price_map[plan][data_currency]

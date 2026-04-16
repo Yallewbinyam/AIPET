@@ -3941,7 +3941,7 @@ function AboutPage({ onBack, onGetStarted }) {
           <div style={{ maxWidth: "900px", margin: "0 auto" }}>
             <h2 style={{ fontSize: "36px", fontWeight: "900", color: COLORS.text, marginBottom: "12px", textAlign: "center" }}>What Makes AIPET Different</h2>
             <p style={{ color: COLORS.muted, fontSize: "16px", textAlign: "center", marginBottom: "48px" }}>The only IoT security platform that explains the complete attack story</p>
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "24px" }}>
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "16px" }}>
               {[
                 { icon: "🧠", title: "Explainable AI", desc: "SHAP-powered explanations tell you exactly why each device is vulnerable — not just that it is. No other platform does this.", color: COLORS.blue },
                 { icon: "💰", title: "Financial Risk Scoring", desc: "Quantifies the financial impact of each vulnerability using IBM and NCSC 2024 breach data. Your board will understand this.", color: COLORS.purple },
@@ -3968,7 +3968,7 @@ function AboutPage({ onBack, onGetStarted }) {
             <h2 style={{ fontSize: "36px", fontWeight: "900", color: COLORS.text, marginBottom: "12px" }}>Academic Backing</h2>
             <p style={{ color: COLORS.muted, fontSize: "16px" }}>Research-grade security, accessible pricing</p>
           </div>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "24px", textAlign: "center" }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "16px", textAlign: "center" }}>
             {[
               { value: "NIS2", label: "EU Compliance", color: COLORS.blue },
               { value: "NIST", label: "USA Framework", color: COLORS.purple },
@@ -4284,7 +4284,7 @@ function LandingPage({ onGetStarted, onLogin, setLegalPage, setActivePage }) {
   const [currency, setCurrency] = useState({ code: 'GBP', symbol: '£' });
 
   const CURRENCY_PRICES = {
-    GBP: { professional: '49', enterprise: '499' },
+    GBP: { professional: '49', enterprise: '499', aipet_x: '1,999' },
     USD: { professional: '59', enterprise: '599' },
     EUR: { professional: '55', enterprise: '549' },
     JPY: { professional: '8,900', enterprise: '89,000' },
@@ -4506,7 +4506,7 @@ function LandingPage({ onGetStarted, onLogin, setLegalPage, setActivePage }) {
             <h2 style={{ fontSize: "36px", fontWeight: "900", color: COLORS.text, marginBottom: "12px" }}>{t("featuresTitle")}</h2>
             <p style={{ color: COLORS.muted, fontSize: "16px" }}>{t("featuresSubtitle")}</p>
           </div>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "24px" }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "16px" }}>
             {[
               { icon: Shield, color: COLORS.blue, title: t('features.attackModules'), desc: t('features.attackModulesDesc') },
               { icon: Zap, color: COLORS.critical, title: t('features.explainableAI'), desc: t('features.explainableAIDesc') },
@@ -4570,13 +4570,14 @@ function LandingPage({ onGetStarted, onLogin, setLegalPage, setActivePage }) {
             </button>
           ))}
         </div>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "24px" }}>
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "16px" }}>
           {[
             { name: t('plans.free'), price: `${currency.symbol}0`, period: t('pricing.forever'), color: COLORS.muted, features: t('planFeatures.free', { returnObjects: true }), cta: t('pricing.getStarted') },
             { name: t('plans.professional'), price: `${currency.symbol}${CURRENCY_PRICES[currency.code].professional}`, period: t('pricing.perMonth'), color: COLORS.blue, popular: true, features: t('planFeatures.pro', { returnObjects: true }), cta: t('pricing.startTrial') },
             { name: t('plans.enterprise'), price: `${currency.symbol}${CURRENCY_PRICES[currency.code].enterprise}`, period: t('pricing.perMonth'), color: COLORS.purple, features: t('planFeatures.ent', { returnObjects: true }), cta: t('pricing.contactSales') },
+            { name: "AIPET X", price: `${currency.symbol}${CURRENCY_PRICES[currency.code]?.aipet_x || "1,999"}`, period: t('pricing.perMonth'), color: "#ff3b5c", founder: true, features: ["Everything in Enterprise", "SIEM & Event Management", "Threat Intelligence Feed", "Zero-Trust Engine", "Autonomous Defense", "AI SOC Analyst 24/7", "OT/ICS Security", "Multi-Cloud Security", "Digital Twin", "AI Red Team", "Marketplace Access", "Dedicated SLA Support"], cta: "Get Founder Pricing" }
           ].map((plan, i) => (
-            <div key={i} style={{ padding: "32px", borderRadius: "20px", border: `1px solid ${plan.color}50`, backgroundColor: COLORS.card, position: "relative", boxShadow: plan.popular ? `0 0 40px ${plan.color}20` : "none", transform: plan.popular ? "scale(1.03)" : "scale(1)" }}>
+            <div key={i} style={{ padding: "28px", borderRadius: "20px", border: `2px solid ${plan.founder ? plan.color : plan.color + "60"}`, backgroundColor: COLORS.card, position: "relative", boxShadow: `0 0 24px ${plan.color}15`, display: "flex", flexDirection: "column" }}>
               {plan.popular && (
                 <div style={{ position: "absolute", top: "-12px", left: "50%", transform: "translateX(-50%)", backgroundColor: plan.color, color: "white", padding: "4px 16px", borderRadius: "100px", fontSize: "12px", fontWeight: "700" }}>
                   {t("pricing.popular")}
@@ -4597,9 +4598,22 @@ function LandingPage({ onGetStarted, onLogin, setLegalPage, setActivePage }) {
                   </div>
                 ))}
               </div>
-              <button onClick={onGetStarted} style={{ width: "100%", padding: "12px", borderRadius: "12px", fontSize: "15px", fontWeight: "700", cursor: "pointer", backgroundColor: plan.popular ? plan.color : "transparent", color: plan.popular ? "white" : plan.color, border: `2px solid ${plan.color}` }}>
+              <button onClick={onGetStarted} style={{ width: "100%", padding: "12px", borderRadius: "12px", fontSize: "15px", fontWeight: "700", cursor: "pointer",
+                  backgroundColor: plan.founder ? plan.color : plan.popular ? plan.color : "transparent",
+                  color: plan.founder ? "white" : plan.popular ? "white" : plan.color,
+                  border: `2px solid ${plan.color}`,
+                  position: "relative", overflow: "hidden" }}>
+                {plan.founder && (
+                  <span style={{ position: "absolute", top: "-1px", right: "-1px",
+                    background: "#ffd600", color: "#000", fontSize: "9px",
+                    fontWeight: "800", padding: "2px 6px",
+                    borderRadius: "0 0 0 6px", letterSpacing: "0.5px" }}>
+                    FOUNDER
+                  </span>
+                )}
                 {plan.cta}
               </button>
+
             </div>
           ))}
         </div>
@@ -5639,7 +5653,7 @@ function PricingPage({ currentPlan, onUpgrade, usageLoaded }) {
   const [currency, setCurrency] = useState({ code: 'GBP', symbol: '£' });
 
   const CURRENCY_PRICES = {
-    GBP: { free: '0', professional: '49', enterprise: '499' },
+    GBP: { free: '0', professional: '49', enterprise: '499', aipet_x: '1,999' },
     USD: { free: '0', professional: '59', enterprise: '599' },
     EUR: { free: '0', professional: '55', enterprise: '549' },
     JPY: { free: '0', professional: '8,900', enterprise: '89,000' },
@@ -5705,6 +5719,30 @@ function PricingPage({ currentPlan, onUpgrade, usageLoaded }) {
       cta:      "Upgrade to Enterprise",
       disabled: false,
     },
+    {
+      id:       "aipet_x",
+      name:     "AIPET X",
+      price:    `${currency.symbol}${CURRENCY_PRICES[currency.code]?.aipet_x || "1,999"}`,
+      period:   t('pricing.perMonth'),
+      color:    "#ff3b5c",
+      founder:  true,
+      features: [
+        "Everything in Enterprise",
+        "SIEM & Event Management",
+        "Threat Intelligence",
+        "Zero-Trust Engine",
+        "Autonomous Defense",
+        "AI SOC Analyst 24/7",
+        "OT/ICS Security",
+        "Multi-Cloud Posture",
+        "Digital Twin",
+        "AI Red Team",
+        "Marketplace Access",
+        "Dedicated Support SLA",
+      ],
+      cta:      "Get Founder Pricing",
+      disabled: false,
+    },
   ];
 
   return (
@@ -5741,7 +5779,7 @@ function PricingPage({ currentPlan, onUpgrade, usageLoaded }) {
       </div>
 
       {/* Plan cards */}
-      <div className="grid grid-cols-3 gap-6">
+      <div className="grid grid-cols-4 gap-4">
         {plans.map((plan) => {
           const isCurrentPlan = currentPlan === plan.id;
           return (
@@ -5749,7 +5787,7 @@ function PricingPage({ currentPlan, onUpgrade, usageLoaded }) {
               className="rounded-2xl border flex flex-col relative overflow-hidden transition-all duration-200"
               style={{
                 backgroundColor: COLORS.card,
-                borderColor: isCurrentPlan ? plan.color : plan.color + "50",
+                borderColor: isCurrentPlan ? plan.color : plan.founder ? plan.color + "60" : plan.color + "50",
                 boxShadow: `0 0 20px ${plan.color}15`,
               }}>
 
