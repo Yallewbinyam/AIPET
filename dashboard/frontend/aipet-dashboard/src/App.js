@@ -6064,6 +6064,7 @@ const NAV_ITEMS = [
   { id: "billing",   label: "Billing",       icon: Lock,          group: "account"  },
   { id: "apikeys",   label: "API Keys",      icon: CreditCard,    group: "account"  },
   { id: "team",      label: "Team & Access", icon: Shield,        group: "enterprise" },
+  { id: "siem",      label: "SIEM",          icon: AlertTriangle, group: "enterprise" },
   { id: "settings",  label: "Settings",      icon: Settings,      group: "account"  },
 ];
 
@@ -6325,6 +6326,542 @@ function SettingsPage({ token, showToast }) {
     </div>
   );
 }
+
+
+// ─────────────────────────────────────────────────────────────
+// AIPET X — SIEM Page  (world-class production UI)
+//
+// Architecture:
+//   • axios + API constant — consistent with every other AIPET page
+//   • Auto-refresh every 10 s via useEffect interval
+//   • Stats bar, timeline chart, event feed, incidents, rules
+//   • Severity colour system matches AIPET global palette
+//   • All state local — no external state management needed
+// ─────────────────────────────────────────────────────────────
+function SiemPage({ token, showToast }) {
+
+  // ── State ─────────────────────────────────────────────────
+  const [events,    setEvents]    = useState([]);
+  const [incidents, setIncidents] = useState([]);
+  const [rules,     setRules]     = useState([]);
+  const [stats,     setStats]     = useState(null);
+  const [loading,   setLoading]   = useState(true);
+  const [tab,       setTab]       = useState("events");
+  const [sevFilter, setSevFilter] = useState("");
+
+  // Auth header — same pattern used by every AIPET page
+  const H = { headers: { Authorization: `Bearer ${token}` } };
+
+  // Severity colour palette — matches AIPET global design system
+  const SEV = {
+    Critical: { fg: "#ff3b5c", bg: "#ff3b5c12", border: "#ff3b5c35" },
+    High:     { fg: "#ff8c00", bg: "#ff8c0012", border: "#ff8c0035" },
+    Medium:   { fg: "#ffd600", bg: "#ffd60012", border: "#ffd60035" },
+    Low:      { fg: "#00e5ff", bg: "#00e5ff12", border: "#00e5ff35" },
+    Info:     { fg: "#94a3b8", bg: "#94a3b812", border: "#94a3b835" },
+  };
+
+  // Status colours for incidents
+  const STATUS = {
+    open:          { fg: "#ff3b5c", bg: "#ff3b5c12" },
+    investigating: { fg: "#ff8c00", bg: "#ff8c0012" },
+    closed:        { fg: "#00ff88", bg: "#00ff8812" },
+  };
+
+  // ── Fetch all SIEM data in parallel ───────────────────────
+  const fetchAll = useCallback(async () => {
+    try {
+      const url = `${API}/siem/events?per_page=50${sevFilter ? `&severity=${sevFilter}` : ""}`;
+      const [evRes, incRes, ruleRes, statRes] = await Promise.all([
+        axios.get(url,                      H),
+        axios.get(`${API}/siem/incidents`,  H),
+        axios.get(`${API}/siem/rules`,      H),
+        axios.get(`${API}/siem/stats`,      H),
+      ]);
+      setEvents(evRes.data.events       || []);
+      setIncidents(incRes.data.incidents || []);
+      setRules(ruleRes.data.rules       || []);
+      setStats(statRes.data);
+    } catch (e) {
+      showToast("Failed to load SIEM data", "error");
+    } finally {
+      setLoading(false);
+    }
+  }, [token, sevFilter]);
+
+  // Auto-refresh every 10 seconds — live event feed
+  useEffect(() => {
+    fetchAll();
+    const t = setInterval(fetchAll, 10000);
+    return () => clearInterval(t);
+  }, [fetchAll]);
+
+  // ── Actions ───────────────────────────────────────────────
+  const acknowledgeEvent = async (id) => {
+    try {
+      await axios.post(`${API}/siem/events/${id}/acknowledge`, {}, H);
+      setEvents(prev => prev.map(e => e.id === id ? { ...e, acknowledged: true } : e));
+      showToast("Event acknowledged", "success");
+    } catch { showToast("Failed to acknowledge", "error"); }
+  };
+
+  const updateIncident = async (id, status) => {
+    try {
+      await axios.put(`${API}/siem/incidents/${id}`, { status }, H);
+      setIncidents(prev => prev.map(i => i.id === id ? { ...i, status } : i));
+      showToast(`Incident marked ${status}`, "success");
+    } catch { showToast("Failed to update incident", "error"); }
+  };
+
+  const toggleRule = async (rule) => {
+    try {
+      await axios.put(`${API}/siem/rules/${rule.id}`, { enabled: !rule.enabled }, H);
+      setRules(prev => prev.map(r => r.id === rule.id ? { ...r, enabled: !r.enabled } : r));
+      showToast(`Rule ${!rule.enabled ? "enabled" : "disabled"}`, "success");
+    } catch { showToast("Failed to update rule", "error"); }
+  };
+
+  // ── Design tokens — Mission Control aesthetic ─────────────
+  const C = {
+    bg: "#030712", surface: "#080f1a", card: "#0d1117",
+    cardHover: "#111827", border: "#1e2a3a", borderBright: "#2d3f55",
+    text: "#e2e8f0", muted: "#64748b", faint: "#334155",
+    cyan: "#00e5ff", cyanDim: "#00e5ff20", green: "#00ff88",
+  };
+
+  const cardStyle = (extra = {}) => ({
+    background: C.card, border: `1px solid ${C.border}`,
+    borderRadius: "16px", padding: "24px", ...extra
+  });
+
+  // ── Loading state ─────────────────────────────────────────
+  if (loading) return (
+    <div style={{ display: "flex", flexDirection: "column", alignItems: "center",
+      justifyContent: "center", height: "60vh", gap: "16px" }}>
+      <div style={{ width: "48px", height: "48px", border: `3px solid ${C.border}`,
+        borderTop: `3px solid ${C.cyan}`, borderRadius: "50%",
+        animation: "spin 1s linear infinite" }} />
+      <div style={{ color: C.muted, fontSize: "13px",
+        fontFamily: "JetBrains Mono, monospace" }}>
+        Connecting to SIEM...
+      </div>
+    </div>
+  );
+
+  return (
+    <div style={{ padding: "32px 36px", background: C.bg, minHeight: "100vh",
+      fontFamily: "Inter, sans-serif", color: C.text }}>
+
+      {/* ── Header ──────────────────────────────────────────── */}
+      <div style={{ display: "flex", alignItems: "center",
+        justifyContent: "space-between", marginBottom: "32px" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
+          {/* Icon badge */}
+          <div style={{ width: "52px", height: "52px", borderRadius: "14px",
+            background: "linear-gradient(135deg, #ff3b5c20, #ff3b5c08)",
+            border: "1px solid #ff3b5c35",
+            display: "flex", alignItems: "center", justifyContent: "center",
+            fontSize: "24px", boxShadow: "0 0 20px #ff3b5c15" }}>
+            🛡️
+          </div>
+          <div>
+            <h1 style={{ margin: 0, fontSize: "26px", fontWeight: "800", letterSpacing: "-0.5px",
+              fontFamily: "JetBrains Mono, monospace",
+              background: "linear-gradient(135deg, #ff3b5c, #ff8c00)",
+              WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
+              SIEM
+            </h1>
+            <div style={{ fontSize: "13px", color: C.muted, marginTop: "2px" }}>
+              Security Information &amp; Event Management
+            </div>
+          </div>
+        </div>
+        {/* Live pill */}
+        <div style={{ display: "flex", alignItems: "center", gap: "8px",
+          padding: "6px 16px", borderRadius: "100px",
+          background: "#00ff8810", border: "1px solid #00ff8830" }}>
+          <div style={{ width: "7px", height: "7px", borderRadius: "50%",
+            background: C.green, boxShadow: `0 0 8px ${C.green}` }} />
+          <span style={{ fontSize: "12px", fontWeight: "700",
+            color: C.green, letterSpacing: "1px" }}>LIVE</span>
+        </div>
+      </div>
+
+      {/* ── Stats bar ───────────────────────────────────────── */}
+      {stats && (
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)",
+          gap: "14px", marginBottom: "28px" }}>
+          {[
+            { label: "Events Today",   value: stats.total_today,    color: C.cyan,    icon: "📡", glow: C.cyan },
+            { label: "Critical",       value: stats.critical_today, color: "#ff3b5c", icon: "🚨", glow: "#ff3b5c" },
+            { label: "Open Incidents", value: stats.open_incidents, color: "#ff8c00", icon: "🔥", glow: "#ff8c00" },
+            { label: "Active Rules",   value: stats.active_rules,   color: C.green,   icon: "⚙️", glow: C.green },
+            { label: "Unacked",        value: stats.unacknowledged, color: "#ffd600", icon: "⚠️", glow: "#ffd600" },
+          ].map(s => (
+            <div key={s.label} style={{ ...cardStyle({ padding: "20px" }),
+              borderColor: s.color + "25",
+              boxShadow: `0 0 20px ${s.glow}08`,
+              transition: "transform 0.2s, box-shadow 0.2s",
+              cursor: "default" }}>
+              <div style={{ fontSize: "22px", marginBottom: "10px" }}>{s.icon}</div>
+              <div style={{ fontSize: "30px", fontWeight: "800", lineHeight: 1,
+                fontFamily: "JetBrains Mono, monospace", color: s.color,
+                textShadow: `0 0 20px ${s.color}60` }}>
+                {s.value}
+              </div>
+              <div style={{ fontSize: "11px", color: C.muted,
+                marginTop: "6px", textTransform: "uppercase",
+                letterSpacing: "0.5px" }}>
+                {s.label}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* ── 7-day timeline ──────────────────────────────────── */}
+      {stats?.timeline && (
+        <div style={{ ...cardStyle({ marginBottom: "28px" }) }}>
+          <div style={{ display: "flex", alignItems: "center",
+            justifyContent: "space-between", marginBottom: "20px" }}>
+            <span style={{ fontSize: "12px", fontWeight: "700", color: C.muted,
+              textTransform: "uppercase", letterSpacing: "1.5px" }}>
+              7-Day Event Volume
+            </span>
+            <span style={{ fontSize: "11px", color: C.muted }}>
+              Total: {stats.timeline.reduce((a, d) => a + d.count, 0)} events
+            </span>
+          </div>
+          <div style={{ display: "flex", alignItems: "flex-end",
+            gap: "10px", height: "90px" }}>
+            {stats.timeline.map((day, i) => {
+              const max = Math.max(...stats.timeline.map(d => d.count), 1);
+              const pct = (day.count / max) * 100;
+              const isToday = i === stats.timeline.length - 1;
+              return (
+                <div key={i} style={{ flex: 1, display: "flex",
+                  flexDirection: "column", alignItems: "center", gap: "6px" }}>
+                  {day.count > 0 && (
+                    <div style={{ fontSize: "10px", color: C.muted,
+                      fontFamily: "JetBrains Mono, monospace" }}>
+                      {day.count}
+                    </div>
+                  )}
+                  <div style={{ width: "100%",
+                    height: `${Math.max(pct * 0.72, 4)}px`,
+                    background: isToday
+                      ? `linear-gradient(180deg, ${C.cyan}, ${C.cyan}80)`
+                      : day.count > 0
+                        ? `linear-gradient(180deg, ${C.faint}, ${C.border})`
+                        : C.border,
+                    borderRadius: "4px 4px 0 0",
+                    boxShadow: isToday ? `0 0 12px ${C.cyan}40` : "none",
+                    transition: "height 0.4s ease" }} />
+                  <div style={{ fontSize: "10px", color: isToday ? C.cyan : C.muted,
+                    fontWeight: isToday ? "700" : "400" }}>
+                    {day.date.split(" ")[1]}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* ── Tab bar ─────────────────────────────────────────── */}
+      <div style={{ display: "flex", gap: "4px", marginBottom: "20px",
+        background: C.card, padding: "4px", borderRadius: "12px",
+        border: `1px solid ${C.border}`, width: "fit-content" }}>
+        {[
+          { id: "events",    label: "Events",    count: events.length    },
+          { id: "incidents", label: "Incidents", count: incidents.length },
+          { id: "rules",     label: "Rules",     count: rules.length     },
+        ].map(t => (
+          <button key={t.id} onClick={() => setTab(t.id)}
+            style={{ padding: "8px 20px", borderRadius: "9px",
+              border: "none", cursor: "pointer", fontSize: "13px",
+              fontWeight: "600", transition: "all 0.2s",
+              background: tab === t.id
+                ? "linear-gradient(135deg, #ff3b5c20, #ff8c0020)"
+                : "transparent",
+              color: tab === t.id ? C.text : C.muted,
+              boxShadow: tab === t.id
+                ? "inset 0 0 0 1px #ff3b5c30" : "none" }}>
+            {t.label}
+            <span style={{ marginLeft: "6px", padding: "1px 6px",
+              borderRadius: "100px", fontSize: "10px",
+              background: tab === t.id ? "#ff3b5c25" : C.border,
+              color: tab === t.id ? "#ff8c00" : C.muted }}>
+              {t.count}
+            </span>
+          </button>
+        ))}
+      </div>
+
+      {/* ── Events tab ──────────────────────────────────────── */}
+      {tab === "events" && (
+        <div>
+          {/* Severity filter chips */}
+          <div style={{ display: "flex", gap: "8px",
+            marginBottom: "16px", flexWrap: "wrap" }}>
+            {["", "Critical", "High", "Medium", "Low", "Info"].map(s => {
+              const active = sevFilter === s;
+              const col    = s ? SEV[s] : { fg: C.cyan, bg: C.cyanDim, border: C.cyan + "40" };
+              return (
+                <button key={s} onClick={() => setSevFilter(s)}
+                  style={{ padding: "5px 16px", borderRadius: "100px",
+                    border: `1px solid ${active ? col.fg : C.border}`,
+                    cursor: "pointer", fontSize: "12px", fontWeight: "600",
+                    background: active ? col.bg : "transparent",
+                    color: active ? col.fg : C.muted,
+                    transition: "all 0.15s" }}>
+                  {s || "All"}
+                </button>
+              );
+            })}
+          </div>
+
+          {/* Event list */}
+          <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+            {events.length === 0 && (
+              <div style={{ ...cardStyle({ padding: "48px", textAlign: "center" }),
+                color: C.muted }}>
+                No events match the current filter.
+              </div>
+            )}
+            {events.map(ev => {
+              const col = SEV[ev.severity] || SEV.Info;
+              return (
+                <div key={ev.id} style={{ background: C.card,
+                  border: `1px solid ${ev.acknowledged ? C.border : col.border}`,
+                  borderLeft: `3px solid ${ev.acknowledged ? C.faint : col.fg}`,
+                  borderRadius: "12px", padding: "14px 18px",
+                  opacity: ev.acknowledged ? 0.5 : 1,
+                  transition: "all 0.2s" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+                    {/* Severity badge */}
+                    <div style={{ padding: "3px 10px", borderRadius: "100px",
+                      fontSize: "10px", fontWeight: "800",
+                      background: col.bg, color: col.fg,
+                      border: `1px solid ${col.border}`,
+                      whiteSpace: "nowrap", letterSpacing: "0.5px",
+                      textTransform: "uppercase" }}>
+                      {ev.severity}
+                    </div>
+                    {/* Title + source */}
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{ fontWeight: "600", fontSize: "13px", color: C.text,
+                        overflow: "hidden", textOverflow: "ellipsis",
+                        whiteSpace: "nowrap" }}>
+                        {ev.title}
+                      </div>
+                      <div style={{ fontSize: "11px", color: C.muted, marginTop: "2px",
+                        overflow: "hidden", textOverflow: "ellipsis",
+                        whiteSpace: "nowrap" }}>
+                        {ev.source}
+                        {ev.description && ` — ${ev.description}`}
+                      </div>
+                    </div>
+                    {/* MITRE ATT&CK badge */}
+                    {ev.mitre_id && (
+                      <div style={{ padding: "3px 9px", borderRadius: "7px",
+                        fontSize: "11px", fontWeight: "700",
+                        background: "#7c3aed15", color: "#a78bfa",
+                        border: "1px solid #7c3aed30",
+                        whiteSpace: "nowrap",
+                        fontFamily: "JetBrains Mono, monospace" }}>
+                        {ev.mitre_id}
+                      </div>
+                    )}
+                    {/* Timestamp */}
+                    <div style={{ fontSize: "11px", color: C.muted,
+                      whiteSpace: "nowrap", textAlign: "right" }}>
+                      {new Date(ev.created_at).toLocaleTimeString([], {
+                        hour: "2-digit", minute: "2-digit" })}
+                    </div>
+                    {/* ACK button */}
+                    {!ev.acknowledged ? (
+                      <button onClick={() => acknowledgeEvent(ev.id)}
+                        style={{ padding: "4px 11px", borderRadius: "7px",
+                          border: "1px solid #00ff8830", cursor: "pointer",
+                          fontSize: "11px", fontWeight: "700",
+                          background: "#00ff8810", color: "#00ff88",
+                          transition: "all 0.15s", whiteSpace: "nowrap" }}>
+                        ACK
+                      </button>
+                    ) : (
+                      <div style={{ fontSize: "11px", color: C.muted,
+                        whiteSpace: "nowrap" }}>✓ acked</div>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* ── Incidents tab ───────────────────────────────────── */}
+      {tab === "incidents" && (
+        <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+          {incidents.length === 0 && (
+            <div style={{ ...cardStyle({ padding: "48px", textAlign: "center" }),
+              color: C.muted }}>
+              No incidents. ✅
+            </div>
+          )}
+          {incidents.map(inc => {
+            const col = SEV[inc.severity]   || SEV.Info;
+            const st  = STATUS[inc.status]  || STATUS.open;
+            return (
+              <div key={inc.id} style={{ ...cardStyle(),
+                borderLeft: `3px solid ${col.fg}`,
+                boxShadow: `0 0 20px ${col.fg}06` }}>
+                <div style={{ display: "flex",
+                  alignItems: "flex-start", gap: "16px" }}>
+                  <div style={{ flex: 1 }}>
+                    {/* Title row */}
+                    <div style={{ display: "flex", alignItems: "center",
+                      gap: "10px", marginBottom: "8px", flexWrap: "wrap" }}>
+                      <span style={{ fontWeight: "700", fontSize: "15px" }}>
+                        {inc.title}
+                      </span>
+                      <span style={{ padding: "2px 10px", borderRadius: "100px",
+                        fontSize: "10px", fontWeight: "800",
+                        background: col.bg, color: col.fg,
+                        textTransform: "uppercase", letterSpacing: "0.5px" }}>
+                        {inc.severity}
+                      </span>
+                      <span style={{ padding: "2px 10px", borderRadius: "100px",
+                        fontSize: "10px", fontWeight: "700",
+                        background: st.bg, color: st.fg }}>
+                        {inc.status.charAt(0).toUpperCase() + inc.status.slice(1)}
+                      </span>
+                    </div>
+                    {inc.description && (
+                      <div style={{ fontSize: "13px", color: C.muted,
+                        marginBottom: "10px", lineHeight: "1.5" }}>
+                        {inc.description}
+                      </div>
+                    )}
+                    <div style={{ fontSize: "11px", color: C.faint }}>
+                      {inc.event_count} linked event{inc.event_count !== 1 ? "s" : ""} •{" "}
+                      {new Date(inc.created_at).toLocaleString()}
+                    </div>
+                  </div>
+                  {/* Action buttons */}
+                  <div style={{ display: "flex", flexDirection: "column",
+                    gap: "6px", flexShrink: 0 }}>
+                    {inc.status !== "investigating" && inc.status !== "closed" && (
+                      <button onClick={() => updateIncident(inc.id, "investigating")}
+                        style={{ padding: "6px 14px", borderRadius: "8px",
+                          border: "1px solid #ff8c0035", cursor: "pointer",
+                          fontSize: "12px", fontWeight: "600",
+                          background: "#ff8c0012", color: "#ff8c00" }}>
+                        Investigate
+                      </button>
+                    )}
+                    {inc.status !== "closed" && (
+                      <button onClick={() => updateIncident(inc.id, "closed")}
+                        style={{ padding: "6px 14px", borderRadius: "8px",
+                          border: "1px solid #00ff8830", cursor: "pointer",
+                          fontSize: "12px", fontWeight: "600",
+                          background: "#00ff8810", color: "#00ff88" }}>
+                        Close
+                      </button>
+                    )}
+                    {inc.status === "closed" && (
+                      <button onClick={() => updateIncident(inc.id, "open")}
+                        style={{ padding: "6px 14px", borderRadius: "8px",
+                          border: "1px solid #ff3b5c35", cursor: "pointer",
+                          fontSize: "12px", fontWeight: "600",
+                          background: "#ff3b5c12", color: "#ff3b5c" }}>
+                        Reopen
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* ── Rules tab ───────────────────────────────────────── */}
+      {tab === "rules" && (
+        <div>
+          <div style={{ fontSize: "12px", color: C.muted,
+            marginBottom: "16px", lineHeight: "1.6" }}>
+            Detection rules evaluate every incoming event. A matching event triggers an
+            alert or auto-creates an incident. Rules run in real time on the ingest endpoint.
+          </div>
+          <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+            {rules.map(rule => (
+              <div key={rule.id} style={{ ...cardStyle(),
+                borderLeft: `3px solid ${rule.enabled ? "#00ff88" : C.faint}`,
+                opacity: rule.enabled ? 1 : 0.55,
+                transition: "all 0.2s" }}>
+                <div style={{ display: "flex",
+                  alignItems: "center", gap: "16px" }}>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontWeight: "700", fontSize: "14px",
+                      marginBottom: "4px" }}>{rule.name}</div>
+                    {rule.description && (
+                      <div style={{ fontSize: "12px", color: C.muted,
+                        marginBottom: "8px" }}>{rule.description}</div>
+                    )}
+                    {/* Condition chip */}
+                    <div style={{ fontSize: "11px",
+                      fontFamily: "JetBrains Mono, monospace",
+                      color: "#a78bfa", background: "#7c3aed10",
+                      padding: "3px 10px", borderRadius: "6px",
+                      display: "inline-block",
+                      border: "1px solid #7c3aed20" }}>
+                      {rule.condition}
+                    </div>
+                  </div>
+                  <div style={{ display: "flex", flexDirection: "column",
+                    alignItems: "flex-end", gap: "8px" }}>
+                    {/* Severity + action badges */}
+                    <div style={{ display: "flex", gap: "6px" }}>
+                      {(() => { const col = SEV[rule.severity] || SEV.Info; return (
+                        <span style={{ padding: "2px 10px", borderRadius: "100px",
+                          fontSize: "10px", fontWeight: "800",
+                          background: col.bg, color: col.fg,
+                          textTransform: "uppercase" }}>
+                          {rule.severity}
+                        </span>
+                      ); })()}
+                      <span style={{ padding: "2px 10px", borderRadius: "100px",
+                        fontSize: "10px", fontWeight: "700",
+                        background: "#00e5ff12", color: "#00e5ff" }}>
+                        {rule.action}
+                      </span>
+                    </div>
+                    <div style={{ fontSize: "11px", color: C.muted }}>
+                      Triggered {rule.trigger_count}×
+                    </div>
+                    {/* Toggle */}
+                    <button onClick={() => toggleRule(rule)}
+                      style={{ padding: "5px 14px", borderRadius: "8px",
+                        border: `1px solid ${rule.enabled ? "#ff3b5c35" : "#00ff8830"}`,
+                        cursor: "pointer", fontSize: "12px", fontWeight: "600",
+                        background: rule.enabled ? "#ff3b5c10" : "#00ff8810",
+                        color: rule.enabled ? "#ff3b5c" : "#00ff88",
+                        transition: "all 0.15s" }}>
+                      {rule.enabled ? "Disable" : "Enable"}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 
 export default function App() {
   const [data,       setData]       = useState({});
@@ -7183,6 +7720,9 @@ export default function App() {
           )}
           {activeTab === "team" && (
             <TeamAccessPage token={token} showToast={showToast} />
+          )}
+          {activeTab === "siem" && (
+            <SiemPage token={token} showToast={showToast} />
           )}
           {activeTab === "compliance" && (
             <CompliancePage token={token} showToast={showToast} currentPlan={usage?.plan} />

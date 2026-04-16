@@ -36,6 +36,8 @@ from dashboard.backend.iam.routes import iam_bp, seed_default_roles
 from dashboard.backend.iam.models import Role, Permission, UserRole, AuditLog, SSOProvider
 from dashboard.backend.protocols.routes import protocols_bp
 from dashboard.backend.settings.routes import settings_bp
+from dashboard.backend.siem.routes import siem_bp
+from dashboard.backend.siem.models import SiemEvent, SiemRule, SiemIncident
 from dashboard.backend.monitoring.logger import setup_logging, get_logger
 from dashboard.backend.security import init_security
 from dashboard.backend.monitoring.logger import (
@@ -133,6 +135,7 @@ def create_app(config_name="development"):
     app.register_blueprint(compliance_bp)
     app.register_blueprint(protocols_bp)
     app.register_blueprint(settings_bp)
+    app.register_blueprint(siem_bp)
     app.register_blueprint(api_keys_bp, url_prefix='/api/keys')
 
     # Setup logging
