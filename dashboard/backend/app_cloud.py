@@ -40,6 +40,10 @@ from dashboard.backend.siem.routes import siem_bp
 from dashboard.backend.siem.models import SiemEvent, SiemRule, SiemIncident
 from dashboard.backend.threatintel.routes import threatintel_bp
 from dashboard.backend.threatintel.models import IocFeed, IocEntry, ThreatMatch
+from dashboard.backend.zerotrust.routes import zerotrust_bp
+from dashboard.backend.zerotrust.models import ZtDeviceTrust, ZtPolicy, ZtAccessLog
+from dashboard.backend.defense.routes import defense_bp
+from dashboard.backend.defense.models import DefensePlaybook, DefenseAction
 from dashboard.backend.monitoring.logger import setup_logging, get_logger
 from dashboard.backend.security import init_security
 from dashboard.backend.monitoring.logger import (
@@ -139,6 +143,8 @@ def create_app(config_name="development"):
     app.register_blueprint(settings_bp)
     app.register_blueprint(siem_bp)
     app.register_blueprint(threatintel_bp)
+    app.register_blueprint(zerotrust_bp)
+    app.register_blueprint(defense_bp)
     app.register_blueprint(api_keys_bp, url_prefix='/api/keys')
 
     # Setup logging

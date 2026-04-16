@@ -6066,6 +6066,8 @@ const NAV_ITEMS = [
   { id: "team",      label: "Team & Access", icon: Shield,        group: "enterprise" },
   { id: "siem",      label: "SIEM",          icon: AlertTriangle, group: "enterprise" },
   { id: "threatintel",label: "Threat Intel",  icon: AlertTriangle, group: "enterprise" },
+  { id: "zerotrust",  label: "Zero-Trust",    icon: Shield,        group: "enterprise" },
+  { id: "defense",    label: "Auto Defense",  icon: Shield,        group: "enterprise" },
   { id: "settings",  label: "Settings",      icon: Settings,      group: "account"  },
 ];
 
@@ -6328,6 +6330,1410 @@ function SettingsPage({ token, showToast }) {
   );
 }
 
+
+// ─────────────────────────────────────────────────────────────
+// AIPET X — Autonomous Defense Page
+//
+// Features:
+//   • Stats bar: playbooks, actions today, quarantines, failures
+//   • Playbook list with trigger conditions + action chains
+//   • Manual trigger widget — run any playbook against any target
+//   • Auto-respond widget — evaluate any SIEM event
+//   • Full action log with outcome details
+//
+// Key concept:
+//   Playbooks = IF (event matches condition) THEN (run these actions)
+//   Actions   = quarantine_device | block_ip | create_incident | send_alert
+// ─────────────────────────────────────────────────────────────
+function AutonomousDefensePage({ token, showToast }) {
+
+  // ── State ─────────────────────────────────────────────────
+  const [playbooks,  setPlaybooks]  = useState([]);
+  const [actions,    setActions]    = useState([]);
+  const [stats,      setStats]      = useState(null);
+  const [loading,    setLoading]    = useState(true);
+  const [tab,        setTab]        = useState("playbooks");
+
+  // Manual trigger widget
+  const [triggerPb,  setTriggerPb]  = useState("");
+  const [triggerTgt, setTriggerTgt] = useState("");
+  const [triggering, setTriggering] = useState(false);
+  const [triggerRes, setTriggerRes] = useState(null);
+
+  // Auto-respond widget
+  const [respondId,  setRespondId]  = useState("");
+  const [responding, setResponding] = useState(false);
+  const [respondRes, setRespondRes] = useState(null);
+
+  // Add playbook form
+  const [showAdd,    setShowAdd]    = useState(false);
+  const [newPb,      setNewPb]      = useState({
+    name: "", description: "", trigger_field: "severity",
+    trigger_op: "eq", trigger_value: "Critical",
+    actions: ["quarantine_device"], cooldown_minutes: 5
+  });
+  const [adding,     setAdding]     = useState(false);
+
+  const H = { headers: { Authorization: `Bearer ${token}` } };
+
+  // Action type colours + labels
+  const ACTION_META = {
+    quarantine_device: { color: "#ff3b5c", icon: "🚫", label: "Quarantine Device" },
+    block_ip:          { color: "#ff8c00", icon: "🛡️", label: "Block IP"          },
+    create_incident:   { color: "#ffd600", icon: "🔥", label: "Create Incident"   },
+    send_alert:        { color: "#a78bfa", icon: "📣", label: "Send Alert"        },
+    reassess_trust:    { color: "#00e5ff", icon: "⚡", label: "Reassess Trust"    },
+  };
+
+  // Status colours for action log
+  const STATUS_COLOR = {
+    executed: { fg: "#00ff88", bg: "#00ff8812" },
+    failed:   { fg: "#ff3b5c", bg: "#ff3b5c12" },
+    skipped:  { fg: "#64748b", bg: "#64748b12" },
+  };
+
+  // Design tokens
+  const C = {
+    bg: "#030712", card: "#0d1117", border: "#1e2a3a",
+    borderBright: "#2d3f55", text: "#e2e8f0", muted: "#64748b",
+    faint: "#334155", cyan: "#00e5ff", green: "#00ff88",
+  };
+  const cardStyle = (extra = {}) => ({
+    background: C.card, border: `1px solid ${C.border}`,
+    borderRadius: "16px", padding: "24px", ...extra
+  });
+
+  // ── Fetch all data ────────────────────────────────────────
+  const fetchAll = useCallback(async () => {
+    try {
+      const [stRes, pbRes, acRes] = await Promise.all([
+        axios.get(`${API}/defense/stats`,            H),
+        axios.get(`${API}/defense/playbooks`,        H),
+        axios.get(`${API}/defense/actions?per_page=50`, H),
+      ]);
+      setStats(stRes.data);
+      setPlaybooks(pbRes.data.playbooks || []);
+      setActions(acRes.data.actions    || []);
+    } catch {
+      showToast("Failed to load Defense data", "error");
+    } finally {
+      setLoading(false);
+    }
+  }, [token]);
+
+  useEffect(() => { fetchAll(); }, [fetchAll]);
+
+  // ── Manual trigger ────────────────────────────────────────
+  const handleTrigger = async () => {
+    if (!triggerPb) return;
+    setTriggering(true);
+    setTriggerRes(null);
+    try {
+      const res = await axios.post(
+        `${API}/defense/trigger/${triggerPb}`,
+        { target: triggerTgt || "manual" }, H);
+      setTriggerRes(res.data);
+      showToast(`Playbook executed — ${res.data.executed?.length} actions`, "success");
+      fetchAll();
+    } catch (e) {
+      showToast(e.response?.data?.error || "Trigger failed", "error");
+    } finally {
+      setTriggering(false);
+    }
+  };
+
+  // ── Auto-respond ──────────────────────────────────────────
+  const handleRespond = async () => {
+    if (!respondId.trim()) return;
+    setResponding(true);
+    setRespondRes(null);
+    try {
+      const res = await axios.post(
+        `${API}/defense/respond`,
+        { event_id: parseInt(respondId) }, H);
+      setRespondRes(res.data);
+      const executed = res.data.responses?.filter(r => r.status === "executed").length || 0;
+      showToast(`Evaluated ${res.data.evaluated} playbooks — ${executed} triggered`, "success");
+      fetchAll();
+    } catch (e) {
+      showToast(e.response?.data?.error || "Response failed", "error");
+    } finally {
+      setResponding(false);
+    }
+  };
+
+  // ── Toggle playbook ───────────────────────────────────────
+  const togglePlaybook = async (pb) => {
+    try {
+      await axios.put(`${API}/defense/playbooks/${pb.id}`,
+        { enabled: !pb.enabled }, H);
+      setPlaybooks(prev => prev.map(p =>
+        p.id === pb.id ? { ...p, enabled: !p.enabled } : p));
+      showToast(`Playbook ${!pb.enabled ? "enabled" : "disabled"}`, "success");
+    } catch {
+      showToast("Failed to update playbook", "error");
+    }
+  };
+
+  // ── Delete playbook ───────────────────────────────────────
+  const deletePlaybook = async (id) => {
+    try {
+      await axios.delete(`${API}/defense/playbooks/${id}`, H);
+      setPlaybooks(prev => prev.filter(p => p.id !== id));
+      showToast("Playbook deleted", "success");
+    } catch {
+      showToast("Failed to delete playbook", "error");
+    }
+  };
+
+  // ── Add playbook ──────────────────────────────────────────
+  const handleAddPlaybook = async () => {
+    if (!newPb.name || !newPb.trigger_value) return;
+    setAdding(true);
+    try {
+      await axios.post(`${API}/defense/playbooks`,
+        { ...newPb, actions: JSON.stringify(newPb.actions) }, H);
+      showToast("Playbook created", "success");
+      setShowAdd(false);
+      setNewPb({ name: "", description: "", trigger_field: "severity",
+        trigger_op: "eq", trigger_value: "Critical",
+        actions: ["quarantine_device"], cooldown_minutes: 5 });
+      fetchAll();
+    } catch (e) {
+      showToast(e.response?.data?.error || "Failed to create playbook", "error");
+    } finally {
+      setAdding(false);
+    }
+  };
+
+  if (loading) return (
+    <div style={{ display: "flex", flexDirection: "column", alignItems: "center",
+      justifyContent: "center", height: "60vh", gap: "16px" }}>
+      <div style={{ width: "48px", height: "48px", border: `3px solid ${C.border}`,
+        borderTop: `3px solid ${C.cyan}`, borderRadius: "50%",
+        animation: "spin 1s linear infinite" }} />
+      <div style={{ color: C.muted, fontSize: "13px",
+        fontFamily: "JetBrains Mono, monospace" }}>
+        Loading Autonomous Defense...
+      </div>
+    </div>
+  );
+
+  return (
+    <div style={{ padding: "32px 36px", background: C.bg, minHeight: "100vh",
+      fontFamily: "Inter, sans-serif", color: C.text }}>
+
+      {/* ── Header ──────────────────────────────────────────── */}
+      <div style={{ display: "flex", alignItems: "center",
+        justifyContent: "space-between", marginBottom: "32px" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
+          <div style={{ width: "52px", height: "52px", borderRadius: "14px",
+            background: "linear-gradient(135deg, #ff8c0020, #ff3b5c08)",
+            border: "1px solid #ff8c0035",
+            display: "flex", alignItems: "center", justifyContent: "center",
+            fontSize: "24px", boxShadow: "0 0 20px #ff8c0015" }}>
+            ⚡
+          </div>
+          <div>
+            <h1 style={{ margin: 0, fontSize: "26px", fontWeight: "800",
+              letterSpacing: "-0.5px",
+              fontFamily: "JetBrains Mono, monospace",
+              background: "linear-gradient(135deg, #ff8c00, #ff3b5c)",
+              WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
+              Autonomous Defense
+            </h1>
+            <div style={{ fontSize: "13px", color: C.muted, marginTop: "2px" }}>
+              Automated playbooks · Instant response · Zero human delay
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* ── Stats bar ───────────────────────────────────────── */}
+      {stats && (
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(6, 1fr)",
+          gap: "12px", marginBottom: "28px" }}>
+          {[
+            { label: "Active Playbooks", value: stats.active_playbooks,  color: C.green,   icon: "📋" },
+            { label: "Actions Today",    value: stats.actions_today,     color: C.cyan,    icon: "⚡" },
+            { label: "Quarantines",      value: stats.quarantines_today, color: "#ff3b5c", icon: "🚫" },
+            { label: "Total Actions",    value: stats.total_actions,     color: "#a78bfa", icon: "📊" },
+            { label: "Failed Actions",   value: stats.failed_actions,    color: "#ff8c00", icon: "⚠️" },
+            { label: "Top Triggers",     value: stats.top_triggers,      color: "#ffd600", icon: "🔥" },
+          ].map(s => (
+            <div key={s.label} style={{ ...cardStyle({ padding: "18px" }),
+              borderColor: s.color + "25",
+              boxShadow: `0 0 16px ${s.color}08` }}>
+              <div style={{ fontSize: "20px", marginBottom: "8px" }}>{s.icon}</div>
+              <div style={{ fontSize: "26px", fontWeight: "800", lineHeight: 1,
+                fontFamily: "JetBrains Mono, monospace", color: s.color,
+                textShadow: `0 0 16px ${s.color}50` }}>
+                {s.value}
+              </div>
+              <div style={{ fontSize: "10px", color: C.muted, marginTop: "5px",
+                textTransform: "uppercase", letterSpacing: "0.5px" }}>
+                {s.label}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* ── Control widgets row ──────────────────────────────── */}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr",
+        gap: "16px", marginBottom: "28px" }}>
+
+        {/* Manual trigger widget */}
+        <div style={{ ...cardStyle(), borderColor: "#ff8c0020" }}>
+          <div style={{ fontSize: "12px", fontWeight: "700", color: C.muted,
+            textTransform: "uppercase", letterSpacing: "1.5px",
+            marginBottom: "14px" }}>
+            ⚡ Manual Playbook Trigger
+          </div>
+          <div style={{ marginBottom: "10px" }}>
+            <div style={{ fontSize: "10px", color: C.muted, marginBottom: "5px",
+              textTransform: "uppercase", letterSpacing: "0.5px" }}>
+              Select Playbook
+            </div>
+            <select value={triggerPb}
+              onChange={e => setTriggerPb(e.target.value)}
+              style={{ width: "100%", padding: "9px 12px", borderRadius: "8px",
+                border: `1px solid ${C.borderBright}`, background: "#080f1a",
+                color: C.text, fontSize: "13px", outline: "none" }}>
+              <option value="">Choose a playbook...</option>
+              {playbooks.filter(p => p.enabled).map(p => (
+                <option key={p.id} value={p.id}>{p.name}</option>
+              ))}
+            </select>
+          </div>
+          <div style={{ marginBottom: "12px" }}>
+            <div style={{ fontSize: "10px", color: C.muted, marginBottom: "5px",
+              textTransform: "uppercase", letterSpacing: "0.5px" }}>
+              Target IP
+            </div>
+            <input value={triggerTgt}
+              onChange={e => setTriggerTgt(e.target.value)}
+              placeholder="192.168.1.1"
+              style={{ width: "100%", padding: "9px 12px", borderRadius: "8px",
+                border: `1px solid ${C.borderBright}`, background: "#080f1a",
+                color: C.text, fontSize: "13px",
+                fontFamily: "JetBrains Mono, monospace",
+                boxSizing: "border-box", outline: "none" }} />
+          </div>
+          <button onClick={handleTrigger}
+            disabled={triggering || !triggerPb}
+            style={{ width: "100%", padding: "10px", borderRadius: "10px",
+              border: "none", cursor: triggerPb ? "pointer" : "not-allowed",
+              fontSize: "13px", fontWeight: "700",
+              background: "linear-gradient(135deg, #ff8c00, #ff3b5c)",
+              color: "#fff", opacity: !triggerPb ? 0.5 : 1 }}>
+            {triggering ? "Executing..." : "Execute Playbook"}
+          </button>
+          {/* Trigger result */}
+          {triggerRes && (
+            <div style={{ marginTop: "12px", padding: "12px",
+              borderRadius: "8px", background: "#00ff8808",
+              border: "1px solid #00ff8825" }}>
+              <div style={{ fontSize: "12px", fontWeight: "700",
+                color: C.green, marginBottom: "6px" }}>
+                ✅ Executed — {triggerRes.executed?.length} actions
+              </div>
+              {triggerRes.executed?.map((e, i) => (
+                <div key={i} style={{ fontSize: "11px", color: C.muted,
+                  marginTop: "3px" }}>
+                  {ACTION_META[e.action]?.icon || "→"} {e.outcome}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+
+        {/* Auto-respond widget */}
+        <div style={{ ...cardStyle(), borderColor: "#a78bfa20" }}>
+          <div style={{ fontSize: "12px", fontWeight: "700", color: C.muted,
+            textTransform: "uppercase", letterSpacing: "1.5px",
+            marginBottom: "14px" }}>
+            🤖 Auto-Respond to SIEM Event
+          </div>
+          <div style={{ fontSize: "12px", color: C.muted, marginBottom: "14px",
+            lineHeight: "1.6" }}>
+            Enter a SIEM Event ID — AIPET will evaluate all enabled playbooks
+            against it and execute any that match.
+          </div>
+          <div style={{ marginBottom: "12px" }}>
+            <div style={{ fontSize: "10px", color: C.muted, marginBottom: "5px",
+              textTransform: "uppercase", letterSpacing: "0.5px" }}>
+              SIEM Event ID
+            </div>
+            <input value={respondId}
+              onChange={e => { setRespondId(e.target.value); setRespondRes(null); }}
+              onKeyDown={e => e.key === "Enter" && handleRespond()}
+              placeholder="e.g. 3"
+              style={{ width: "100%", padding: "9px 12px", borderRadius: "8px",
+                border: `1px solid ${C.borderBright}`, background: "#080f1a",
+                color: C.text, fontSize: "13px",
+                fontFamily: "JetBrains Mono, monospace",
+                boxSizing: "border-box", outline: "none" }} />
+          </div>
+          <button onClick={handleRespond}
+            disabled={responding || !respondId.trim()}
+            style={{ width: "100%", padding: "10px", borderRadius: "10px",
+              border: "none", cursor: respondId.trim() ? "pointer" : "not-allowed",
+              fontSize: "13px", fontWeight: "700",
+              background: "linear-gradient(135deg, #a78bfa, #7c3aed)",
+              color: "#fff", opacity: !respondId.trim() ? 0.5 : 1 }}>
+            {responding ? "Evaluating..." : "Auto-Respond"}
+          </button>
+          {/* Respond result */}
+          {respondRes && (
+            <div style={{ marginTop: "12px", padding: "12px",
+              borderRadius: "8px", background: "#a78bfa08",
+              border: "1px solid #a78bfa25" }}>
+              <div style={{ fontSize: "12px", fontWeight: "700",
+                color: "#a78bfa", marginBottom: "6px" }}>
+                Evaluated {respondRes.evaluated} playbooks
+              </div>
+              {respondRes.responses?.map((r, i) => (
+                <div key={i} style={{ fontSize: "11px", marginTop: "4px",
+                  color: r.status === "executed" ? C.green
+                    : r.status === "skipped" ? C.muted : "#ff3b5c" }}>
+                  {r.status === "executed" ? "✅" : r.status === "skipped" ? "⏭️" : "❌"}
+                  {" "}{r.playbook}: {r.status}
+                  {r.status === "skipped" && (
+                    <span style={{ color: C.muted }}> ({r.reason})</span>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* ── Tab bar ─────────────────────────────────────────── */}
+      <div style={{ display: "flex", gap: "4px", marginBottom: "20px",
+        background: C.card, padding: "4px", borderRadius: "12px",
+        border: `1px solid ${C.border}`, width: "fit-content" }}>
+        {[
+          { id: "playbooks", label: "Playbooks", count: playbooks.length },
+          { id: "actions",   label: "Action Log", count: actions.length  },
+        ].map(t => (
+          <button key={t.id} onClick={() => setTab(t.id)}
+            style={{ padding: "8px 20px", borderRadius: "9px", border: "none",
+              cursor: "pointer", fontSize: "13px", fontWeight: "600",
+              transition: "all 0.2s",
+              background: tab === t.id
+                ? "linear-gradient(135deg, #ff8c0020, #ff3b5c20)"
+                : "transparent",
+              color: tab === t.id ? C.text : C.muted,
+              boxShadow: tab === t.id
+                ? "inset 0 0 0 1px #ff8c0030" : "none" }}>
+            {t.label}
+            <span style={{ marginLeft: "6px", padding: "1px 6px",
+              borderRadius: "100px", fontSize: "10px",
+              background: tab === t.id ? "#ff8c0020" : C.border,
+              color: tab === t.id ? "#ff8c00" : C.muted }}>
+              {t.count}
+            </span>
+          </button>
+        ))}
+      </div>
+
+      {/* ── Playbooks tab ────────────────────────────────────── */}
+      {tab === "playbooks" && (
+        <div>
+          <div style={{ display: "flex", justifyContent: "flex-end",
+            marginBottom: "14px" }}>
+            <button onClick={() => setShowAdd(!showAdd)}
+              style={{ padding: "8px 18px", borderRadius: "10px",
+                border: "1px solid #ff8c0035", cursor: "pointer",
+                fontSize: "13px", fontWeight: "600",
+                background: showAdd ? "#ff8c0020" : "transparent",
+                color: "#ff8c00", transition: "all 0.2s" }}>
+              {showAdd ? "✕ Cancel" : "+ New Playbook"}
+            </button>
+          </div>
+
+          {/* Add playbook form */}
+          {showAdd && (
+            <div style={{ ...cardStyle({ marginBottom: "16px" }),
+              borderColor: "#ff8c0025" }}>
+              <div style={{ fontSize: "13px", fontWeight: "700",
+                color: "#ff8c00", marginBottom: "16px" }}>
+                New Defense Playbook
+              </div>
+              <div style={{ display: "grid",
+                gridTemplateColumns: "1fr 1fr", gap: "12px",
+                marginBottom: "12px" }}>
+                {[
+                  { key: "name",        label: "Playbook Name" },
+                  { key: "description", label: "Description"   },
+                ].map(f => (
+                  <div key={f.key}>
+                    <div style={{ fontSize: "10px", color: C.muted,
+                      marginBottom: "5px", textTransform: "uppercase",
+                      letterSpacing: "0.5px" }}>{f.label}</div>
+                    <input value={newPb[f.key]}
+                      onChange={e => setNewPb(p =>
+                        ({ ...p, [f.key]: e.target.value }))}
+                      style={{ width: "100%", padding: "9px 12px",
+                        borderRadius: "8px",
+                        border: `1px solid ${C.borderBright}`,
+                        background: "#080f1a", color: C.text,
+                        fontSize: "13px", boxSizing: "border-box",
+                        outline: "none" }} />
+                  </div>
+                ))}
+              </div>
+              <div style={{ display: "grid",
+                gridTemplateColumns: "1fr 1fr 1fr 1fr",
+                gap: "12px", marginBottom: "12px" }}>
+                {[
+                  { key: "trigger_field", label: "Trigger Field",
+                    opts: ["severity","event_type","source","title"] },
+                  { key: "trigger_op",    label: "Operator",
+                    opts: ["eq","contains","in"] },
+                ].map(f => (
+                  <div key={f.key}>
+                    <div style={{ fontSize: "10px", color: C.muted,
+                      marginBottom: "5px", textTransform: "uppercase",
+                      letterSpacing: "0.5px" }}>{f.label}</div>
+                    <select value={newPb[f.key]}
+                      onChange={e => setNewPb(p =>
+                        ({ ...p, [f.key]: e.target.value }))}
+                      style={{ width: "100%", padding: "9px 12px",
+                        borderRadius: "8px",
+                        border: `1px solid ${C.borderBright}`,
+                        background: "#080f1a", color: C.text,
+                        fontSize: "13px", outline: "none" }}>
+                      {f.opts.map(o => (
+                        <option key={o} value={o}>{o}</option>
+                      ))}
+                    </select>
+                  </div>
+                ))}
+                <div>
+                  <div style={{ fontSize: "10px", color: C.muted,
+                    marginBottom: "5px", textTransform: "uppercase",
+                    letterSpacing: "0.5px" }}>Trigger Value</div>
+                  <input value={newPb.trigger_value}
+                    onChange={e => setNewPb(p =>
+                      ({ ...p, trigger_value: e.target.value }))}
+                    placeholder="Critical"
+                    style={{ width: "100%", padding: "9px 12px",
+                      borderRadius: "8px",
+                      border: `1px solid ${C.borderBright}`,
+                      background: "#080f1a", color: C.text,
+                      fontSize: "13px", boxSizing: "border-box",
+                      outline: "none" }} />
+                </div>
+                <div>
+                  <div style={{ fontSize: "10px", color: C.muted,
+                    marginBottom: "5px", textTransform: "uppercase",
+                    letterSpacing: "0.5px" }}>Cooldown (min)</div>
+                  <select value={newPb.cooldown_minutes}
+                    onChange={e => setNewPb(p =>
+                      ({ ...p, cooldown_minutes: parseInt(e.target.value) }))}
+                    style={{ width: "100%", padding: "9px 12px",
+                      borderRadius: "8px",
+                      border: `1px solid ${C.borderBright}`,
+                      background: "#080f1a", color: C.text,
+                      fontSize: "13px", outline: "none" }}>
+                    {[1,5,10,15,30,60].map(v => (
+                      <option key={v} value={v}>{v}m</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+              {/* Actions multi-select */}
+              <div style={{ marginBottom: "16px" }}>
+                <div style={{ fontSize: "10px", color: C.muted,
+                  marginBottom: "8px", textTransform: "uppercase",
+                  letterSpacing: "0.5px" }}>Response Actions</div>
+                <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
+                  {Object.entries(ACTION_META).map(([key, meta]) => {
+                    const active = newPb.actions.includes(key);
+                    return (
+                      <button key={key}
+                        onClick={() => setNewPb(p => ({
+                          ...p, actions: active
+                            ? p.actions.filter(a => a !== key)
+                            : [...p.actions, key]
+                        }))}
+                        style={{ padding: "5px 14px", borderRadius: "100px",
+                          border: `1px solid ${active ? meta.color : C.border}`,
+                          cursor: "pointer", fontSize: "12px", fontWeight: "600",
+                          background: active ? meta.color + "20" : "transparent",
+                          color: active ? meta.color : C.muted,
+                          transition: "all 0.15s" }}>
+                        {meta.icon} {meta.label}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+              <button onClick={handleAddPlaybook} disabled={adding}
+                style={{ padding: "10px 24px", borderRadius: "10px",
+                  border: "none", cursor: "pointer", fontSize: "13px",
+                  fontWeight: "700",
+                  background: "linear-gradient(135deg, #ff8c00, #ff3b5c)",
+                  color: "#fff", opacity: adding ? 0.6 : 1 }}>
+                {adding ? "Creating..." : "Create Playbook"}
+              </button>
+            </div>
+          )}
+
+          {/* Playbook list */}
+          <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+            {playbooks.map(pb => {
+              const pbActions = (() => {
+                try { return JSON.parse(pb.actions); }
+                catch { return []; }
+              })();
+              return (
+                <div key={pb.id} style={{ ...cardStyle(),
+                  borderLeft: `3px solid ${pb.enabled ? "#ff8c00" : C.faint}`,
+                  opacity: pb.enabled ? 1 : 0.55 }}>
+                  <div style={{ display: "flex",
+                    alignItems: "flex-start", gap: "16px" }}>
+                    <div style={{ flex: 1 }}>
+                      {/* Name + description */}
+                      <div style={{ fontWeight: "700", fontSize: "15px",
+                        marginBottom: "4px" }}>{pb.name}</div>
+                      {pb.description && (
+                        <div style={{ fontSize: "12px", color: C.muted,
+                          marginBottom: "10px" }}>{pb.description}</div>
+                      )}
+                      {/* Trigger condition */}
+                      <div style={{ display: "flex", alignItems: "center",
+                        gap: "8px", marginBottom: "10px" }}>
+                        <span style={{ fontSize: "11px", color: C.muted }}>
+                          IF
+                        </span>
+                        <span style={{ padding: "2px 8px", borderRadius: "6px",
+                          fontSize: "11px", fontWeight: "700",
+                          background: "#00e5ff12", color: C.cyan,
+                          fontFamily: "JetBrains Mono, monospace" }}>
+                          {pb.trigger_field}
+                        </span>
+                        <span style={{ fontSize: "11px", color: C.muted }}>
+                          {pb.trigger_op}
+                        </span>
+                        <span style={{ padding: "2px 8px", borderRadius: "6px",
+                          fontSize: "11px", fontWeight: "700",
+                          background: "#ff8c0012", color: "#ff8c00",
+                          fontFamily: "JetBrains Mono, monospace" }}>
+                          {pb.trigger_value}
+                        </span>
+                        <span style={{ fontSize: "11px", color: C.muted }}>
+                          THEN
+                        </span>
+                        {/* Action chain */}
+                        {pbActions.map((a, i) => {
+                          const meta = ACTION_META[a] || {};
+                          return (
+                            <span key={i} style={{ padding: "2px 8px",
+                              borderRadius: "100px", fontSize: "10px",
+                              fontWeight: "700",
+                              background: (meta.color || "#888") + "15",
+                              color: meta.color || "#888",
+                              border: `1px solid ${(meta.color || "#888")}30` }}>
+                              {meta.icon || "→"} {a.replace(/_/g, " ")}
+                            </span>
+                          );
+                        })}
+                      </div>
+                      {/* Meta row */}
+                      <div style={{ fontSize: "11px", color: C.faint }}>
+                        Triggered {pb.trigger_count}× •
+                        Cooldown {pb.cooldown_minutes}m •
+                        {pb.last_triggered
+                          ? ` Last: ${new Date(pb.last_triggered).toLocaleString()}`
+                          : " Never triggered"}
+                      </div>
+                    </div>
+                    {/* Controls */}
+                    <div style={{ display: "flex", gap: "6px",
+                      flexShrink: 0, flexDirection: "column",
+                      alignItems: "flex-end" }}>
+                      <button onClick={() => togglePlaybook(pb)}
+                        style={{ padding: "5px 14px", borderRadius: "8px",
+                          border: `1px solid ${pb.enabled ? "#ff3b5c35" : "#00ff8830"}`,
+                          cursor: "pointer", fontSize: "12px", fontWeight: "600",
+                          background: pb.enabled ? "#ff3b5c10" : "#00ff8810",
+                          color: pb.enabled ? "#ff3b5c" : "#00ff88" }}>
+                        {pb.enabled ? "Disable" : "Enable"}
+                      </button>
+                      <button onClick={() => deletePlaybook(pb.id)}
+                        style={{ padding: "5px 14px", borderRadius: "8px",
+                          border: "1px solid #ff3b5c30", cursor: "pointer",
+                          fontSize: "12px", fontWeight: "600",
+                          background: "#ff3b5c10", color: "#ff3b5c" }}>
+                        Delete
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* ── Action Log tab ───────────────────────────────────── */}
+      {tab === "actions" && (
+        <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+          {actions.length === 0 && (
+            <div style={{ ...cardStyle({ padding: "48px", textAlign: "center" }),
+              color: C.muted }}>
+              No actions logged yet. Trigger a playbook above.
+            </div>
+          )}
+          {actions.map(a => {
+            const meta = ACTION_META[a.action_type] || {};
+            const sc   = STATUS_COLOR[a.status] || STATUS_COLOR.executed;
+            return (
+              <div key={a.id} style={{ background: C.card,
+                border: `1px solid ${C.border}`,
+                borderLeft: `3px solid ${meta.color || "#888"}`,
+                borderRadius: "10px", padding: "12px 16px" }}>
+                <div style={{ display: "flex",
+                  alignItems: "center", gap: "12px" }}>
+                  {/* Action type badge */}
+                  <div style={{ padding: "3px 10px", borderRadius: "100px",
+                    fontSize: "10px", fontWeight: "800",
+                    background: (meta.color || "#888") + "15",
+                    color: meta.color || "#888",
+                    whiteSpace: "nowrap", letterSpacing: "0.5px" }}>
+                    {meta.icon} {a.action_type.replace(/_/g, " ").toUpperCase()}
+                  </div>
+                  {/* Target */}
+                  <div style={{ fontFamily: "JetBrains Mono, monospace",
+                    fontSize: "12px", fontWeight: "700",
+                    color: C.text, whiteSpace: "nowrap" }}>
+                    {a.target}
+                  </div>
+                  {/* Playbook */}
+                  <div style={{ fontSize: "12px", color: "#a78bfa",
+                    whiteSpace: "nowrap" }}>
+                    {a.playbook_name}
+                  </div>
+                  {/* Outcome */}
+                  <div style={{ flex: 1, fontSize: "11px", color: C.muted,
+                    overflow: "hidden", textOverflow: "ellipsis",
+                    whiteSpace: "nowrap" }}>
+                    {a.outcome}
+                  </div>
+                  {/* Status */}
+                  <div style={{ padding: "2px 8px", borderRadius: "100px",
+                    fontSize: "10px", fontWeight: "700",
+                    background: sc.bg, color: sc.fg,
+                    whiteSpace: "nowrap" }}>
+                    {a.status}
+                  </div>
+                  {/* Time */}
+                  <div style={{ fontSize: "11px", color: C.muted,
+                    whiteSpace: "nowrap" }}>
+                    {new Date(a.created_at).toLocaleTimeString([], {
+                      hour: "2-digit", minute: "2-digit" })}
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
+// AIPET X — Zero-Trust Page
+//
+// Features:
+//   • Stats bar: trusted/monitored/restricted/quarantined counts
+//   • Device trust map — every device with score + status
+//   • Manual quarantine / restore controls
+//   • Policy table with priority ordering
+//   • Access decision log with action colour coding
+//   • Live policy evaluator widget
+//
+// Trust score colour system:
+//   90-100 green  (trusted)
+//   70-89  cyan   (monitored)
+//   40-69  orange (restricted)
+//   0-39   red    (quarantined)
+// ─────────────────────────────────────────────────────────────
+function ZeroTrustPage({ token, showToast }) {
+
+  // ── State ─────────────────────────────────────────────────
+  const [devices,   setDevices]   = useState([]);
+  const [policies,  setPolicies]  = useState([]);
+  const [log,       setLog]       = useState([]);
+  const [stats,     setStats]     = useState(null);
+  const [loading,   setLoading]   = useState(true);
+  const [tab,       setTab]       = useState("devices");
+  const [assessing, setAssessing] = useState(false);
+
+  // Evaluator widget state
+  const [evalSrc,   setEvalSrc]   = useState("");
+  const [evalDst,   setEvalDst]   = useState("");
+  const [evalPort,  setEvalPort]  = useState("");
+  const [evalRes,   setEvalRes]   = useState(null);
+  const [evaluating,setEvaluating]= useState(false);
+
+  // Add policy form state
+  const [showAdd,   setShowAdd]   = useState(false);
+  const [newPolicy, setNewPolicy] = useState({
+    name: "", source: "", destination: "", port: "*",
+    protocol: "any", action: "block", priority: 50, description: ""
+  });
+  const [adding,    setAdding]    = useState(false);
+
+  const H = { headers: { Authorization: `Bearer ${token}` } };
+
+  // Trust score → colour + label
+  const trustColor = (score) => {
+    if (score >= 90) return { fg: "#00ff88", bg: "#00ff8812", label: "TRUSTED"      };
+    if (score >= 70) return { fg: "#00e5ff", bg: "#00e5ff12", label: "MONITORED"    };
+    if (score >= 40) return { fg: "#ff8c00", bg: "#ff8c0012", label: "RESTRICTED"   };
+    return              { fg: "#ff3b5c", bg: "#ff3b5c12", label: "QUARANTINED"  };
+  };
+
+  // Action colours for access log
+  const actionColor = {
+    allow:      { fg: "#00ff88", bg: "#00ff8812" },
+    block:      { fg: "#ff3b5c", bg: "#ff3b5c12" },
+    quarantine: { fg: "#ff3b5c", bg: "#ff3b5c20" },
+    alert:      { fg: "#ffd600", bg: "#ffd60012" },
+  };
+
+  // Design tokens
+  const C = {
+    bg: "#030712", card: "#0d1117", border: "#1e2a3a",
+    borderBright: "#2d3f55", text: "#e2e8f0", muted: "#64748b",
+    faint: "#334155", cyan: "#00e5ff", green: "#00ff88",
+  };
+  const cardStyle = (extra = {}) => ({
+    background: C.card, border: `1px solid ${C.border}`,
+    borderRadius: "16px", padding: "24px", ...extra
+  });
+
+  // ── Fetch all data ────────────────────────────────────────
+  const fetchAll = useCallback(async () => {
+    try {
+      const [stRes, devRes, polRes, logRes] = await Promise.all([
+        axios.get(`${API}/zerotrust/stats`,           H),
+        axios.get(`${API}/zerotrust/devices`,         H),
+        axios.get(`${API}/zerotrust/policies`,        H),
+        axios.get(`${API}/zerotrust/log?per_page=50`, H),
+      ]);
+      setStats(stRes.data);
+      setDevices(devRes.data.devices   || []);
+      setPolicies(polRes.data.policies || []);
+      setLog(logRes.data.log           || []);
+    } catch {
+      showToast("Failed to load Zero-Trust data", "error");
+    } finally {
+      setLoading(false);
+    }
+  }, [token]);
+
+  useEffect(() => { fetchAll(); }, [fetchAll]);
+
+  // ── Assess all devices from scan data ────────────────────
+  const handleAssess = async () => {
+    setAssessing(true);
+    try {
+      const res = await axios.post(`${API}/zerotrust/devices/assess`, {}, H);
+      showToast(`Assessed ${res.data.assessed} devices`, "success");
+      fetchAll();
+    } catch {
+      showToast("Assessment failed", "error");
+    } finally {
+      setAssessing(false);
+    }
+  };
+
+  // ── Manual device status override ────────────────────────
+  const handleStatusOverride = async (deviceIp, status) => {
+    try {
+      await axios.put(`${API}/zerotrust/devices/${deviceIp}`, { status }, H);
+      setDevices(prev => prev.map(d =>
+        d.device_ip === deviceIp ? { ...d, status } : d));
+      showToast(`Device ${deviceIp} marked ${status}`, "success");
+    } catch {
+      showToast("Failed to update device", "error");
+    }
+  };
+
+  // ── Policy evaluator ──────────────────────────────────────
+  const handleEvaluate = async () => {
+    if (!evalSrc.trim()) return;
+    setEvaluating(true);
+    setEvalRes(null);
+    try {
+      const res = await axios.post(`${API}/zerotrust/evaluate`, {
+        source_ip: evalSrc.trim(),
+        dest_ip:   evalDst.trim() || "*",
+        port:      evalPort.trim() || "*",
+      }, H);
+      setEvalRes(res.data);
+      fetchAll(); // Refresh log
+    } catch {
+      showToast("Evaluation failed", "error");
+    } finally {
+      setEvaluating(false);
+    }
+  };
+
+  // ── Add policy ────────────────────────────────────────────
+  const handleAddPolicy = async () => {
+    if (!newPolicy.name || !newPolicy.source || !newPolicy.destination) return;
+    setAdding(true);
+    try {
+      await axios.post(`${API}/zerotrust/policies`, newPolicy, H);
+      showToast("Policy created", "success");
+      setShowAdd(false);
+      setNewPolicy({ name: "", source: "", destination: "", port: "*",
+        protocol: "any", action: "block", priority: 50, description: "" });
+      fetchAll();
+    } catch (e) {
+      showToast(e.response?.data?.error || "Failed to create policy", "error");
+    } finally {
+      setAdding(false);
+    }
+  };
+
+  // ── Toggle policy enabled ─────────────────────────────────
+  const togglePolicy = async (policy) => {
+    try {
+      await axios.put(`${API}/zerotrust/policies/${policy.id}`,
+        { enabled: !policy.enabled }, H);
+      setPolicies(prev => prev.map(p =>
+        p.id === policy.id ? { ...p, enabled: !p.enabled } : p));
+      showToast(`Policy ${!policy.enabled ? "enabled" : "disabled"}`, "success");
+    } catch {
+      showToast("Failed to update policy", "error");
+    }
+  };
+
+  // ── Delete policy ─────────────────────────────────────────
+  const deletePolicy = async (id) => {
+    try {
+      await axios.delete(`${API}/zerotrust/policies/${id}`, H);
+      setPolicies(prev => prev.filter(p => p.id !== id));
+      showToast("Policy deleted", "success");
+    } catch {
+      showToast("Failed to delete policy", "error");
+    }
+  };
+
+  if (loading) return (
+    <div style={{ display: "flex", flexDirection: "column", alignItems: "center",
+      justifyContent: "center", height: "60vh", gap: "16px" }}>
+      <div style={{ width: "48px", height: "48px", border: `3px solid ${C.border}`,
+        borderTop: `3px solid ${C.cyan}`, borderRadius: "50%",
+        animation: "spin 1s linear infinite" }} />
+      <div style={{ color: C.muted, fontSize: "13px",
+        fontFamily: "JetBrains Mono, monospace" }}>
+        Loading Zero-Trust engine...
+      </div>
+    </div>
+  );
+
+  return (
+    <div style={{ padding: "32px 36px", background: C.bg, minHeight: "100vh",
+      fontFamily: "Inter, sans-serif", color: C.text }}>
+
+      {/* ── Header ──────────────────────────────────────────── */}
+      <div style={{ display: "flex", alignItems: "center",
+        justifyContent: "space-between", marginBottom: "32px" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
+          <div style={{ width: "52px", height: "52px", borderRadius: "14px",
+            background: "linear-gradient(135deg, #00e5ff20, #00e5ff08)",
+            border: "1px solid #00e5ff35",
+            display: "flex", alignItems: "center", justifyContent: "center",
+            fontSize: "24px", boxShadow: "0 0 20px #00e5ff15" }}>
+            🔒
+          </div>
+          <div>
+            <h1 style={{ margin: 0, fontSize: "26px", fontWeight: "800",
+              letterSpacing: "-0.5px",
+              fontFamily: "JetBrains Mono, monospace",
+              background: "linear-gradient(135deg, #00e5ff, #00ff88)",
+              WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
+              Zero-Trust
+            </h1>
+            <div style={{ fontSize: "13px", color: C.muted, marginTop: "2px" }}>
+              Trust nothing · Verify everything · Always
+            </div>
+          </div>
+        </div>
+        {/* Assess button */}
+        <button onClick={handleAssess} disabled={assessing}
+          style={{ padding: "10px 22px", borderRadius: "10px",
+            border: "1px solid #00e5ff35", cursor: "pointer",
+            fontSize: "13px", fontWeight: "700",
+            background: "#00e5ff12", color: C.cyan,
+            opacity: assessing ? 0.6 : 1, transition: "all 0.2s" }}>
+          {assessing ? "Assessing..." : "⚡ Reassess All Devices"}
+        </button>
+      </div>
+
+      {/* ── Stats bar ───────────────────────────────────────── */}
+      {stats && (
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(6, 1fr)",
+          gap: "12px", marginBottom: "28px" }}>
+          {[
+            { label: "Trusted",     value: stats.trusted,        color: "#00ff88", icon: "✅" },
+            { label: "Monitored",   value: stats.monitored,      color: C.cyan,    icon: "👁️" },
+            { label: "Restricted",  value: stats.restricted,     color: "#ff8c00", icon: "⚠️" },
+            { label: "Quarantined", value: stats.quarantined,    color: "#ff3b5c", icon: "🚫" },
+            { label: "Blocks Today",value: stats.blocks_today,   color: "#ff3b5c", icon: "🛡️" },
+            { label: "Policies",    value: stats.total_policies, color: "#a78bfa", icon: "📋" },
+          ].map(s => (
+            <div key={s.label} style={{ ...cardStyle({ padding: "18px" }),
+              borderColor: s.color + "25",
+              boxShadow: `0 0 16px ${s.color}08` }}>
+              <div style={{ fontSize: "20px", marginBottom: "8px" }}>{s.icon}</div>
+              <div style={{ fontSize: "26px", fontWeight: "800", lineHeight: 1,
+                fontFamily: "JetBrains Mono, monospace", color: s.color,
+                textShadow: `0 0 16px ${s.color}50` }}>
+                {s.value}
+              </div>
+              <div style={{ fontSize: "10px", color: C.muted, marginTop: "5px",
+                textTransform: "uppercase", letterSpacing: "0.5px" }}>
+                {s.label}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* ── Policy Evaluator widget ──────────────────────────── */}
+      <div style={{ ...cardStyle({ marginBottom: "28px" }),
+        borderColor: "#00e5ff20",
+        boxShadow: "0 0 30px #00e5ff06" }}>
+        <div style={{ fontSize: "12px", fontWeight: "700", color: C.muted,
+          textTransform: "uppercase", letterSpacing: "1.5px",
+          marginBottom: "14px" }}>
+          🔎 Policy Evaluator — test any access request
+        </div>
+        <div style={{ display: "flex", gap: "10px", alignItems: "flex-end" }}>
+          {[
+            { label: "Source IP",      val: evalSrc,  set: setEvalSrc,  ph: "192.168.1.1"  },
+            { label: "Destination IP", val: evalDst,  set: setEvalDst,  ph: "8.8.8.8"      },
+            { label: "Port",           val: evalPort, set: setEvalPort, ph: "443"           },
+          ].map(f => (
+            <div key={f.label} style={{ flex: 1 }}>
+              <div style={{ fontSize: "10px", color: C.muted, marginBottom: "5px",
+                textTransform: "uppercase", letterSpacing: "0.5px" }}>
+                {f.label}
+              </div>
+              <input value={f.val} onChange={e => f.set(e.target.value)}
+                onKeyDown={e => e.key === "Enter" && handleEvaluate()}
+                placeholder={f.ph}
+                style={{ width: "100%", padding: "10px 14px", borderRadius: "10px",
+                  border: `1px solid ${C.borderBright}`, background: "#080f1a",
+                  color: C.text, fontSize: "13px",
+                  fontFamily: "JetBrains Mono, monospace",
+                  boxSizing: "border-box", outline: "none" }} />
+            </div>
+          ))}
+          <button onClick={handleEvaluate}
+            disabled={evaluating || !evalSrc.trim()}
+            style={{ padding: "10px 22px", borderRadius: "10px", border: "none",
+              cursor: evalSrc.trim() ? "pointer" : "not-allowed",
+              fontSize: "13px", fontWeight: "700",
+              background: "linear-gradient(135deg, #00e5ff, #00ff88)",
+              color: "#000", opacity: !evalSrc.trim() ? 0.5 : 1,
+              transition: "all 0.2s", whiteSpace: "nowrap" }}>
+            {evaluating ? "Checking..." : "Evaluate"}
+          </button>
+        </div>
+
+        {/* Evaluation result */}
+        {evalRes && (
+          <div style={{ marginTop: "14px", padding: "14px 18px",
+            borderRadius: "10px",
+            background: evalRes.action === "allow" ? "#00ff8808" : "#ff3b5c08",
+            border: `1px solid ${evalRes.action === "allow" ? "#00ff8830" : "#ff3b5c30"}` }}>
+            <div style={{ fontWeight: "800", fontSize: "16px", marginBottom: "6px",
+              color: evalRes.action === "allow" ? "#00ff88"
+                : evalRes.action === "alert" ? "#ffd600" : "#ff3b5c",
+              fontFamily: "JetBrains Mono, monospace" }}>
+              {evalRes.action === "allow"  ? "✅ ALLOW"
+               : evalRes.action === "alert" ? "⚠️ ALERT"
+               : "🚫 BLOCK"}
+            </div>
+            <div style={{ fontSize: "13px", color: C.muted }}>
+              {evalRes.reason}
+            </div>
+            <div style={{ fontSize: "11px", color: C.faint, marginTop: "4px" }}>
+              Trust score: {evalRes.trust_score} · Policy: {evalRes.policy}
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* ── Tab bar ─────────────────────────────────────────── */}
+      <div style={{ display: "flex", gap: "4px", marginBottom: "20px",
+        background: C.card, padding: "4px", borderRadius: "12px",
+        border: `1px solid ${C.border}`, width: "fit-content" }}>
+        {[
+          { id: "devices",  label: "Devices",  count: devices.length  },
+          { id: "policies", label: "Policies", count: policies.length },
+          { id: "log",      label: "Access Log",count: log.length     },
+        ].map(t => (
+          <button key={t.id} onClick={() => setTab(t.id)}
+            style={{ padding: "8px 20px", borderRadius: "9px", border: "none",
+              cursor: "pointer", fontSize: "13px", fontWeight: "600",
+              transition: "all 0.2s",
+              background: tab === t.id
+                ? "linear-gradient(135deg, #00e5ff20, #00ff8820)"
+                : "transparent",
+              color: tab === t.id ? C.text : C.muted,
+              boxShadow: tab === t.id
+                ? "inset 0 0 0 1px #00e5ff30" : "none" }}>
+            {t.label}
+            <span style={{ marginLeft: "6px", padding: "1px 6px",
+              borderRadius: "100px", fontSize: "10px",
+              background: tab === t.id ? "#00e5ff20" : C.border,
+              color: tab === t.id ? C.cyan : C.muted }}>
+              {t.count}
+            </span>
+          </button>
+        ))}
+      </div>
+
+      {/* ── Devices tab ─────────────────────────────────────── */}
+      {tab === "devices" && (
+        <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+          {devices.map(dev => {
+            const tc = trustColor(dev.trust_score);
+            const factors = (() => {
+              try { return JSON.parse(dev.risk_factors || "[]"); }
+              catch { return []; }
+            })();
+            return (
+              <div key={dev.device_ip} style={{ ...cardStyle(),
+                borderLeft: `3px solid ${tc.fg}`,
+                boxShadow: `0 0 20px ${tc.fg}06` }}>
+                <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
+                  {/* Trust score ring */}
+                  <div style={{ width: "60px", height: "60px", borderRadius: "50%",
+                    background: tc.bg, border: `3px solid ${tc.fg}`,
+                    display: "flex", flexDirection: "column",
+                    alignItems: "center", justifyContent: "center",
+                    flexShrink: 0,
+                    boxShadow: `0 0 16px ${tc.fg}30` }}>
+                    <div style={{ fontSize: "16px", fontWeight: "800",
+                      fontFamily: "JetBrains Mono, monospace",
+                      color: tc.fg, lineHeight: 1 }}>
+                      {dev.trust_score}
+                    </div>
+                    <div style={{ fontSize: "8px", color: tc.fg,
+                      fontWeight: "700", letterSpacing: "0.5px" }}>
+                      TRUST
+                    </div>
+                  </div>
+                  {/* Device info */}
+                  <div style={{ flex: 1 }}>
+                    <div style={{ display: "flex", alignItems: "center",
+                      gap: "10px", marginBottom: "6px" }}>
+                      <span style={{ fontWeight: "700", fontSize: "15px",
+                        fontFamily: "JetBrains Mono, monospace" }}>
+                        {dev.device_ip}
+                      </span>
+                      {dev.device_name && (
+                        <span style={{ fontSize: "13px", color: C.muted }}>
+                          {dev.device_name}
+                        </span>
+                      )}
+                      <span style={{ padding: "2px 10px", borderRadius: "100px",
+                        fontSize: "10px", fontWeight: "800",
+                        background: tc.bg, color: tc.fg,
+                        textTransform: "uppercase", letterSpacing: "0.5px" }}>
+                        {tc.label}
+                      </span>
+                    </div>
+                    {/* Risk factors */}
+                    <div style={{ display: "flex", gap: "6px", flexWrap: "wrap" }}>
+                      {factors.map((f, i) => (
+                        <span key={i} style={{ fontSize: "11px", color: C.muted,
+                          background: C.faint + "40", padding: "2px 8px",
+                          borderRadius: "6px" }}>
+                          {f}
+                        </span>
+                      ))}
+                    </div>
+                  </div>
+                  {/* Action buttons */}
+                  <div style={{ display: "flex", gap: "6px", flexShrink: 0 }}>
+                    {dev.status !== "quarantined" && (
+                      <button
+                        onClick={() => handleStatusOverride(dev.device_ip, "quarantined")}
+                        style={{ padding: "6px 14px", borderRadius: "8px",
+                          border: "1px solid #ff3b5c35", cursor: "pointer",
+                          fontSize: "12px", fontWeight: "600",
+                          background: "#ff3b5c12", color: "#ff3b5c" }}>
+                        Quarantine
+                      </button>
+                    )}
+                    {dev.status === "quarantined" && (
+                      <button
+                        onClick={() => handleStatusOverride(dev.device_ip, "monitored")}
+                        style={{ padding: "6px 14px", borderRadius: "8px",
+                          border: "1px solid #00ff8830", cursor: "pointer",
+                          fontSize: "12px", fontWeight: "600",
+                          background: "#00ff8812", color: "#00ff88" }}>
+                        Restore
+                      </button>
+                    )}
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* ── Policies tab ────────────────────────────────────── */}
+      {tab === "policies" && (
+        <div>
+          <div style={{ display: "flex", justifyContent: "flex-end",
+            marginBottom: "14px" }}>
+            <button onClick={() => setShowAdd(!showAdd)}
+              style={{ padding: "8px 18px", borderRadius: "10px",
+                border: "1px solid #00e5ff35", cursor: "pointer",
+                fontSize: "13px", fontWeight: "600",
+                background: showAdd ? "#00e5ff20" : "transparent",
+                color: C.cyan, transition: "all 0.2s" }}>
+              {showAdd ? "✕ Cancel" : "+ Add Policy"}
+            </button>
+          </div>
+
+          {/* Add policy form */}
+          {showAdd && (
+            <div style={{ ...cardStyle({ marginBottom: "16px" }),
+              borderColor: "#00e5ff25" }}>
+              <div style={{ fontSize: "13px", fontWeight: "700",
+                color: C.cyan, marginBottom: "16px" }}>
+                New Zero-Trust Policy
+              </div>
+              <div style={{ display: "grid",
+                gridTemplateColumns: "1fr 1fr", gap: "12px",
+                marginBottom: "12px" }}>
+                {[
+                  { key: "name",        label: "Policy Name"  },
+                  { key: "description", label: "Description"  },
+                  { key: "source",      label: "Source IP / CIDR / *" },
+                  { key: "destination", label: "Destination IP / CIDR / *" },
+                ].map(f => (
+                  <div key={f.key}>
+                    <div style={{ fontSize: "10px", color: C.muted,
+                      marginBottom: "5px", textTransform: "uppercase",
+                      letterSpacing: "0.5px" }}>{f.label}</div>
+                    <input value={newPolicy[f.key]}
+                      onChange={e => setNewPolicy(p =>
+                        ({ ...p, [f.key]: e.target.value }))}
+                      style={{ width: "100%", padding: "9px 12px",
+                        borderRadius: "8px",
+                        border: `1px solid ${C.borderBright}`,
+                        background: "#080f1a", color: C.text,
+                        fontSize: "13px",
+                        fontFamily: "JetBrains Mono, monospace",
+                        boxSizing: "border-box", outline: "none" }} />
+                  </div>
+                ))}
+              </div>
+              <div style={{ display: "grid",
+                gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: "12px",
+                marginBottom: "16px" }}>
+                {[
+                  { key: "action",   label: "Action",   opts: ["block","allow","alert","quarantine"] },
+                  { key: "protocol", label: "Protocol", opts: ["any","tcp","udp","icmp"]             },
+                  { key: "priority", label: "Priority", opts: [1,5,10,20,50,100,200]                 },
+                ].map(f => (
+                  <div key={f.key}>
+                    <div style={{ fontSize: "10px", color: C.muted,
+                      marginBottom: "5px", textTransform: "uppercase",
+                      letterSpacing: "0.5px" }}>{f.label}</div>
+                    <select value={newPolicy[f.key]}
+                      onChange={e => setNewPolicy(p =>
+                        ({ ...p, [f.key]: e.target.value }))}
+                      style={{ width: "100%", padding: "9px 12px",
+                        borderRadius: "8px",
+                        border: `1px solid ${C.borderBright}`,
+                        background: "#080f1a", color: C.text,
+                        fontSize: "13px", boxSizing: "border-box",
+                        outline: "none" }}>
+                      {f.opts.map(o => (
+                        <option key={o} value={o}>{o}</option>
+                      ))}
+                    </select>
+                  </div>
+                ))}
+                <div>
+                  <div style={{ fontSize: "10px", color: C.muted,
+                    marginBottom: "5px", textTransform: "uppercase",
+                    letterSpacing: "0.5px" }}>Port</div>
+                  <input value={newPolicy.port}
+                    onChange={e => setNewPolicy(p =>
+                      ({ ...p, port: e.target.value }))}
+                    placeholder="443 or *"
+                    style={{ width: "100%", padding: "9px 12px",
+                      borderRadius: "8px",
+                      border: `1px solid ${C.borderBright}`,
+                      background: "#080f1a", color: C.text,
+                      fontSize: "13px",
+                      fontFamily: "JetBrains Mono, monospace",
+                      boxSizing: "border-box", outline: "none" }} />
+                </div>
+              </div>
+              <button onClick={handleAddPolicy} disabled={adding}
+                style={{ padding: "10px 24px", borderRadius: "10px",
+                  border: "none", cursor: "pointer", fontSize: "13px",
+                  fontWeight: "700",
+                  background: "linear-gradient(135deg, #00e5ff, #00ff88)",
+                  color: "#000", opacity: adding ? 0.6 : 1 }}>
+                {adding ? "Creating..." : "Create Policy"}
+              </button>
+            </div>
+          )}
+
+          {/* Policy list */}
+          <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+            {policies.map(p => {
+              const ac = actionColor[p.action] || actionColor.alert;
+              return (
+                <div key={p.id} style={{ background: C.card,
+                  border: `1px solid ${C.border}`,
+                  borderLeft: `3px solid ${ac.fg}`,
+                  borderRadius: "12px", padding: "14px 18px",
+                  opacity: p.enabled ? 1 : 0.5 }}>
+                  <div style={{ display: "flex",
+                    alignItems: "center", gap: "12px" }}>
+                    {/* Priority badge */}
+                    <div style={{ width: "32px", height: "32px",
+                      borderRadius: "8px", background: C.faint,
+                      display: "flex", alignItems: "center",
+                      justifyContent: "center",
+                      fontSize: "11px", fontWeight: "800",
+                      fontFamily: "JetBrains Mono, monospace",
+                      color: C.muted, flexShrink: 0 }}>
+                      {p.priority}
+                    </div>
+                    {/* Name + rule */}
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontWeight: "700", fontSize: "14px",
+                        marginBottom: "4px" }}>{p.name}</div>
+                      <div style={{ fontSize: "11px", color: C.muted,
+                        fontFamily: "JetBrains Mono, monospace" }}>
+                        {p.source} → {p.destination}
+                        {p.port && p.port !== "*" ? `:${p.port}` : ""}
+                        {" "}[{p.protocol}]
+                      </div>
+                    </div>
+                    {/* Action badge */}
+                    <div style={{ padding: "3px 12px", borderRadius: "100px",
+                      fontSize: "11px", fontWeight: "800",
+                      background: ac.bg, color: ac.fg,
+                      textTransform: "uppercase",
+                      letterSpacing: "0.5px" }}>
+                      {p.action}
+                    </div>
+                    {/* Hit count */}
+                    <div style={{ fontSize: "11px", color: C.muted,
+                      whiteSpace: "nowrap" }}>
+                      {p.hit_count} hits
+                    </div>
+                    {/* Toggle + delete */}
+                    <button onClick={() => togglePolicy(p)}
+                      style={{ padding: "4px 12px", borderRadius: "7px",
+                        border: `1px solid ${p.enabled ? "#ff3b5c30" : "#00ff8830"}`,
+                        cursor: "pointer", fontSize: "11px", fontWeight: "600",
+                        background: p.enabled ? "#ff3b5c10" : "#00ff8810",
+                        color: p.enabled ? "#ff3b5c" : "#00ff88" }}>
+                      {p.enabled ? "Disable" : "Enable"}
+                    </button>
+                    <button onClick={() => deletePolicy(p.id)}
+                      style={{ padding: "4px 10px", borderRadius: "7px",
+                        border: "1px solid #ff3b5c30", cursor: "pointer",
+                        fontSize: "11px", fontWeight: "600",
+                        background: "#ff3b5c10", color: "#ff3b5c" }}>
+                      ✕
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* ── Access Log tab ───────────────────────────────────── */}
+      {tab === "log" && (
+        <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+          {log.length === 0 && (
+            <div style={{ ...cardStyle({ padding: "48px", textAlign: "center" }),
+              color: C.muted }}>
+              No access decisions logged yet. Use the evaluator above.
+            </div>
+          )}
+          {log.map(entry => {
+            const ac = actionColor[entry.action] || actionColor.alert;
+            return (
+              <div key={entry.id} style={{ background: C.card,
+                border: `1px solid ${C.border}`,
+                borderLeft: `3px solid ${ac.fg}`,
+                borderRadius: "10px", padding: "12px 16px" }}>
+                <div style={{ display: "flex",
+                  alignItems: "center", gap: "12px" }}>
+                  {/* Action badge */}
+                  <div style={{ padding: "3px 10px", borderRadius: "100px",
+                    fontSize: "10px", fontWeight: "800",
+                    background: ac.bg, color: ac.fg,
+                    textTransform: "uppercase",
+                    letterSpacing: "0.5px", whiteSpace: "nowrap" }}>
+                    {entry.action}
+                  </div>
+                  {/* Source → dest */}
+                  <div style={{ fontFamily: "JetBrains Mono, monospace",
+                    fontSize: "12px", color: C.text, whiteSpace: "nowrap" }}>
+                    {entry.source_ip}
+                    {entry.dest_ip ? ` → ${entry.dest_ip}` : ""}
+                    {entry.port && entry.port !== "*"
+                      ? `:${entry.port}` : ""}
+                  </div>
+                  {/* Policy name */}
+                  <div style={{ flex: 1, fontSize: "12px", color: C.muted,
+                    overflow: "hidden", textOverflow: "ellipsis",
+                    whiteSpace: "nowrap" }}>
+                    {entry.policy_name || entry.reason}
+                  </div>
+                  {/* Trust score */}
+                  {entry.trust_score !== null && (
+                    <div style={{ fontSize: "11px", color: C.muted,
+                      whiteSpace: "nowrap" }}>
+                      trust: {entry.trust_score}
+                    </div>
+                  )}
+                  {/* Timestamp */}
+                  <div style={{ fontSize: "11px", color: C.muted,
+                    whiteSpace: "nowrap" }}>
+                    {new Date(entry.created_at).toLocaleTimeString([], {
+                      hour: "2-digit", minute: "2-digit" })}
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
 
 // ─────────────────────────────────────────────────────────────
 // AIPET X — Threat Intel Page
@@ -8279,6 +9685,12 @@ export default function App() {
           )}
           {activeTab === "team" && (
             <TeamAccessPage token={token} showToast={showToast} />
+          )}
+          {activeTab === "defense" && (
+            <AutonomousDefensePage token={token} showToast={showToast} />
+          )}
+          {activeTab === "zerotrust" && (
+            <ZeroTrustPage token={token} showToast={showToast} />
           )}
           {activeTab === "threatintel" && (
             <ThreatIntelPage token={token} showToast={showToast} />
