@@ -6068,6 +6068,7 @@ const NAV_ITEMS = [
   { id: "threatintel",label: "Threat Intel",  icon: AlertTriangle, group: "enterprise" },
   { id: "zerotrust",  label: "Zero-Trust",    icon: Shield,        group: "enterprise" },
   { id: "defense",    label: "Auto Defense",  icon: Shield,        group: "enterprise" },
+  { id: "aisoc",      label: "AI SOC",        icon: Shield,        group: "enterprise" },
   { id: "settings",  label: "Settings",      icon: Settings,      group: "account"  },
 ];
 
@@ -6330,6 +6331,609 @@ function SettingsPage({ token, showToast }) {
   );
 }
 
+
+// ─────────────────────────────────────────────────────────────
+// AIPET X — AI SOC Page
+//
+// Features:
+//   • Stats bar: open incidents, critical events, quarantined,
+//                actions today, threat matches, active playbooks
+//   • SOC chat — multi-turn conversation with Claude AI analyst
+//     Claude has full AIPET X security context on every message
+//   • Quick prompts — one-click common SOC questions
+//   • Shift Report generator — structured handover report
+//   • Threat Assess widget — deep analysis of any IP or incident
+//
+// Architecture:
+//   • Conversation history maintained in React state
+//   • Full history sent to backend on every message
+//   • Claude rebuilds context snapshot on every API call
+//   • Shift report and assess use dedicated backend endpoints
+// ─────────────────────────────────────────────────────────────
+function AiSocPage({ token, showToast }) {
+
+  // ── State ─────────────────────────────────────────────────
+  const [stats,       setStats]       = useState(null);
+  const [messages,    setMessages]    = useState([]);   // chat history
+  const [input,       setInput]       = useState("");
+  const [sending,     setSending]     = useState(false);
+  const [tab,         setTab]         = useState("chat"); // chat | report | assess
+
+  // Shift report state
+  const [shiftName,   setShiftName]   = useState("Day Shift");
+  const [report,      setReport]      = useState(null);
+  const [genReport,   setGenReport]   = useState(false);
+
+  // Threat assess state
+  const [assessTarget,setAssessTarget]= useState("");
+  const [assessment,  setAssessment]  = useState(null);
+  const [assessing,   setAssessing]   = useState(false);
+
+  const H          = { headers: { Authorization: `Bearer ${token}` } };
+  const chatEndRef = useRef(null);
+
+  // Design tokens — Mission Control
+  const C = {
+    bg: "#030712", card: "#0d1117", surface: "#080f1a",
+    border: "#1e2a3a", borderBright: "#2d3f55",
+    text: "#e2e8f0", muted: "#64748b", faint: "#334155",
+    cyan: "#00e5ff", green: "#00ff88", purple: "#a78bfa",
+  };
+  const cardStyle = (extra = {}) => ({
+    background: C.card, border: `1px solid ${C.border}`,
+    borderRadius: "16px", padding: "24px", ...extra
+  });
+
+  // Quick prompt suggestions for SOC analysts
+  const QUICK_PROMPTS = [
+    "What are the most urgent threats right now?",
+    "Which device is at highest risk of being compromised?",
+    "Summarise all open incidents and their current status",
+    "What autonomous actions has AIPET taken today?",
+    "Are any quarantined devices a false positive?",
+    "What should I investigate first this shift?",
+    "Draft a 2-sentence executive security update",
+    "Which MITRE ATT&CK techniques are active in our network?",
+  ];
+
+  // ── Fetch SOC stats ───────────────────────────────────────
+  const fetchStats = useCallback(async () => {
+    try {
+      const res = await axios.get(`${API}/aisoc/stats`, H);
+      setStats(res.data);
+    } catch {
+      // Non-fatal — stats are optional
+    }
+  }, [token]);
+
+  useEffect(() => {
+    fetchStats();
+    // Add welcome message from the AI SOC analyst
+    setMessages([{
+      role:    "assistant",
+      content: "AIPET SOC analyst online. I have full visibility into your security posture — SIEM events, threat intel, Zero-Trust device status, and autonomous defense actions.\n\nHow can I help you this shift?",
+    }]);
+  }, []);
+
+  // Auto-scroll chat to bottom on new messages
+  useEffect(() => {
+    chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages]);
+
+  // ── Send chat message ─────────────────────────────────────
+  const handleSend = async (messageText) => {
+    const text = (messageText || input).trim();
+    if (!text || sending) return;
+
+    // Add user message to history immediately (optimistic UI)
+    const newMessages = [...messages, { role: "user", content: text }];
+    setMessages(newMessages);
+    setInput("");
+    setSending(true);
+
+    try {
+      const res = await axios.post(`${API}/aisoc/chat`,
+        { messages: newMessages }, H);
+
+      // Add Claude response to history
+      setMessages(prev => [
+        ...prev,
+        { role: "assistant", content: res.data.content }
+      ]);
+    } catch (e) {
+      showToast("AI SOC unavailable — check ANTHROPIC_API_KEY", "error");
+      // Remove the optimistic user message on failure
+      setMessages(messages);
+    } finally {
+      setSending(false);
+    }
+  };
+
+  // ── Generate shift report ─────────────────────────────────
+  const handleShiftReport = async () => {
+    setGenReport(true);
+    setReport(null);
+    try {
+      const res = await axios.post(`${API}/aisoc/shift-report`,
+        { shift: shiftName }, H);
+      setReport(res.data);
+      showToast("Shift report generated", "success");
+    } catch (e) {
+      showToast(e.response?.data?.error || "Report generation failed", "error");
+    } finally {
+      setGenReport(false);
+    }
+  };
+
+  // ── Threat assessment ─────────────────────────────────────
+  const handleAssess = async () => {
+    if (!assessTarget.trim()) return;
+    setAssessing(true);
+    setAssessment(null);
+    try {
+      const res = await axios.post(`${API}/aisoc/assess`,
+        { target: assessTarget.trim() }, H);
+      setAssessment(res.data);
+      showToast("Assessment complete", "success");
+    } catch (e) {
+      showToast(e.response?.data?.error || "Assessment failed", "error");
+    } finally {
+      setAssessing(false);
+    }
+  };
+
+  // ── Format markdown-style bold in Claude responses ────────
+  const formatMessage = (text) => {
+    // Convert **bold** and newlines for display
+    return text.split("\n").map((line, i) => {
+      const parts = line.split(/\*\*(.*?)\*\*/g);
+      return (
+        <div key={i} style={{ minHeight: "4px" }}>
+          {parts.map((part, j) =>
+            j % 2 === 1
+              ? <strong key={j} style={{ color: C.cyan }}>{part}</strong>
+              : part
+          )}
+        </div>
+      );
+    });
+  };
+
+  return (
+    <div style={{ padding: "32px 36px", background: C.bg, minHeight: "100vh",
+      fontFamily: "Inter, sans-serif", color: C.text }}>
+
+      {/* ── Header ──────────────────────────────────────────── */}
+      <div style={{ display: "flex", alignItems: "center",
+        justifyContent: "space-between", marginBottom: "32px" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
+          <div style={{ width: "52px", height: "52px", borderRadius: "14px",
+            background: "linear-gradient(135deg, #a78bfa20, #00e5ff08)",
+            border: "1px solid #a78bfa35",
+            display: "flex", alignItems: "center", justifyContent: "center",
+            fontSize: "24px", boxShadow: "0 0 20px #a78bfa15" }}>
+            🤖
+          </div>
+          <div>
+            <h1 style={{ margin: 0, fontSize: "26px", fontWeight: "800",
+              letterSpacing: "-0.5px",
+              fontFamily: "JetBrains Mono, monospace",
+              background: "linear-gradient(135deg, #a78bfa, #00e5ff)",
+              WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
+              AI SOC
+            </h1>
+            <div style={{ fontSize: "13px", color: C.muted, marginTop: "2px" }}>
+              AI Security Operations Centre · 24/7 analyst · Full platform awareness
+            </div>
+          </div>
+        </div>
+        {/* Online indicator */}
+        <div style={{ display: "flex", alignItems: "center", gap: "8px",
+          padding: "6px 16px", borderRadius: "100px",
+          background: "#00ff8810", border: "1px solid #00ff8830" }}>
+          <div style={{ width: "7px", height: "7px", borderRadius: "50%",
+            background: C.green, boxShadow: `0 0 8px ${C.green}` }} />
+          <span style={{ fontSize: "12px", fontWeight: "700",
+            color: C.green, letterSpacing: "1px" }}>ANALYST ONLINE</span>
+        </div>
+      </div>
+
+      {/* ── Stats bar ───────────────────────────────────────── */}
+      {stats && (
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(6, 1fr)",
+          gap: "12px", marginBottom: "28px" }}>
+          {[
+            { label: "Open Incidents",   value: stats.open_incidents,   color: "#ff3b5c", icon: "🔥" },
+            { label: "Critical Events",  value: stats.critical_events,  color: "#ff8c00", icon: "🚨" },
+            { label: "Quarantined",      value: stats.quarantined,      color: "#ff3b5c", icon: "🚫" },
+            { label: "Actions Today",    value: stats.actions_today,    color: C.cyan,    icon: "⚡" },
+            { label: "Threat Matches",   value: stats.threat_matches,   color: C.purple,  icon: "🎯" },
+            { label: "Active Playbooks", value: stats.active_playbooks, color: C.green,   icon: "📋" },
+          ].map(s => (
+            <div key={s.label} style={{ ...cardStyle({ padding: "16px" }),
+              borderColor: s.color + "25",
+              boxShadow: `0 0 14px ${s.color}06` }}>
+              <div style={{ fontSize: "18px", marginBottom: "6px" }}>{s.icon}</div>
+              <div style={{ fontSize: "24px", fontWeight: "800", lineHeight: 1,
+                fontFamily: "JetBrains Mono, monospace", color: s.color }}>
+                {s.value}
+              </div>
+              <div style={{ fontSize: "10px", color: C.muted, marginTop: "4px",
+                textTransform: "uppercase", letterSpacing: "0.5px" }}>
+                {s.label}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* ── Tab bar ─────────────────────────────────────────── */}
+      <div style={{ display: "flex", gap: "4px", marginBottom: "20px",
+        background: C.card, padding: "4px", borderRadius: "12px",
+        border: `1px solid ${C.border}`, width: "fit-content" }}>
+        {[
+          { id: "chat",   label: "SOC Chat"       },
+          { id: "report", label: "Shift Report"   },
+          { id: "assess", label: "Threat Assess"  },
+        ].map(t => (
+          <button key={t.id} onClick={() => setTab(t.id)}
+            style={{ padding: "8px 20px", borderRadius: "9px", border: "none",
+              cursor: "pointer", fontSize: "13px", fontWeight: "600",
+              transition: "all 0.2s",
+              background: tab === t.id
+                ? "linear-gradient(135deg, #a78bfa20, #00e5ff20)"
+                : "transparent",
+              color: tab === t.id ? C.text : C.muted,
+              boxShadow: tab === t.id
+                ? "inset 0 0 0 1px #a78bfa30" : "none" }}>
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      {/* ── SOC Chat tab ─────────────────────────────────────── */}
+      {tab === "chat" && (
+        <div>
+          {/* Quick prompts */}
+          <div style={{ display: "flex", gap: "8px", flexWrap: "wrap",
+            marginBottom: "16px" }}>
+            {QUICK_PROMPTS.map((p, i) => (
+              <button key={i} onClick={() => handleSend(p)}
+                disabled={sending}
+                style={{ padding: "5px 14px", borderRadius: "100px",
+                  border: `1px solid ${C.border}`, cursor: "pointer",
+                  fontSize: "11px", fontWeight: "500",
+                  background: "transparent", color: C.muted,
+                  transition: "all 0.15s",
+                  opacity: sending ? 0.5 : 1 }}>
+                {p}
+              </button>
+            ))}
+          </div>
+
+          {/* Chat window */}
+          <div style={{ ...cardStyle({ padding: "0" }),
+            borderColor: "#a78bfa20",
+            boxShadow: "0 0 30px #a78bfa06",
+            display: "flex", flexDirection: "column",
+            height: "520px" }}>
+
+            {/* Messages area */}
+            <div style={{ flex: 1, overflowY: "auto", padding: "20px",
+              display: "flex", flexDirection: "column", gap: "16px" }}>
+              {messages.map((msg, i) => (
+                <div key={i} style={{
+                  display: "flex",
+                  justifyContent: msg.role === "user" ? "flex-end" : "flex-start",
+                  gap: "10px", alignItems: "flex-start" }}>
+                  {/* Avatar */}
+                  {msg.role === "assistant" && (
+                    <div style={{ width: "32px", height: "32px",
+                      borderRadius: "10px", flexShrink: 0,
+                      background: "linear-gradient(135deg, #a78bfa20, #00e5ff20)",
+                      border: "1px solid #a78bfa40",
+                      display: "flex", alignItems: "center",
+                      justifyContent: "center", fontSize: "16px" }}>
+                      🤖
+                    </div>
+                  )}
+                  {/* Bubble */}
+                  <div style={{
+                    maxWidth: "72%",
+                    padding: "12px 16px", borderRadius: "14px",
+                    fontSize: "13px", lineHeight: "1.65",
+                    background: msg.role === "user"
+                      ? "linear-gradient(135deg, #a78bfa20, #7c3aed20)"
+                      : C.surface,
+                    border: `1px solid ${msg.role === "user"
+                      ? "#a78bfa30" : C.border}`,
+                    color: C.text,
+                    borderBottomRightRadius: msg.role === "user" ? "4px" : "14px",
+                    borderBottomLeftRadius:  msg.role === "assistant" ? "4px" : "14px",
+                  }}>
+                    {msg.role === "assistant"
+                      ? formatMessage(msg.content)
+                      : msg.content}
+                  </div>
+                  {/* User avatar */}
+                  {msg.role === "user" && (
+                    <div style={{ width: "32px", height: "32px",
+                      borderRadius: "10px", flexShrink: 0,
+                      background: "#a78bfa20",
+                      border: "1px solid #a78bfa40",
+                      display: "flex", alignItems: "center",
+                      justifyContent: "center", fontSize: "14px",
+                      fontWeight: "700", color: C.purple }}>
+                      A
+                    </div>
+                  )}
+                </div>
+              ))}
+              {/* Typing indicator */}
+              {sending && (
+                <div style={{ display: "flex", gap: "10px",
+                  alignItems: "flex-start" }}>
+                  <div style={{ width: "32px", height: "32px",
+                    borderRadius: "10px", flexShrink: 0,
+                    background: "linear-gradient(135deg, #a78bfa20, #00e5ff20)",
+                    border: "1px solid #a78bfa40",
+                    display: "flex", alignItems: "center",
+                    justifyContent: "center", fontSize: "16px" }}>
+                    🤖
+                  </div>
+                  <div style={{ padding: "12px 16px", borderRadius: "14px",
+                    borderBottomLeftRadius: "4px",
+                    background: C.surface, border: `1px solid ${C.border}`,
+                    display: "flex", gap: "6px", alignItems: "center" }}>
+                    {[0,1,2].map(i => (
+                      <div key={i} style={{ width: "6px", height: "6px",
+                        borderRadius: "50%", background: C.purple,
+                        animation: `pulse ${0.6 + i * 0.2}s ease-in-out infinite` }} />
+                    ))}
+                  </div>
+                </div>
+              )}
+              <div ref={chatEndRef} />
+            </div>
+
+            {/* Input bar */}
+            <div style={{ padding: "16px 20px",
+              borderTop: `1px solid ${C.border}`,
+              display: "flex", gap: "10px" }}>
+              <input
+                value={input}
+                onChange={e => setInput(e.target.value)}
+                onKeyDown={e => e.key === "Enter" && !e.shiftKey && handleSend()}
+                placeholder="Ask the AI SOC analyst anything about your security posture..."
+                disabled={sending}
+                style={{ flex: 1, padding: "11px 16px", borderRadius: "10px",
+                  border: `1px solid ${C.borderBright}`,
+                  background: C.surface, color: C.text,
+                  fontSize: "13px", outline: "none",
+                  opacity: sending ? 0.6 : 1 }}
+              />
+              <button onClick={() => handleSend()} disabled={sending || !input.trim()}
+                style={{ padding: "11px 22px", borderRadius: "10px",
+                  border: "none",
+                  cursor: input.trim() && !sending ? "pointer" : "not-allowed",
+                  fontSize: "13px", fontWeight: "700",
+                  background: "linear-gradient(135deg, #a78bfa, #00e5ff)",
+                  color: "#000",
+                  opacity: !input.trim() || sending ? 0.5 : 1,
+                  transition: "all 0.2s", whiteSpace: "nowrap" }}>
+                {sending ? "..." : "Send →"}
+              </button>
+            </div>
+          </div>
+
+          {/* Clear chat */}
+          <div style={{ marginTop: "10px", textAlign: "right" }}>
+            <button onClick={() => {
+              setMessages([{
+                role: "assistant",
+                content: "AIPET SOC analyst online. How can I help you this shift?"
+              }]);
+            }} style={{ padding: "5px 14px", borderRadius: "8px",
+              border: `1px solid ${C.border}`, cursor: "pointer",
+              fontSize: "11px", background: "transparent",
+              color: C.muted }}>
+              Clear conversation
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* ── Shift Report tab ─────────────────────────────────── */}
+      {tab === "report" && (
+        <div>
+          <div style={{ ...cardStyle({ marginBottom: "20px" }),
+            borderColor: "#a78bfa20" }}>
+            <div style={{ fontSize: "12px", fontWeight: "700", color: C.muted,
+              textTransform: "uppercase", letterSpacing: "1.5px",
+              marginBottom: "14px" }}>
+              📋 End-of-Shift Report Generator
+            </div>
+            <div style={{ fontSize: "13px", color: C.muted,
+              marginBottom: "16px", lineHeight: "1.6" }}>
+              Generate a structured SOC handover report covering all incidents,
+              device status, autonomous actions, and recommended priorities
+              for the incoming shift. Suitable for both technical analysts
+              and management.
+            </div>
+            <div style={{ display: "flex", gap: "12px",
+              alignItems: "flex-end" }}>
+              <div style={{ flex: 1 }}>
+                <div style={{ fontSize: "10px", color: C.muted,
+                  marginBottom: "5px", textTransform: "uppercase",
+                  letterSpacing: "0.5px" }}>
+                  Shift Name
+                </div>
+                <select value={shiftName}
+                  onChange={e => setShiftName(e.target.value)}
+                  style={{ width: "100%", padding: "10px 14px",
+                    borderRadius: "10px",
+                    border: `1px solid ${C.borderBright}`,
+                    background: C.surface, color: C.text,
+                    fontSize: "13px", outline: "none" }}>
+                  {["Day Shift","Night Shift","Morning Shift",
+                    "Evening Shift","Weekend Shift"].map(s => (
+                    <option key={s} value={s}>{s}</option>
+                  ))}
+                </select>
+              </div>
+              <button onClick={handleShiftReport} disabled={genReport}
+                style={{ padding: "10px 24px", borderRadius: "10px",
+                  border: "none", cursor: "pointer",
+                  fontSize: "13px", fontWeight: "700",
+                  background: "linear-gradient(135deg, #a78bfa, #7c3aed)",
+                  color: "#fff", opacity: genReport ? 0.6 : 1,
+                  whiteSpace: "nowrap" }}>
+                {genReport ? "Generating..." : "Generate Report"}
+              </button>
+            </div>
+          </div>
+
+          {/* Report output */}
+          {report && (
+            <div style={{ ...cardStyle(),
+              borderColor: "#a78bfa20" }}>
+              <div style={{ display: "flex", alignItems: "center",
+                justifyContent: "space-between", marginBottom: "16px" }}>
+                <div>
+                  <div style={{ fontWeight: "700", fontSize: "15px" }}>
+                    {report.shift} — SOC Report
+                  </div>
+                  <div style={{ fontSize: "11px", color: C.muted,
+                    marginTop: "2px" }}>
+                    Generated {new Date(report.generated_at).toLocaleString()}
+                    {" "}· {report.tokens_used} tokens
+                  </div>
+                </div>
+                <button onClick={() => {
+                    navigator.clipboard.writeText(report.report);
+                    showToast("Report copied to clipboard", "success");
+                  }}
+                  style={{ padding: "6px 14px", borderRadius: "8px",
+                    border: "1px solid #a78bfa30", cursor: "pointer",
+                    fontSize: "12px", fontWeight: "600",
+                    background: "#a78bfa10", color: C.purple }}>
+                  Copy
+                </button>
+              </div>
+              <div style={{ fontSize: "13px", lineHeight: "1.75",
+                color: C.text, whiteSpace: "pre-wrap",
+                fontFamily: "Inter, sans-serif",
+                maxHeight: "600px", overflowY: "auto",
+                padding: "16px", borderRadius: "10px",
+                background: C.surface,
+                border: `1px solid ${C.border}` }}>
+                {report.report}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── Threat Assess tab ────────────────────────────────── */}
+      {tab === "assess" && (
+        <div>
+          <div style={{ ...cardStyle({ marginBottom: "20px" }),
+            borderColor: "#ff8c0020" }}>
+            <div style={{ fontSize: "12px", fontWeight: "700", color: C.muted,
+              textTransform: "uppercase", letterSpacing: "1.5px",
+              marginBottom: "14px" }}>
+              🎯 Focused Threat Assessment
+            </div>
+            <div style={{ fontSize: "13px", color: C.muted,
+              marginBottom: "16px", lineHeight: "1.6" }}>
+              Enter a device IP or incident title for a deep-dive assessment
+              including risk rating, MITRE ATT&CK mapping, business impact,
+              and step-by-step response actions.
+            </div>
+            <div style={{ display: "flex", gap: "12px" }}>
+              <input value={assessTarget}
+                onChange={e => { setAssessTarget(e.target.value); setAssessment(null); }}
+                onKeyDown={e => e.key === "Enter" && handleAssess()}
+                placeholder="192.168.1.1 or 'Default credentials on customer data server'"
+                style={{ flex: 1, padding: "10px 16px", borderRadius: "10px",
+                  border: `1px solid ${C.borderBright}`,
+                  background: C.surface, color: C.text,
+                  fontSize: "13px",
+                  fontFamily: "JetBrains Mono, monospace",
+                  outline: "none" }} />
+              <button onClick={handleAssess}
+                disabled={assessing || !assessTarget.trim()}
+                style={{ padding: "10px 24px", borderRadius: "10px",
+                  border: "none",
+                  cursor: assessTarget.trim() ? "pointer" : "not-allowed",
+                  fontSize: "13px", fontWeight: "700",
+                  background: "linear-gradient(135deg, #ff8c00, #ff3b5c)",
+                  color: "#fff",
+                  opacity: !assessTarget.trim() ? 0.5 : 1,
+                  whiteSpace: "nowrap" }}>
+                {assessing ? "Assessing..." : "Assess Threat"}
+              </button>
+            </div>
+
+            {/* Quick targets */}
+            <div style={{ display: "flex", gap: "8px",
+              flexWrap: "wrap", marginTop: "12px" }}>
+              {["192.168.1.1","192.168.1.2","192.168.1.3","192.168.1.4"].map(ip => (
+                <button key={ip}
+                  onClick={() => setAssessTarget(ip)}
+                  style={{ padding: "4px 12px", borderRadius: "100px",
+                    border: `1px solid ${C.border}`, cursor: "pointer",
+                    fontSize: "11px", fontWeight: "500",
+                    background: "transparent", color: C.muted,
+                    fontFamily: "JetBrains Mono, monospace" }}>
+                  {ip}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Assessment output */}
+          {assessment && (
+            <div style={{ ...cardStyle(),
+              borderColor: "#ff8c0020" }}>
+              <div style={{ display: "flex", alignItems: "center",
+                justifyContent: "space-between", marginBottom: "16px" }}>
+                <div>
+                  <div style={{ fontWeight: "700", fontSize: "15px" }}>
+                    Assessment: {assessment.target}
+                  </div>
+                  <div style={{ fontSize: "11px", color: C.muted,
+                    marginTop: "2px" }}>
+                    {assessment.tokens_used} tokens used
+                  </div>
+                </div>
+                <button onClick={() => {
+                    navigator.clipboard.writeText(assessment.assessment);
+                    showToast("Assessment copied", "success");
+                  }}
+                  style={{ padding: "6px 14px", borderRadius: "8px",
+                    border: "1px solid #ff8c0030", cursor: "pointer",
+                    fontSize: "12px", fontWeight: "600",
+                    background: "#ff8c0010", color: "#ff8c00" }}>
+                  Copy
+                </button>
+              </div>
+              <div style={{ fontSize: "13px", lineHeight: "1.75",
+                color: C.text, whiteSpace: "pre-wrap",
+                fontFamily: "Inter, sans-serif",
+                maxHeight: "600px", overflowY: "auto",
+                padding: "16px", borderRadius: "10px",
+                background: C.surface,
+                border: `1px solid ${C.border}` }}>
+                {assessment.assessment}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
 
 // ─────────────────────────────────────────────────────────────
 // AIPET X — Autonomous Defense Page
@@ -9685,6 +10289,9 @@ export default function App() {
           )}
           {activeTab === "team" && (
             <TeamAccessPage token={token} showToast={showToast} />
+          )}
+          {activeTab === "aisoc" && (
+            <AiSocPage token={token} showToast={showToast} />
           )}
           {activeTab === "defense" && (
             <AutonomousDefensePage token={token} showToast={showToast} />
