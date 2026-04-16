@@ -6065,6 +6065,7 @@ const NAV_ITEMS = [
   { id: "apikeys",   label: "API Keys",      icon: CreditCard,    group: "account"  },
   { id: "team",      label: "Team & Access", icon: Shield,        group: "enterprise" },
   { id: "siem",      label: "SIEM",          icon: AlertTriangle, group: "enterprise" },
+  { id: "threatintel",label: "Threat Intel",  icon: AlertTriangle, group: "enterprise" },
   { id: "settings",  label: "Settings",      icon: Settings,      group: "account"  },
 ];
 
@@ -6327,6 +6328,564 @@ function SettingsPage({ token, showToast }) {
   );
 }
 
+
+// ─────────────────────────────────────────────────────────────
+// AIPET X — Threat Intel Page
+//
+// Features:
+//   • Stats bar: total IOCs, active feeds, matches today, critical
+//   • Live lookup widget — check any IP/domain instantly
+//   • IOC table — paginated, filterable by type
+//   • Match history — every threat hit ever recorded
+//   • Feed health — shows AbuseIPDB status
+//
+// Data flow:
+//   All data fetched via axios using API constant (port 5001)
+//   Lookup calls /api/threatintel/lookup — checks local + AbuseIPDB
+//   New IOCs POST to /api/threatintel/iocs (local feed only)
+// ─────────────────────────────────────────────────────────────
+function ThreatIntelPage({ token, showToast }) {
+
+  // ── State ─────────────────────────────────────────────────
+  const [stats,      setStats]      = useState(null);
+  const [feeds,      setFeeds]      = useState([]);
+  const [iocs,       setIocs]       = useState([]);
+  const [matches,    setMatches]    = useState([]);
+  const [loading,    setLoading]    = useState(true);
+  const [tab,        setTab]        = useState("iocs");  // iocs | matches | feeds
+
+  // Lookup widget state
+  const [lookupVal,  setLookupVal]  = useState("");
+  const [lookupRes,  setLookupRes]  = useState(null);
+  const [looking,    setLooking]    = useState(false);
+
+  // Add IOC form state
+  const [showAdd,    setShowAdd]    = useState(false);
+  const [newIoc,     setNewIoc]     = useState({
+    value: "", ioc_type: "ip", threat_type: "malicious_ip",
+    severity: "High", confidence: 85, description: ""
+  });
+  const [adding,     setAdding]     = useState(false);
+
+  // Auth header
+  const H = { headers: { Authorization: `Bearer ${token}` } };
+
+  // Severity colours — consistent with SIEM page
+  const SEV = {
+    Critical: { fg: "#ff3b5c", bg: "#ff3b5c12", border: "#ff3b5c35" },
+    High:     { fg: "#ff8c00", bg: "#ff8c0012", border: "#ff8c0035" },
+    Medium:   { fg: "#ffd600", bg: "#ffd60012", border: "#ffd60035" },
+    Low:      { fg: "#00e5ff", bg: "#00e5ff12", border: "#00e5ff35" },
+  };
+
+  // IOC type colours
+  const IOC_TYPE = {
+    ip:     { fg: "#00e5ff",  bg: "#00e5ff12"  },
+    domain: { fg: "#a78bfa",  bg: "#7c3aed12"  },
+    hash:   { fg: "#f97316",  bg: "#f9731612"  },
+    url:    { fg: "#00ff88",  bg: "#00ff8812"  },
+  };
+
+  // Design tokens
+  const C = {
+    bg: "#030712", card: "#0d1117", border: "#1e2a3a",
+    borderBright: "#2d3f55", text: "#e2e8f0", muted: "#64748b",
+    faint: "#334155", cyan: "#00e5ff", green: "#00ff88",
+  };
+  const cardStyle = (extra = {}) => ({
+    background: C.card, border: `1px solid ${C.border}`,
+    borderRadius: "16px", padding: "24px", ...extra
+  });
+
+  // ── Fetch all data ────────────────────────────────────────
+  const fetchAll = useCallback(async () => {
+    try {
+      const [stRes, fdRes, iocRes, mRes] = await Promise.all([
+        axios.get(`${API}/threatintel/stats`,   H),
+        axios.get(`${API}/threatintel/feeds`,   H),
+        axios.get(`${API}/threatintel/iocs?per_page=100`, H),
+        axios.get(`${API}/threatintel/matches`, H),
+      ]);
+      setStats(stRes.data);
+      setFeeds(fdRes.data.feeds   || []);
+      setIocs(iocRes.data.iocs    || []);
+      setMatches(mRes.data.matches || []);
+    } catch {
+      showToast("Failed to load Threat Intel data", "error");
+    } finally {
+      setLoading(false);
+    }
+  }, [token]);
+
+  useEffect(() => { fetchAll(); }, [fetchAll]);
+
+  // ── Lookup handler ────────────────────────────────────────
+  const handleLookup = async () => {
+    if (!lookupVal.trim()) return;
+    setLooking(true);
+    setLookupRes(null);
+    try {
+      const res = await axios.post(`${API}/threatintel/lookup`,
+        { value: lookupVal.trim() }, H);
+      setLookupRes(res.data);
+      // Refresh matches so new hit appears immediately
+      if (res.data.matched) {
+        fetchAll();
+        showToast("Threat match found — added to SIEM", "error");
+      } else {
+        showToast("No threats found — IP appears clean", "success");
+      }
+    } catch {
+      showToast("Lookup failed", "error");
+    } finally {
+      setLooking(false);
+    }
+  };
+
+  // ── Add IOC handler ───────────────────────────────────────
+  const handleAddIoc = async () => {
+    if (!newIoc.value.trim()) return;
+    setAdding(true);
+    try {
+      await axios.post(`${API}/threatintel/iocs`, newIoc, H);
+      showToast("IOC added to local database", "success");
+      setShowAdd(false);
+      setNewIoc({ value: "", ioc_type: "ip", threat_type: "malicious_ip",
+        severity: "High", confidence: 85, description: "" });
+      fetchAll();
+    } catch (e) {
+      showToast(e.response?.data?.error || "Failed to add IOC", "error");
+    } finally {
+      setAdding(false);
+    }
+  };
+
+  // ── Delete IOC handler ────────────────────────────────────
+  const handleDeleteIoc = async (id) => {
+    try {
+      await axios.delete(`${API}/threatintel/iocs/${id}`, H);
+      setIocs(prev => prev.filter(i => i.id !== id));
+      showToast("IOC removed", "success");
+    } catch {
+      showToast("Failed to remove IOC", "error");
+    }
+  };
+
+  if (loading) return (
+    <div style={{ display: "flex", flexDirection: "column", alignItems: "center",
+      justifyContent: "center", height: "60vh", gap: "16px" }}>
+      <div style={{ width: "48px", height: "48px", border: `3px solid ${C.border}`,
+        borderTop: `3px solid ${C.cyan}`, borderRadius: "50%",
+        animation: "spin 1s linear infinite" }} />
+      <div style={{ color: C.muted, fontSize: "13px",
+        fontFamily: "JetBrains Mono, monospace" }}>
+        Loading threat intelligence...
+      </div>
+    </div>
+  );
+
+  return (
+    <div style={{ padding: "32px 36px", background: C.bg, minHeight: "100vh",
+      fontFamily: "Inter, sans-serif", color: C.text }}>
+
+      {/* ── Header ──────────────────────────────────────────── */}
+      <div style={{ display: "flex", alignItems: "center",
+        justifyContent: "space-between", marginBottom: "32px" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
+          <div style={{ width: "52px", height: "52px", borderRadius: "14px",
+            background: "linear-gradient(135deg, #a78bfa20, #7c3aed08)",
+            border: "1px solid #7c3aed35",
+            display: "flex", alignItems: "center", justifyContent: "center",
+            fontSize: "24px", boxShadow: "0 0 20px #7c3aed15" }}>
+            🔍
+          </div>
+          <div>
+            <h1 style={{ margin: 0, fontSize: "26px", fontWeight: "800",
+              letterSpacing: "-0.5px",
+              fontFamily: "JetBrains Mono, monospace",
+              background: "linear-gradient(135deg, #a78bfa, #00e5ff)",
+              WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
+              Threat Intel
+            </h1>
+            <div style={{ fontSize: "13px", color: C.muted, marginTop: "2px" }}>
+              Indicators of Compromise · Live IP Reputation · Feed Management
+            </div>
+          </div>
+        </div>
+        {/* AbuseIPDB status pill */}
+        <div style={{ display: "flex", alignItems: "center", gap: "8px",
+          padding: "6px 16px", borderRadius: "100px",
+          background: stats?.abuseipdb_active ? "#00ff8810" : "#ff8c0010",
+          border: `1px solid ${stats?.abuseipdb_active ? "#00ff8830" : "#ff8c0030"}` }}>
+          <div style={{ width: "7px", height: "7px", borderRadius: "50%",
+            background: stats?.abuseipdb_active ? C.green : "#ff8c00" }} />
+          <span style={{ fontSize: "12px", fontWeight: "700",
+            color: stats?.abuseipdb_active ? C.green : "#ff8c00" }}>
+            AbuseIPDB {stats?.abuseipdb_active ? "ACTIVE" : "NO KEY"}
+          </span>
+        </div>
+      </div>
+
+      {/* ── Stats bar ───────────────────────────────────────── */}
+      {stats && (
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)",
+          gap: "14px", marginBottom: "28px" }}>
+          {[
+            { label: "Total IOCs",      value: stats.total_iocs,       color: "#a78bfa", icon: "🗄️"  },
+            { label: "Active Feeds",    value: stats.active_feeds,     color: C.cyan,    icon: "📡"  },
+            { label: "Matches Today",   value: stats.matches_today,    color: "#ff8c00", icon: "⚡"  },
+            { label: "Critical Hits",   value: stats.critical_matches, color: "#ff3b5c", icon: "🚨"  },
+            { label: "Total Matches",   value: stats.total_matches,    color: C.green,   icon: "📊"  },
+          ].map(s => (
+            <div key={s.label} style={{ ...cardStyle({ padding: "20px" }),
+              borderColor: s.color + "25",
+              boxShadow: `0 0 20px ${s.color}08` }}>
+              <div style={{ fontSize: "22px", marginBottom: "10px" }}>{s.icon}</div>
+              <div style={{ fontSize: "30px", fontWeight: "800", lineHeight: 1,
+                fontFamily: "JetBrains Mono, monospace", color: s.color,
+                textShadow: `0 0 20px ${s.color}60` }}>
+                {s.value}
+              </div>
+              <div style={{ fontSize: "11px", color: C.muted, marginTop: "6px",
+                textTransform: "uppercase", letterSpacing: "0.5px" }}>
+                {s.label}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* ── Lookup widget ───────────────────────────────────── */}
+      <div style={{ ...cardStyle({ marginBottom: "28px" }),
+        borderColor: "#a78bfa25",
+        boxShadow: "0 0 30px #7c3aed08" }}>
+        <div style={{ fontSize: "12px", fontWeight: "700", color: C.muted,
+          textTransform: "uppercase", letterSpacing: "1.5px",
+          marginBottom: "14px" }}>
+          🔎 Live Threat Lookup
+        </div>
+        <div style={{ display: "flex", gap: "10px" }}>
+          <input
+            value={lookupVal}
+            onChange={e => { setLookupVal(e.target.value); setLookupRes(null); }}
+            onKeyDown={e => e.key === "Enter" && handleLookup()}
+            placeholder="Enter IP address or domain — e.g. 185.220.101.45"
+            style={{ flex: 1, padding: "11px 16px", borderRadius: "10px",
+              border: `1px solid ${C.borderBright}`, background: "#080f1a",
+              color: C.text, fontSize: "13px", fontFamily: "JetBrains Mono, monospace",
+              outline: "none" }}
+          />
+          <button onClick={handleLookup} disabled={looking || !lookupVal.trim()}
+            style={{ padding: "11px 24px", borderRadius: "10px", border: "none",
+              cursor: lookupVal.trim() ? "pointer" : "not-allowed",
+              fontSize: "13px", fontWeight: "700",
+              background: "linear-gradient(135deg, #a78bfa, #7c3aed)",
+              color: "#fff", opacity: !lookupVal.trim() ? 0.5 : 1,
+              transition: "all 0.2s" }}>
+            {looking ? "Checking..." : "Lookup"}
+          </button>
+        </div>
+
+        {/* Lookup result */}
+        {lookupRes && (
+          <div style={{ marginTop: "14px", padding: "14px 18px",
+            borderRadius: "10px",
+            background: lookupRes.matched ? "#ff3b5c08" : "#00ff8808",
+            border: `1px solid ${lookupRes.matched ? "#ff3b5c30" : "#00ff8830"}` }}>
+            <div style={{ fontWeight: "700", fontSize: "14px", marginBottom: "8px",
+              color: lookupRes.matched ? "#ff3b5c" : C.green }}>
+              {lookupRes.matched ? "⚠️ THREAT DETECTED" : "✅ CLEAN — No threats found"}
+            </div>
+            {lookupRes.results.map((r, i) => (
+              <div key={i} style={{ fontSize: "12px", color: C.muted,
+                marginTop: "4px" }}>
+                <span style={{ color: r.matched ? "#ff8c00" : C.muted,
+                  fontWeight: "600" }}>{r.source}:</span>{" "}
+                {r.matched
+                  ? `${r.threat_type} · confidence ${r.confidence}% · ${r.severity}`
+                  : r.message || "No match"}
+              </div>
+            ))}
+          </div>
+        )}
+      </div>
+
+      {/* ── Tab bar ─────────────────────────────────────────── */}
+      <div style={{ display: "flex", gap: "4px", marginBottom: "20px",
+        background: C.card, padding: "4px", borderRadius: "12px",
+        border: `1px solid ${C.border}`, width: "fit-content" }}>
+        {[
+          { id: "iocs",    label: "IOC Database", count: iocs.length    },
+          { id: "matches", label: "Match History", count: matches.length },
+          { id: "feeds",   label: "Feeds",         count: feeds.length   },
+        ].map(t => (
+          <button key={t.id} onClick={() => setTab(t.id)}
+            style={{ padding: "8px 20px", borderRadius: "9px", border: "none",
+              cursor: "pointer", fontSize: "13px", fontWeight: "600",
+              transition: "all 0.2s",
+              background: tab === t.id
+                ? "linear-gradient(135deg, #a78bfa20, #7c3aed20)"
+                : "transparent",
+              color: tab === t.id ? C.text : C.muted,
+              boxShadow: tab === t.id ? "inset 0 0 0 1px #7c3aed30" : "none" }}>
+            {t.label}
+            <span style={{ marginLeft: "6px", padding: "1px 6px",
+              borderRadius: "100px", fontSize: "10px",
+              background: tab === t.id ? "#7c3aed25" : C.border,
+              color: tab === t.id ? "#a78bfa" : C.muted }}>
+              {t.count}
+            </span>
+          </button>
+        ))}
+      </div>
+
+      {/* ── IOC Database tab ────────────────────────────────── */}
+      {tab === "iocs" && (
+        <div>
+          {/* Add IOC button */}
+          <div style={{ display: "flex", justifyContent: "flex-end",
+            marginBottom: "14px" }}>
+            <button onClick={() => setShowAdd(!showAdd)}
+              style={{ padding: "8px 18px", borderRadius: "10px",
+                border: "1px solid #a78bfa40", cursor: "pointer",
+                fontSize: "13px", fontWeight: "600",
+                background: showAdd ? "#a78bfa20" : "transparent",
+                color: "#a78bfa", transition: "all 0.2s" }}>
+              {showAdd ? "✕ Cancel" : "+ Add IOC"}
+            </button>
+          </div>
+
+          {/* Add IOC form */}
+          {showAdd && (
+            <div style={{ ...cardStyle({ marginBottom: "16px" }),
+              borderColor: "#a78bfa30" }}>
+              <div style={{ fontSize: "13px", fontWeight: "700",
+                color: "#a78bfa", marginBottom: "16px" }}>
+                Add Indicator of Compromise
+              </div>
+              <div style={{ display: "grid",
+                gridTemplateColumns: "1fr 1fr 1fr", gap: "12px",
+                marginBottom: "12px" }}>
+                {[
+                  { key: "value",       label: "Value (IP / domain / hash)", type: "text"   },
+                  { key: "description", label: "Description",                 type: "text"   },
+                ].map(f => (
+                  <div key={f.key} style={{ gridColumn: f.key === "value" ? "span 2" : "span 1" }}>
+                    <div style={{ fontSize: "11px", color: C.muted,
+                      marginBottom: "5px", textTransform: "uppercase",
+                      letterSpacing: "0.5px" }}>{f.label}</div>
+                    <input value={newIoc[f.key]}
+                      onChange={e => setNewIoc(p => ({ ...p, [f.key]: e.target.value }))}
+                      style={{ width: "100%", padding: "9px 12px",
+                        borderRadius: "8px", border: `1px solid ${C.borderBright}`,
+                        background: "#080f1a", color: C.text, fontSize: "13px",
+                        fontFamily: "JetBrains Mono, monospace",
+                        boxSizing: "border-box", outline: "none" }} />
+                  </div>
+                ))}
+              </div>
+              <div style={{ display: "grid",
+                gridTemplateColumns: "1fr 1fr 1fr 1fr", gap: "12px",
+                marginBottom: "16px" }}>
+                {[
+                  { key: "ioc_type",    label: "Type",        opts: ["ip","domain","hash","url"]                          },
+                  { key: "threat_type", label: "Threat Type", opts: ["malicious_ip","c2","malware","phishing","scanner","botnet","tor_exit_node"] },
+                  { key: "severity",    label: "Severity",    opts: ["Critical","High","Medium","Low"]                     },
+                  { key: "confidence",  label: "Confidence",  opts: [100,95,90,85,80,75,70,60,50]                          },
+                ].map(f => (
+                  <div key={f.key}>
+                    <div style={{ fontSize: "11px", color: C.muted,
+                      marginBottom: "5px", textTransform: "uppercase",
+                      letterSpacing: "0.5px" }}>{f.label}</div>
+                    <select value={newIoc[f.key]}
+                      onChange={e => setNewIoc(p => ({ ...p, [f.key]: e.target.value }))}
+                      style={{ width: "100%", padding: "9px 12px",
+                        borderRadius: "8px", border: `1px solid ${C.borderBright}`,
+                        background: "#080f1a", color: C.text, fontSize: "13px",
+                        boxSizing: "border-box", outline: "none" }}>
+                      {f.opts.map(o => (
+                        <option key={o} value={o}>{o}</option>
+                      ))}
+                    </select>
+                  </div>
+                ))}
+              </div>
+              <button onClick={handleAddIoc} disabled={adding}
+                style={{ padding: "10px 24px", borderRadius: "10px",
+                  border: "none", cursor: "pointer", fontSize: "13px",
+                  fontWeight: "700",
+                  background: "linear-gradient(135deg, #a78bfa, #7c3aed)",
+                  color: "#fff", opacity: adding ? 0.6 : 1 }}>
+                {adding ? "Adding..." : "Add to Local Feed"}
+              </button>
+            </div>
+          )}
+
+          {/* IOC table */}
+          <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
+            {iocs.map(ioc => {
+              const col  = SEV[ioc.severity]    || SEV.High;
+              const tcol = IOC_TYPE[ioc.ioc_type] || IOC_TYPE.ip;
+              return (
+                <div key={ioc.id} style={{ background: C.card,
+                  border: `1px solid ${C.border}`,
+                  borderLeft: `3px solid ${col.fg}`,
+                  borderRadius: "12px", padding: "14px 18px",
+                  transition: "all 0.2s" }}>
+                  <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+                    {/* Type badge */}
+                    <div style={{ padding: "3px 10px", borderRadius: "100px",
+                      fontSize: "10px", fontWeight: "800",
+                      background: tcol.bg, color: tcol.fg,
+                      border: `1px solid ${tcol.fg}40`,
+                      textTransform: "uppercase", whiteSpace: "nowrap" }}>
+                      {ioc.ioc_type}
+                    </div>
+                    {/* Value */}
+                    <div style={{ fontFamily: "JetBrains Mono, monospace",
+                      fontSize: "13px", fontWeight: "700", color: C.text,
+                      minWidth: "160px" }}>
+                      {ioc.value}
+                    </div>
+                    {/* Threat type */}
+                    <div style={{ fontSize: "12px", color: "#a78bfa",
+                      background: "#7c3aed10", padding: "2px 8px",
+                      borderRadius: "6px", border: "1px solid #7c3aed20",
+                      whiteSpace: "nowrap" }}>
+                      {ioc.threat_type}
+                    </div>
+                    {/* Description */}
+                    <div style={{ flex: 1, fontSize: "12px", color: C.muted,
+                      overflow: "hidden", textOverflow: "ellipsis",
+                      whiteSpace: "nowrap" }}>
+                      {ioc.description}
+                    </div>
+                    {/* Confidence */}
+                    <div style={{ fontSize: "12px", color: C.muted,
+                      whiteSpace: "nowrap" }}>
+                      {ioc.confidence}% confidence
+                    </div>
+                    {/* Severity badge */}
+                    <div style={{ padding: "3px 10px", borderRadius: "100px",
+                      fontSize: "10px", fontWeight: "800",
+                      background: col.bg, color: col.fg,
+                      textTransform: "uppercase", whiteSpace: "nowrap" }}>
+                      {ioc.severity}
+                    </div>
+                    {/* Delete */}
+                    <button onClick={() => handleDeleteIoc(ioc.id)}
+                      style={{ padding: "3px 10px", borderRadius: "7px",
+                        border: "1px solid #ff3b5c30", cursor: "pointer",
+                        fontSize: "11px", fontWeight: "700",
+                        background: "#ff3b5c10", color: "#ff3b5c" }}>
+                      ✕
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* ── Match History tab ────────────────────────────────── */}
+      {tab === "matches" && (
+        <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+          {matches.length === 0 && (
+            <div style={{ ...cardStyle({ padding: "48px", textAlign: "center" }),
+              color: C.muted }}>
+              No threat matches yet. Run a scan or use the lookup widget above.
+            </div>
+          )}
+          {matches.map(m => {
+            const col = SEV[m.severity] || SEV.High;
+            return (
+              <div key={m.id} style={{ background: C.card,
+                border: `1px solid ${col.border}`,
+                borderLeft: `3px solid ${col.fg}`,
+                borderRadius: "12px", padding: "14px 18px" }}>
+                <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+                  <div style={{ padding: "3px 10px", borderRadius: "100px",
+                    fontSize: "10px", fontWeight: "800",
+                    background: col.bg, color: col.fg,
+                    textTransform: "uppercase", whiteSpace: "nowrap" }}>
+                    {m.severity}
+                  </div>
+                  <div style={{ fontFamily: "JetBrains Mono, monospace",
+                    fontSize: "13px", fontWeight: "700", color: "#ff3b5c",
+                    minWidth: "150px" }}>
+                    {m.matched_value}
+                  </div>
+                  <div style={{ fontSize: "12px", color: "#a78bfa",
+                    background: "#7c3aed10", padding: "2px 8px",
+                    borderRadius: "6px", whiteSpace: "nowrap" }}>
+                    {m.threat_type}
+                  </div>
+                  <div style={{ flex: 1, fontSize: "12px", color: C.muted }}>
+                    via {m.match_source}
+                  </div>
+                  <div style={{ fontSize: "12px", color: C.muted,
+                    whiteSpace: "nowrap" }}>
+                    {m.confidence}% confidence
+                  </div>
+                  <div style={{ fontSize: "11px", color: C.muted,
+                    whiteSpace: "nowrap" }}>
+                    {new Date(m.created_at).toLocaleString()}
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* ── Feeds tab ────────────────────────────────────────── */}
+      {tab === "feeds" && (
+        <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+          {feeds.map(feed => (
+            <div key={feed.id} style={{ ...cardStyle(),
+              borderLeft: `3px solid ${feed.enabled ? C.green : C.faint}` }}>
+              <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
+                <div style={{ fontSize: "28px" }}>
+                  {feed.feed_type === "abuseipdb" ? "🌐" : "🗄️"}
+                </div>
+                <div style={{ flex: 1 }}>
+                  <div style={{ fontWeight: "700", fontSize: "15px",
+                    marginBottom: "4px" }}>{feed.name}</div>
+                  <div style={{ fontSize: "12px", color: C.muted,
+                    marginBottom: "8px" }}>{feed.description}</div>
+                  <div style={{ fontSize: "11px", color: C.faint }}>
+                    {feed.entry_count} entries •{" "}
+                    {feed.last_sync
+                      ? `Last sync: ${new Date(feed.last_sync).toLocaleString()}`
+                      : "Never synced"}
+                  </div>
+                </div>
+                <div style={{ display: "flex", flexDirection: "column",
+                  alignItems: "flex-end", gap: "8px" }}>
+                  <div style={{ padding: "4px 14px", borderRadius: "100px",
+                    fontSize: "11px", fontWeight: "700",
+                    background: feed.enabled ? "#00ff8812" : "#ff3b5c12",
+                    color: feed.enabled ? C.green : "#ff3b5c" }}>
+                    {feed.enabled ? "Active" : "Disabled"}
+                  </div>
+                  {feed.feed_type === "abuseipdb" && (
+                    <div style={{ fontSize: "11px", color: C.muted,
+                      textAlign: "right" }}>
+                      {stats?.abuseipdb_active
+                        ? "✅ API key found"
+                        : "⚠️ Add ABUSEIPDB_API_KEY to .env"}
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
 
 // ─────────────────────────────────────────────────────────────
 // AIPET X — SIEM Page  (world-class production UI)
@@ -7720,6 +8279,9 @@ export default function App() {
           )}
           {activeTab === "team" && (
             <TeamAccessPage token={token} showToast={showToast} />
+          )}
+          {activeTab === "threatintel" && (
+            <ThreatIntelPage token={token} showToast={showToast} />
           )}
           {activeTab === "siem" && (
             <SiemPage token={token} showToast={showToast} />
