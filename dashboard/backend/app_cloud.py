@@ -45,6 +45,8 @@ from dashboard.backend.zerotrust.models import ZtDeviceTrust, ZtPolicy, ZtAccess
 from dashboard.backend.defense.routes import defense_bp
 from dashboard.backend.defense.models import DefensePlaybook, DefenseAction
 from dashboard.backend.aisoc.routes import aisoc_bp
+from dashboard.backend.otics.routes import otics_bp
+from dashboard.backend.otics.models import OtDevice, OtScan, OtFinding
 from dashboard.backend.monitoring.logger import setup_logging, get_logger
 from dashboard.backend.security import init_security
 from dashboard.backend.monitoring.logger import (
@@ -147,6 +149,7 @@ def create_app(config_name="development"):
     app.register_blueprint(zerotrust_bp)
     app.register_blueprint(defense_bp)
     app.register_blueprint(aisoc_bp)
+    app.register_blueprint(otics_bp)
     app.register_blueprint(api_keys_bp, url_prefix='/api/keys')
 
     # Setup logging

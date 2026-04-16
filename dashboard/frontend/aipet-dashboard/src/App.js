@@ -6069,6 +6069,7 @@ const NAV_ITEMS = [
   { id: "zerotrust",  label: "Zero-Trust",    icon: Shield,        group: "enterprise" },
   { id: "defense",    label: "Auto Defense",  icon: Shield,        group: "enterprise" },
   { id: "aisoc",      label: "AI SOC",        icon: Shield,        group: "enterprise" },
+  { id: "otics",      label: "OT/ICS",        icon: Cpu,           group: "enterprise" },
   { id: "settings",  label: "Settings",      icon: Settings,      group: "account"  },
 ];
 
@@ -6331,6 +6332,806 @@ function SettingsPage({ token, showToast }) {
   );
 }
 
+
+// ─────────────────────────────────────────────────────────────
+// AIPET X — OT/ICS Security Page
+//
+// Features:
+//   • Stats bar: devices, critical findings, scans, protocols
+//   • Protocol coverage cards (Modbus/DNP3/IEC61850/EtherNetIP/BACnet)
+//   • Device registry with protocol + zone + criticality badges
+//   • Live scan widget — scan any OT device by protocol
+//   • Findings table with MITRE ATT&CK for ICS mappings
+//   • Scan history
+//
+// Safety note displayed in UI:
+//   All scans are READ-ONLY. Never send write commands to OT devices.
+// ─────────────────────────────────────────────────────────────
+function OtIcsPage({ token, showToast }) {
+
+  // ── State ─────────────────────────────────────────────────
+  const [stats,    setStats]    = useState(null);
+  const [devices,  setDevices]  = useState([]);
+  const [findings, setFindings] = useState([]);
+  const [scans,    setScans]    = useState([]);
+  const [loading,  setLoading]  = useState(true);
+  const [tab,      setTab]      = useState("devices");
+
+  // Scan widget state
+  const [scanTarget,   setScanTarget]   = useState("");
+  const [scanProtocol, setScanProtocol] = useState("modbus");
+  const [scanning,     setScanning]     = useState(false);
+  const [scanResult,   setScanResult]   = useState(null);
+
+  // Register device form
+  const [showAdd,  setShowAdd]  = useState(false);
+  const [newDev,   setNewDev]   = useState({
+    device_ip: "", device_name: "", protocol: "modbus",
+    port: "", vendor: "", model: "", zone: "field",
+    criticality: "high", location: ""
+  });
+  const [adding,   setAdding]   = useState(false);
+
+  const H = { headers: { Authorization: `Bearer ${token}` } };
+
+  // Protocol metadata
+  const PROTO = {
+    modbus:     { color: "#ff3b5c", label: "Modbus TCP",    port: "502",   icon: "⚙️"  },
+    dnp3:       { color: "#ff8c00", label: "DNP3",          port: "20000", icon: "⚡"  },
+    iec61850:   { color: "#ffd600", label: "IEC 61850",     port: "102",   icon: "🔌"  },
+    ethernetip: { color: "#00e5ff", label: "EtherNet/IP",   port: "44818", icon: "🏭"  },
+    bacnet:     { color: "#00ff88", label: "BACnet/IP",     port: "47808", icon: "🏢"  },
+  };
+
+  // Zone colours
+  const ZONE = {
+    field:       { color: "#ff3b5c", label: "Field"        },
+    control:     { color: "#ff8c00", label: "Control"      },
+    supervisory: { color: "#ffd600", label: "Supervisory"  },
+    enterprise:  { color: "#00e5ff", label: "Enterprise"   },
+  };
+
+  // Criticality colours
+  const CRIT = {
+    critical: { color: "#ff3b5c", bg: "#ff3b5c12" },
+    high:     { color: "#ff8c00", bg: "#ff8c0012" },
+    medium:   { color: "#ffd600", bg: "#ffd60012" },
+    low:      { color: "#00ff88", bg: "#00ff8812" },
+  };
+
+  // Severity colours
+  const SEV = {
+    Critical: { fg: "#ff3b5c", bg: "#ff3b5c12", border: "#ff3b5c35" },
+    High:     { fg: "#ff8c00", bg: "#ff8c0012", border: "#ff8c0035" },
+    Medium:   { fg: "#ffd600", bg: "#ffd60012", border: "#ffd60035" },
+    Low:      { fg: "#00e5ff", bg: "#00e5ff12", border: "#00e5ff35" },
+  };
+
+  // Design tokens
+  const C = {
+    bg: "#030712", card: "#0d1117", surface: "#080f1a",
+    border: "#1e2a3a", borderBright: "#2d3f55",
+    text: "#e2e8f0", muted: "#64748b", faint: "#334155",
+    cyan: "#00e5ff", green: "#00ff88",
+  };
+  const cardStyle = (extra = {}) => ({
+    background: C.card, border: `1px solid ${C.border}`,
+    borderRadius: "16px", padding: "24px", ...extra
+  });
+
+  // ── Fetch all data ────────────────────────────────────────
+  const fetchAll = useCallback(async () => {
+    try {
+      const [stRes, devRes, findRes, scanRes] = await Promise.all([
+        axios.get(`${API}/otics/stats`,            H),
+        axios.get(`${API}/otics/devices`,          H),
+        axios.get(`${API}/otics/findings`,         H),
+        axios.get(`${API}/otics/scans`,            H),
+      ]);
+      setStats(stRes.data);
+      setDevices(devRes.data.devices   || []);
+      setFindings(findRes.data.findings || []);
+      setScans(scanRes.data.scans      || []);
+    } catch {
+      showToast("Failed to load OT/ICS data", "error");
+    } finally {
+      setLoading(false);
+    }
+  }, [token]);
+
+  useEffect(() => { fetchAll(); }, [fetchAll]);
+
+  // ── Run OT scan ───────────────────────────────────────────
+  const handleScan = async () => {
+    if (!scanTarget.trim()) return;
+    setScanning(true);
+    setScanResult(null);
+    try {
+      const res = await axios.post(`${API}/otics/scan`,
+        { target: scanTarget.trim(), protocol: scanProtocol }, H);
+      setScanResult(res.data);
+      showToast(
+        `Scan complete — ${res.data.summary.total} findings (${res.data.summary.risk} risk)`,
+        res.data.summary.critical > 0 ? "error" : "success"
+      );
+      fetchAll();
+    } catch (e) {
+      showToast(e.response?.data?.error || "Scan failed", "error");
+    } finally {
+      setScanning(false);
+    }
+  };
+
+  // ── Register device ───────────────────────────────────────
+  const handleAddDevice = async () => {
+    if (!newDev.device_ip || !newDev.protocol) return;
+    setAdding(true);
+    try {
+      await axios.post(`${API}/otics/devices`, newDev, H);
+      showToast("Device registered", "success");
+      setShowAdd(false);
+      setNewDev({ device_ip: "", device_name: "", protocol: "modbus",
+        port: "", vendor: "", model: "", zone: "field",
+        criticality: "high", location: "" });
+      fetchAll();
+    } catch (e) {
+      showToast(e.response?.data?.error || "Failed to register device", "error");
+    } finally {
+      setAdding(false);
+    }
+  };
+
+  // ── Delete device ─────────────────────────────────────────
+  const handleDeleteDevice = async (id) => {
+    try {
+      await axios.delete(`${API}/otics/devices/${id}`, H);
+      setDevices(prev => prev.filter(d => d.id !== id));
+      showToast("Device removed", "success");
+    } catch {
+      showToast("Failed to remove device", "error");
+    }
+  };
+
+  if (loading) return (
+    <div style={{ display: "flex", flexDirection: "column", alignItems: "center",
+      justifyContent: "center", height: "60vh", gap: "16px" }}>
+      <div style={{ width: "48px", height: "48px", border: `3px solid ${C.border}`,
+        borderTop: `3px solid ${C.cyan}`, borderRadius: "50%",
+        animation: "spin 1s linear infinite" }} />
+      <div style={{ color: C.muted, fontSize: "13px",
+        fontFamily: "JetBrains Mono, monospace" }}>
+        Loading OT/ICS data...
+      </div>
+    </div>
+  );
+
+  return (
+    <div style={{ padding: "32px 36px", background: C.bg, minHeight: "100vh",
+      fontFamily: "Inter, sans-serif", color: C.text }}>
+
+      {/* ── Header ──────────────────────────────────────────── */}
+      <div style={{ display: "flex", alignItems: "center",
+        justifyContent: "space-between", marginBottom: "32px" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: "16px" }}>
+          <div style={{ width: "52px", height: "52px", borderRadius: "14px",
+            background: "linear-gradient(135deg, #ffd60020, #ff8c0008)",
+            border: "1px solid #ffd60035",
+            display: "flex", alignItems: "center", justifyContent: "center",
+            fontSize: "24px", boxShadow: "0 0 20px #ffd60015" }}>
+            🏭
+          </div>
+          <div>
+            <h1 style={{ margin: 0, fontSize: "26px", fontWeight: "800",
+              letterSpacing: "-0.5px",
+              fontFamily: "JetBrains Mono, monospace",
+              background: "linear-gradient(135deg, #ffd600, #ff8c00)",
+              WebkitBackgroundClip: "text", WebkitTextFillColor: "transparent" }}>
+              OT/ICS Security
+            </h1>
+            <div style={{ fontSize: "13px", color: C.muted, marginTop: "2px" }}>
+              Modbus · DNP3 · IEC 61850 · EtherNet/IP · BACnet
+            </div>
+          </div>
+        </div>
+        {/* Safety warning pill */}
+        <div style={{ display: "flex", alignItems: "center", gap: "8px",
+          padding: "6px 16px", borderRadius: "100px",
+          background: "#ffd60010", border: "1px solid #ffd60030" }}>
+          <span style={{ fontSize: "12px", fontWeight: "700",
+            color: "#ffd600" }}>⚠️ READ-ONLY SCANS ONLY</span>
+        </div>
+      </div>
+
+      {/* ── Stats bar ───────────────────────────────────────── */}
+      {stats && (
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)",
+          gap: "14px", marginBottom: "28px" }}>
+          {[
+            { label: "OT Devices",       value: stats.total_devices,    color: "#ffd600", icon: "🏭" },
+            { label: "Critical Devices", value: stats.critical_devices, color: "#ff3b5c", icon: "⚠️" },
+            { label: "Critical Findings",value: stats.critical_findings,color: "#ff3b5c", icon: "🚨" },
+            { label: "Total Findings",   value: stats.total_findings,   color: "#ff8c00", icon: "🔍" },
+            { label: "Scans Run",        value: stats.total_scans,      color: C.cyan,    icon: "📡" },
+          ].map(s => (
+            <div key={s.label} style={{ ...cardStyle({ padding: "20px" }),
+              borderColor: s.color + "25",
+              boxShadow: `0 0 20px ${s.color}08` }}>
+              <div style={{ fontSize: "22px", marginBottom: "10px" }}>{s.icon}</div>
+              <div style={{ fontSize: "30px", fontWeight: "800", lineHeight: 1,
+                fontFamily: "JetBrains Mono, monospace", color: s.color,
+                textShadow: `0 0 20px ${s.color}60` }}>
+                {s.value}
+              </div>
+              <div style={{ fontSize: "11px", color: C.muted, marginTop: "6px",
+                textTransform: "uppercase", letterSpacing: "0.5px" }}>
+                {s.label}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* ── Protocol coverage cards ──────────────────────────── */}
+      {stats && (
+        <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)",
+          gap: "10px", marginBottom: "28px" }}>
+          {Object.entries(PROTO).map(([key, meta]) => (
+            <div key={key} style={{ background: C.card,
+              border: `1px solid ${meta.color}25`,
+              borderRadius: "12px", padding: "14px 16px",
+              textAlign: "center" }}>
+              <div style={{ fontSize: "20px", marginBottom: "6px" }}>
+                {meta.icon}
+              </div>
+              <div style={{ fontSize: "11px", fontWeight: "700",
+                color: meta.color, marginBottom: "4px",
+                textTransform: "uppercase", letterSpacing: "0.5px" }}>
+                {meta.label}
+              </div>
+              <div style={{ fontSize: "22px", fontWeight: "800",
+                fontFamily: "JetBrains Mono, monospace",
+                color: C.text }}>
+                {stats.protocols?.[key] || 0}
+              </div>
+              <div style={{ fontSize: "10px", color: C.muted }}>
+                devices · port {meta.port}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* ── Scan widget ─────────────────────────────────────── */}
+      <div style={{ ...cardStyle({ marginBottom: "28px" }),
+        borderColor: "#ffd60020",
+        boxShadow: "0 0 30px #ffd60006" }}>
+        <div style={{ fontSize: "12px", fontWeight: "700", color: C.muted,
+          textTransform: "uppercase", letterSpacing: "1.5px",
+          marginBottom: "6px" }}>
+          📡 OT Protocol Security Scan
+        </div>
+        <div style={{ fontSize: "11px", color: "#ffd600",
+          marginBottom: "14px", padding: "6px 12px",
+          background: "#ffd60010", borderRadius: "8px",
+          border: "1px solid #ffd60030" }}>
+          ⚠️ Safety: All scans are read-only. No write commands are sent
+          to industrial devices. Always obtain written authorisation before
+          scanning production OT networks.
+        </div>
+        <div style={{ display: "flex", gap: "10px" }}>
+          <input value={scanTarget}
+            onChange={e => { setScanTarget(e.target.value); setScanResult(null); }}
+            onKeyDown={e => e.key === "Enter" && handleScan()}
+            placeholder="Target IP — e.g. 10.0.1.10"
+            style={{ flex: 2, padding: "10px 14px", borderRadius: "10px",
+              border: `1px solid ${C.borderBright}`, background: C.surface,
+              color: C.text, fontSize: "13px",
+              fontFamily: "JetBrains Mono, monospace", outline: "none" }} />
+          <select value={scanProtocol}
+            onChange={e => setScanProtocol(e.target.value)}
+            style={{ flex: 1, padding: "10px 14px", borderRadius: "10px",
+              border: `1px solid ${C.borderBright}`, background: C.surface,
+              color: C.text, fontSize: "13px", outline: "none" }}>
+            {Object.entries(PROTO).map(([k, v]) => (
+              <option key={k} value={k}>{v.icon} {v.label}</option>
+            ))}
+          </select>
+          <button onClick={handleScan}
+            disabled={scanning || !scanTarget.trim()}
+            style={{ padding: "10px 24px", borderRadius: "10px",
+              border: "none",
+              cursor: scanTarget.trim() ? "pointer" : "not-allowed",
+              fontSize: "13px", fontWeight: "700",
+              background: "linear-gradient(135deg, #ffd600, #ff8c00)",
+              color: "#000",
+              opacity: !scanTarget.trim() ? 0.5 : 1,
+              whiteSpace: "nowrap" }}>
+            {scanning ? "Scanning..." : "Scan Device"}
+          </button>
+        </div>
+
+        {/* Quick target chips */}
+        <div style={{ display: "flex", gap: "8px",
+          flexWrap: "wrap", marginTop: "10px" }}>
+          {devices.slice(0, 4).map(d => (
+            <button key={d.id}
+              onClick={() => {
+                setScanTarget(d.device_ip);
+                setScanProtocol(d.protocol);
+              }}
+              style={{ padding: "3px 12px", borderRadius: "100px",
+                border: `1px solid ${PROTO[d.protocol]?.color + "40" || C.border}`,
+                cursor: "pointer", fontSize: "11px",
+                background: "transparent",
+                color: PROTO[d.protocol]?.color || C.muted,
+                fontFamily: "JetBrains Mono, monospace" }}>
+              {d.device_ip} [{d.protocol}]
+            </button>
+          ))}
+        </div>
+
+        {/* Scan result */}
+        {scanResult && (
+          <div style={{ marginTop: "16px", padding: "14px 18px",
+            borderRadius: "10px",
+            background: scanResult.summary.critical > 0
+              ? "#ff3b5c08" : "#00ff8808",
+            border: `1px solid ${scanResult.summary.critical > 0
+              ? "#ff3b5c30" : "#00ff8830"}` }}>
+            <div style={{ fontWeight: "800", fontSize: "14px",
+              marginBottom: "10px",
+              color: scanResult.summary.critical > 0 ? "#ff3b5c" : "#00ff88" }}>
+              {scanResult.summary.risk} RISK —
+              {scanResult.summary.total} findings
+              ({scanResult.summary.critical} Critical,
+              {scanResult.summary.high} High)
+            </div>
+            {scanResult.findings.map((f, i) => {
+              const col = SEV[f.severity] || SEV.High;
+              return (
+                <div key={i} style={{ padding: "8px 12px",
+                  borderRadius: "8px", marginBottom: "6px",
+                  background: col.bg,
+                  border: `1px solid ${col.border}` }}>
+                  <div style={{ display: "flex", alignItems: "center",
+                    gap: "8px" }}>
+                    <span style={{ fontSize: "10px", fontWeight: "800",
+                      color: col.fg, textTransform: "uppercase",
+                      whiteSpace: "nowrap" }}>
+                      {f.severity}
+                    </span>
+                    <span style={{ fontSize: "12px", fontWeight: "600",
+                      color: C.text }}>
+                      {f.title}
+                    </span>
+                    {f.mitre_ics_id && (
+                      <span style={{ fontSize: "10px", fontWeight: "700",
+                        color: "#a78bfa", background: "#7c3aed10",
+                        padding: "1px 7px", borderRadius: "5px",
+                        border: "1px solid #7c3aed20",
+                        fontFamily: "JetBrains Mono, monospace",
+                        whiteSpace: "nowrap" }}>
+                        ICS:{f.mitre_ics_id}
+                      </span>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      {/* ── Tab bar ─────────────────────────────────────────── */}
+      <div style={{ display: "flex", gap: "4px", marginBottom: "20px",
+        background: C.card, padding: "4px", borderRadius: "12px",
+        border: `1px solid ${C.border}`, width: "fit-content" }}>
+        {[
+          { id: "devices",  label: "Device Registry", count: devices.length  },
+          { id: "findings", label: "Findings",        count: findings.length },
+          { id: "scans",    label: "Scan History",    count: scans.length    },
+        ].map(t => (
+          <button key={t.id} onClick={() => setTab(t.id)}
+            style={{ padding: "8px 20px", borderRadius: "9px", border: "none",
+              cursor: "pointer", fontSize: "13px", fontWeight: "600",
+              transition: "all 0.2s",
+              background: tab === t.id
+                ? "linear-gradient(135deg, #ffd60020, #ff8c0020)"
+                : "transparent",
+              color: tab === t.id ? C.text : C.muted,
+              boxShadow: tab === t.id
+                ? "inset 0 0 0 1px #ffd60030" : "none" }}>
+            {t.label}
+            <span style={{ marginLeft: "6px", padding: "1px 6px",
+              borderRadius: "100px", fontSize: "10px",
+              background: tab === t.id ? "#ffd60020" : C.border,
+              color: tab === t.id ? "#ffd600" : C.muted }}>
+              {t.count}
+            </span>
+          </button>
+        ))}
+      </div>
+
+      {/* ── Device Registry tab ──────────────────────────────── */}
+      {tab === "devices" && (
+        <div>
+          <div style={{ display: "flex", justifyContent: "flex-end",
+            marginBottom: "14px" }}>
+            <button onClick={() => setShowAdd(!showAdd)}
+              style={{ padding: "8px 18px", borderRadius: "10px",
+                border: "1px solid #ffd60035", cursor: "pointer",
+                fontSize: "13px", fontWeight: "600",
+                background: showAdd ? "#ffd60020" : "transparent",
+                color: "#ffd600", transition: "all 0.2s" }}>
+              {showAdd ? "✕ Cancel" : "+ Register Device"}
+            </button>
+          </div>
+
+          {/* Add device form */}
+          {showAdd && (
+            <div style={{ ...cardStyle({ marginBottom: "16px" }),
+              borderColor: "#ffd60025" }}>
+              <div style={{ fontSize: "13px", fontWeight: "700",
+                color: "#ffd600", marginBottom: "16px" }}>
+                Register OT/ICS Device
+              </div>
+              <div style={{ display: "grid",
+                gridTemplateColumns: "1fr 1fr 1fr", gap: "12px",
+                marginBottom: "12px" }}>
+                {[
+                  { key: "device_ip",   label: "Device IP"    },
+                  { key: "device_name", label: "Device Name"  },
+                  { key: "vendor",      label: "Vendor"        },
+                  { key: "model",       label: "Model"         },
+                  { key: "firmware",    label: "Firmware"      },
+                  { key: "location",    label: "Location"      },
+                ].map(f => (
+                  <div key={f.key}>
+                    <div style={{ fontSize: "10px", color: C.muted,
+                      marginBottom: "5px", textTransform: "uppercase",
+                      letterSpacing: "0.5px" }}>{f.label}</div>
+                    <input value={newDev[f.key]}
+                      onChange={e => setNewDev(p =>
+                        ({ ...p, [f.key]: e.target.value }))}
+                      style={{ width: "100%", padding: "9px 12px",
+                        borderRadius: "8px",
+                        border: `1px solid ${C.borderBright}`,
+                        background: C.surface, color: C.text,
+                        fontSize: "13px", boxSizing: "border-box",
+                        fontFamily: f.key === "device_ip"
+                          ? "JetBrains Mono, monospace" : "inherit",
+                        outline: "none" }} />
+                  </div>
+                ))}
+              </div>
+              <div style={{ display: "grid",
+                gridTemplateColumns: "1fr 1fr 1fr 1fr",
+                gap: "12px", marginBottom: "16px" }}>
+                {[
+                  { key: "protocol",    label: "Protocol",
+                    opts: Object.entries(PROTO).map(([k,v]) =>
+                      ({ val: k, label: v.label })) },
+                  { key: "zone",        label: "Purdue Zone",
+                    opts: Object.entries(ZONE).map(([k,v]) =>
+                      ({ val: k, label: v.label })) },
+                  { key: "criticality", label: "Criticality",
+                    opts: ["critical","high","medium","low"].map(v =>
+                      ({ val: v, label: v.charAt(0).toUpperCase()+v.slice(1) })) },
+                ].map(f => (
+                  <div key={f.key}>
+                    <div style={{ fontSize: "10px", color: C.muted,
+                      marginBottom: "5px", textTransform: "uppercase",
+                      letterSpacing: "0.5px" }}>{f.label}</div>
+                    <select value={newDev[f.key]}
+                      onChange={e => setNewDev(p =>
+                        ({ ...p, [f.key]: e.target.value }))}
+                      style={{ width: "100%", padding: "9px 12px",
+                        borderRadius: "8px",
+                        border: `1px solid ${C.borderBright}`,
+                        background: C.surface, color: C.text,
+                        fontSize: "13px", outline: "none" }}>
+                      {f.opts.map(o => (
+                        <option key={o.val} value={o.val}>
+                          {o.label}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                ))}
+                <div>
+                  <div style={{ fontSize: "10px", color: C.muted,
+                    marginBottom: "5px", textTransform: "uppercase",
+                    letterSpacing: "0.5px" }}>Port</div>
+                  <input value={newDev.port}
+                    onChange={e => setNewDev(p =>
+                      ({ ...p, port: e.target.value }))}
+                    placeholder="502"
+                    style={{ width: "100%", padding: "9px 12px",
+                      borderRadius: "8px",
+                      border: `1px solid ${C.borderBright}`,
+                      background: C.surface, color: C.text,
+                      fontSize: "13px",
+                      fontFamily: "JetBrains Mono, monospace",
+                      boxSizing: "border-box", outline: "none" }} />
+                </div>
+              </div>
+              <button onClick={handleAddDevice} disabled={adding}
+                style={{ padding: "10px 24px", borderRadius: "10px",
+                  border: "none", cursor: "pointer", fontSize: "13px",
+                  fontWeight: "700",
+                  background: "linear-gradient(135deg, #ffd600, #ff8c00)",
+                  color: "#000", opacity: adding ? 0.6 : 1 }}>
+                {adding ? "Registering..." : "Register Device"}
+              </button>
+            </div>
+          )}
+
+          {/* Device list */}
+          <div style={{ display: "flex", flexDirection: "column", gap: "10px" }}>
+            {devices.map(dev => {
+              const proto = PROTO[dev.protocol] || PROTO.modbus;
+              const zone  = ZONE[dev.zone]      || ZONE.field;
+              const crit  = CRIT[dev.criticality]|| CRIT.high;
+              return (
+                <div key={dev.id} style={{ ...cardStyle(),
+                  borderLeft: `3px solid ${proto.color}`,
+                  boxShadow: `0 0 16px ${proto.color}06` }}>
+                  <div style={{ display: "flex",
+                    alignItems: "center", gap: "16px" }}>
+                    {/* Protocol icon */}
+                    <div style={{ width: "48px", height: "48px",
+                      borderRadius: "12px",
+                      background: proto.color + "15",
+                      border: `1px solid ${proto.color}30`,
+                      display: "flex", alignItems: "center",
+                      justifyContent: "center", fontSize: "22px",
+                      flexShrink: 0 }}>
+                      {proto.icon}
+                    </div>
+                    {/* Device info */}
+                    <div style={{ flex: 1 }}>
+                      <div style={{ display: "flex", alignItems: "center",
+                        gap: "10px", marginBottom: "5px",
+                        flexWrap: "wrap" }}>
+                        <span style={{ fontWeight: "700", fontSize: "14px",
+                          fontFamily: "JetBrains Mono, monospace" }}>
+                          {dev.device_ip}
+                        </span>
+                        {dev.device_name && (
+                          <span style={{ fontSize: "13px",
+                            color: C.muted }}>
+                            {dev.device_name}
+                          </span>
+                        )}
+                        {/* Protocol badge */}
+                        <span style={{ padding: "2px 8px",
+                          borderRadius: "100px", fontSize: "10px",
+                          fontWeight: "800",
+                          background: proto.color + "15",
+                          color: proto.color,
+                          border: `1px solid ${proto.color}30`,
+                          textTransform: "uppercase" }}>
+                          {dev.protocol}
+                        </span>
+                        {/* Zone badge */}
+                        <span style={{ padding: "2px 8px",
+                          borderRadius: "100px", fontSize: "10px",
+                          fontWeight: "700",
+                          background: zone.color + "12",
+                          color: zone.color }}>
+                          {zone.label}
+                        </span>
+                        {/* Criticality badge */}
+                        <span style={{ padding: "2px 8px",
+                          borderRadius: "100px", fontSize: "10px",
+                          fontWeight: "700", background: crit.bg,
+                          color: crit.color,
+                          textTransform: "uppercase" }}>
+                          {dev.criticality}
+                        </span>
+                        {/* Online indicator */}
+                        <span style={{ display: "flex",
+                          alignItems: "center", gap: "4px",
+                          fontSize: "10px",
+                          color: dev.online ? "#00ff88" : "#ff3b5c" }}>
+                          <span style={{ width: "5px", height: "5px",
+                            borderRadius: "50%",
+                            background: dev.online
+                              ? "#00ff88" : "#ff3b5c" }} />
+                          {dev.online ? "Online" : "Offline"}
+                        </span>
+                      </div>
+                      {/* Device details */}
+                      <div style={{ fontSize: "12px", color: C.muted }}>
+                        {[dev.vendor, dev.model, dev.firmware
+                          ? `fw:${dev.firmware}` : null,
+                          dev.location].filter(Boolean).join(" · ")}
+                      </div>
+                    </div>
+                    {/* Scan + delete */}
+                    <div style={{ display: "flex", gap: "6px",
+                      flexShrink: 0 }}>
+                      <button onClick={() => {
+                          setScanTarget(dev.device_ip);
+                          setScanProtocol(dev.protocol);
+                          setTab("devices");
+                          window.scrollTo({ top: 0, behavior: "smooth" });
+                        }}
+                        style={{ padding: "6px 14px", borderRadius: "8px",
+                          border: `1px solid ${proto.color}35`,
+                          cursor: "pointer", fontSize: "12px",
+                          fontWeight: "600",
+                          background: proto.color + "12",
+                          color: proto.color }}>
+                        Scan
+                      </button>
+                      <button onClick={() => handleDeleteDevice(dev.id)}
+                        style={{ padding: "6px 12px", borderRadius: "8px",
+                          border: "1px solid #ff3b5c30", cursor: "pointer",
+                          fontSize: "12px", fontWeight: "600",
+                          background: "#ff3b5c10", color: "#ff3b5c" }}>
+                        ✕
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* ── Findings tab ─────────────────────────────────────── */}
+      {tab === "findings" && (
+        <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+          {findings.length === 0 && (
+            <div style={{ ...cardStyle({ padding: "48px",
+              textAlign: "center" }), color: C.muted }}>
+              No findings yet. Scan a device above.
+            </div>
+          )}
+          {findings.map(f => {
+            const col   = SEV[f.severity]   || SEV.High;
+            const proto = PROTO[f.protocol] || PROTO.modbus;
+            return (
+              <div key={f.id} style={{ background: C.card,
+                border: `1px solid ${col.border}`,
+                borderLeft: `3px solid ${col.fg}`,
+                borderRadius: "12px", padding: "14px 18px" }}>
+                <div style={{ display: "flex",
+                  alignItems: "flex-start", gap: "12px" }}>
+                  {/* Severity + protocol */}
+                  <div style={{ display: "flex", flexDirection: "column",
+                    gap: "4px", flexShrink: 0 }}>
+                    <div style={{ padding: "3px 10px",
+                      borderRadius: "100px", fontSize: "10px",
+                      fontWeight: "800", background: col.bg,
+                      color: col.fg, textTransform: "uppercase",
+                      letterSpacing: "0.5px", textAlign: "center" }}>
+                      {f.severity}
+                    </div>
+                    <div style={{ padding: "2px 8px",
+                      borderRadius: "100px", fontSize: "10px",
+                      fontWeight: "700",
+                      background: proto.color + "12",
+                      color: proto.color,
+                      textTransform: "uppercase",
+                      textAlign: "center" }}>
+                      {f.protocol}
+                    </div>
+                  </div>
+                  {/* Finding details */}
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontWeight: "700", fontSize: "13px",
+                      marginBottom: "4px" }}>{f.title}</div>
+                    <div style={{ fontSize: "11px", color: C.muted,
+                      marginBottom: "6px",
+                      lineHeight: "1.5" }}>
+                      {f.description}
+                    </div>
+                    {f.evidence && (
+                      <div style={{ fontSize: "11px",
+                        fontFamily: "JetBrains Mono, monospace",
+                        color: "#a78bfa", background: "#7c3aed10",
+                        padding: "3px 8px", borderRadius: "6px",
+                        display: "inline-block",
+                        border: "1px solid #7c3aed20",
+                        marginBottom: "4px" }}>
+                        Evidence: {f.evidence}
+                      </div>
+                    )}
+                  </div>
+                  {/* Right side */}
+                  <div style={{ display: "flex",
+                    flexDirection: "column", gap: "6px",
+                    alignItems: "flex-end", flexShrink: 0 }}>
+                    {f.mitre_ics_id && (
+                      <div style={{ padding: "3px 9px",
+                        borderRadius: "7px", fontSize: "11px",
+                        fontWeight: "700", color: "#a78bfa",
+                        background: "#7c3aed15",
+                        border: "1px solid #7c3aed30",
+                        fontFamily: "JetBrains Mono, monospace" }}>
+                        ICS:{f.mitre_ics_id}
+                      </div>
+                    )}
+                    <div style={{ fontSize: "11px",
+                      fontFamily: "JetBrains Mono, monospace",
+                      color: C.muted }}>
+                      {f.device_ip}
+                    </div>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* ── Scan History tab ─────────────────────────────────── */}
+      {tab === "scans" && (
+        <div style={{ display: "flex", flexDirection: "column", gap: "8px" }}>
+          {scans.length === 0 && (
+            <div style={{ ...cardStyle({ padding: "48px",
+              textAlign: "center" }), color: C.muted }}>
+              No scans yet. Run a scan above.
+            </div>
+          )}
+          {scans.map(s => {
+            const proto  = PROTO[s.protocol] || PROTO.modbus;
+            const riskC  = s.risk_level === "CRITICAL" ? "#ff3b5c"
+              : s.risk_level === "HIGH" ? "#ff8c00"
+              : s.risk_level === "MEDIUM" ? "#ffd600" : "#00ff88";
+            return (
+              <div key={s.id} style={{ background: C.card,
+                border: `1px solid ${C.border}`,
+                borderLeft: `3px solid ${riskC}`,
+                borderRadius: "10px", padding: "14px 18px" }}>
+                <div style={{ display: "flex",
+                  alignItems: "center", gap: "12px" }}>
+                  {/* Risk badge */}
+                  <div style={{ padding: "3px 10px",
+                    borderRadius: "100px", fontSize: "10px",
+                    fontWeight: "800", whiteSpace: "nowrap",
+                    background: riskC + "15", color: riskC,
+                    textTransform: "uppercase" }}>
+                    {s.risk_level}
+                  </div>
+                  {/* Protocol badge */}
+                  <div style={{ padding: "2px 8px",
+                    borderRadius: "100px", fontSize: "10px",
+                    fontWeight: "700",
+                    background: proto.color + "12",
+                    color: proto.color,
+                    textTransform: "uppercase" }}>
+                    {s.protocol}
+                  </div>
+                  {/* Target */}
+                  <div style={{ fontFamily: "JetBrains Mono, monospace",
+                    fontSize: "13px", fontWeight: "700",
+                    color: C.text }}>
+                    {s.target}
+                  </div>
+                  {/* Findings count */}
+                  <div style={{ fontSize: "12px", color: C.muted }}>
+                    {s.findings_count} finding{s.findings_count !== 1 ? "s" : ""}
+                  </div>
+                  <div style={{ flex: 1 }} />
+                  {/* Duration + time */}
+                  <div style={{ fontSize: "11px", color: C.muted,
+                    textAlign: "right" }}>
+                    <div>{s.scan_duration}s</div>
+                    <div>{new Date(s.created_at).toLocaleString()}</div>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
 
 // ─────────────────────────────────────────────────────────────
 // AIPET X — AI SOC Page
@@ -10289,6 +11090,9 @@ export default function App() {
           )}
           {activeTab === "team" && (
             <TeamAccessPage token={token} showToast={showToast} />
+          )}
+          {activeTab === "otics" && (
+            <OtIcsPage token={token} showToast={showToast} />
           )}
           {activeTab === "aisoc" && (
             <AiSocPage token={token} showToast={showToast} />
