@@ -6113,6 +6113,7 @@ const NAV_ITEMS = [
   { id: "redteam",    label: "AI Red Team",   icon: Shield,        group: "enterprise" },
   { id: "marketplace",label: "Marketplace",  icon: Zap,           group: "enterprise" },
   { id: "timeline",   label: "Timeline",     icon: Activity,      group: "enterprise" },
+  { id: "incidents",  label: "Incidents",    icon: AlertTriangle, group: "enterprise" },
   { id: "settings",  label: "Settings",      icon: Settings,      group: "account"  },
 ];
 
@@ -6375,6 +6376,557 @@ function SettingsPage({ token, showToast }) {
   );
 }
 
+
+// ─────────────────────────────────────────────────────────────
+// AIPET X — Incident Response Page
+//
+// Features:
+//   • Stats: total, open, SLA breached, avg resolution
+//   • Priority-coded incident cards (P1/P2/P3/P4)
+//   • SLA countdown timer
+//   • Task checklist per incident
+//   • Status workflow: open→investigating→containing→resolved
+//   • AI post-mortem report generator
+//   • Create incident form
+// ─────────────────────────────────────────────────────────────
+function IncidentResponsePage({ token, showToast }) {
+
+  const [incidents,  setIncidents]  = useState([]);
+  const [stats,      setStats]      = useState(null);
+  const [loading,    setLoading]    = useState(true);
+  const [selected,   setSelected]   = useState(null);
+  const [tasks,      setTasks]      = useState([]);
+  const [tab,        setTab]        = useState("active");
+  const [showAdd,    setShowAdd]    = useState(false);
+  const [genReport,  setGenReport]  = useState(false);
+  const [report,     setReport]     = useState(null);
+  const [updating,   setUpdating]   = useState({});
+  const [newInc,     setNewInc]     = useState({
+    title: "", description: "", priority: "P2",
+    affected: "", attack_vector: "", mitre_id: "", assigned_to: ""
+  });
+  const [adding, setAdding] = useState(false);
+
+  const H = { headers: { Authorization: `Bearer ${token}` } };
+
+  const PRIORITY = {
+    P1: { color: "#ff3b5c", label: "P1 Critical", sla: "4h"  },
+    P2: { color: "#ff8c00", label: "P2 High",     sla: "24h" },
+    P3: { color: "#ffd600", label: "P3 Medium",   sla: "72h" },
+    P4: { color: "#64748b", label: "P4 Low",      sla: "168h"},
+  };
+
+  const STATUS_FLOW = [
+    { id: "open",          label: "Open",          color: "#ff3b5c" },
+    { id: "investigating", label: "Investigating",  color: "#ff8c00" },
+    { id: "containing",    label: "Containing",     color: "#ffd600" },
+    { id: "resolved",      label: "Resolved",       color: "#00ff88" },
+    { id: "closed",        label: "Closed",         color: "#64748b" },
+  ];
+
+  const C = {
+    bg: "#030712", card: "#0d1117", surface: "#080f1a",
+    border: "#1e2a3a", borderBright: "#2d3f55",
+    text: "#e2e8f0", muted: "#64748b", faint: "#334155",
+    cyan: "#00e5ff",
+  };
+  const cardStyle = (extra={}) => ({
+    background: C.card, border: `1px solid ${C.border}`,
+    borderRadius: "16px", padding: "24px", ...extra
+  });
+
+  const fetchAll = useCallback(async () => {
+    try {
+      const [incRes, stRes] = await Promise.all([
+        axios.get(`${API}/incidents`, H),
+        axios.get(`${API}/incidents/stats`, H),
+      ]);
+      setIncidents(incRes.data.incidents || []);
+      setStats(stRes.data);
+    } catch {
+      showToast("Failed to load incidents", "error");
+    } finally {
+      setLoading(false);
+    }
+  }, [token]);
+
+  useEffect(() => { fetchAll(); }, [fetchAll]);
+
+  const loadTasks = async (iid) => {
+    try {
+      const res = await axios.get(`${API}/incidents/${iid}`, H);
+      setTasks(res.data.tasks || []);
+    } catch {
+      showToast("Failed to load tasks", "error");
+    }
+  };
+
+  const handleCreate = async () => {
+    if (!newInc.title) return;
+    setAdding(true);
+    try {
+      const res = await axios.post(`${API}/incidents`, newInc, H);
+      showToast("Incident created — 8 response tasks auto-generated", "success");
+      setShowAdd(false);
+      setNewInc({ title:"", description:"", priority:"P2",
+        affected:"", attack_vector:"", mitre_id:"", assigned_to:"" });
+      fetchAll();
+      setSelected(res.data.incident);
+      loadTasks(res.data.incident.id);
+    } catch (e) {
+      showToast(e.response?.data?.error || "Failed", "error");
+    } finally {
+      setAdding(false);
+    }
+  };
+
+  const handleStatusChange = async (inc, newStatus) => {
+    setUpdating(prev => ({ ...prev, [inc.id]: true }));
+    try {
+      await axios.put(`${API}/incidents/${inc.id}`,
+        { status: newStatus }, H);
+      fetchAll();
+      if (selected?.id === inc.id) {
+        setSelected(prev => ({ ...prev, status: newStatus }));
+      }
+      showToast(`Status → ${newStatus}`, "success");
+    } catch {
+      showToast("Failed to update", "error");
+    } finally {
+      setUpdating(prev => ({ ...prev, [inc.id]: false }));
+    }
+  };
+
+  const handleTaskToggle = async (iid, tid, status) => {
+    const newStatus = status === "completed" ? "pending" : "completed";
+    try {
+      await axios.put(`${API}/incidents/${iid}/tasks/${tid}`,
+        { status: newStatus }, H);
+      loadTasks(iid);
+    } catch {
+      showToast("Failed to update task", "error");
+    }
+  };
+
+  const handleDelete = async (iid) => {
+    try {
+      await axios.delete(`${API}/incidents/${iid}`, H);
+      if (selected?.id === iid) { setSelected(null); setTasks([]); }
+      fetchAll();
+      showToast("Incident deleted", "success");
+    } catch {
+      showToast("Failed to delete", "error");
+    }
+  };
+
+  const handleReport = async (iid) => {
+    setGenReport(true); setReport(null);
+    try {
+      const res = await axios.post(
+        `${API}/incidents/${iid}/report`, {}, H);
+      setReport(res.data.report);
+      showToast("Post-mortem report generated", "success");
+    } catch (e) {
+      showToast(e.response?.data?.error || "Report failed", "error");
+    } finally {
+      setGenReport(false);
+    }
+  };
+
+  const filteredInc = incidents.filter(i =>
+    tab === "active"
+      ? !["resolved","closed"].includes(i.status)
+      : ["resolved","closed"].includes(i.status)
+  );
+
+  if (loading) return (
+    <div style={{ display:"flex", justifyContent:"center",
+      alignItems:"center", height:"60vh" }}>
+      <div style={{ width:"48px", height:"48px",
+        border:`3px solid ${C.border}`,
+        borderTop:`3px solid ${C.cyan}`,
+        borderRadius:"50%",
+        animation:"spin 1s linear infinite" }} />
+    </div>
+  );
+
+  return (
+    <div style={{ padding:"32px 36px", background:C.bg,
+      minHeight:"100vh", fontFamily:"Inter, sans-serif",
+      color:C.text }}>
+
+      {/* Header */}
+      <div style={{ display:"flex", alignItems:"center",
+        justifyContent:"space-between", marginBottom:"32px" }}>
+        <div style={{ display:"flex", alignItems:"center", gap:"16px" }}>
+          <div style={{ width:"52px", height:"52px",
+            borderRadius:"14px",
+            background:"linear-gradient(135deg, #ff3b5c20, #ff8c0008)",
+            border:"1px solid #ff3b5c35",
+            display:"flex", alignItems:"center",
+            justifyContent:"center", fontSize:"24px",
+            boxShadow:"0 0 20px #ff3b5c15" }}>
+            🚨
+          </div>
+          <div>
+            <h1 style={{ margin:0, fontSize:"26px", fontWeight:"800",
+              letterSpacing:"-0.5px",
+              fontFamily:"JetBrains Mono, monospace",
+              background:"linear-gradient(135deg, #ff3b5c, #ff8c00)",
+              WebkitBackgroundClip:"text",
+              WebkitTextFillColor:"transparent" }}>
+              Incident Response
+            </h1>
+            <div style={{ fontSize:"13px", color:C.muted, marginTop:"2px" }}>
+              Create · Assign · Investigate · Contain · Resolve
+            </div>
+          </div>
+        </div>
+        <button onClick={() => setShowAdd(!showAdd)}
+          style={{ padding:"10px 22px", borderRadius:"10px",
+            border:"1px solid #ff3b5c35", cursor:"pointer",
+            fontSize:"13px", fontWeight:"700",
+            background:showAdd ? "#ff3b5c20" : "transparent",
+            color:"#ff3b5c", transition:"all 0.2s" }}>
+          {showAdd ? "✕ Cancel" : "+ New Incident"}
+        </button>
+      </div>
+
+      {/* Create form */}
+      {showAdd && (
+        <div style={{ ...cardStyle({ marginBottom:"24px" }),
+          borderColor:"#ff3b5c20" }}>
+          <div style={{ fontSize:"13px", fontWeight:"700",
+            color:"#ff3b5c", marginBottom:"16px" }}>
+            🚨 New Security Incident
+          </div>
+          <div style={{ display:"grid",
+            gridTemplateColumns:"1fr 1fr", gap:"12px",
+            marginBottom:"12px" }}>
+            {[
+              { key:"title",        label:"Incident Title",      span:2 },
+              { key:"description",  label:"Description",         span:2 },
+              { key:"affected",     label:"Affected Systems"          },
+              { key:"attack_vector",label:"Attack Vector"             },
+              { key:"mitre_id",     label:"MITRE ATT&CK ID"           },
+              { key:"assigned_to",  label:"Assign To"                 },
+            ].map(f => (
+              <div key={f.key}
+                style={{ gridColumn: f.span ? `span ${f.span}` : "span 1" }}>
+                <div style={{ fontSize:"10px", color:C.muted,
+                  marginBottom:"5px", textTransform:"uppercase",
+                  letterSpacing:"0.5px" }}>{f.label}</div>
+                <input value={newInc[f.key]}
+                  onChange={e => setNewInc(p =>
+                    ({ ...p, [f.key]: e.target.value }))}
+                  style={{ width:"100%", padding:"9px 12px",
+                    borderRadius:"8px",
+                    border:`1px solid ${C.borderBright}`,
+                    background:C.surface, color:C.text,
+                    fontSize:"13px", boxSizing:"border-box",
+                    outline:"none" }} />
+              </div>
+            ))}
+            <div>
+              <div style={{ fontSize:"10px", color:C.muted,
+                marginBottom:"5px", textTransform:"uppercase",
+                letterSpacing:"0.5px" }}>Priority</div>
+              <select value={newInc.priority}
+                onChange={e => setNewInc(p =>
+                  ({ ...p, priority: e.target.value }))}
+                style={{ width:"100%", padding:"9px 12px",
+                  borderRadius:"8px",
+                  border:`1px solid ${C.borderBright}`,
+                  background:C.surface, color:C.text,
+                  fontSize:"13px", outline:"none" }}>
+                {Object.entries(PRIORITY).map(([id,p]) => (
+                  <option key={id} value={id}>{p.label}</option>
+                ))}
+              </select>
+            </div>
+          </div>
+          <div style={{ display:"flex", alignItems:"center",
+            gap:"12px" }}>
+            <button onClick={handleCreate} disabled={adding}
+              style={{ padding:"10px 24px", borderRadius:"10px",
+                border:"none", cursor:"pointer",
+                fontSize:"13px", fontWeight:"700",
+                background:"linear-gradient(135deg, #ff3b5c, #ff8c00)",
+                color:"#fff", opacity:adding ? 0.6 : 1 }}>
+              {adding ? "Creating..." : "Create Incident"}
+            </button>
+            <div style={{ fontSize:"12px", color:C.muted }}>
+              8 standard response tasks will be auto-generated
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Stats */}
+      {stats && (
+        <div style={{ display:"grid",
+          gridTemplateColumns:"repeat(4, 1fr)",
+          gap:"12px", marginBottom:"28px" }}>
+          {[
+            { label:"Total",       value:stats.total,                   color:"#00e5ff", icon:"📋" },
+            { label:"Open",        value:stats.open,                    color:"#ff3b5c", icon:"🔴" },
+            { label:"SLA Breached",value:stats.sla_breached,            color:"#ff8c00", icon:"⏰" },
+            { label:"Avg Resolve", value:`${stats.avg_resolution_hours}h`, color:"#00ff88", icon:"⚡" },
+          ].map(s => (
+            <div key={s.label} style={{ ...cardStyle({ padding:"18px" }),
+              borderColor:s.color+"25" }}>
+              <div style={{ fontSize:"20px", marginBottom:"8px" }}>{s.icon}</div>
+              <div style={{ fontSize:"26px", fontWeight:"800",
+                fontFamily:"JetBrains Mono, monospace", color:s.color,
+                lineHeight:1 }}>{s.value}</div>
+              <div style={{ fontSize:"10px", color:C.muted,
+                marginTop:"5px", textTransform:"uppercase",
+                letterSpacing:"0.5px" }}>{s.label}</div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Tabs */}
+      <div style={{ display:"flex", gap:"4px", marginBottom:"20px",
+        background:C.card, padding:"4px", borderRadius:"12px",
+        border:`1px solid ${C.border}`, width:"fit-content" }}>
+        {[
+          { id:"active",   label:`Active (${incidents.filter(i=>!["resolved","closed"].includes(i.status)).length})` },
+          { id:"resolved", label:`Resolved (${incidents.filter(i=>["resolved","closed"].includes(i.status)).length})` },
+        ].map(t => (
+          <button key={t.id} onClick={() => setTab(t.id)}
+            style={{ padding:"8px 20px", borderRadius:"9px",
+              border:"none", cursor:"pointer",
+              fontSize:"13px", fontWeight:"600",
+              transition:"all 0.2s",
+              background:tab===t.id
+                ? "linear-gradient(135deg,#ff3b5c20,#ff8c0020)"
+                : "transparent",
+              color:tab===t.id ? C.text : C.muted,
+              boxShadow:tab===t.id ? "inset 0 0 0 1px #ff3b5c30" : "none" }}>
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      {/* Incident list */}
+      <div style={{ display:"flex", gap:"16px" }}>
+        {/* List */}
+        <div style={{ flex:1, display:"flex",
+          flexDirection:"column", gap:"10px" }}>
+          {filteredInc.length === 0 ? (
+            <div style={{ ...cardStyle({ padding:"48px",
+              textAlign:"center" }), color:C.muted }}>
+              No {tab} incidents.
+            </div>
+          ) : filteredInc.map(inc => {
+            const pr   = PRIORITY[inc.priority] || PRIORITY.P2;
+            const st   = STATUS_FLOW.find(s => s.id === inc.status)
+              || STATUS_FLOW[0];
+            const isSelected = selected?.id === inc.id;
+            return (
+              <div key={inc.id}
+                onClick={() => {
+                  setSelected(inc); loadTasks(inc.id); setReport(null);
+                }}
+                style={{ ...cardStyle({ cursor:"pointer",
+                  borderLeft:`4px solid ${pr.color}`,
+                  borderColor:isSelected ? pr.color : C.border }),
+                  boxShadow:isSelected ? `0 0 20px ${pr.color}15` : "none" }}>
+                <div style={{ display:"flex", alignItems:"flex-start",
+                  gap:"12px" }}>
+                  {/* Priority badge */}
+                  <div style={{ padding:"4px 10px",
+                    borderRadius:"8px", fontSize:"11px",
+                    fontWeight:"800", background:pr.color+"20",
+                    color:pr.color, whiteSpace:"nowrap",
+                    flexShrink:0 }}>
+                    {pr.label}
+                  </div>
+                  <div style={{ flex:1 }}>
+                    <div style={{ fontWeight:"700", fontSize:"14px",
+                      marginBottom:"4px" }}>{inc.title}</div>
+                    {inc.affected && (
+                      <div style={{ fontSize:"11px", color:C.muted,
+                        fontFamily:"JetBrains Mono, monospace" }}>
+                        {inc.affected}
+                      </div>
+                    )}
+                    {inc.mitre_id && (
+                      <span style={{ padding:"2px 7px",
+                        borderRadius:"6px", fontSize:"10px",
+                        fontWeight:"700", color:"#a78bfa",
+                        background:"#7c3aed10",
+                        border:"1px solid #7c3aed20",
+                        fontFamily:"JetBrains Mono, monospace",
+                        marginTop:"4px", display:"inline-block" }}>
+                        {inc.mitre_id}
+                      </span>
+                    )}
+                  </div>
+                  <div style={{ display:"flex", flexDirection:"column",
+                    gap:"6px", alignItems:"flex-end", flexShrink:0 }}>
+                    {/* Status */}
+                    <span style={{ padding:"3px 10px",
+                      borderRadius:"100px", fontSize:"10px",
+                      fontWeight:"700", background:st.color+"15",
+                      color:st.color, textTransform:"uppercase" }}>
+                      {st.label}
+                    </span>
+                    {/* SLA */}
+                    <span style={{ fontSize:"10px",
+                      color:inc.sla_breached ? "#ff3b5c" : C.muted }}>
+                      {inc.sla_breached ? "⏰ SLA BREACHED" : `${inc.age_hours}h / ${inc.sla_hours}h SLA`}
+                    </span>
+                    {/* Actions */}
+                    <div style={{ display:"flex", gap:"4px" }}>
+                      <button
+                        onClick={e => { e.stopPropagation(); handleDelete(inc.id); }}
+                        style={{ padding:"4px 8px", borderRadius:"6px",
+                          border:"1px solid #ff3b5c20",
+                          cursor:"pointer", fontSize:"11px",
+                          background:"#ff3b5c08", color:"#ff3b5c" }}>
+                        Delete
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+
+        {/* Detail panel */}
+        {selected && (
+          <div style={{ width:"380px", flexShrink:0 }}>
+            <div style={{ ...cardStyle({ marginBottom:"12px" }),
+              borderColor:(PRIORITY[selected.priority]?.color||"#ff3b5c")+"30" }}>
+              <div style={{ fontWeight:"700", fontSize:"14px",
+                marginBottom:"12px" }}>
+                {selected.title}
+              </div>
+
+              {/* Status workflow */}
+              <div style={{ marginBottom:"16px" }}>
+                <div style={{ fontSize:"10px", color:C.muted,
+                  marginBottom:"8px", textTransform:"uppercase",
+                  letterSpacing:"0.5px" }}>Status</div>
+                <div style={{ display:"flex", gap:"4px",
+                  flexWrap:"wrap" }}>
+                  {STATUS_FLOW.map(s => (
+                    <button key={s.id}
+                      onClick={() => handleStatusChange(selected, s.id)}
+                      disabled={updating[selected.id]}
+                      style={{ padding:"5px 10px",
+                        borderRadius:"8px", border:"none",
+                        cursor:"pointer", fontSize:"11px",
+                        fontWeight:selected.status===s.id ? "700" : "400",
+                        background:selected.status===s.id
+                          ? s.color+"25" : C.surface,
+                        color:selected.status===s.id ? s.color : C.muted,
+                        outline:selected.status===s.id
+                          ? `1px solid ${s.color}40` : "none",
+                        transition:"all 0.15s" }}>
+                      {s.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {/* Task checklist */}
+              <div style={{ fontSize:"10px", color:C.muted,
+                marginBottom:"8px", textTransform:"uppercase",
+                letterSpacing:"0.5px" }}>
+                Response Tasks ({tasks.filter(t=>t.status==="completed").length}/{tasks.length})
+              </div>
+              <div style={{ display:"flex",
+                flexDirection:"column", gap:"4px",
+                marginBottom:"16px" }}>
+                {tasks.map(task => (
+                  <div key={task.id}
+                    onClick={() => handleTaskToggle(
+                      selected.id, task.id, task.status)}
+                    style={{ display:"flex", alignItems:"center",
+                      gap:"8px", padding:"8px 10px",
+                      borderRadius:"8px", cursor:"pointer",
+                      background:task.status==="completed"
+                        ? "#00ff8808" : C.surface,
+                      border:`1px solid ${task.status==="completed"
+                        ? "#00ff8820" : C.border}`,
+                      transition:"all 0.15s" }}>
+                    <div style={{ width:"16px", height:"16px",
+                      borderRadius:"4px", flexShrink:0,
+                      background:task.status==="completed"
+                        ? "#00ff88" : "transparent",
+                      border:`2px solid ${task.status==="completed"
+                        ? "#00ff88" : "#64748b"}`,
+                      display:"flex", alignItems:"center",
+                      justifyContent:"center", fontSize:"10px" }}>
+                      {task.status==="completed" && "✓"}
+                    </div>
+                    <span style={{ fontSize:"12px",
+                      textDecoration:task.status==="completed"
+                        ? "line-through" : "none",
+                      color:task.status==="completed"
+                        ? C.muted : C.text }}>
+                      {task.title}
+                    </span>
+                  </div>
+                ))}
+              </div>
+
+              {/* AI Report button */}
+              <button
+                onClick={() => handleReport(selected.id)}
+                disabled={genReport}
+                style={{ width:"100%", padding:"10px",
+                  borderRadius:"10px",
+                  border:"1px solid #a78bfa30",
+                  cursor:"pointer", fontSize:"13px",
+                  fontWeight:"600",
+                  background:"#a78bfa10", color:"#a78bfa",
+                  opacity:genReport ? 0.6 : 1 }}>
+                {genReport ? "Generating..." : "📄 Generate Post-Mortem Report"}
+              </button>
+            </div>
+
+            {/* Report */}
+            {report && (
+              <div style={{ ...cardStyle({ borderColor:"#a78bfa20" }) }}>
+                <div style={{ display:"flex",
+                  justifyContent:"space-between",
+                  marginBottom:"12px" }}>
+                  <div style={{ fontWeight:"700", fontSize:"13px" }}>
+                    Post-Mortem Report
+                  </div>
+                  <button onClick={() => {
+                    navigator.clipboard.writeText(report);
+                    showToast("Copied", "success");
+                  }} style={{ padding:"4px 10px",
+                    borderRadius:"6px",
+                    border:"1px solid #a78bfa30",
+                    cursor:"pointer", fontSize:"11px",
+                    background:"#a78bfa10", color:"#a78bfa" }}>
+                    Copy
+                  </button>
+                </div>
+                <div style={{ fontSize:"12px", lineHeight:"1.7",
+                  color:C.text, whiteSpace:"pre-wrap",
+                  maxHeight:"400px", overflowY:"auto",
+                  padding:"12px", borderRadius:"8px",
+                  background:C.surface,
+                  border:`1px solid ${C.border}` }}>
+                  {report}
+                </div>
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
 
 // ─────────────────────────────────────────────────────────────
 // AIPET X — Unified Security Timeline Page
@@ -14264,6 +14816,9 @@ export default function App() {
           )}
           {activeTab === "team" && (
             <TeamAccessPage token={token} showToast={showToast} />
+          )}
+          {activeTab === "incidents" && (
+            <IncidentResponsePage token={token} showToast={showToast} />
           )}
           {activeTab === "timeline" && (
             <TimelinePage token={token} showToast={showToast} />

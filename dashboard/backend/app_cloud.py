@@ -57,6 +57,9 @@ from dashboard.backend.marketplace.routes import marketplace_bp
 from dashboard.backend.marketplace.models import MpPlugin, MpInstall, MpReview
 from dashboard.backend.timeline.routes import timeline_bp
 from dashboard.backend.timeline.models import TimelineEvent
+from dashboard.backend.incidents.routes import incidents_bp
+from dashboard.backend.incidents.models import IrIncident, IrTask
+from dashboard.backend.incidents.models import IrIncident, IrTask
 from dashboard.backend.monitoring.logger import setup_logging, get_logger
 from dashboard.backend.security import init_security
 from dashboard.backend.monitoring.logger import (
@@ -165,6 +168,7 @@ def create_app(config_name="development"):
     app.register_blueprint(redteam_bp)
     app.register_blueprint(marketplace_bp)
     app.register_blueprint(timeline_bp)
+    app.register_blueprint(incidents_bp)
     app.register_blueprint(api_keys_bp, url_prefix='/api/keys')
 
     # Setup logging
