@@ -13142,7 +13142,7 @@ export default function App() {
     <div style={{
       display: "flex",
       minHeight: "100vh",
-      backgroundColor: "#030712",
+      backgroundColor: "transparent",
       color: "#e2e8f0",
       fontFamily: "'Inter', sans-serif",
       position: "relative",
@@ -13481,7 +13481,7 @@ export default function App() {
           flex: 1,
           overflowY: "auto",
           padding: "28px 32px",
-          backgroundColor: "#030712",
+          backgroundColor: "transparent",
         }}>
 
           {/* DASHBOARD / OVERVIEW */}
