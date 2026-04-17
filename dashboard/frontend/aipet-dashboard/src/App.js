@@ -4344,7 +4344,7 @@ function LandingPage({ onGetStarted, onLogin, setLegalPage, setActivePage }) {
 
       {/* TOP ANNOUNCEMENT BAR */}
       <div style={{ width: "100%", background: `linear-gradient(90deg, ${COLORS.blue}cc, #0099cc, ${COLORS.blue}cc)`, borderBottom: `1px solid ${COLORS.blue}`, color: "white", textAlign: "center", padding: "10px 32px", fontSize: "14px", fontWeight: "600" }}>
-        🔒 &nbsp; AIPET X v3.0.0 — AI-Powered IoT Security Platform &nbsp;&nbsp;·&nbsp;&nbsp; NIS2 &nbsp;|&nbsp; NIST CSF 2.0 &nbsp;|&nbsp; ISO 27001 Compliant &nbsp;&nbsp;·&nbsp;&nbsp;
+        ⚡ &nbsp; AIPET X v4.0.0 — The World's First AI-Native IoT Security Platform &nbsp;&nbsp;·&nbsp;&nbsp; SIEM · Threat Intel · Zero-Trust · AI Red Team · Digital Twin &nbsp;&nbsp;·&nbsp;&nbsp;
         <span style={{ textDecoration: "underline", cursor: "pointer", fontWeight: "700" }} onClick={onGetStarted}>Start Free Trial →</span>
       </div>
 
@@ -4697,7 +4697,7 @@ function LandingPage({ onGetStarted, onLogin, setLegalPage, setActivePage }) {
           {/* Bottom bar */}
           <div style={{ borderTop: `1px solid ${COLORS.border}`, paddingTop: "24px", display: "flex", justifyContent: "space-between", alignItems: "center", flexWrap: "wrap", gap: "16px" }}>
             <p style={{ color: COLORS.muted, fontSize: "13px" }}>
-              © 2026 AIPET X · AIPET X v3.0.0 — Developed as part of MSc Cyber Security research at Coventry University · MIT Licence
+              © 2026 AIPET · Built by Binyam Yallew, MSc Cyber Security — Coventry University · v4.0.0 · All rights reserved
             </p>
             <div style={{ display: "flex", gap: "24px" }}>
               {[
