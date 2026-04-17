@@ -6112,6 +6112,7 @@ const NAV_ITEMS = [
   { id: "twin",       label: "Digital Twin",  icon: Cpu,           group: "enterprise" },
   { id: "redteam",    label: "AI Red Team",   icon: Shield,        group: "enterprise" },
   { id: "marketplace",label: "Marketplace",  icon: Zap,           group: "enterprise" },
+  { id: "timeline",   label: "Timeline",     icon: Activity,      group: "enterprise" },
   { id: "settings",  label: "Settings",      icon: Settings,      group: "account"  },
 ];
 
@@ -6374,6 +6375,469 @@ function SettingsPage({ token, showToast }) {
   );
 }
 
+
+// ─────────────────────────────────────────────────────────────
+// AIPET X — Unified Security Timeline Page
+//
+// Features:
+//   • Live event feed — all modules in one view
+//   • Filter by source, severity, date range
+//   • Stats bar: total, critical, unresolved
+//   • Resolve/delete events
+//   • Search across all events
+//   • Export timeline as JSON
+//   • Source-color coded with icons
+// ─────────────────────────────────────────────────────────────
+function TimelinePage({ token, showToast }) {
+
+  const [events,   setEvents]   = useState([]);
+  const [stats,    setStats]    = useState(null);
+  const [loading,  setLoading]  = useState(true);
+  const [source,   setSource]   = useState("");
+  const [severity, setSeverity] = useState("");
+  const [search,   setSearch]   = useState("");
+  const [days,     setDays]     = useState(30);
+  const [page,     setPage]     = useState(1);
+  const [total,    setTotal]    = useState(0);
+  const [resolving,setResolving]= useState({});
+
+  const H = { headers: { Authorization: `Bearer ${token}` } };
+
+  const SOURCE_META = {
+    scan:        { icon: "🔍", color: "#00e5ff", label: "Scan"        },
+    finding:     { icon: "🎯", color: "#ff3b5c", label: "Finding"     },
+    siem:        { icon: "⚡", color: "#ff8c00", label: "SIEM"        },
+    redteam:     { icon: "⚔️", color: "#ff3b5c", label: "Red Team"   },
+    compliance:  { icon: "📋", color: "#a78bfa", label: "Compliance"  },
+    zerotrust:   { icon: "🛡️", color: "#00ff88", label: "Zero-Trust" },
+    defense:     { icon: "🤖", color: "#00ff88", label: "Defense"     },
+    watch:       { icon: "👁️", color: "#ffd600", label: "Watch"      },
+    predict:     { icon: "🔮", color: "#a78bfa", label: "Predict"     },
+    marketplace: { icon: "🏪", color: "#ffd600", label: "Marketplace" },
+    user:        { icon: "👤", color: "#64748b", label: "User"        },
+    other:       { icon: "📌", color: "#64748b", label: "Other"       },
+  };
+
+  const SEV_COLOR = {
+    Critical: "#ff3b5c",
+    High:     "#ff8c00",
+    Medium:   "#ffd600",
+    Low:      "#00ff88",
+    Info:     "#64748b",
+  };
+
+  const C = {
+    bg: "#030712", card: "#0d1117", surface: "#080f1a",
+    border: "#1e2a3a", borderBright: "#2d3f55",
+    text: "#e2e8f0", muted: "#64748b", faint: "#334155",
+    cyan: "#00e5ff",
+  };
+
+  const cardStyle = (extra = {}) => ({
+    background: C.card, border: `1px solid ${C.border}`,
+    borderRadius: "16px", padding: "24px", ...extra
+  });
+
+  const fetchAll = useCallback(async () => {
+    setLoading(true);
+    try {
+      const params = new URLSearchParams({
+        page, per_page: 30, days,
+        ...(source   && { source }),
+        ...(severity && { severity }),
+        ...(search   && { search }),
+      });
+      const [evRes, stRes] = await Promise.all([
+        axios.get(`${API}/timeline/events?${params}`, H),
+        axios.get(`${API}/timeline/stats?days=${days}`, H),
+      ]);
+      setEvents(evRes.data.events || []);
+      setTotal(evRes.data.total   || 0);
+      setStats(stRes.data);
+    } catch {
+      showToast("Failed to load timeline", "error");
+    } finally {
+      setLoading(false);
+    }
+  }, [token, page, source, severity, search, days]);
+
+  useEffect(() => { fetchAll(); }, [fetchAll]);
+
+  const handleResolve = async (id, resolved) => {
+    setResolving(prev => ({ ...prev, [id]: true }));
+    try {
+      await axios.put(`${API}/timeline/events/${id}`,
+        { resolved: !resolved }, H);
+      fetchAll();
+      showToast(resolved ? "Reopened" : "Marked resolved", "success");
+    } catch {
+      showToast("Failed to update", "error");
+    } finally {
+      setResolving(prev => ({ ...prev, [id]: false }));
+    }
+  };
+
+  const handleDelete = async (id) => {
+    try {
+      await axios.delete(`${API}/timeline/events/${id}`, H);
+      fetchAll();
+      showToast("Event deleted", "success");
+    } catch {
+      showToast("Failed to delete", "error");
+    }
+  };
+
+  const handleExport = async () => {
+    try {
+      const res = await axios.get(
+        `${API}/timeline/export?days=${days}`, H);
+      const blob = new Blob([JSON.stringify(res.data, null, 2)],
+        { type: "application/json" });
+      const url  = URL.createObjectURL(blob);
+      const a    = document.createElement("a");
+      a.href     = url;
+      a.download = `aipet-timeline-${new Date().toISOString().slice(0,10)}.json`;
+      a.click();
+      URL.revokeObjectURL(url);
+      showToast("Timeline exported", "success");
+    } catch {
+      showToast("Export failed", "error");
+    }
+  };
+
+  const formatTime = (dt) => {
+    const d = new Date(dt);
+    const now = new Date();
+    const diff = Math.floor((now - d) / 1000);
+    if (diff < 60)   return `${diff}s ago`;
+    if (diff < 3600) return `${Math.floor(diff/60)}m ago`;
+    if (diff < 86400)return `${Math.floor(diff/3600)}h ago`;
+    return `${Math.floor(diff/86400)}d ago`;
+  };
+
+  const pages = Math.ceil(total / 30);
+
+  return (
+    <div style={{ padding: "32px 36px", background: C.bg,
+      minHeight: "100vh", fontFamily: "Inter, sans-serif",
+      color: C.text }}>
+
+      {/* Header */}
+      <div style={{ display: "flex", alignItems: "center",
+        justifyContent: "space-between", marginBottom: "32px" }}>
+        <div style={{ display: "flex", alignItems: "center",
+          gap: "16px" }}>
+          <div style={{ width: "52px", height: "52px",
+            borderRadius: "14px",
+            background: "linear-gradient(135deg, #00e5ff20, #a78bfa08)",
+            border: "1px solid #00e5ff35",
+            display: "flex", alignItems: "center",
+            justifyContent: "center", fontSize: "24px",
+            boxShadow: "0 0 20px #00e5ff15" }}>
+            📅
+          </div>
+          <div>
+            <h1 style={{ margin: 0, fontSize: "26px",
+              fontWeight: "800", letterSpacing: "-0.5px",
+              fontFamily: "JetBrains Mono, monospace",
+              background: "linear-gradient(135deg, #00e5ff, #a78bfa)",
+              WebkitBackgroundClip: "text",
+              WebkitTextFillColor: "transparent" }}>
+              Security Timeline
+            </h1>
+            <div style={{ fontSize: "13px", color: C.muted,
+              marginTop: "2px" }}>
+              Unified event feed · All modules · Real-time
+            </div>
+          </div>
+        </div>
+        <button onClick={handleExport}
+          style={{ padding: "10px 22px", borderRadius: "10px",
+            border: "1px solid #00e5ff35", cursor: "pointer",
+            fontSize: "13px", fontWeight: "700",
+            background: "transparent", color: "#00e5ff",
+            transition: "all 0.2s" }}>
+          ↓ Export JSON
+        </button>
+      </div>
+
+      {/* Stats bar */}
+      {stats && (
+        <div style={{ display: "grid",
+          gridTemplateColumns: "repeat(5, 1fr)",
+          gap: "12px", marginBottom: "28px" }}>
+          {[
+            { label: "Total Events",  value: stats.total,     color: "#00e5ff", icon: "📅" },
+            { label: "Unresolved",    value: stats.unresolved,color: "#ff8c00", icon: "⏳" },
+            { label: "Critical",      value: stats.critical,  color: "#ff3b5c", icon: "🚨" },
+            { label: "Sources",       value: Object.keys(stats.by_source||{}).length, color: "#a78bfa", icon: "📡" },
+            { label: "Days Shown",    value: days,            color: "#64748b", icon: "📆" },
+          ].map(s => (
+            <div key={s.label} style={{ ...cardStyle({ padding: "18px" }),
+              borderColor: s.color+"25",
+              boxShadow: `0 0 14px ${s.color}08` }}>
+              <div style={{ fontSize: "20px", marginBottom: "8px" }}>
+                {s.icon}
+              </div>
+              <div style={{ fontSize: "26px", fontWeight: "800",
+                lineHeight: 1,
+                fontFamily: "JetBrains Mono, monospace",
+                color: s.color }}>
+                {s.value}
+              </div>
+              <div style={{ fontSize: "10px", color: C.muted,
+                marginTop: "5px", textTransform: "uppercase",
+                letterSpacing: "0.5px" }}>
+                {s.label}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Filters */}
+      <div style={{ display: "flex", gap: "10px",
+        flexWrap: "wrap", marginBottom: "20px",
+        alignItems: "center" }}>
+        {/* Search */}
+        <input value={search}
+          onChange={e => { setSearch(e.target.value); setPage(1); }}
+          placeholder="Search events..."
+          style={{ flex: 1, minWidth: "200px", maxWidth: "280px",
+            padding: "9px 14px", borderRadius: "10px",
+            border: `1px solid ${C.borderBright}`,
+            background: C.surface, color: C.text,
+            fontSize: "13px", outline: "none" }} />
+
+        {/* Source filter */}
+        <select value={source}
+          onChange={e => { setSource(e.target.value); setPage(1); }}
+          style={{ padding: "9px 12px", borderRadius: "10px",
+            border: `1px solid ${C.borderBright}`,
+            background: C.surface, color: C.text,
+            fontSize: "13px", outline: "none" }}>
+          <option value="">All Sources</option>
+          {Object.entries(SOURCE_META).map(([id, m]) => (
+            <option key={id} value={id}>{m.icon} {m.label}</option>
+          ))}
+        </select>
+
+        {/* Severity filter */}
+        <select value={severity}
+          onChange={e => { setSeverity(e.target.value); setPage(1); }}
+          style={{ padding: "9px 12px", borderRadius: "10px",
+            border: `1px solid ${C.borderBright}`,
+            background: C.surface, color: C.text,
+            fontSize: "13px", outline: "none" }}>
+          <option value="">All Severities</option>
+          {["Critical","High","Medium","Low","Info"].map(s => (
+            <option key={s} value={s}>{s}</option>
+          ))}
+        </select>
+
+        {/* Days filter */}
+        <select value={days}
+          onChange={e => { setDays(parseInt(e.target.value)); setPage(1); }}
+          style={{ padding: "9px 12px", borderRadius: "10px",
+            border: `1px solid ${C.borderBright}`,
+            background: C.surface, color: C.text,
+            fontSize: "13px", outline: "none" }}>
+          {[7,14,30,60,90].map(d => (
+            <option key={d} value={d}>Last {d} days</option>
+          ))}
+        </select>
+
+        <div style={{ marginLeft: "auto", fontSize: "12px",
+          color: C.muted }}>
+          {total} events
+        </div>
+      </div>
+
+      {/* Source legend */}
+      <div style={{ display: "flex", gap: "8px",
+        flexWrap: "wrap", marginBottom: "20px" }}>
+        {Object.entries(SOURCE_META).map(([id, m]) => (
+          <button key={id}
+            onClick={() => { setSource(source===id ? "" : id); setPage(1); }}
+            style={{ padding: "4px 12px", borderRadius: "100px",
+              border: `1px solid ${source===id ? m.color : C.border}`,
+              background: source===id ? m.color+"20" : "transparent",
+              color: source===id ? m.color : C.muted,
+              cursor: "pointer", fontSize: "11px",
+              fontWeight: source===id ? "700" : "400",
+              transition: "all 0.15s" }}>
+            {m.icon} {m.label}
+          </button>
+        ))}
+      </div>
+
+      {/* Timeline feed */}
+      {loading ? (
+        <div style={{ display: "flex", justifyContent: "center",
+          padding: "48px" }}>
+          <div style={{ width: "36px", height: "36px",
+            border: `3px solid ${C.border}`,
+            borderTop: `3px solid ${C.cyan}`,
+            borderRadius: "50%",
+            animation: "spin 1s linear infinite" }} />
+        </div>
+      ) : events.length === 0 ? (
+        <div style={{ ...cardStyle({ padding: "48px",
+          textAlign: "center" }), color: C.muted }}>
+          No events found for the selected filters.
+        </div>
+      ) : (
+        <div style={{ display: "flex", flexDirection: "column",
+          gap: "6px" }}>
+          {events.map((event, idx) => {
+            const src = SOURCE_META[event.source] || SOURCE_META.other;
+            const sev = SEV_COLOR[event.severity] || "#64748b";
+            return (
+              <div key={event.id}
+                style={{ background: C.card,
+                  border: `1px solid ${event.resolved
+                    ? C.border : sev+"25"}`,
+                  borderLeft: `3px solid ${event.resolved
+                    ? C.faint : sev}`,
+                  borderRadius: "10px", padding: "12px 16px",
+                  opacity: event.resolved ? 0.6 : 1,
+                  transition: "all 0.2s" }}>
+                <div style={{ display: "flex",
+                  alignItems: "center", gap: "10px" }}>
+                  {/* Source icon */}
+                  <div style={{ width: "32px", height: "32px",
+                    borderRadius: "8px", flexShrink: 0,
+                    background: src.color+"15",
+                    border: `1px solid ${src.color}30`,
+                    display: "flex", alignItems: "center",
+                    justifyContent: "center", fontSize: "14px" }}>
+                    {src.icon}
+                  </div>
+                  {/* Severity badge */}
+                  <div style={{ padding: "2px 8px",
+                    borderRadius: "100px", fontSize: "9px",
+                    fontWeight: "800", background: sev+"15",
+                    color: sev, textTransform: "uppercase",
+                    letterSpacing: "0.5px", whiteSpace: "nowrap" }}>
+                    {event.severity}
+                  </div>
+                  {/* Source badge */}
+                  <div style={{ padding: "2px 8px",
+                    borderRadius: "100px", fontSize: "10px",
+                    fontWeight: "600", background: src.color+"10",
+                    color: src.color, whiteSpace: "nowrap" }}>
+                    {src.label}
+                  </div>
+                  {/* MITRE ID */}
+                  {event.mitre_id && (
+                    <div style={{ padding: "2px 7px",
+                      borderRadius: "6px", fontSize: "10px",
+                      fontWeight: "700", color: "#a78bfa",
+                      background: "#7c3aed10",
+                      border: "1px solid #7c3aed20",
+                      fontFamily: "JetBrains Mono, monospace",
+                      whiteSpace: "nowrap" }}>
+                      {event.mitre_id}
+                    </div>
+                  )}
+                  {/* Title */}
+                  <div style={{ flex: 1, fontSize: "13px",
+                    fontWeight: "600", color: C.text,
+                    overflow: "hidden", textOverflow: "ellipsis",
+                    whiteSpace: "nowrap",
+                    textDecoration: event.resolved
+                      ? "line-through" : "none" }}>
+                    {event.title}
+                  </div>
+                  {/* Entity */}
+                  {event.entity && (
+                    <div style={{ fontFamily: "JetBrains Mono, monospace",
+                      fontSize: "11px", color: C.muted,
+                      whiteSpace: "nowrap", flexShrink: 0 }}>
+                      {event.entity}
+                    </div>
+                  )}
+                  {/* Time */}
+                  <div style={{ fontSize: "11px", color: C.faint,
+                    whiteSpace: "nowrap", flexShrink: 0 }}>
+                    {formatTime(event.created_at)}
+                  </div>
+                  {/* Actions */}
+                  <div style={{ display: "flex", gap: "4px",
+                    flexShrink: 0 }}>
+                    <button
+                      onClick={() => handleResolve(event.id, event.resolved)}
+                      disabled={resolving[event.id]}
+                      title={event.resolved ? "Reopen" : "Mark resolved"}
+                      style={{ padding: "4px 8px",
+                        borderRadius: "6px",
+                        border: `1px solid ${event.resolved
+                          ? "#64748b30" : "#00ff8830"}`,
+                        cursor: "pointer", fontSize: "11px",
+                        background: event.resolved
+                          ? "transparent" : "#00ff8810",
+                        color: event.resolved ? "#64748b" : "#00ff88" }}>
+                      {event.resolved ? "↩" : "✓"}
+                    </button>
+                    <button
+                      onClick={() => handleDelete(event.id)}
+                      title="Delete"
+                      style={{ padding: "4px 8px",
+                        borderRadius: "6px",
+                        border: "1px solid #ff3b5c20",
+                        cursor: "pointer", fontSize: "11px",
+                        background: "#ff3b5c08",
+                        color: "#ff3b5c" }}>
+                      ×
+                    </button>
+                  </div>
+                </div>
+                {/* Detail row */}
+                {event.detail && (
+                  <div style={{ marginTop: "5px", fontSize: "11px",
+                    color: C.muted, paddingLeft: "42px",
+                    overflow: "hidden", textOverflow: "ellipsis",
+                    whiteSpace: "nowrap" }}>
+                    {event.detail}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Pagination */}
+      {pages > 1 && (
+        <div style={{ display: "flex", justifyContent: "center",
+          gap: "8px", marginTop: "24px" }}>
+          <button onClick={() => setPage(p => Math.max(1, p-1))}
+            disabled={page===1}
+            style={{ padding: "8px 16px", borderRadius: "8px",
+              border: `1px solid ${C.border}`,
+              background: "transparent", color: C.muted,
+              cursor: page===1 ? "not-allowed" : "pointer",
+              fontSize: "13px" }}>
+            ← Prev
+          </button>
+          <div style={{ padding: "8px 16px", fontSize: "13px",
+            color: C.muted }}>
+            {page} / {pages}
+          </div>
+          <button onClick={() => setPage(p => Math.min(pages, p+1))}
+            disabled={page===pages}
+            style={{ padding: "8px 16px", borderRadius: "8px",
+              border: `1px solid ${C.border}`,
+              background: "transparent", color: C.muted,
+              cursor: page===pages ? "not-allowed" : "pointer",
+              fontSize: "13px" }}>
+            Next →
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
 
 // ─────────────────────────────────────────────────────────────
 // AIPET X — Marketplace Page
@@ -6733,7 +7197,7 @@ function MarketplacePage({ token, showToast }) {
         {/* Search */}
         <input value={search}
           onChange={e => setSearch(e.target.value)}
-          placeholder="Search plugins..."
+          placeholder="Search plugins..." aria-label="Search"
           style={{ flex: 1, maxWidth: "280px",
             padding: "9px 14px", borderRadius: "10px",
             border: `1px solid ${C.borderBright}`,
@@ -13705,7 +14169,7 @@ export default function App() {
               <div className="flex items-center gap-3">
                 <input
                   type="text"
-                  placeholder="Search findings..."
+                  placeholder="Search findings..." aria-label="Search"
                   value={searchText}
                   onChange={e => setSearchText(e.target.value)}
                   className="flex-1 px-4 py-2.5 rounded-xl text-sm outline-none"
@@ -13800,6 +14264,9 @@ export default function App() {
           )}
           {activeTab === "team" && (
             <TeamAccessPage token={token} showToast={showToast} />
+          )}
+          {activeTab === "timeline" && (
+            <TimelinePage token={token} showToast={showToast} />
           )}
           {activeTab === "marketplace" && (
             <MarketplacePage token={token} showToast={showToast} />
