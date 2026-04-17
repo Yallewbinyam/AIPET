@@ -12921,6 +12921,29 @@ function SiemPage({ token, showToast }) {
 
 
 export default function App() {
+  // PWA install prompt
+  const [installPrompt, setInstallPrompt] = useState(null);
+  const [showInstallBanner, setShowInstallBanner] = useState(false);
+
+  useEffect(() => {
+    const handler = (e) => {
+      e.preventDefault();
+      setInstallPrompt(e);
+      setShowInstallBanner(true);
+    };
+    window.addEventListener('beforeinstallprompt', handler);
+    return () => window.removeEventListener('beforeinstallprompt', handler);
+  }, []);
+
+  const handleInstallApp = async () => {
+    if (!installPrompt) return;
+    installPrompt.prompt();
+    const { outcome } = await installPrompt.userChoice;
+    if (outcome === 'accepted') {
+      setShowInstallBanner(false);
+      setInstallPrompt(null);
+    }
+  };
   const [data,       setData]       = useState({});
   const [activeTab,  setActiveTab]  = useState("dashboard");
   const [collapsedGroups, setCollapsedGroups] = useState({});
@@ -13845,6 +13868,49 @@ export default function App() {
 
       {showScan && <ScanModal onClose={() => setShowScan(false)} onScan={startScan} scanning={scanning} />}
       <Toast toast={toast} />
+
+      {/* PWA Install Banner */}
+      {showInstallBanner && (
+        <div style={{
+          position: "fixed", top: "16px", left: "50%",
+          transform: "translateX(-50%)", zIndex: 99999,
+          background: "rgba(8,12,16,0.97)",
+          border: "1px solid #00e5ff40",
+          borderRadius: "16px", padding: "14px 20px",
+          display: "flex", alignItems: "center", gap: "14px",
+          boxShadow: "0 8px 40px rgba(0,229,255,0.15)",
+          backdropFilter: "blur(24px)",
+          maxWidth: "420px", width: "calc(100% - 32px)",
+        }}>
+          <img src="/icons/icon-96.png" alt="AIPET X"
+            style={{ width: "40px", height: "40px",
+              borderRadius: "10px" }} />
+          <div style={{ flex: 1 }}>
+            <div style={{ fontSize: "13px", fontWeight: "700",
+              color: "#e2e8f0", marginBottom: "2px" }}>
+              Install AIPET X
+            </div>
+            <div style={{ fontSize: "11px", color: "#64748b" }}>
+              Add to home screen for quick access
+            </div>
+          </div>
+          <button onClick={handleInstallApp}
+            style={{ padding: "8px 16px", borderRadius: "8px",
+              border: "none", cursor: "pointer",
+              background: "linear-gradient(135deg, #00e5ff, #0099ff)",
+              color: "#000", fontSize: "12px", fontWeight: "700",
+              flexShrink: 0 }}>
+            Install
+          </button>
+          <button onClick={() => setShowInstallBanner(false)}
+            style={{ background: "none", border: "none",
+              color: "#475569", cursor: "pointer",
+              fontSize: "18px", lineHeight: 1, padding: "0 4px",
+              flexShrink: 0 }}>
+            ×
+          </button>
+        </div>
+      )}
 
       <style>{`
         @keyframes pulse {

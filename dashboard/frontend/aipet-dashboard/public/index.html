@@ -2,6 +2,26 @@
 <html lang="en">
   <head>
     <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+    <meta name="theme-color" content="#00e5ff" />
+    <meta name="background-color" content="#030712" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="AIPET X" />
+    <meta name="application-name" content="AIPET X" />
+    <meta name="description" content="AI-Powered IoT Security Platform — Scan, Monitor, Protect your IoT devices" />
+    <meta name="keywords" content="IoT security, cybersecurity, AIPET, vulnerability scanning, SIEM" />
+    <!-- PWA Manifest -->
+    <link rel="manifest" href="/manifest.json" />
+    <!-- Apple touch icons -->
+    <link rel="apple-touch-icon" href="/icons/icon-192.png" />
+    <link rel="apple-touch-icon" sizes="152x152" href="/icons/icon-152.png" />
+    <link rel="apple-touch-icon" sizes="144x144" href="/icons/icon-144.png" />
+    <link rel="apple-touch-icon" sizes="128x128" href="/icons/icon-128.png" />
+    <!-- Favicon -->
+    <link rel="icon" type="image/png" sizes="32x32" href="/icons/icon-96.png" />
+    <link rel="icon" type="image/png" sizes="16x16" href="/icons/icon-72.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     
     <!-- Primary Meta Tags -->
@@ -34,5 +54,19 @@
   </head>
   <body>
     <div id="root"></div>
-  </body>
+    <script>
+    // Register AIPET X Service Worker
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('/sw.js')
+          .then(reg => {
+            console.log('[AIPET] Service Worker registered:', reg.scope);
+          })
+          .catch(err => {
+            console.log('[AIPET] SW registration failed:', err);
+          });
+      });
+    }
+  </script>
+</body>
 </html>
