@@ -4506,7 +4506,7 @@ function LandingPage({ onGetStarted, onLogin, setLegalPage, setActivePage }) {
             <h2 style={{ fontSize: "36px", fontWeight: "900", color: COLORS.text, marginBottom: "12px" }}>{t("featuresTitle")}</h2>
             <p style={{ color: COLORS.muted, fontSize: "16px" }}>{t("featuresSubtitle")}</p>
           </div>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: "16px" }}>
+          <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: "16px" }}>
             {[
               { icon: Shield, color: COLORS.blue, title: t('features.attackModules'), desc: t('features.attackModulesDesc') },
               { icon: Zap, color: COLORS.critical, title: t('features.explainableAI'), desc: t('features.explainableAIDesc') },
