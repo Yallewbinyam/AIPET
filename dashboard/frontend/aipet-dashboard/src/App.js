@@ -6114,6 +6114,7 @@ const NAV_ITEMS = [
   { id: "marketplace",label: "Marketplace",  icon: Zap,           group: "enterprise" },
   { id: "timeline",   label: "Timeline",     icon: Activity,      group: "enterprise" },
   { id: "incidents",  label: "Incidents",    icon: AlertTriangle, group: "enterprise" },
+  { id: "narrative",  label: "Risk Narrative", icon: FileText,     group: "enterprise" },
   { id: "settings",  label: "Settings",      icon: Settings,      group: "account"  },
 ];
 
@@ -6376,6 +6377,330 @@ function SettingsPage({ token, showToast }) {
   );
 }
 
+
+// ─────────────────────────────────────────────────────────────
+// AIPET X — AI Risk Narrative Page
+//
+// Features:
+//   • 4 audience modes: Executive, Board, Technical, Compliance
+//   • Generate button — pulls real finding data
+//   • Narrative history — last 20 reports
+//   • Copy + Download as text
+//   • Risk score + context shown
+//   • Beautiful formatted output
+// ─────────────────────────────────────────────────────────────
+function RiskNarrativePage({ token, showToast }) {
+
+  const [generating, setGenerating] = useState(false);
+  const [narrative,  setNarrative]  = useState(null);
+  const [history,    setHistory]    = useState([]);
+  const [audience,   setAudience]   = useState("executive");
+  const [tab,        setTab]        = useState("generate");
+  const [loading,    setLoading]    = useState(true);
+
+  const H = { headers: { Authorization: `Bearer ${token}` } };
+
+  const AUDIENCES = [
+    { id: "executive",  label: "Executive",  icon: "👔",
+      desc: "CEO/COO briefing — plain English, business impact",
+      color: "#00e5ff" },
+    { id: "board",      label: "Board",      icon: "🏛️",
+      desc: "Board of directors — traffic light, financial risk",
+      color: "#a78bfa" },
+    { id: "technical",  label: "Technical",  icon: "⚙️",
+      desc: "SOC team — CVEs, IPs, MITRE ATT&CK, remediation",
+      color: "#00ff88" },
+    { id: "compliance", label: "Compliance", icon: "📋",
+      desc: "NIS2/ISO 27001 mapping, audit trail, regulatory risk",
+      color: "#ffd600" },
+  ];
+
+  const C = {
+    bg: "#030712", card: "#0d1117", surface: "#080f1a",
+    border: "#1e2a3a", borderBright: "#2d3f55",
+    text: "#e2e8f0", muted: "#64748b", faint: "#334155",
+    cyan: "#00e5ff",
+  };
+  const cardStyle = (extra={}) => ({
+    background: C.card, border: `1px solid ${C.border}`,
+    borderRadius: "16px", padding: "24px", ...extra
+  });
+
+  useEffect(() => {
+    axios.get(`${API}/narrative/history`, H)
+      .then(r => setHistory(r.data.narratives || []))
+      .catch(() => {})
+      .finally(() => setLoading(false));
+  }, [token]);
+
+  const handleGenerate = async () => {
+    setGenerating(true);
+    setNarrative(null);
+    try {
+      const res = await axios.post(`${API}/narrative/generate`,
+        { audience }, H);
+      setNarrative(res.data);
+      setHistory(prev => [res.data, ...prev.slice(0, 19)]);
+      showToast("Risk narrative generated", "success");
+    } catch (e) {
+      showToast(e.response?.data?.error || "Generation failed", "error");
+    } finally {
+      setGenerating(false);
+    }
+  };
+
+  const handleDownload = (text, aud) => {
+    const blob = new Blob([text], { type: "text/plain" });
+    const url  = URL.createObjectURL(blob);
+    const a    = document.createElement("a");
+    a.href     = url;
+    a.download = `aipet-risk-narrative-${aud}-${new Date().toISOString().slice(0,10)}.txt`;
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const currentAud = AUDIENCES.find(a => a.id === audience);
+
+  return (
+    <div style={{ padding:"32px 36px", background:C.bg,
+      minHeight:"100vh", fontFamily:"Inter, sans-serif",
+      color:C.text }}>
+
+      {/* Header */}
+      <div style={{ display:"flex", alignItems:"center",
+        gap:"16px", marginBottom:"32px" }}>
+        <div style={{ width:"52px", height:"52px",
+          borderRadius:"14px",
+          background:"linear-gradient(135deg, #a78bfa20, #00e5ff08)",
+          border:"1px solid #a78bfa35",
+          display:"flex", alignItems:"center",
+          justifyContent:"center", fontSize:"24px",
+          boxShadow:"0 0 20px #a78bfa15" }}>
+          📝
+        </div>
+        <div>
+          <h1 style={{ margin:0, fontSize:"26px", fontWeight:"800",
+            letterSpacing:"-0.5px",
+            fontFamily:"JetBrains Mono, monospace",
+            background:"linear-gradient(135deg, #a78bfa, #00e5ff)",
+            WebkitBackgroundClip:"text",
+            WebkitTextFillColor:"transparent" }}>
+            AI Risk Narrative
+          </h1>
+          <div style={{ fontSize:"13px", color:C.muted, marginTop:"2px" }}>
+            Plain-English security briefings · Executive · Board · Technical · Compliance
+          </div>
+        </div>
+      </div>
+
+      {/* Tab bar */}
+      <div style={{ display:"flex", gap:"4px", marginBottom:"24px",
+        background:C.card, padding:"4px", borderRadius:"12px",
+        border:`1px solid ${C.border}`, width:"fit-content" }}>
+        {[
+          { id:"generate", label:"Generate Report" },
+          { id:"history",  label:`History (${history.length})` },
+        ].map(t => (
+          <button key={t.id} onClick={() => setTab(t.id)}
+            style={{ padding:"8px 20px", borderRadius:"9px",
+              border:"none", cursor:"pointer",
+              fontSize:"13px", fontWeight:"600",
+              transition:"all 0.2s",
+              background:tab===t.id
+                ? "linear-gradient(135deg,#a78bfa20,#00e5ff08)"
+                : "transparent",
+              color:tab===t.id ? C.text : C.muted,
+              boxShadow:tab===t.id ? "inset 0 0 0 1px #a78bfa30" : "none" }}>
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      {tab === "generate" && (
+        <div>
+          {/* Audience selector */}
+          <div style={{ display:"grid",
+            gridTemplateColumns:"repeat(4, 1fr)",
+            gap:"12px", marginBottom:"24px" }}>
+            {AUDIENCES.map(a => (
+              <div key={a.id}
+                onClick={() => setAudience(a.id)}
+                style={{ ...cardStyle({ cursor:"pointer",
+                  padding:"20px",
+                  borderColor:audience===a.id ? a.color+"60" : C.border }),
+                  boxShadow:audience===a.id
+                    ? `0 0 20px ${a.color}15` : "none",
+                  transition:"all 0.2s" }}>
+                <div style={{ fontSize:"28px", marginBottom:"10px" }}>
+                  {a.icon}
+                </div>
+                <div style={{ fontWeight:"700", fontSize:"14px",
+                  color:audience===a.id ? a.color : C.text,
+                  marginBottom:"6px" }}>
+                  {a.label}
+                </div>
+                <div style={{ fontSize:"11px", color:C.muted,
+                  lineHeight:"1.4" }}>
+                  {a.desc}
+                </div>
+                {audience===a.id && (
+                  <div style={{ marginTop:"10px", padding:"3px 8px",
+                    borderRadius:"100px", fontSize:"10px",
+                    fontWeight:"700", background:a.color+"20",
+                    color:a.color, width:"fit-content" }}>
+                    Selected
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+
+          {/* Generate button */}
+          <div style={{ display:"flex", alignItems:"center",
+            gap:"16px", marginBottom:"28px" }}>
+            <button onClick={handleGenerate} disabled={generating}
+              style={{ padding:"14px 32px", borderRadius:"12px",
+                border:"none", cursor:generating?"not-allowed":"pointer",
+                fontSize:"15px", fontWeight:"800",
+                background:generating ? C.surface
+                  : `linear-gradient(135deg, #a78bfa, #00e5ff)`,
+                color:generating ? C.muted : "#000",
+                boxShadow:generating ? "none"
+                  : "0 0 30px rgba(167,139,250,0.3)",
+                transition:"all 0.3s",
+                display:"flex", alignItems:"center", gap:"10px" }}>
+              {generating ? (
+                <>
+                  <div style={{ width:"16px", height:"16px",
+                    border:"2px solid #64748b",
+                    borderTop:"2px solid #a78bfa",
+                    borderRadius:"50%",
+                    animation:"spin 1s linear infinite" }} />
+                  Generating {currentAud?.label} narrative...
+                </>
+              ) : (
+                <>📝 Generate {currentAud?.label} Risk Narrative</>
+              )}
+            </button>
+            <div style={{ fontSize:"12px", color:C.muted }}>
+              Powered by Claude AI · Uses your real security data
+            </div>
+          </div>
+
+          {/* Generated narrative */}
+          {narrative && (
+            <div style={{ ...cardStyle({
+              borderColor:(currentAud?.color||"#a78bfa")+"30" }) }}>
+              <div style={{ display:"flex", alignItems:"center",
+                justifyContent:"space-between", marginBottom:"16px" }}>
+                <div>
+                  <div style={{ fontWeight:"700", fontSize:"15px",
+                    marginBottom:"4px" }}>
+                    {currentAud?.icon} {currentAud?.label} Risk Narrative
+                  </div>
+                  <div style={{ fontSize:"11px", color:C.muted }}>
+                    Risk Score: {narrative.risk_score}/100 ·{" "}
+                    {narrative.findings} findings ·{" "}
+                    {narrative.devices} affected devices ·{" "}
+                    {narrative.tokens_used} tokens
+                  </div>
+                </div>
+                <div style={{ display:"flex", gap:"8px" }}>
+                  <button onClick={() => {
+                    navigator.clipboard.writeText(narrative.narrative);
+                    showToast("Copied to clipboard", "success");
+                  }} style={{ padding:"7px 14px", borderRadius:"8px",
+                    border:`1px solid ${currentAud?.color}30`,
+                    cursor:"pointer", fontSize:"12px",
+                    fontWeight:"600",
+                    background:(currentAud?.color||"#a78bfa")+"10",
+                    color:currentAud?.color }}>
+                    Copy
+                  </button>
+                  <button onClick={() => handleDownload(
+                    narrative.narrative, audience)}
+                    style={{ padding:"7px 14px", borderRadius:"8px",
+                      border:`1px solid ${currentAud?.color}30`,
+                      cursor:"pointer", fontSize:"12px",
+                      fontWeight:"600",
+                      background:(currentAud?.color||"#a78bfa")+"10",
+                      color:currentAud?.color }}>
+                    ↓ Download
+                  </button>
+                </div>
+              </div>
+              <div style={{ fontSize:"14px", lineHeight:"1.8",
+                color:C.text, whiteSpace:"pre-wrap",
+                padding:"20px", borderRadius:"12px",
+                background:C.surface,
+                border:`1px solid ${C.border}` }}>
+                {narrative.narrative}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* History tab */}
+      {tab === "history" && (
+        <div style={{ display:"flex", flexDirection:"column", gap:"10px" }}>
+          {loading ? (
+            <div style={{ textAlign:"center", padding:"48px",
+              color:C.muted }}>Loading...</div>
+          ) : history.length === 0 ? (
+            <div style={{ ...cardStyle({ padding:"48px",
+              textAlign:"center" }), color:C.muted }}>
+              No narratives generated yet.
+            </div>
+          ) : history.map((h, i) => {
+            const aud = AUDIENCES.find(a => a.id === h.audience)
+              || AUDIENCES[0];
+            return (
+              <div key={h.id || i} style={{ ...cardStyle(),
+                borderLeft:`3px solid ${aud.color}` }}>
+                <div style={{ display:"flex",
+                  alignItems:"center", gap:"12px" }}>
+                  <span style={{ fontSize:"22px" }}>{aud.icon}</span>
+                  <div style={{ flex:1 }}>
+                    <div style={{ fontWeight:"700", fontSize:"13px",
+                      marginBottom:"3px" }}>
+                      {aud.label} Risk Narrative
+                    </div>
+                    <div style={{ fontSize:"11px", color:C.muted }}>
+                      Risk {h.risk_score}/100 ·{" "}
+                      {h.findings} findings ·{" "}
+                      {new Date(h.created_at).toLocaleDateString()}
+                    </div>
+                  </div>
+                  <button onClick={() => {
+                    setNarrative(h);
+                    setAudience(h.audience);
+                    setTab("generate");
+                  }} style={{ padding:"6px 14px",
+                    borderRadius:"8px",
+                    border:`1px solid ${aud.color}30`,
+                    cursor:"pointer", fontSize:"12px",
+                    fontWeight:"600",
+                    background:aud.color+"10", color:aud.color }}>
+                    View
+                  </button>
+                </div>
+                <div style={{ marginTop:"10px", fontSize:"12px",
+                  color:C.muted, lineHeight:"1.5",
+                  display:"-webkit-box",
+                  WebkitLineClamp:2,
+                  WebkitBoxOrient:"vertical",
+                  overflow:"hidden" }}>
+                  {h.narrative?.slice(0, 200)}...
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
 
 // ─────────────────────────────────────────────────────────────
 // AIPET X — Incident Response Page
@@ -14816,6 +15141,9 @@ export default function App() {
           )}
           {activeTab === "team" && (
             <TeamAccessPage token={token} showToast={showToast} />
+          )}
+          {activeTab === "narrative" && (
+            <RiskNarrativePage token={token} showToast={showToast} />
           )}
           {activeTab === "incidents" && (
             <IncidentResponsePage token={token} showToast={showToast} />
