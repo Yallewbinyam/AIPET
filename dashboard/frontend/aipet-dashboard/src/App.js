@@ -31,7 +31,7 @@ import {
   Wifi, Globe, FileText, Zap, Eye,
   TrendingUp, AlertOctagon, Info, CreditCard,
   Star, Check, X, Settings
-} from "lucide-react";
+, GitBranch } from "lucide-react";
 
 const API      = "http://localhost:5001/api";
 const AUTH_API = "http://localhost:5001/api/auth";
@@ -6115,6 +6115,7 @@ const NAV_ITEMS = [
   { id: "timeline",   label: "Timeline",     icon: Activity,      group: "enterprise" },
   { id: "incidents",  label: "Incidents",    icon: AlertTriangle, group: "enterprise" },
   { id: "narrative",  label: "Risk Narrative", icon: FileText,     group: "enterprise" },
+  { id: "attackpath", label: "Attack Paths",  icon: GitBranch,     group: "enterprise" },
   { id: "settings",  label: "Settings",      icon: Settings,      group: "account"  },
 ];
 
@@ -6377,6 +6378,510 @@ function SettingsPage({ token, showToast }) {
   );
 }
 
+
+// ─────────────────────────────────────────────────────────────
+// AIPET X — Attack Path Modelling Page
+//
+// Features:
+//   • Run attack path analysis
+//   • Visual attack chain — entry → pivot → target
+//   • Likelihood scores per path
+//   • MITRE ATT&CK technique mapping
+//   • Critical path highlighting
+//   • Blocked vs active paths
+//   • SVG attack chain visualisation
+// ─────────────────────────────────────────────────────────────
+function AttackPathPage({ token, showToast }) {
+
+  const [analyses,  setAnalyses]  = useState([]);
+  const [stats,     setStats]     = useState(null);
+  const [loading,   setLoading]   = useState(true);
+  const [running,   setRunning]   = useState(false);
+  const [selAnalysis,setSelAnalysis]=useState(null);
+  const [paths,     setPaths]     = useState([]);
+  const [selPath,   setSelPath]   = useState(null);
+
+  const H = { headers: { Authorization: `Bearer ${token}` } };
+
+  const SEV_COLOR = {
+    Critical: "#ff3b5c",
+    High:     "#ff8c00",
+    Medium:   "#ffd600",
+    Low:      "#00ff88",
+  };
+
+  const ZONE_COLOR = {
+    internet:    "#ff3b5c",
+    dmz:         "#ff8c00",
+    corporate:   "#ffd600",
+    iot:         "#00e5ff",
+    operational: "#a78bfa",
+    field:       "#00ff88",
+  };
+
+  const C = {
+    bg: "#030712", card: "#0d1117", surface: "#080f1a",
+    border: "#1e2a3a", borderBright: "#2d3f55",
+    text: "#e2e8f0", muted: "#64748b", faint: "#334155",
+    cyan: "#00e5ff",
+  };
+  const cardStyle = (extra={}) => ({
+    background: C.card, border: `1px solid ${C.border}`,
+    borderRadius: "16px", padding: "24px", ...extra
+  });
+
+  const fetchAll = useCallback(async () => {
+    try {
+      const [anRes, stRes] = await Promise.all([
+        axios.get(`${API}/attackpath/analyses`, H),
+        axios.get(`${API}/attackpath/stats`, H),
+      ]);
+      setAnalyses(anRes.data.analyses || []);
+      setStats(stRes.data);
+    } catch {
+      showToast("Failed to load attack paths", "error");
+    } finally {
+      setLoading(false);
+    }
+  }, [token]);
+
+  useEffect(() => { fetchAll(); }, [fetchAll]);
+
+  const handleRun = async () => {
+    setRunning(true);
+    try {
+      const res = await axios.post(`${API}/attackpath/analyse`,
+        { name: `Attack Path Analysis — ${new Date().toLocaleDateString()}`,
+          scope: "Full Network" }, H);
+      showToast(`Analysis complete — ${res.data.analysis.total_paths} paths found`, "success");
+      setSelAnalysis(res.data.analysis);
+      setPaths(res.data.paths);
+      setSelPath(res.data.paths[0] || null);
+      fetchAll();
+    } catch (e) {
+      showToast(e.response?.data?.error || "Analysis failed", "error");
+    } finally {
+      setRunning(false);
+    }
+  };
+
+  const loadAnalysis = async (aid) => {
+    try {
+      const res = await axios.get(`${API}/attackpath/analyses/${aid}`, H);
+      setSelAnalysis(res.data);
+      setPaths(res.data.paths || []);
+      setSelPath(res.data.paths?.[0] || null);
+    } catch {
+      showToast("Failed to load analysis", "error");
+    }
+  };
+
+  const handleDelete = async (aid) => {
+    try {
+      await axios.delete(`${API}/attackpath/analyses/${aid}`, H);
+      if (selAnalysis?.id === aid) {
+        setSelAnalysis(null); setPaths([]); setSelPath(null);
+      }
+      fetchAll();
+      showToast("Deleted", "success");
+    } catch {
+      showToast("Failed to delete", "error");
+    }
+  };
+
+  // SVG Attack Chain Renderer
+  const AttackChain = ({ path }) => {
+    if (!path?.chain?.length) return null;
+    const steps  = path.chain;
+    const W      = 100 / steps.length;
+    const colors = steps.map(s => ZONE_COLOR[s.zone] || "#64748b");
+
+    return (
+      <div style={{ overflowX: "auto", padding: "16px 0" }}>
+        <div style={{ display: "flex", alignItems: "center",
+          gap: "0", minWidth: `${steps.length * 180}px` }}>
+          {steps.map((step, i) => (
+            <div key={i} style={{ display: "flex",
+              alignItems: "center", flex: 1 }}>
+              {/* Step node */}
+              <div style={{ flex: 1, padding: "14px",
+                background: colors[i]+"12",
+                border: `1px solid ${colors[i]}40`,
+                borderRadius: "12px", textAlign: "center",
+                position: "relative" }}>
+                {/* Zone badge */}
+                <div style={{ position: "absolute", top: "-8px",
+                  left: "50%", transform: "translateX(-50%)",
+                  padding: "2px 8px", borderRadius: "100px",
+                  fontSize: "9px", fontWeight: "700",
+                  background: colors[i]+"25", color: colors[i],
+                  textTransform: "uppercase", whiteSpace: "nowrap",
+                  letterSpacing: "0.5px" }}>
+                  {step.zone}
+                </div>
+                {/* Device */}
+                <div style={{ fontWeight: "700", fontSize: "13px",
+                  color: colors[i], marginBottom: "6px",
+                  marginTop: "4px" }}>
+                  {step.device}
+                </div>
+                {/* Action */}
+                <div style={{ fontSize: "10px", color: C.muted,
+                  lineHeight: "1.4", marginBottom: "6px" }}>
+                  {step.action}
+                </div>
+                {/* Technique badge */}
+                <div style={{ padding: "2px 8px",
+                  borderRadius: "6px", fontSize: "10px",
+                  fontWeight: "700", color: "#a78bfa",
+                  background: "#7c3aed10",
+                  border: "1px solid #7c3aed20",
+                  fontFamily: "JetBrains Mono, monospace",
+                  display: "inline-block" }}>
+                  {step.technique}
+                </div>
+                {/* Entry/Target labels */}
+                {i === 0 && (
+                  <div style={{ position: "absolute", bottom: "-8px",
+                    left: "50%", transform: "translateX(-50%)",
+                    padding: "2px 8px", borderRadius: "100px",
+                    fontSize: "9px", fontWeight: "800",
+                    background: "#ff3b5c", color: "#fff",
+                    whiteSpace: "nowrap" }}>
+                    ENTRY POINT
+                  </div>
+                )}
+                {i === steps.length-1 && (
+                  <div style={{ position: "absolute", bottom: "-8px",
+                    left: "50%", transform: "translateX(-50%)",
+                    padding: "2px 8px", borderRadius: "100px",
+                    fontSize: "9px", fontWeight: "800",
+                    background: "#ff3b5c", color: "#fff",
+                    whiteSpace: "nowrap" }}>
+                    TARGET
+                  </div>
+                )}
+              </div>
+              {/* Arrow */}
+              {i < steps.length-1 && (
+                <div style={{ padding: "0 8px", color: "#ff3b5c",
+                  fontSize: "18px", fontWeight: "700",
+                  flexShrink: 0 }}>
+                  →
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      </div>
+    );
+  };
+
+  if (loading) return (
+    <div style={{ display:"flex", justifyContent:"center",
+      alignItems:"center", height:"60vh" }}>
+      <div style={{ width:"48px", height:"48px",
+        border:`3px solid ${C.border}`,
+        borderTop:`3px solid ${C.cyan}`,
+        borderRadius:"50%",
+        animation:"spin 1s linear infinite" }} />
+    </div>
+  );
+
+  return (
+    <div style={{ padding:"32px 36px", background:C.bg,
+      minHeight:"100vh", fontFamily:"Inter, sans-serif",
+      color:C.text }}>
+
+      {/* Header */}
+      <div style={{ display:"flex", alignItems:"center",
+        justifyContent:"space-between", marginBottom:"32px" }}>
+        <div style={{ display:"flex", alignItems:"center", gap:"16px" }}>
+          <div style={{ width:"52px", height:"52px",
+            borderRadius:"14px",
+            background:"linear-gradient(135deg, #ff3b5c20, #ff8c0008)",
+            border:"1px solid #ff3b5c35",
+            display:"flex", alignItems:"center",
+            justifyContent:"center", fontSize:"24px",
+            boxShadow:"0 0 20px #ff3b5c15" }}>
+            🗺️
+          </div>
+          <div>
+            <h1 style={{ margin:0, fontSize:"26px", fontWeight:"800",
+              letterSpacing:"-0.5px",
+              fontFamily:"JetBrains Mono, monospace",
+              background:"linear-gradient(135deg, #ff3b5c, #ff8c00)",
+              WebkitBackgroundClip:"text",
+              WebkitTextFillColor:"transparent" }}>
+              Attack Path Modelling
+            </h1>
+            <div style={{ fontSize:"13px", color:C.muted, marginTop:"2px" }}>
+              Predictive attack chains · MITRE ATT&CK · Entry → Target visualisation
+            </div>
+          </div>
+        </div>
+        <button onClick={handleRun} disabled={running}
+          style={{ padding:"12px 28px", borderRadius:"12px",
+            border:"none", cursor:running?"not-allowed":"pointer",
+            fontSize:"14px", fontWeight:"800",
+            background:running ? C.surface
+              : "linear-gradient(135deg, #ff3b5c, #ff8c00)",
+            color:running ? C.muted : "#fff",
+            boxShadow:running ? "none"
+              : "0 0 24px rgba(255,59,92,0.3)",
+            display:"flex", alignItems:"center", gap:"8px",
+            transition:"all 0.2s" }}>
+          {running ? (
+            <>
+              <div style={{ width:"14px", height:"14px",
+                border:"2px solid #64748b",
+                borderTop:"2px solid #ff3b5c",
+                borderRadius:"50%",
+                animation:"spin 1s linear infinite" }} />
+              Analysing...
+            </>
+          ) : "▶ Run Analysis"}
+        </button>
+      </div>
+
+      {/* Stats */}
+      {stats && (
+        <div style={{ display:"grid",
+          gridTemplateColumns:"repeat(6, 1fr)",
+          gap:"12px", marginBottom:"28px" }}>
+          {[
+            { label:"Analyses",      value:stats.total_analyses,  color:"#00e5ff", icon:"📊" },
+            { label:"Attack Paths",  value:stats.total_paths,     color:"#ff3b5c", icon:"🗺️" },
+            { label:"Critical",      value:stats.critical_paths,  color:"#ff3b5c", icon:"🚨" },
+            { label:"Blocked",       value:stats.blocked_paths,   color:"#00ff88", icon:"🛡️" },
+            { label:"Avg Hops",      value:stats.avg_hops,        color:"#a78bfa", icon:"🔗" },
+            { label:"Avg Likelihood",value:`${stats.avg_likelihood}%`, color:"#ff8c00", icon:"📈" },
+          ].map(s => (
+            <div key={s.label} style={{ ...cardStyle({ padding:"16px" }),
+              borderColor:s.color+"25" }}>
+              <div style={{ fontSize:"18px", marginBottom:"6px" }}>{s.icon}</div>
+              <div style={{ fontSize:"22px", fontWeight:"800",
+                fontFamily:"JetBrains Mono, monospace", color:s.color,
+                lineHeight:1 }}>{s.value}</div>
+              <div style={{ fontSize:"10px", color:C.muted,
+                marginTop:"4px", textTransform:"uppercase",
+                letterSpacing:"0.5px" }}>{s.label}</div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <div style={{ display:"flex", gap:"16px" }}>
+        {/* Analysis list */}
+        <div style={{ width:"280px", flexShrink:0 }}>
+          <div style={{ fontSize:"11px", fontWeight:"700",
+            color:C.muted, textTransform:"uppercase",
+            letterSpacing:"1.5px", marginBottom:"12px" }}>
+            Past Analyses
+          </div>
+          {analyses.length === 0 ? (
+            <div style={{ ...cardStyle({ padding:"24px",
+              textAlign:"center" }), color:C.muted, fontSize:"12px" }}>
+              No analyses yet. Run your first analysis.
+            </div>
+          ) : analyses.map(a => (
+            <div key={a.id}
+              onClick={() => loadAnalysis(a.id)}
+              style={{ ...cardStyle({ padding:"14px",
+                marginBottom:"8px", cursor:"pointer",
+                borderColor:selAnalysis?.id===a.id
+                  ? "#ff3b5c50" : C.border }),
+                boxShadow:selAnalysis?.id===a.id
+                  ? "0 0 16px #ff3b5c10" : "none" }}>
+              <div style={{ fontWeight:"600", fontSize:"12px",
+                marginBottom:"4px", overflow:"hidden",
+                textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
+                {a.name}
+              </div>
+              <div style={{ display:"flex", gap:"8px",
+                fontSize:"10px", color:C.muted,
+                marginBottom:"6px" }}>
+                <span style={{ color:"#ff3b5c" }}>
+                  {a.critical_paths} critical
+                </span>
+                <span>·</span>
+                <span>{a.total_paths} paths</span>
+                <span>·</span>
+                <span>depth {a.max_depth}</span>
+              </div>
+              <div style={{ display:"flex",
+                justifyContent:"space-between",
+                alignItems:"center" }}>
+                <span style={{ fontSize:"10px", color:C.faint }}>
+                  {new Date(a.created_at).toLocaleDateString()}
+                </span>
+                <button onClick={e => {
+                  e.stopPropagation(); handleDelete(a.id);
+                }} style={{ padding:"2px 8px",
+                  borderRadius:"5px",
+                  border:"1px solid #ff3b5c20",
+                  cursor:"pointer", fontSize:"10px",
+                  background:"#ff3b5c08", color:"#ff3b5c" }}>
+                  Delete
+                </button>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* Path detail */}
+        <div style={{ flex:1 }}>
+          {!selAnalysis ? (
+            <div style={{ ...cardStyle({ padding:"80px",
+              textAlign:"center" }), color:C.muted }}>
+              <div style={{ fontSize:"40px", marginBottom:"16px" }}>🗺️</div>
+              <div style={{ fontSize:"16px", fontWeight:"700",
+                color:C.text, marginBottom:"8px" }}>
+                Run an Attack Path Analysis
+              </div>
+              <div style={{ fontSize:"13px" }}>
+                AIPET X maps your network topology and identifies
+                every path an attacker could take from internet
+                to your most critical systems.
+              </div>
+            </div>
+          ) : (
+            <div>
+              {/* Path selector */}
+              <div style={{ display:"flex", gap:"8px",
+                flexWrap:"wrap", marginBottom:"20px" }}>
+                {paths.map(p => {
+                  const sc = SEV_COLOR[p.severity] || "#64748b";
+                  const isSelected = selPath?.id === p.id;
+                  return (
+                    <button key={p.id}
+                      onClick={() => setSelPath(p)}
+                      style={{ padding:"8px 14px",
+                        borderRadius:"10px",
+                        border:`1px solid ${isSelected
+                          ? sc+"60" : C.border}`,
+                        cursor:"pointer", fontSize:"12px",
+                        fontWeight:isSelected ? "700" : "400",
+                        background:isSelected ? sc+"15" : "transparent",
+                        color:isSelected ? sc : C.muted,
+                        transition:"all 0.15s",
+                        display:"flex", alignItems:"center",
+                        gap:"6px" }}>
+                      <span style={{ width:"6px", height:"6px",
+                        borderRadius:"50%", background:sc,
+                        flexShrink:0 }} />
+                      {p.entry_point} → {p.target}
+                      <span style={{ fontSize:"10px",
+                        opacity:0.7 }}>
+                        {p.likelihood}%
+                      </span>
+                      {p.blocked && (
+                        <span style={{ fontSize:"10px",
+                          color:"#00ff88" }}>🛡️</span>
+                      )}
+                    </button>
+                  );
+                })}
+              </div>
+
+              {/* Selected path detail */}
+              {selPath && (
+                <div>
+                  {/* Path header */}
+                  <div style={{ ...cardStyle({ marginBottom:"16px",
+                    borderColor:(SEV_COLOR[selPath.severity]||"#ff3b5c")+"30",
+                    borderLeft:`4px solid ${SEV_COLOR[selPath.severity]||"#ff3b5c"}` }) }}>
+                    <div style={{ display:"flex",
+                      alignItems:"flex-start", gap:"16px",
+                      marginBottom:"16px" }}>
+                      <div style={{ flex:1 }}>
+                        <div style={{ display:"flex",
+                          alignItems:"center", gap:"10px",
+                          marginBottom:"8px" }}>
+                          <span style={{ padding:"3px 10px",
+                            borderRadius:"100px", fontSize:"11px",
+                            fontWeight:"800",
+                            background:(SEV_COLOR[selPath.severity]||"#ff3b5c")+"20",
+                            color:SEV_COLOR[selPath.severity]||"#ff3b5c" }}>
+                            {selPath.severity}
+                          </span>
+                          <span style={{ fontSize:"13px",
+                            fontWeight:"700" }}>
+                            {selPath.entry_point} → {selPath.target}
+                          </span>
+                          {selPath.blocked && (
+                            <span style={{ padding:"3px 10px",
+                              borderRadius:"100px", fontSize:"11px",
+                              fontWeight:"700",
+                              background:"#00ff8820", color:"#00ff88" }}>
+                              🛡️ BLOCKED
+                            </span>
+                          )}
+                        </div>
+                        <div style={{ fontSize:"12px", color:C.muted }}>
+                          {selPath.impact}
+                        </div>
+                      </div>
+                      <div style={{ display:"flex", gap:"16px",
+                        flexShrink:0 }}>
+                        <div style={{ textAlign:"center" }}>
+                          <div style={{ fontSize:"24px",
+                            fontWeight:"800",
+                            fontFamily:"JetBrains Mono, monospace",
+                            color:selPath.likelihood > 60
+                              ? "#ff3b5c" : "#ffd600" }}>
+                            {selPath.likelihood}%
+                          </div>
+                          <div style={{ fontSize:"10px",
+                            color:C.muted }}>Likelihood</div>
+                        </div>
+                        <div style={{ textAlign:"center" }}>
+                          <div style={{ fontSize:"24px",
+                            fontWeight:"800",
+                            fontFamily:"JetBrains Mono, monospace",
+                            color:"#a78bfa" }}>
+                            {selPath.hops}
+                          </div>
+                          <div style={{ fontSize:"10px",
+                            color:C.muted }}>Hops</div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Techniques */}
+                    <div style={{ display:"flex", gap:"6px",
+                      flexWrap:"wrap", marginBottom:"16px" }}>
+                      {selPath.techniques.map(t => (
+                        <span key={t} style={{ padding:"3px 8px",
+                          borderRadius:"6px", fontSize:"11px",
+                          fontWeight:"700", color:"#a78bfa",
+                          background:"#7c3aed10",
+                          border:"1px solid #7c3aed20",
+                          fontFamily:"JetBrains Mono, monospace" }}>
+                          {t}
+                        </span>
+                      ))}
+                    </div>
+
+                    {/* Attack chain visualisation */}
+                    <div style={{ marginTop:"8px" }}>
+                      <div style={{ fontSize:"10px", fontWeight:"700",
+                        color:C.muted, textTransform:"uppercase",
+                        letterSpacing:"1.5px", marginBottom:"20px" }}>
+                        Attack Chain
+                      </div>
+                      <AttackChain path={selPath} />
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
 
 // ─────────────────────────────────────────────────────────────
 // AIPET X — AI Risk Narrative Page
@@ -15141,6 +15646,9 @@ export default function App() {
           )}
           {activeTab === "team" && (
             <TeamAccessPage token={token} showToast={showToast} />
+          )}
+          {activeTab === "attackpath" && (
+            <AttackPathPage token={token} showToast={showToast} />
           )}
           {activeTab === "narrative" && (
             <RiskNarrativePage token={token} showToast={showToast} />
