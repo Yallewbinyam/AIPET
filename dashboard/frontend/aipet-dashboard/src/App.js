@@ -30,8 +30,8 @@ import {
   ChevronDown, ChevronUp, Cpu, Lock,
   Wifi, Globe, FileText, Zap, Eye,
   TrendingUp, AlertOctagon, Info, CreditCard,
-  Star, Check, X, Settings
-, GitBranch } from "lucide-react";
+  Star, Check, X, Settings,
+  GitBranch, Users } from "lucide-react";
 
 const API      = "http://localhost:5001/api";
 const AUTH_API = "http://localhost:5001/api/auth";
@@ -6116,6 +6116,8 @@ const NAV_ITEMS = [
   { id: "incidents",  label: "Incidents",    icon: AlertTriangle, group: "enterprise" },
   { id: "narrative",  label: "Risk Narrative", icon: FileText,     group: "enterprise" },
   { id: "attackpath", label: "Attack Paths",  icon: GitBranch,     group: "enterprise" },
+  { id: "identitygraph",label: "Identity Graph", icon: Users,        group: "enterprise" },
+  { id: "behavioral",  label: "Behavioral AI",  icon: Activity,      group: "enterprise" },
   { id: "settings",  label: "Settings",      icon: Settings,      group: "account"  },
 ];
 
@@ -6378,6 +6380,1134 @@ function SettingsPage({ token, showToast }) {
   );
 }
 
+
+// ─────────────────────────────────────────────────────────────
+// AIPET X — Behavioral AI Engine Page
+//
+// Features:
+//   • Stats: baselines, anomalies, critical, avg confidence
+//   • Anomaly feed with sigma deviation scoring
+//   • MITRE ATT&CK mapping per anomaly
+//   • Observed vs Expected comparison
+//   • Status workflow: new → investigating → resolved
+//   • Baselines tab with confidence bars
+//   • Run analysis button
+// ─────────────────────────────────────────────────────────────
+function BehavioralAIPage({ token, showToast }) {
+
+  const [baselines,  setBaselines]  = useState([]);
+  const [anomalies,  setAnomalies]  = useState([]);
+  const [stats,      setStats]      = useState(null);
+  const [loading,    setLoading]    = useState(true);
+  const [running,    setRunning]    = useState(false);
+  const [tab,        setTab]        = useState("anomalies");
+  const [selBaseline,setSelBaseline]= useState(null);
+  const [updating,   setUpdating]   = useState({});
+  const [statusFilter,setStatusFilter]=useState("");
+
+  const H = { headers: { Authorization: `Bearer ${token}` } };
+
+  const SEV_COLOR = {
+    Critical: "#ff3b5c", High: "#ff8c00",
+    Medium: "#ffd600",   Low: "#00ff88",
+  };
+  const TYPE_META = {
+    traffic_spike:        { icon: "📈", label: "Traffic Spike"        },
+    new_connection:       { icon: "🔗", label: "New Connection"        },
+    unusual_hours:        { icon: "🌙", label: "Unusual Hours"         },
+    geo_anomaly:          { icon: "🌍", label: "Geographic Anomaly"    },
+    protocol_change:      { icon: "🔄", label: "Protocol Change"       },
+    data_exfil:           { icon: "📤", label: "Data Exfiltration"     },
+    lateral_movement:     { icon: "↔️", label: "Lateral Movement"     },
+    privilege_escalation: { icon: "⬆️", label: "Privilege Escalation" },
+    beacon:               { icon: "📡", label: "C2 Beaconing"          },
+    dormant_activation:   { icon: "👻", label: "Dormant Activation"    },
+  };
+  const STATUS_COLOR = {
+    new: "#ff3b5c", investigating: "#ff8c00",
+    resolved: "#00ff88", false_positive: "#64748b",
+  };
+  const C = {
+    bg: "#030712", card: "#0d1117", surface: "#080f1a",
+    border: "#1e2a3a", borderBright: "#2d3f55",
+    text: "#e2e8f0", muted: "#64748b", faint: "#334155",
+    cyan: "#00e5ff",
+  };
+  const cardStyle = (extra={}) => ({
+    background: C.card, border: `1px solid ${C.border}`,
+    borderRadius: "16px", padding: "24px", ...extra
+  });
+
+  const fetchAll = useCallback(async () => {
+    try {
+      const [blRes, anRes, stRes] = await Promise.all([
+        axios.get(`${API}/behavioral/baselines`, H),
+        axios.get(`${API}/behavioral/anomalies?days=7${statusFilter ? "&status="+statusFilter : ""}`, H),
+        axios.get(`${API}/behavioral/stats`, H),
+      ]);
+      setBaselines(blRes.data.baselines || []);
+      setAnomalies(anRes.data.anomalies || []);
+      setStats(stRes.data);
+    } catch { showToast("Failed to load behavioral data", "error"); }
+    finally { setLoading(false); }
+  }, [token, statusFilter]);
+
+  useEffect(() => { fetchAll(); }, [fetchAll]);
+
+  const handleRun = async () => {
+    setRunning(true);
+    try {
+      const res = await axios.post(`${API}/behavioral/analyse`, {}, H);
+      showToast(`Analysis complete — ${res.data.new_anomalies} new anomalies`, "success");
+      fetchAll();
+    } catch (e) {
+      showToast(e.response?.data?.error || "Analysis failed", "error");
+    } finally { setRunning(false); }
+  };
+
+  const handleStatus = async (aid, newStatus) => {
+    setUpdating(prev => ({ ...prev, [aid]: true }));
+    try {
+      await axios.put(`${API}/behavioral/anomalies/${aid}`, { status: newStatus }, H);
+      fetchAll();
+      showToast(`Status → ${newStatus}`, "success");
+    } catch { showToast("Failed to update", "error"); }
+    finally { setUpdating(prev => ({ ...prev, [aid]: false })); }
+  };
+
+  const DeviationBar = ({ deviation }) => {
+    const pct   = Math.min(100, (deviation / 12) * 100);
+    const color = deviation >= 5 ? "#ff3b5c" : deviation >= 3.5 ? "#ff8c00" : "#ffd600";
+    return (
+      <div style={{ display:"flex", alignItems:"center", gap:"8px" }}>
+        <div style={{ flex:1, height:"4px", background:C.faint, borderRadius:"2px" }}>
+          <div style={{ height:"100%", width:`${pct}%`, background:color,
+            borderRadius:"2px", boxShadow:`0 0 6px ${color}` }} />
+        </div>
+        <div style={{ fontSize:"11px", fontWeight:"800",
+          fontFamily:"JetBrains Mono, monospace", color, whiteSpace:"nowrap" }}>
+          {deviation.toFixed(1)}σ
+        </div>
+      </div>
+    );
+  };
+
+  if (loading) return (
+    <div style={{ display:"flex", justifyContent:"center", alignItems:"center", height:"60vh" }}>
+      <div style={{ width:"48px", height:"48px", border:`3px solid ${C.border}`,
+        borderTop:`3px solid ${C.cyan}`, borderRadius:"50%",
+        animation:"spin 1s linear infinite" }} />
+    </div>
+  );
+
+  return (
+    <div style={{ padding:"32px 36px", background:C.bg, minHeight:"100vh",
+      fontFamily:"Inter, sans-serif", color:C.text }}>
+
+      {/* Header */}
+      <div style={{ display:"flex", alignItems:"center",
+        justifyContent:"space-between", marginBottom:"32px" }}>
+        <div style={{ display:"flex", alignItems:"center", gap:"16px" }}>
+          <div style={{ width:"52px", height:"52px", borderRadius:"14px",
+            background:"linear-gradient(135deg, #a78bfa20, #00e5ff08)",
+            border:"1px solid #a78bfa35", display:"flex", alignItems:"center",
+            justifyContent:"center", fontSize:"24px",
+            boxShadow:"0 0 20px #a78bfa15" }}>🧠</div>
+          <div>
+            <h1 style={{ margin:0, fontSize:"26px", fontWeight:"800",
+              letterSpacing:"-0.5px", fontFamily:"JetBrains Mono, monospace",
+              background:"linear-gradient(135deg, #a78bfa, #00e5ff)",
+              WebkitBackgroundClip:"text", WebkitTextFillColor:"transparent" }}>
+              Behavioral AI Engine
+            </h1>
+            <div style={{ fontSize:"13px", color:C.muted, marginTop:"2px" }}>
+              Pattern of life · Anomaly detection · Sigma deviation scoring
+            </div>
+          </div>
+        </div>
+        <button onClick={handleRun} disabled={running}
+          style={{ padding:"12px 28px", borderRadius:"12px", border:"none",
+            cursor:running?"not-allowed":"pointer", fontSize:"14px", fontWeight:"800",
+            background:running ? C.surface : "linear-gradient(135deg, #a78bfa, #7c3aed)",
+            color:running ? C.muted : "#fff",
+            boxShadow:running ? "none" : "0 0 24px rgba(167,139,250,0.3)",
+            display:"flex", alignItems:"center", gap:"8px", transition:"all 0.2s" }}>
+          {running ? (
+            <><div style={{ width:"14px", height:"14px", border:"2px solid #64748b",
+              borderTop:"2px solid #a78bfa", borderRadius:"50%",
+              animation:"spin 1s linear infinite" }} />Analysing...</>
+          ) : "▶ Run Analysis"}
+        </button>
+      </div>
+
+      {/* Stats */}
+      {stats && (
+        <div style={{ display:"grid", gridTemplateColumns:"repeat(6, 1fr)",
+          gap:"12px", marginBottom:"28px" }}>
+          {[
+            { label:"Baselines",      value:stats.total_baselines,     color:"#a78bfa", icon:"📊" },
+            { label:"Anomalies",      value:stats.total_anomalies,     color:"#ff8c00", icon:"⚡" },
+            { label:"New",            value:stats.new_anomalies,       color:"#ff3b5c", icon:"🆕" },
+            { label:"Critical",       value:stats.critical,            color:"#ff3b5c", icon:"🚨" },
+            { label:"High Risk",      value:stats.high_risk_entities,  color:"#ff8c00", icon:"🔥" },
+            { label:"Avg Confidence", value:`${stats.avg_confidence}%`,color:"#00ff88", icon:"🎯" },
+          ].map(s => (
+            <div key={s.label} style={{ ...cardStyle({ padding:"18px" }),
+              borderColor:s.color+"25" }}>
+              <div style={{ fontSize:"18px", marginBottom:"6px" }}>{s.icon}</div>
+              <div style={{ fontSize:"22px", fontWeight:"800",
+                fontFamily:"JetBrains Mono, monospace",
+                color:s.color, lineHeight:1 }}>{s.value}</div>
+              <div style={{ fontSize:"10px", color:C.muted, marginTop:"4px",
+                textTransform:"uppercase", letterSpacing:"0.5px" }}>{s.label}</div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Tabs */}
+      <div style={{ display:"flex", gap:"4px", marginBottom:"20px",
+        background:C.card, padding:"4px", borderRadius:"12px",
+        border:`1px solid ${C.border}`, width:"fit-content" }}>
+        {[
+          { id:"anomalies", label:`Anomalies (${anomalies.length})` },
+          { id:"baselines", label:`Baselines (${baselines.length})` },
+        ].map(t => (
+          <button key={t.id} onClick={() => setTab(t.id)}
+            style={{ padding:"8px 20px", borderRadius:"9px", border:"none",
+              cursor:"pointer", fontSize:"13px", fontWeight:"600",
+              transition:"all 0.2s",
+              background:tab===t.id ? "linear-gradient(135deg,#a78bfa20,#00e5ff08)" : "transparent",
+              color:tab===t.id ? C.text : C.muted,
+              boxShadow:tab===t.id ? "inset 0 0 0 1px #a78bfa30" : "none" }}>
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      {/* Anomalies tab */}
+      {tab === "anomalies" && (
+        <div>
+          <div style={{ display:"flex", gap:"8px", marginBottom:"16px", flexWrap:"wrap" }}>
+            {[
+              { id:"",               label:"All"            },
+              { id:"new",            label:"New"            },
+              { id:"investigating",  label:"Investigating"  },
+              { id:"resolved",       label:"Resolved"       },
+              { id:"false_positive", label:"False Positive" },
+            ].map(s => (
+              <button key={s.id} onClick={() => setStatusFilter(s.id)}
+                style={{ padding:"5px 14px", borderRadius:"100px",
+                  border:`1px solid ${statusFilter===s.id ? (STATUS_COLOR[s.id]||C.cyan) : C.border}`,
+                  background:statusFilter===s.id ? (STATUS_COLOR[s.id]||C.cyan)+"20" : "transparent",
+                  color:statusFilter===s.id ? (STATUS_COLOR[s.id]||C.cyan) : C.muted,
+                  cursor:"pointer", fontSize:"12px",
+                  fontWeight:statusFilter===s.id ? "700" : "400",
+                  transition:"all 0.15s" }}>
+                {s.label}
+              </button>
+            ))}
+          </div>
+          <div style={{ display:"flex", flexDirection:"column", gap:"8px" }}>
+            {anomalies.length === 0 ? (
+              <div style={{ ...cardStyle({ padding:"48px", textAlign:"center" }),
+                color:C.muted }}>
+                No anomalies found. Run analysis to detect deviations.
+              </div>
+            ) : anomalies.map(anomaly => {
+              const sc  = SEV_COLOR[anomaly.severity] || "#64748b";
+              const tm  = TYPE_META[anomaly.anomaly_type] || { icon:"⚡", label:anomaly.anomaly_type };
+              const stc = STATUS_COLOR[anomaly.status] || "#64748b";
+              return (
+                <div key={anomaly.id} style={{ background:C.card,
+                  border:`1px solid ${anomaly.status==="new" ? sc+"30" : C.border}`,
+                  borderLeft:`3px solid ${sc}`, borderRadius:"12px",
+                  padding:"14px 16px",
+                  opacity:anomaly.status==="resolved" ? 0.65 : 1 }}>
+                  <div style={{ display:"flex", alignItems:"flex-start", gap:"10px" }}>
+                    <div style={{ fontSize:"20px", flexShrink:0, marginTop:"2px" }}>{tm.icon}</div>
+                    <div style={{ flex:1, minWidth:0 }}>
+                      <div style={{ display:"flex", gap:"6px", flexWrap:"wrap", marginBottom:"6px" }}>
+                        <span style={{ padding:"2px 8px", borderRadius:"100px",
+                          fontSize:"9px", fontWeight:"800", background:sc+"15",
+                          color:sc, textTransform:"uppercase", letterSpacing:"0.5px" }}>
+                          {anomaly.severity}
+                        </span>
+                        <span style={{ padding:"2px 8px", borderRadius:"100px",
+                          fontSize:"10px", fontWeight:"600",
+                          background:C.surface, color:C.muted }}>
+                          {tm.label}
+                        </span>
+                        {anomaly.mitre_id && (
+                          <span style={{ padding:"2px 8px", borderRadius:"6px",
+                            fontSize:"10px", fontWeight:"700", color:"#a78bfa",
+                            background:"#7c3aed10", border:"1px solid #7c3aed20",
+                            fontFamily:"JetBrains Mono, monospace" }}>
+                            {anomaly.mitre_id}
+                          </span>
+                        )}
+                        <span style={{ padding:"2px 8px", borderRadius:"100px",
+                          fontSize:"10px", fontWeight:"700",
+                          background:stc+"15", color:stc,
+                          textTransform:"uppercase", marginLeft:"auto" }}>
+                          {anomaly.status}
+                        </span>
+                      </div>
+                      <div style={{ fontWeight:"700", fontSize:"13px",
+                        marginBottom:"5px", color:C.text }}>
+                        {anomaly.title}
+                      </div>
+                      <div style={{ fontSize:"11px", color:C.muted,
+                        lineHeight:"1.5", marginBottom:"8px" }}>
+                        {anomaly.description}
+                      </div>
+                      <DeviationBar deviation={anomaly.deviation} />
+                      {anomaly.observed && Object.keys(anomaly.observed).length > 0 && (
+                        <div style={{ display:"flex", gap:"12px", marginTop:"8px" }}>
+                          <div style={{ flex:1, padding:"8px 10px", borderRadius:"8px",
+                            background:"#ff3b5c08", border:"1px solid #ff3b5c20" }}>
+                            <div style={{ fontSize:"9px", color:"#ff3b5c",
+                              fontWeight:"700", textTransform:"uppercase",
+                              marginBottom:"3px" }}>Observed</div>
+                            <div style={{ fontSize:"10px", color:C.muted,
+                              fontFamily:"JetBrains Mono, monospace",
+                              overflow:"hidden", textOverflow:"ellipsis",
+                              whiteSpace:"nowrap" }}>
+                              {Object.entries(anomaly.observed)
+                                .map(([k,v]) => `${k}: ${v}`).join(" · ")}
+                            </div>
+                          </div>
+                          <div style={{ flex:1, padding:"8px 10px", borderRadius:"8px",
+                            background:"#00ff8808", border:"1px solid #00ff8820" }}>
+                            <div style={{ fontSize:"9px", color:"#00ff88",
+                              fontWeight:"700", textTransform:"uppercase",
+                              marginBottom:"3px" }}>Expected (Baseline)</div>
+                            <div style={{ fontSize:"10px", color:C.muted,
+                              fontFamily:"JetBrains Mono, monospace",
+                              overflow:"hidden", textOverflow:"ellipsis",
+                              whiteSpace:"nowrap" }}>
+                              {Object.entries(anomaly.expected).slice(0,2)
+                                .map(([k,v]) => `${k}: ${JSON.stringify(v)}`).join(" · ")}
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                    <div style={{ display:"flex", flexDirection:"column",
+                      gap:"4px", flexShrink:0 }}>
+                      {anomaly.status === "new" && (
+                        <button onClick={() => handleStatus(anomaly.id, "investigating")}
+                          disabled={updating[anomaly.id]}
+                          style={{ padding:"5px 10px", borderRadius:"7px",
+                            border:"1px solid #ff8c0030", cursor:"pointer",
+                            fontSize:"11px", fontWeight:"600",
+                            background:"#ff8c0010", color:"#ff8c00" }}>
+                          Investigate
+                        </button>
+                      )}
+                      {anomaly.status === "investigating" && (
+                        <button onClick={() => handleStatus(anomaly.id, "resolved")}
+                          disabled={updating[anomaly.id]}
+                          style={{ padding:"5px 10px", borderRadius:"7px",
+                            border:"1px solid #00ff8830", cursor:"pointer",
+                            fontSize:"11px", fontWeight:"600",
+                            background:"#00ff8810", color:"#00ff88" }}>
+                          Resolve
+                        </button>
+                      )}
+                      <button onClick={() => handleStatus(anomaly.id, "false_positive")}
+                        disabled={updating[anomaly.id]}
+                        style={{ padding:"5px 10px", borderRadius:"7px",
+                          border:"1px solid #64748b30", cursor:"pointer",
+                          fontSize:"11px", background:"transparent", color:"#64748b" }}>
+                        False +
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Baselines tab */}
+      {tab === "baselines" && (
+        <div style={{ display:"grid", gridTemplateColumns:"repeat(2, 1fr)", gap:"12px" }}>
+          {baselines.map(b => {
+            const rc = b.risk_score >= 70 ? "#ff3b5c"
+              : b.risk_score >= 40 ? "#ffd600" : "#00ff88";
+            const isSelected = selBaseline?.id === b.id;
+            return (
+              <div key={b.id} onClick={() => setSelBaseline(isSelected ? null : b)}
+                style={{ ...cardStyle({ cursor:"pointer",
+                  borderColor:isSelected ? rc+"50" : C.border }),
+                  boxShadow:isSelected ? `0 0 16px ${rc}10` : "none" }}>
+                <div style={{ display:"flex", alignItems:"center", gap:"14px" }}>
+                  <div style={{ width:"52px", height:"52px", borderRadius:"50%",
+                    flexShrink:0, background:rc+"12", border:`2px solid ${rc}`,
+                    display:"flex", flexDirection:"column",
+                    alignItems:"center", justifyContent:"center",
+                    boxShadow:`0 0 12px ${rc}20` }}>
+                    <div style={{ fontSize:"16px", fontWeight:"800", color:rc,
+                      fontFamily:"JetBrains Mono, monospace", lineHeight:1 }}>
+                      {b.risk_score}
+                    </div>
+                    <div style={{ fontSize:"8px", color:rc }}>RISK</div>
+                  </div>
+                  <div style={{ flex:1 }}>
+                    <div style={{ fontWeight:"700", fontSize:"14px",
+                      marginBottom:"4px" }}>{b.entity_name}</div>
+                    <div style={{ display:"flex", gap:"8px", fontSize:"11px",
+                      color:C.muted, marginBottom:"6px" }}>
+                      <span style={{ padding:"2px 8px", borderRadius:"100px",
+                        fontSize:"10px", background:C.surface, color:C.muted }}>
+                        {b.entity_type}
+                      </span>
+                      <span>Confidence: {b.confidence}%</span>
+                      <span style={{ color:b.anomaly_count > 0 ? "#ff8c00" : C.muted }}>
+                        {b.anomaly_count} anomalies
+                      </span>
+                    </div>
+                    <div style={{ height:"3px", background:C.faint, borderRadius:"2px" }}>
+                      <div style={{ height:"100%", width:`${b.confidence}%`,
+                        background:"#00ff88", borderRadius:"2px" }} />
+                    </div>
+                  </div>
+                </div>
+                {isSelected && b.baseline && (
+                  <div style={{ marginTop:"14px", padding:"12px", borderRadius:"10px",
+                    background:C.surface, border:`1px solid ${C.border}` }}>
+                    <div style={{ fontSize:"10px", fontWeight:"700", color:C.muted,
+                      textTransform:"uppercase", letterSpacing:"1px",
+                      marginBottom:"8px" }}>Baseline Profile</div>
+                    <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"6px" }}>
+                      {Object.entries(b.baseline).slice(0,6).map(([k,v]) => (
+                        <div key={k}>
+                          <div style={{ fontSize:"9px", color:C.faint,
+                            textTransform:"uppercase", letterSpacing:"0.5px" }}>
+                            {k.replace(/_/g," ")}
+                          </div>
+                          <div style={{ fontSize:"11px", color:C.text,
+                            fontFamily:"JetBrains Mono, monospace",
+                            overflow:"hidden", textOverflow:"ellipsis",
+                            whiteSpace:"nowrap" }}>
+                            {Array.isArray(v) ? v.join(", ") : String(v)}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
+// AIPET X+ — Identity Graph Engine Page
+//
+// Features:
+//   • Stats: total identities, privileged, dormant, high-risk
+//   • Identity list with risk scores and blast radius
+//   • Force-directed graph visualisation (D3-style SVG)
+//   • Identity detail panel with edges + risks
+//   • Blast radius calculator
+//   • Risk findings with remediation
+//   • Run analysis button
+//   • Filter by type, risk level
+// ─────────────────────────────────────────────────────────────
+function IdentityGraphPage({ token, showToast }) {
+
+  const [stats,      setStats]      = useState(null);
+  const [identities, setIdentities] = useState([]);
+  const [graph,      setGraph]      = useState(null);
+  const [risks,      setRisks]      = useState([]);
+  const [selected,   setSelected]   = useState(null);
+  const [blast,      setBlast]      = useState(null);
+  const [loading,    setLoading]    = useState(true);
+  const [running,    setRunning]    = useState(false);
+  const [tab,        setTab]        = useState("identities");
+  const [typeFilter, setTypeFilter] = useState("");
+
+  const H = { headers: { Authorization: `Bearer ${token}` } };
+
+  const TYPE_META = {
+    user:            { icon: "👤", color: "#00e5ff", label: "User"             },
+    service_account: { icon: "⚙️", color: "#a78bfa", label: "Service Account"  },
+    device:          { icon: "📡", color: "#00ff88", label: "Device"            },
+    role:            { icon: "🎭", color: "#ffd600", label: "Role"              },
+    api_key:         { icon: "🔑", color: "#ff8c00", label: "API Key"           },
+    cloud_resource:  { icon: "☁️", color: "#00e5ff", label: "Cloud Resource"   },
+  };
+
+  const SEV_COLOR = {
+    Critical: "#ff3b5c", High: "#ff8c00",
+    Medium: "#ffd600",   Low: "#00ff88",
+  };
+
+  const C = {
+    bg: "#030712", card: "#0d1117", surface: "#080f1a",
+    border: "#1e2a3a", borderBright: "#2d3f55",
+    text: "#e2e8f0", muted: "#64748b", faint: "#334155",
+    cyan: "#00e5ff",
+  };
+  const cardStyle = (extra={}) => ({
+    background: C.card, border: `1px solid ${C.border}`,
+    borderRadius: "16px", padding: "24px", ...extra
+  });
+
+  const fetchAll = useCallback(async () => {
+    try {
+      const [stRes, idRes, grRes, rkRes] = await Promise.all([
+        axios.get(`${API}/identitygraph/stats`,      H),
+        axios.get(`${API}/identitygraph/identities`, H),
+        axios.get(`${API}/identitygraph/graph`,      H),
+        axios.get(`${API}/identitygraph/risks`,      H),
+      ]);
+      setStats(stRes.data);
+      setIdentities(idRes.data.identities || []);
+      setGraph(grRes.data);
+      setRisks(rkRes.data.risks || []);
+    } catch {
+      showToast("Failed to load Identity Graph", "error");
+    } finally {
+      setLoading(false);
+    }
+  }, [token]);
+
+  useEffect(() => { fetchAll(); }, [fetchAll]);
+
+  const handleAnalyse = async () => {
+    setRunning(true);
+    try {
+      const res = await axios.post(
+        `${API}/identitygraph/analyse`, {}, H);
+      showToast(
+        `Analysis complete — ${res.data.identities} identities mapped`,
+        "success");
+      fetchAll();
+    } catch (e) {
+      showToast(e.response?.data?.error || "Analysis failed", "error");
+    } finally {
+      setRunning(false);
+    }
+  };
+
+  const handleBlast = async (iid) => {
+    try {
+      const res = await axios.get(
+        `${API}/identitygraph/blast/${iid}`, H);
+      setBlast(res.data);
+    } catch {
+      showToast("Blast radius failed", "error");
+    }
+  };
+
+  // SVG Graph Visualisation
+  const GraphViz = ({ graph }) => {
+    if (!graph?.nodes?.length) return (
+      <div style={{ textAlign:"center", padding:"48px",
+        color:C.muted, fontSize:"13px" }}>
+        Run analysis to generate identity graph
+      </div>
+    );
+
+    const W = 800, H_SVG = 500;
+    const cx = W / 2, cy = H_SVG / 2;
+
+    // Position nodes in a circle by type
+    const typeGroups = {};
+    graph.nodes.forEach(n => {
+      if (!typeGroups[n.type]) typeGroups[n.type] = [];
+      typeGroups[n.type].push(n);
+    });
+
+    const positioned = {};
+    const types = Object.keys(typeGroups);
+    types.forEach((type, ti) => {
+      const groupAngle = (ti / types.length) * Math.PI * 2;
+      const groupCx = cx + Math.cos(groupAngle) * 180;
+      const groupCy = cy + Math.sin(groupAngle) * 180;
+      typeGroups[type].forEach((node, ni) => {
+        const nodeAngle = (ni / typeGroups[type].length) * Math.PI * 2;
+        const r = 60;
+        positioned[node.id] = {
+          x: groupCx + Math.cos(nodeAngle) * r,
+          y: groupCy + Math.sin(nodeAngle) * r,
+          ...node,
+        };
+      });
+    });
+
+    const meta = (type) => TYPE_META[type] || TYPE_META.user;
+
+    return (
+      <svg viewBox={`0 0 ${W} ${H_SVG}`}
+        style={{ width:"100%", height:"100%",
+          background:C.surface, borderRadius:"12px" }}>
+        <defs>
+          <marker id="arrow" markerWidth="8" markerHeight="8"
+            refX="8" refY="3" orient="auto">
+            <path d="M0,0 L0,6 L8,3 z"
+              fill="rgba(100,116,139,0.6)" />
+          </marker>
+          <marker id="arrow-risky" markerWidth="8" markerHeight="8"
+            refX="8" refY="3" orient="auto">
+            <path d="M0,0 L0,6 L8,3 z" fill="#ff3b5c" />
+          </marker>
+        </defs>
+
+        {/* Edges */}
+        {graph.links.map((link, i) => {
+          const src = positioned[link.source];
+          const tgt = positioned[link.target];
+          if (!src || !tgt) return null;
+          return (
+            <g key={i}>
+              <line
+                x1={src.x} y1={src.y} x2={tgt.x} y2={tgt.y}
+                stroke={link.risky
+                  ? "rgba(255,59,92,0.5)"
+                  : "rgba(100,116,139,0.3)"}
+                strokeWidth={link.risky ? 1.5 : 1}
+                markerEnd={link.risky
+                  ? "url(#arrow-risky)" : "url(#arrow)"}
+                strokeDasharray={link.risky ? "4,2" : "none"}
+              />
+              <text
+                x={(src.x+tgt.x)/2} y={(src.y+tgt.y)/2 - 4}
+                textAnchor="middle" fontSize="8"
+                fill="rgba(100,116,139,0.7)">
+                {link.relationship}
+              </text>
+            </g>
+          );
+        })}
+
+        {/* Nodes */}
+        {Object.values(positioned).map(node => {
+          const m    = meta(node.type);
+          const risk = node.risk > 70 ? "#ff3b5c"
+            : node.risk > 40 ? "#ffd600" : "#00ff88";
+          const isSelected = selected?.id === node.id;
+          return (
+            <g key={node.id}
+              style={{ cursor: "pointer" }}
+              onClick={() => {
+                setSelected(node);
+                handleBlast(node.id);
+              }}>
+              {/* Glow */}
+              <circle cx={node.x} cy={node.y} r={22}
+                fill={m.color + "15"}
+                stroke={isSelected ? m.color : "none"}
+                strokeWidth={isSelected ? 2 : 0} />
+              {/* Node */}
+              <circle cx={node.x} cy={node.y} r={16}
+                fill={C.card}
+                stroke={node.privileged
+                  ? "#ff3b5c" : m.color + "60"}
+                strokeWidth={node.privileged ? 2 : 1} />
+              {/* Icon */}
+              <text cx={node.x} cy={node.y+5}
+                textAnchor="middle" fontSize="12">
+                {m.icon}
+              </text>
+              {/* Risk score badge */}
+              <circle cx={node.x+12} cy={node.y-12} r={8}
+                fill={risk} />
+              <text x={node.x+12} y={node.y-8}
+                textAnchor="middle" fontSize="7"
+                fontWeight="bold" fill="#000">
+                {node.risk}
+              </text>
+              {/* Label */}
+              <text x={node.x} y={node.y+32}
+                textAnchor="middle" fontSize="9"
+                fill={C.muted}>
+                {node.name.length > 18
+                  ? node.name.slice(0,18)+"..." : node.name}
+              </text>
+            </g>
+          );
+        })}
+      </svg>
+    );
+  };
+
+  const filteredIds = typeFilter
+    ? identities.filter(i => i.identity_type === typeFilter)
+    : identities;
+
+  if (loading) return (
+    <div style={{ display:"flex", justifyContent:"center",
+      alignItems:"center", height:"60vh" }}>
+      <div style={{ width:"48px", height:"48px",
+        border:`3px solid ${C.border}`,
+        borderTop:`3px solid ${C.cyan}`,
+        borderRadius:"50%",
+        animation:"spin 1s linear infinite" }} />
+    </div>
+  );
+
+  return (
+    <div style={{ padding:"32px 36px", background:C.bg,
+      minHeight:"100vh", fontFamily:"Inter, sans-serif",
+      color:C.text }}>
+
+      {/* Header */}
+      <div style={{ display:"flex", alignItems:"center",
+        justifyContent:"space-between", marginBottom:"32px" }}>
+        <div style={{ display:"flex", alignItems:"center",
+          gap:"16px" }}>
+          <div style={{ width:"52px", height:"52px",
+            borderRadius:"14px",
+            background:"linear-gradient(135deg,#00e5ff20,#a78bfa08)",
+            border:"1px solid #00e5ff35",
+            display:"flex", alignItems:"center",
+            justifyContent:"center", fontSize:"24px",
+            boxShadow:"0 0 20px #00e5ff15" }}>
+            🕸️
+          </div>
+          <div>
+            <h1 style={{ margin:0, fontSize:"26px", fontWeight:"800",
+              letterSpacing:"-0.5px",
+              fontFamily:"JetBrains Mono, monospace",
+              background:"linear-gradient(135deg,#00e5ff,#a78bfa)",
+              WebkitBackgroundClip:"text",
+              WebkitTextFillColor:"transparent" }}>
+              Identity Graph Engine
+            </h1>
+            <div style={{ fontSize:"13px", color:C.muted,
+              marginTop:"2px" }}>
+              Users · Devices · Services · Roles ·
+              Blast radius · Privilege mapping
+            </div>
+          </div>
+        </div>
+        <button onClick={handleAnalyse} disabled={running}
+          style={{ padding:"12px 28px", borderRadius:"12px",
+            border:"none",
+            cursor:running ? "not-allowed" : "pointer",
+            fontSize:"14px", fontWeight:"800",
+            background:running ? C.surface
+              : "linear-gradient(135deg,#00e5ff,#a78bfa)",
+            color:running ? C.muted : "#000",
+            boxShadow:running ? "none"
+              : "0 0 24px rgba(0,229,255,0.3)",
+            display:"flex", alignItems:"center", gap:"8px",
+            transition:"all 0.2s" }}>
+          {running ? (
+            <>
+              <div style={{ width:"14px", height:"14px",
+                border:"2px solid #64748b",
+                borderTop:"2px solid #00e5ff",
+                borderRadius:"50%",
+                animation:"spin 1s linear infinite" }} />
+              Mapping identities...
+            </>
+          ) : "▶ Run Analysis"}
+        </button>
+      </div>
+
+      {/* Stats */}
+      {stats && (
+        <div style={{ display:"grid",
+          gridTemplateColumns:"repeat(7, 1fr)",
+          gap:"10px", marginBottom:"28px" }}>
+          {[
+            { label:"Identities",    value:stats.total_identities, color:"#00e5ff", icon:"🕸️" },
+            { label:"Privileged",    value:stats.privileged,       color:"#ff3b5c", icon:"👑" },
+            { label:"Dormant",       value:stats.dormant,          color:"#ff8c00", icon:"💤" },
+            { label:"Overprivileged",value:stats.overprivileged,   color:"#ffd600", icon:"⚠️" },
+            { label:"High Risk",     value:stats.high_risk,        color:"#ff3b5c", icon:"🔥" },
+            { label:"Identity Risks",value:stats.total_risks,      color:"#ff8c00", icon:"🎯" },
+            { label:"Risky Edges",   value:stats.risky_edges,      color:"#a78bfa", icon:"🔗" },
+          ].map(s => (
+            <div key={s.label} style={{ ...cardStyle({ padding:"16px" }),
+              borderColor:s.color+"25",
+              boxShadow:`0 0 12px ${s.color}08` }}>
+              <div style={{ fontSize:"16px", marginBottom:"6px" }}>
+                {s.icon}
+              </div>
+              <div style={{ fontSize:"22px", fontWeight:"800",
+                fontFamily:"JetBrains Mono, monospace",
+                color:s.color, lineHeight:1 }}>
+                {s.value}
+              </div>
+              <div style={{ fontSize:"9px", color:C.muted,
+                marginTop:"4px", textTransform:"uppercase",
+                letterSpacing:"0.5px" }}>
+                {s.label}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Tabs */}
+      <div style={{ display:"flex", gap:"4px", marginBottom:"20px",
+        background:C.card, padding:"4px", borderRadius:"12px",
+        border:`1px solid ${C.border}`, width:"fit-content" }}>
+        {[
+          { id:"identities", label:`Identities (${identities.length})` },
+          { id:"graph",      label:"Graph View"                         },
+          { id:"risks",      label:`Risks (${risks.length})`            },
+        ].map(t => (
+          <button key={t.id} onClick={() => setTab(t.id)}
+            style={{ padding:"8px 18px", borderRadius:"9px",
+              border:"none", cursor:"pointer",
+              fontSize:"13px", fontWeight:"600",
+              transition:"all 0.2s",
+              background:tab===t.id
+                ? "linear-gradient(135deg,#00e5ff15,#a78bfa08)"
+                : "transparent",
+              color:tab===t.id ? C.text : C.muted,
+              boxShadow:tab===t.id
+                ? "inset 0 0 0 1px #00e5ff30" : "none" }}>
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      {/* Identities tab */}
+      {tab === "identities" && (
+        <div style={{ display:"flex", gap:"16px" }}>
+          <div style={{ flex:1 }}>
+            {/* Type filter */}
+            <div style={{ display:"flex", gap:"8px",
+              flexWrap:"wrap", marginBottom:"16px" }}>
+              <button
+                onClick={() => setTypeFilter("")}
+                style={{ padding:"4px 12px",
+                  borderRadius:"100px",
+                  border:`1px solid ${!typeFilter
+                    ? C.cyan : C.border}`,
+                  background:!typeFilter ? C.cyan+"20" : "transparent",
+                  color:!typeFilter ? C.cyan : C.muted,
+                  cursor:"pointer", fontSize:"11px",
+                  fontWeight:!typeFilter ? "700" : "400" }}>
+                All
+              </button>
+              {Object.entries(TYPE_META).map(([id, m]) => (
+                <button key={id}
+                  onClick={() => setTypeFilter(
+                    typeFilter===id ? "" : id)}
+                  style={{ padding:"4px 12px",
+                    borderRadius:"100px",
+                    border:`1px solid ${typeFilter===id
+                      ? m.color : C.border}`,
+                    background:typeFilter===id
+                      ? m.color+"20" : "transparent",
+                    color:typeFilter===id ? m.color : C.muted,
+                    cursor:"pointer", fontSize:"11px",
+                    fontWeight:typeFilter===id ? "700" : "400" }}>
+                  {m.icon} {m.label}
+                </button>
+              ))}
+            </div>
+
+            {/* Identity list */}
+            <div style={{ display:"flex",
+              flexDirection:"column", gap:"6px" }}>
+              {filteredIds.length === 0 ? (
+                <div style={{ ...cardStyle({ padding:"48px",
+                  textAlign:"center" }), color:C.muted }}>
+                  No identities. Run analysis first.
+                </div>
+              ) : filteredIds.map(id => {
+                const m    = TYPE_META[id.identity_type]
+                  || TYPE_META.user;
+                const risk = id.risk_score > 70 ? "#ff3b5c"
+                  : id.risk_score > 40 ? "#ffd600" : "#00ff88";
+                const isSel = selected?.id === id.id;
+                return (
+                  <div key={id.id}
+                    onClick={() => {
+                      setSelected(id); handleBlast(id.id);
+                    }}
+                    style={{ background:C.card,
+                      border:`1px solid ${isSel
+                        ? m.color+"50" : C.border}`,
+                      borderLeft:`3px solid ${m.color}`,
+                      borderRadius:"10px", padding:"12px 16px",
+                      cursor:"pointer",
+                      boxShadow:isSel
+                        ? `0 0 16px ${m.color}10` : "none",
+                      transition:"all 0.15s" }}>
+                    <div style={{ display:"flex",
+                      alignItems:"center", gap:"10px" }}>
+                      {/* Type icon */}
+                      <div style={{ width:"36px", height:"36px",
+                        borderRadius:"8px", flexShrink:0,
+                        background:m.color+"15",
+                        border:`1px solid ${m.color}30`,
+                        display:"flex", alignItems:"center",
+                        justifyContent:"center",
+                        fontSize:"16px" }}>
+                        {m.icon}
+                      </div>
+                      {/* Info */}
+                      <div style={{ flex:1 }}>
+                        <div style={{ fontWeight:"700",
+                          fontSize:"13px", marginBottom:"3px" }}>
+                          {id.name}
+                        </div>
+                        <div style={{ display:"flex", gap:"6px",
+                          flexWrap:"wrap" }}>
+                          <span style={{ fontSize:"10px",
+                            color:m.color }}>{m.label}</span>
+                          {id.source && (
+                            <span style={{ fontSize:"10px",
+                              color:C.muted }}>
+                              · {id.source}
+                            </span>
+                          )}
+                          {id.is_privileged && (
+                            <span style={{ padding:"1px 6px",
+                              borderRadius:"100px",
+                              fontSize:"9px", fontWeight:"700",
+                              background:"#ff3b5c20",
+                              color:"#ff3b5c" }}>
+                              PRIVILEGED
+                            </span>
+                          )}
+                          {id.is_dormant && (
+                            <span style={{ padding:"1px 6px",
+                              borderRadius:"100px",
+                              fontSize:"9px", fontWeight:"700",
+                              background:"#ff8c0020",
+                              color:"#ff8c00" }}>
+                              DORMANT
+                            </span>
+                          )}
+                          {id.is_overprivileged && (
+                            <span style={{ padding:"1px 6px",
+                              borderRadius:"100px",
+                              fontSize:"9px", fontWeight:"700",
+                              background:"#ffd60020",
+                              color:"#ffd600" }}>
+                              OVERPRIVILEGED
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      {/* Risk score */}
+                      <div style={{ display:"flex",
+                        flexDirection:"column",
+                        alignItems:"center", flexShrink:0 }}>
+                        <div style={{ width:"44px", height:"44px",
+                          borderRadius:"50%",
+                          background:risk+"15",
+                          border:`2px solid ${risk}`,
+                          display:"flex",
+                          flexDirection:"column",
+                          alignItems:"center",
+                          justifyContent:"center",
+                          boxShadow:`0 0 12px ${risk}20` }}>
+                          <div style={{ fontSize:"14px",
+                            fontWeight:"800",
+                            fontFamily:"JetBrains Mono, monospace",
+                            color:risk, lineHeight:1 }}>
+                            {id.risk_score}
+                          </div>
+                        </div>
+                        <div style={{ fontSize:"9px",
+                          color:C.muted, marginTop:"2px" }}>
+                          RISK
+                        </div>
+                      </div>
+                      {/* Blast radius */}
+                      <div style={{ textAlign:"center",
+                        flexShrink:0 }}>
+                        <div style={{ fontSize:"18px",
+                          fontWeight:"800",
+                          fontFamily:"JetBrains Mono, monospace",
+                          color:"#a78bfa" }}>
+                          {id.blast_radius}
+                        </div>
+                        <div style={{ fontSize:"9px",
+                          color:C.muted }}>BLAST</div>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Detail panel */}
+          {selected && blast && (
+            <div style={{ width:"340px", flexShrink:0 }}>
+              <div style={{ ...cardStyle({ marginBottom:"12px" }) }}>
+                <div style={{ fontWeight:"700", fontSize:"14px",
+                  marginBottom:"12px" }}>
+                  {TYPE_META[selected.identity_type]?.icon}{" "}
+                  {selected.name}
+                </div>
+                <div style={{ display:"grid",
+                  gridTemplateColumns:"1fr 1fr",
+                  gap:"10px", marginBottom:"16px" }}>
+                  {[
+                    { label:"Risk Score",   value:selected.risk_score,
+                      color:selected.risk_score > 70 ? "#ff3b5c"
+                        : "#ffd600" },
+                    { label:"Blast Radius", value:blast.blast_radius,
+                      color:"#a78bfa" },
+                    { label:"Type",
+                      value:TYPE_META[selected.identity_type]?.label,
+                      color:TYPE_META[selected.identity_type]?.color },
+                    { label:"Source",       value:selected.source||"—",
+                      color:C.muted },
+                  ].map(s => (
+                    <div key={s.label}
+                      style={{ padding:"10px",
+                        borderRadius:"8px",
+                        background:C.surface,
+                        border:`1px solid ${C.border}` }}>
+                      <div style={{ fontSize:"9px", color:C.muted,
+                        marginBottom:"4px",
+                        textTransform:"uppercase",
+                        letterSpacing:"0.5px" }}>
+                        {s.label}
+                      </div>
+                      <div style={{ fontSize:"15px",
+                        fontWeight:"700", color:s.color,
+                        fontFamily:"JetBrains Mono, monospace" }}>
+                        {s.value}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+
+                {/* Blast radius resources */}
+                {blast.reachable?.length > 0 && (
+                  <div>
+                    <div style={{ fontSize:"10px", color:C.muted,
+                      marginBottom:"8px",
+                      textTransform:"uppercase",
+                      letterSpacing:"0.5px" }}>
+                      Reachable Resources ({blast.reachable.length})
+                    </div>
+                    <div style={{ display:"flex",
+                      flexDirection:"column", gap:"4px",
+                      maxHeight:"180px", overflowY:"auto" }}>
+                      {blast.reachable.map(r => (
+                        <div key={r.id}
+                          style={{ display:"flex",
+                            alignItems:"center", gap:"8px",
+                            padding:"6px 10px",
+                            borderRadius:"8px",
+                            background:C.surface,
+                            border:`1px solid ${C.border}` }}>
+                          <span style={{ fontSize:"12px" }}>
+                            {TYPE_META[r.identity_type]?.icon}
+                          </span>
+                          <span style={{ fontSize:"11px",
+                            color:C.text, flex:1,
+                            overflow:"hidden",
+                            textOverflow:"ellipsis",
+                            whiteSpace:"nowrap" }}>
+                            {r.name}
+                          </span>
+                          <span style={{ fontSize:"10px",
+                            color:r.risk_score > 70
+                              ? "#ff3b5c" : C.muted,
+                            fontFamily:"JetBrains Mono, monospace",
+                            flexShrink:0 }}>
+                            {r.risk_score}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Graph tab */}
+      {tab === "graph" && (
+        <div style={{ ...cardStyle({ padding:"16px",
+          height:"520px" }) }}>
+          <div style={{ fontSize:"11px", fontWeight:"700",
+            color:C.muted, textTransform:"uppercase",
+            letterSpacing:"1.5px", marginBottom:"12px" }}>
+            Identity Relationship Graph
+            {graph?.nodes?.length > 0 && (
+              <span style={{ marginLeft:"8px", fontWeight:"400",
+                color:C.faint }}>
+                — click a node to see blast radius
+              </span>
+            )}
+          </div>
+          <div style={{ height:"460px" }}>
+            <GraphViz graph={graph} />
+          </div>
+        </div>
+      )}
+
+      {/* Risks tab */}
+      {tab === "risks" && (
+        <div style={{ display:"flex", flexDirection:"column",
+          gap:"8px" }}>
+          {risks.length === 0 ? (
+            <div style={{ ...cardStyle({ padding:"48px",
+              textAlign:"center" }), color:C.muted }}>
+              No identity risks found. Run analysis first.
+            </div>
+          ) : risks.map(risk => {
+            const sc = SEV_COLOR[risk.severity] || "#64748b";
+            return (
+              <div key={risk.id}
+                style={{ background:C.card,
+                  border:`1px solid ${sc}25`,
+                  borderLeft:`3px solid ${sc}`,
+                  borderRadius:"12px", padding:"16px" }}>
+                <div style={{ display:"flex",
+                  alignItems:"flex-start", gap:"12px" }}>
+                  <div style={{ padding:"3px 10px",
+                    borderRadius:"100px", fontSize:"10px",
+                    fontWeight:"800", background:sc+"15",
+                    color:sc, whiteSpace:"nowrap",
+                    flexShrink:0, textTransform:"uppercase" }}>
+                    {risk.severity}
+                  </div>
+                  <div style={{ flex:1 }}>
+                    <div style={{ fontWeight:"700",
+                      fontSize:"13px", marginBottom:"5px" }}>
+                      {risk.risk_type}
+                    </div>
+                    <div style={{ fontSize:"12px", color:C.muted,
+                      lineHeight:"1.5", marginBottom:"8px" }}>
+                      {risk.description}
+                    </div>
+                    {risk.remediation && (
+                      <div style={{ fontSize:"11px",
+                        color:"#00ff88", padding:"8px 12px",
+                        borderRadius:"8px",
+                        background:"#00ff8808",
+                        border:"1px solid #00ff8820" }}>
+                        💡 {risk.remediation}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
 
 // ─────────────────────────────────────────────────────────────
 // AIPET X — Attack Path Modelling Page
@@ -15646,6 +16776,12 @@ export default function App() {
           )}
           {activeTab === "team" && (
             <TeamAccessPage token={token} showToast={showToast} />
+          )}
+          {activeTab === "behavioral" && (
+            <BehavioralAIPage token={token} showToast={showToast} />
+          )}
+          {activeTab === "identitygraph" && (
+            <IdentityGraphPage token={token} showToast={showToast} />
           )}
           {activeTab === "attackpath" && (
             <AttackPathPage token={token} showToast={showToast} />

@@ -63,6 +63,10 @@ from dashboard.backend.narrative.routes import narrative_bp
 from dashboard.backend.narrative.models import RiskNarrative
 from dashboard.backend.attackpath.routes import attackpath_bp
 from dashboard.backend.attackpath.models import ApAnalysis, ApPath
+from dashboard.backend.identitygraph.routes import identitygraph_bp
+from dashboard.backend.identitygraph.models import IgIdentity, IgEdge, IgRisk
+from dashboard.backend.behavioral.routes import behavioral_bp
+from dashboard.backend.behavioral.models import BaBaseline, BaAnomaly, BaPattern
 from dashboard.backend.incidents.models import IrIncident, IrTask
 from dashboard.backend.monitoring.logger import setup_logging, get_logger
 from dashboard.backend.security import init_security
@@ -175,6 +179,8 @@ def create_app(config_name="development"):
     app.register_blueprint(incidents_bp)
     app.register_blueprint(narrative_bp)
     app.register_blueprint(attackpath_bp)
+    app.register_blueprint(identitygraph_bp)
+    app.register_blueprint(behavioral_bp)
     app.register_blueprint(api_keys_bp, url_prefix='/api/keys')
 
     # Setup logging
