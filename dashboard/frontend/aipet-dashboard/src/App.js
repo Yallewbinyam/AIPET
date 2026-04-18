@@ -6122,6 +6122,7 @@ const NAV_ITEMS = [
   { id: "dspm",        label: "Data Security",  icon: Lock,          group: "enterprise" },
   { id: "costsecurity",label: "Cost Security",  icon: TrendingUp,    group: "enterprise" },
   { id: "apisecurity", label: "API Security",  icon: Shield,        group: "enterprise" },
+  { id: "supplychain", label: "Supply Chain",  icon: GitBranch,     group: "enterprise" },
   { id: "settings",  label: "Settings",      icon: Settings,      group: "account"  },
 ];
 
@@ -6384,6 +6385,539 @@ function SettingsPage({ token, showToast }) {
   );
 }
 
+
+// ─────────────────────────────────────────────────────────────
+// AIPET X — Supply Chain Security (SBOM) Page
+//
+// Features:
+//   • Stats: components, vulns, CISA KEV, exploitable
+//   • Component inventory with risk levels
+//   • CVE list per component
+//   • CVSS scores + CISA KEV badges
+//   • Generate CycloneDX SBOM button
+//   • Ecosystem breakdown
+//   • License risk alerts
+// ─────────────────────────────────────────────────────────────
+function SupplyChainPage({ token, showToast }) {
+
+  const [components, setComponents] = useState([]);
+  const [vulns,      setVulns]      = useState([]);
+  const [sboms,      setSboms]      = useState([]);
+  const [stats,      setStats]      = useState(null);
+  const [loading,    setLoading]    = useState(true);
+  const [scanning,   setScanning]   = useState(false);
+  const [generating, setGenerating] = useState(false);
+  const [tab,        setTab]        = useState("components");
+  const [selComp,    setSelComp]    = useState(null);
+  const [riskFilter, setRiskFilter] = useState("");
+  const [updating,   setUpdating]   = useState({});
+
+  const H = { headers: { Authorization: `Bearer ${token}` } };
+
+  const RISK_META = {
+    critical: { color:"#ff3b5c", label:"Critical" },
+    high:     { color:"#ff8c00", label:"High"     },
+    medium:   { color:"#ffd600", label:"Medium"   },
+    low:      { color:"#00e5ff", label:"Low"      },
+    safe:     { color:"#00ff88", label:"Safe"      },
+  };
+
+  const ECO_COLOR = {
+    maven:  "#ff8c00", npm:    "#00e5ff",
+    pypi:   "#ffd600", system: "#a78bfa",
+    cargo:  "#ff3b5c", go:     "#00ff88",
+  };
+
+  const SEV_COLOR = {
+    Critical:"#ff3b5c", High:"#ff8c00",
+    Medium:"#ffd600",   Low:"#00ff88",
+  };
+
+  const C = {
+    bg:"#030712", card:"#0d1117", surface:"#080f1a",
+    border:"#1e2a3a", text:"#e2e8f0", muted:"#64748b",
+    faint:"#334155", cyan:"#00e5ff",
+  };
+  const cardStyle = (extra={}) => ({
+    background:C.card, border:`1px solid ${C.border}`,
+    borderRadius:"16px", padding:"24px", ...extra
+  });
+
+  const fetchAll = useCallback(async () => {
+    try {
+      const [cRes, vRes, sRes, stRes] = await Promise.all([
+        axios.get(`${API}/supplychain/components${riskFilter?"?risk_level="+riskFilter:""}`, H),
+        axios.get(`${API}/supplychain/vulns?status=open`, H),
+        axios.get(`${API}/supplychain/sboms`, H),
+        axios.get(`${API}/supplychain/stats`, H),
+      ]);
+      setComponents(cRes.data.components || []);
+      setVulns(vRes.data.vulns           || []);
+      setSboms(sRes.data.sboms           || []);
+      setStats(stRes.data);
+    } catch { showToast("Failed to load supply chain data", "error"); }
+    finally { setLoading(false); }
+  }, [token, riskFilter]);
+
+  useEffect(() => { fetchAll(); }, [fetchAll]);
+
+  const handleScan = async () => {
+    setScanning(true);
+    try {
+      const res = await axios.post(`${API}/supplychain/scan`, {}, H);
+      showToast(`Scan complete — ${res.data.critical} critical components`, "success");
+      fetchAll();
+    } catch { showToast("Scan failed", "error"); }
+    finally { setScanning(false); }
+  };
+
+  const handleGenerateSbom = async () => {
+    setGenerating(true);
+    try {
+      const res = await axios.post(`${API}/supplychain/sbom`,
+        { name: `AIPET SBOM ${new Date().toLocaleDateString()}` }, H);
+      showToast("CycloneDX SBOM generated", "success");
+      // Download
+      const blob = new Blob(
+        [JSON.stringify(res.data.content, null, 2)],
+        { type: "application/json" });
+      const url = URL.createObjectURL(blob);
+      const a   = document.createElement("a");
+      a.href = url;
+      a.download = `aipet-sbom-${new Date().toISOString().slice(0,10)}.json`;
+      a.click(); URL.revokeObjectURL(url);
+      fetchAll();
+    } catch { showToast("SBOM generation failed", "error"); }
+    finally { setGenerating(false); }
+  };
+
+  const handleResolve = async (vid) => {
+    setUpdating(prev => ({ ...prev, [vid]: true }));
+    try {
+      await axios.put(`${API}/supplychain/vulns/${vid}`,
+        { status: "resolved" }, H);
+      fetchAll();
+      showToast("Vulnerability resolved", "success");
+    } catch { showToast("Failed", "error"); }
+    finally { setUpdating(prev => ({ ...prev, [vid]: false })); }
+  };
+
+  if (loading) return (
+    <div style={{ display:"flex", justifyContent:"center",
+      alignItems:"center", height:"60vh" }}>
+      <div style={{ width:"48px", height:"48px",
+        border:`3px solid ${C.border}`,
+        borderTop:`3px solid ${C.cyan}`,
+        borderRadius:"50%", animation:"spin 1s linear infinite" }} />
+    </div>
+  );
+
+  return (
+    <div style={{ padding:"32px 36px", background:C.bg,
+      minHeight:"100vh", fontFamily:"Inter, sans-serif", color:C.text }}>
+
+      {/* Header */}
+      <div style={{ display:"flex", alignItems:"center",
+        justifyContent:"space-between", marginBottom:"32px" }}>
+        <div style={{ display:"flex", alignItems:"center", gap:"16px" }}>
+          <div style={{ width:"52px", height:"52px", borderRadius:"14px",
+            background:"linear-gradient(135deg, #a78bfa20, #00e5ff08)",
+            border:"1px solid #a78bfa35", display:"flex",
+            alignItems:"center", justifyContent:"center", fontSize:"24px",
+            boxShadow:"0 0 20px #a78bfa15" }}>🔗</div>
+          <div>
+            <h1 style={{ margin:0, fontSize:"26px", fontWeight:"800",
+              letterSpacing:"-0.5px", fontFamily:"JetBrains Mono, monospace",
+              background:"linear-gradient(135deg, #a78bfa, #00e5ff)",
+              WebkitBackgroundClip:"text", WebkitTextFillColor:"transparent" }}>
+              Supply Chain Security
+            </h1>
+            <div style={{ fontSize:"13px", color:C.muted, marginTop:"2px" }}>
+              SBOM · Dependency risk · CVE mapping · License compliance · CycloneDX
+            </div>
+          </div>
+        </div>
+        <div style={{ display:"flex", gap:"10px" }}>
+          <button onClick={handleScan} disabled={scanning}
+            style={{ padding:"10px 20px", borderRadius:"10px",
+              border:"1px solid #a78bfa35", cursor:"pointer",
+              fontSize:"13px", fontWeight:"700",
+              background:scanning ? C.surface : "#a78bfa15",
+              color:scanning ? C.muted : "#a78bfa" }}>
+            {scanning ? "Scanning..." : "▶ Scan"}
+          </button>
+          <button onClick={handleGenerateSbom} disabled={generating}
+            style={{ padding:"10px 20px", borderRadius:"10px",
+              border:"none", cursor:"pointer", fontSize:"13px",
+              fontWeight:"800",
+              background:generating ? C.surface
+                : "linear-gradient(135deg, #a78bfa, #7c3aed)",
+              color:generating ? C.muted : "#fff",
+              boxShadow:generating ? "none"
+                : "0 0 20px rgba(167,139,250,0.3)" }}>
+            {generating ? "Generating..." : "↓ Generate SBOM"}
+          </button>
+        </div>
+      </div>
+
+      {/* Stats */}
+      {stats && (
+        <div style={{ display:"grid", gridTemplateColumns:"repeat(6,1fr)",
+          gap:"12px", marginBottom:"28px" }}>
+          {[
+            { label:"Components",   value:stats.total_components,    color:"#a78bfa", icon:"📦" },
+            { label:"Vulns",        value:stats.total_vulns,         color:"#ff8c00", icon:"⚠️" },
+            { label:"Critical",     value:stats.critical_components, color:"#ff3b5c", icon:"🚨" },
+            { label:"CISA KEV",     value:stats.kev_vulns,           color:"#ff3b5c", icon:"🇺🇸" },
+            { label:"Exploitable",  value:stats.exploitable_vulns,   color:"#ff8c00", icon:"💥" },
+            { label:"License Risk", value:stats.license_risks?.high||0, color:"#ffd600", icon:"⚖️" },
+          ].map(s => (
+            <div key={s.label} style={{ ...cardStyle({ padding:"18px" }),
+              borderColor:s.color+"25" }}>
+              <div style={{ fontSize:"18px", marginBottom:"6px" }}>{s.icon}</div>
+              <div style={{ fontSize:"22px", fontWeight:"800",
+                fontFamily:"JetBrains Mono, monospace",
+                color:s.color, lineHeight:1 }}>{s.value}</div>
+              <div style={{ fontSize:"10px", color:C.muted, marginTop:"4px",
+                textTransform:"uppercase", letterSpacing:"0.5px" }}>{s.label}</div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Tabs */}
+      <div style={{ display:"flex", gap:"4px", marginBottom:"20px",
+        background:C.card, padding:"4px", borderRadius:"12px",
+        border:`1px solid ${C.border}`, width:"fit-content" }}>
+        {[
+          { id:"components", label:`Components (${components.length})` },
+          { id:"vulns",      label:`Vulnerabilities (${vulns.length})`  },
+          { id:"sboms",      label:`SBOM Reports (${sboms.length})`     },
+        ].map(t => (
+          <button key={t.id} onClick={() => setTab(t.id)}
+            style={{ padding:"8px 18px", borderRadius:"9px", border:"none",
+              cursor:"pointer", fontSize:"13px", fontWeight:"600",
+              transition:"all 0.2s",
+              background:tab===t.id
+                ? "linear-gradient(135deg,#a78bfa20,#00e5ff08)" : "transparent",
+              color:tab===t.id ? C.text : C.muted,
+              boxShadow:tab===t.id ? "inset 0 0 0 1px #a78bfa30" : "none" }}>
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      {/* Components tab */}
+      {tab === "components" && (
+        <div>
+          <div style={{ display:"flex", gap:"8px",
+            marginBottom:"16px", flexWrap:"wrap" }}>
+            {[{id:"",label:"All"}, ...Object.entries(RISK_META)
+              .map(([id,m])=>({id,label:m.label}))].map(r => {
+              const rm = RISK_META[r.id];
+              return (
+                <button key={r.id} onClick={() => setRiskFilter(r.id)}
+                  style={{ padding:"5px 14px", borderRadius:"100px",
+                    border:`1px solid ${riskFilter===r.id
+                      ? (rm?.color||C.cyan) : C.border}`,
+                    background:riskFilter===r.id
+                      ? (rm?.color||C.cyan)+"20" : "transparent",
+                    color:riskFilter===r.id ? (rm?.color||C.cyan) : C.muted,
+                    cursor:"pointer", fontSize:"12px",
+                    fontWeight:riskFilter===r.id ? "700" : "400" }}>
+                  {r.label}
+                </button>
+              );
+            })}
+          </div>
+          <div style={{ display:"flex", gap:"16px" }}>
+            <div style={{ flex:1, display:"flex",
+              flexDirection:"column", gap:"8px" }}>
+              {components.map(comp => {
+                const rm   = RISK_META[comp.risk_level] || RISK_META.safe;
+                const ec   = ECO_COLOR[comp.ecosystem]  || "#64748b";
+                const isSel= selComp?.id === comp.id;
+                return (
+                  <div key={comp.id}
+                    onClick={() => setSelComp(isSel ? null : comp)}
+                    style={{ background:C.card,
+                      border:`1px solid ${isSel ? rm.color+"50" : C.border}`,
+                      borderLeft:`3px solid ${rm.color}`,
+                      borderRadius:"10px", padding:"12px 14px",
+                      cursor:"pointer" }}>
+                    <div style={{ display:"flex",
+                      alignItems:"center", gap:"10px" }}>
+                      <div style={{ flex:1 }}>
+                        <div style={{ display:"flex",
+                          alignItems:"center", gap:"8px",
+                          marginBottom:"4px" }}>
+                          <span style={{ fontFamily:"JetBrains Mono, monospace",
+                            fontWeight:"700", fontSize:"14px" }}>
+                            {comp.name}
+                          </span>
+                          <span style={{ fontFamily:"JetBrains Mono, monospace",
+                            fontSize:"11px", color:C.muted }}>
+                            v{comp.version}
+                          </span>
+                          <span style={{ padding:"2px 7px",
+                            borderRadius:"100px", fontSize:"10px",
+                            background:ec+"15", color:ec }}>
+                            {comp.ecosystem}
+                          </span>
+                          {!comp.direct_dep && (
+                            <span style={{ fontSize:"10px",
+                              color:C.muted, background:C.surface,
+                              padding:"1px 6px", borderRadius:"100px" }}>
+                              transitive
+                            </span>
+                          )}
+                          {comp.license_risk === "high" && (
+                            <span style={{ fontSize:"10px",
+                              color:"#ffd600", background:"#ffd60015",
+                              padding:"1px 6px", borderRadius:"100px",
+                              fontWeight:"700" }}>
+                              ⚖️ License Risk
+                            </span>
+                          )}
+                        </div>
+                        <div style={{ fontSize:"11px", color:C.muted }}>
+                          Used in: {comp.used_in?.join(", ")}
+                        </div>
+                      </div>
+                      <div style={{ display:"flex", gap:"8px",
+                        alignItems:"center", flexShrink:0 }}>
+                        {comp.vuln_count > 0 && (
+                          <span style={{ padding:"3px 10px",
+                            borderRadius:"100px", fontSize:"11px",
+                            fontWeight:"700", background:rm.color+"15",
+                            color:rm.color }}>
+                            {comp.vuln_count} CVE{comp.vuln_count>1?"s":""}
+                          </span>
+                        )}
+                        <span style={{ padding:"3px 10px",
+                          borderRadius:"100px", fontSize:"10px",
+                          fontWeight:"700", background:rm.color+"15",
+                          color:rm.color, textTransform:"uppercase" }}>
+                          {rm.label}
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+            {/* Component detail */}
+            {selComp && (
+              <div style={{ width:"300px", flexShrink:0 }}>
+                <div style={{ ...cardStyle() }}>
+                  <div style={{ fontFamily:"JetBrains Mono, monospace",
+                    fontWeight:"700", fontSize:"14px",
+                    marginBottom:"4px" }}>{selComp.name}</div>
+                  <div style={{ fontSize:"11px", color:C.muted,
+                    marginBottom:"16px" }}>
+                    v{selComp.version} · {selComp.supplier}
+                  </div>
+                  <div style={{ fontSize:"11px", fontWeight:"700",
+                    color:C.muted, textTransform:"uppercase",
+                    letterSpacing:"1px", marginBottom:"8px" }}>
+                    Vulnerabilities ({selComp.vuln_count})
+                  </div>
+                  <div style={{ display:"flex",
+                    flexDirection:"column", gap:"6px" }}>
+                    {vulns.filter(v => v.component_id === selComp.id)
+                      .map(v => {
+                        const sc = SEV_COLOR[v.severity]||"#64748b";
+                        return (
+                          <div key={v.id} style={{ padding:"10px",
+                            borderRadius:"8px", background:C.surface,
+                            border:`1px solid ${sc}20`,
+                            borderLeft:`3px solid ${sc}` }}>
+                            <div style={{ display:"flex",
+                              justifyContent:"space-between",
+                              marginBottom:"4px" }}>
+                              <span style={{ fontFamily:"JetBrains Mono, monospace",
+                                fontSize:"11px", fontWeight:"700",
+                                color:sc }}>{v.cve_id}</span>
+                              <div style={{ display:"flex", gap:"4px" }}>
+                                {v.cisa_kev && (
+                                  <span style={{ fontSize:"9px",
+                                    background:"#ff3b5c20", color:"#ff3b5c",
+                                    padding:"1px 5px", borderRadius:"4px",
+                                    fontWeight:"700" }}>KEV</span>
+                                )}
+                                {v.exploit_public && (
+                                  <span style={{ fontSize:"9px",
+                                    background:"#ff8c0020", color:"#ff8c00",
+                                    padding:"1px 5px", borderRadius:"4px",
+                                    fontWeight:"700" }}>EXPLOIT</span>
+                                )}
+                                <span style={{ fontSize:"10px",
+                                  fontWeight:"700", color:sc }}>
+                                  {v.cvss_score}
+                                </span>
+                              </div>
+                            </div>
+                            <div style={{ fontSize:"11px", color:C.text,
+                              marginBottom:"4px" }}>{v.title}</div>
+                            {v.fixed_version && (
+                              <div style={{ fontSize:"10px",
+                                color:"#00ff88" }}>
+                                Fix: upgrade to v{v.fixed_version}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    {selComp.vuln_count === 0 && (
+                      <div style={{ fontSize:"12px", color:"#00ff88",
+                        textAlign:"center", padding:"12px" }}>
+                        ✓ No known vulnerabilities
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Vulns tab */}
+      {tab === "vulns" && (
+        <div style={{ display:"flex", flexDirection:"column", gap:"8px" }}>
+          {vulns.map(v => {
+            const sc   = SEV_COLOR[v.severity]||"#64748b";
+            const comp = components.find(c => c.id === v.component_id);
+            const ec   = comp ? (ECO_COLOR[comp.ecosystem]||"#64748b") : "#64748b";
+            return (
+              <div key={v.id} style={{ background:C.card,
+                border:`1px solid ${sc}20`,
+                borderLeft:`3px solid ${sc}`,
+                borderRadius:"12px", padding:"14px 16px" }}>
+                <div style={{ display:"flex",
+                  alignItems:"flex-start", gap:"12px" }}>
+                  <div style={{ flex:1 }}>
+                    <div style={{ display:"flex", gap:"8px",
+                      alignItems:"center", marginBottom:"6px",
+                      flexWrap:"wrap" }}>
+                      <span style={{ fontFamily:"JetBrains Mono, monospace",
+                        fontSize:"12px", fontWeight:"800", color:sc }}>
+                        {v.cve_id}
+                      </span>
+                      <span style={{ padding:"2px 8px",
+                        borderRadius:"100px", fontSize:"9px",
+                        fontWeight:"800", background:sc+"15",
+                        color:sc, textTransform:"uppercase" }}>
+                        {v.severity}
+                      </span>
+                      <span style={{ fontFamily:"JetBrains Mono, monospace",
+                        fontSize:"12px", fontWeight:"700",
+                        color:"#ff8c00" }}>
+                        CVSS {v.cvss_score}
+                      </span>
+                      {v.cisa_kev && (
+                        <span style={{ padding:"2px 8px",
+                          borderRadius:"6px", fontSize:"10px",
+                          fontWeight:"700", background:"#ff3b5c20",
+                          color:"#ff3b5c", border:"1px solid #ff3b5c30" }}>
+                          🇺🇸 CISA KEV
+                        </span>
+                      )}
+                      {v.exploit_public && (
+                        <span style={{ padding:"2px 8px",
+                          borderRadius:"6px", fontSize:"10px",
+                          fontWeight:"700", background:"#ff8c0020",
+                          color:"#ff8c00" }}>
+                          💥 Public Exploit
+                        </span>
+                      )}
+                      {comp && (
+                        <span style={{ padding:"2px 8px",
+                          borderRadius:"100px", fontSize:"10px",
+                          background:ec+"15", color:ec,
+                          fontFamily:"JetBrains Mono, monospace" }}>
+                          {comp.name} v{comp.version}
+                        </span>
+                      )}
+                    </div>
+                    <div style={{ fontWeight:"700", fontSize:"13px",
+                      marginBottom:"4px" }}>{v.title}</div>
+                    <div style={{ fontSize:"11px", color:C.muted,
+                      lineHeight:"1.5", marginBottom:"6px" }}>
+                      {v.description}
+                    </div>
+                    {v.fixed_version && (
+                      <div style={{ fontSize:"11px", color:"#00ff88",
+                        padding:"6px 10px", borderRadius:"6px",
+                        background:"#00ff8808",
+                        border:"1px solid #00ff8820" }}>
+                        🔧 Upgrade to v{v.fixed_version} to fix
+                      </div>
+                    )}
+                  </div>
+                  <button onClick={() => handleResolve(v.id)}
+                    disabled={updating[v.id]}
+                    style={{ padding:"7px 14px", borderRadius:"8px",
+                      border:"1px solid #00ff8830", cursor:"pointer",
+                      fontSize:"12px", fontWeight:"600",
+                      background:"#00ff8810", color:"#00ff88",
+                      flexShrink:0 }}>
+                    Resolve
+                  </button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* SBOM Reports tab */}
+      {tab === "sboms" && (
+        <div>
+          {sboms.length === 0 ? (
+            <div style={{ ...cardStyle({ padding:"48px",
+              textAlign:"center" }), color:C.muted }}>
+              <div style={{ fontSize:"32px", marginBottom:"12px" }}>📄</div>
+              <div style={{ fontSize:"14px", color:C.text,
+                marginBottom:"8px" }}>No SBOM reports yet</div>
+              <div style={{ fontSize:"13px" }}>
+                Click "Generate SBOM" to create a CycloneDX report
+              </div>
+            </div>
+          ) : (
+            <div style={{ display:"flex", flexDirection:"column", gap:"10px" }}>
+              {sboms.map(s => (
+                <div key={s.id} style={{ ...cardStyle({
+                  borderColor:"#a78bfa20" }) }}>
+                  <div style={{ display:"flex",
+                    alignItems:"center", gap:"16px" }}>
+                    <div style={{ fontSize:"28px" }}>📋</div>
+                    <div style={{ flex:1 }}>
+                      <div style={{ fontWeight:"700", fontSize:"14px",
+                        marginBottom:"4px" }}>{s.name}</div>
+                      <div style={{ fontSize:"11px", color:C.muted }}>
+                        {s.format} v{s.version} ·{" "}
+                        {s.components_count} components ·{" "}
+                        {s.vuln_count} vulnerabilities ·{" "}
+                        {new Date(s.created_at).toLocaleDateString()}
+                      </div>
+                    </div>
+                    <span style={{ padding:"4px 12px",
+                      borderRadius:"100px", fontSize:"11px",
+                      fontWeight:"700", background:"#a78bfa20",
+                      color:"#a78bfa" }}>
+                      CycloneDX
+                    </span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
 
 // ─────────────────────────────────────────────────────────────
 // AIPET X — API Security Layer Page
@@ -18621,6 +19155,9 @@ export default function App() {
           )}
           {activeTab === "team" && (
             <TeamAccessPage token={token} showToast={showToast} />
+          )}
+          {activeTab === "supplychain" && (
+            <SupplyChainPage token={token} showToast={showToast} />
           )}
           {activeTab === "apisecurity" && (
             <ApiSecurityPage token={token} showToast={showToast} />

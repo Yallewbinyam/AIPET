@@ -75,6 +75,8 @@ from dashboard.backend.costsecurity.routes import costsecurity_bp
 from dashboard.backend.costsecurity.models import CsResource, CsRecommendation
 from dashboard.backend.apisecurity.routes import apisecurity_bp
 from dashboard.backend.apisecurity.models import AsEndpoint, AsFinding, AsScan
+from dashboard.backend.supplychain.routes import supplychain_bp
+from dashboard.backend.supplychain.models import ScComponent, ScVuln, ScSbom
 from dashboard.backend.incidents.models import IrIncident, IrTask
 from dashboard.backend.monitoring.logger import setup_logging, get_logger
 from dashboard.backend.security import init_security
@@ -193,6 +195,7 @@ def create_app(config_name="development"):
     app.register_blueprint(dspm_bp)
     app.register_blueprint(costsecurity_bp)
     app.register_blueprint(apisecurity_bp)
+    app.register_blueprint(supplychain_bp)
     app.register_blueprint(api_keys_bp, url_prefix='/api/keys')
 
     # Setup logging
