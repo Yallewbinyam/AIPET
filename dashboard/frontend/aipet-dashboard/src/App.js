@@ -6119,6 +6119,7 @@ const NAV_ITEMS = [
   { id: "identitygraph",label: "Identity Graph", icon: Users,        group: "enterprise" },
   { id: "behavioral",  label: "Behavioral AI",  icon: Activity,      group: "enterprise" },
   { id: "complianceauto",label: "Compliance Auto",icon: CheckCircle,   group: "enterprise" },
+  { id: "dspm",        label: "Data Security",  icon: Lock,          group: "enterprise" },
   { id: "settings",  label: "Settings",      icon: Settings,      group: "account"  },
 ];
 
@@ -6381,6 +6382,470 @@ function SettingsPage({ token, showToast }) {
   );
 }
 
+
+// ─────────────────────────────────────────────────────────────
+// AIPET X — Data Security Posture Management (DSPM-Lite) Page
+//
+// Features:
+//   • Stats: datastores, findings, unencrypted, public exposure
+//   • Data store inventory with sensitivity classification
+//   • Risk score per store
+//   • Finding detail per store
+//   • Sensitivity filter (public/internal/confidential/restricted/secret)
+//   • Run scan button
+//   • Regulation mapping per finding
+// ─────────────────────────────────────────────────────────────
+function DspmPage({ token, showToast }) {
+
+  const [datastores, setDatastores] = useState([]);
+  const [findings,   setFindings]   = useState([]);
+  const [stats,      setStats]      = useState(null);
+  const [loading,    setLoading]    = useState(true);
+  const [scanning,   setScanning]   = useState(false);
+  const [selStore,   setSelStore]   = useState(null);
+  const [tab,        setTab]        = useState("datastores");
+  const [sensFilter, setSensFilter] = useState("");
+  const [updating,   setUpdating]   = useState({});
+
+  const H = { headers: { Authorization: `Bearer ${token}` } };
+
+  const SENS_META = {
+    public:       { color: "#64748b", label: "Public",       icon: "🌐" },
+    internal:     { color: "#00e5ff", label: "Internal",     icon: "🏢" },
+    confidential: { color: "#ffd600", label: "Confidential", icon: "🔒" },
+    restricted:   { color: "#ff8c00", label: "Restricted",   icon: "⛔" },
+    secret:       { color: "#ff3b5c", label: "Secret",       icon: "🔐" },
+  };
+
+  const TYPE_ICON = {
+    database:        "🗄️",
+    object_storage:  "🪣",
+    api:             "🔌",
+    iot_stream:      "📡",
+    file_share:      "📁",
+    message_queue:   "📨",
+    cache:           "⚡",
+  };
+
+  const CLOUD_COLOR = {
+    "AWS":        "#ff8c00",
+    "Azure":      "#00e5ff",
+    "GCP":        "#00ff88",
+    "On-Premise": "#a78bfa",
+  };
+
+  const SEV_COLOR = {
+    Critical: "#ff3b5c", High: "#ff8c00",
+    Medium: "#ffd600",   Low: "#00ff88",
+  };
+
+  const C = {
+    bg: "#030712", card: "#0d1117", surface: "#080f1a",
+    border: "#1e2a3a", text: "#e2e8f0", muted: "#64748b",
+    faint: "#334155", cyan: "#00e5ff",
+  };
+  const cardStyle = (extra={}) => ({
+    background: C.card, border: `1px solid ${C.border}`,
+    borderRadius: "16px", padding: "24px", ...extra
+  });
+
+  const fetchAll = useCallback(async () => {
+    try {
+      const [dsRes, fRes, stRes] = await Promise.all([
+        axios.get(`${API}/dspm/datastores${sensFilter ? "?sensitivity="+sensFilter : ""}`, H),
+        axios.get(`${API}/dspm/findings?status=open`, H),
+        axios.get(`${API}/dspm/stats`, H),
+      ]);
+      setDatastores(dsRes.data.datastores || []);
+      setFindings(fRes.data.findings     || []);
+      setStats(stRes.data);
+    } catch { showToast("Failed to load DSPM data", "error"); }
+    finally { setLoading(false); }
+  }, [token, sensFilter]);
+
+  useEffect(() => { fetchAll(); }, [fetchAll]);
+
+  const handleScan = async () => {
+    setScanning(true);
+    try {
+      const res = await axios.post(`${API}/dspm/scan`, {}, H);
+      showToast(`Scan complete — ${res.data.findings_found} findings`, "success");
+      fetchAll();
+    } catch (e) {
+      showToast(e.response?.data?.error || "Scan failed", "error");
+    } finally { setScanning(false); }
+  };
+
+  const handleResolve = async (fid) => {
+    setUpdating(prev => ({ ...prev, [fid]: true }));
+    try {
+      await axios.put(`${API}/dspm/findings/${fid}`, { status: "resolved" }, H);
+      fetchAll();
+      showToast("Finding resolved", "success");
+    } catch { showToast("Failed", "error"); }
+    finally { setUpdating(prev => ({ ...prev, [fid]: false })); }
+  };
+
+  if (loading) return (
+    <div style={{ display:"flex", justifyContent:"center",
+      alignItems:"center", height:"60vh" }}>
+      <div style={{ width:"48px", height:"48px",
+        border:`3px solid ${C.border}`,
+        borderTop:`3px solid ${C.cyan}`,
+        borderRadius:"50%", animation:"spin 1s linear infinite" }} />
+    </div>
+  );
+
+  return (
+    <div style={{ padding:"32px 36px", background:C.bg,
+      minHeight:"100vh", fontFamily:"Inter, sans-serif", color:C.text }}>
+
+      {/* Header */}
+      <div style={{ display:"flex", alignItems:"center",
+        justifyContent:"space-between", marginBottom:"32px" }}>
+        <div style={{ display:"flex", alignItems:"center", gap:"16px" }}>
+          <div style={{ width:"52px", height:"52px", borderRadius:"14px",
+            background:"linear-gradient(135deg, #00e5ff20, #a78bfa08)",
+            border:"1px solid #00e5ff35", display:"flex",
+            alignItems:"center", justifyContent:"center", fontSize:"24px",
+            boxShadow:"0 0 20px #00e5ff15" }}>🛡️</div>
+          <div>
+            <h1 style={{ margin:0, fontSize:"26px", fontWeight:"800",
+              letterSpacing:"-0.5px", fontFamily:"JetBrains Mono, monospace",
+              background:"linear-gradient(135deg, #00e5ff, #a78bfa)",
+              WebkitBackgroundClip:"text", WebkitTextFillColor:"transparent" }}>
+              Data Security Layer
+            </h1>
+            <div style={{ fontSize:"13px", color:C.muted, marginTop:"2px" }}>
+              DSPM-Lite · Data discovery · Sensitivity classification · Encryption posture
+            </div>
+          </div>
+        </div>
+        <button onClick={handleScan} disabled={scanning}
+          style={{ padding:"12px 28px", borderRadius:"12px", border:"none",
+            cursor:scanning?"not-allowed":"pointer", fontSize:"14px",
+            fontWeight:"800",
+            background:scanning ? C.surface
+              : "linear-gradient(135deg, #00e5ff, #0099ff)",
+            color:scanning ? C.muted : "#000",
+            boxShadow:scanning ? "none" : "0 0 24px rgba(0,229,255,0.3)",
+            display:"flex", alignItems:"center", gap:"8px",
+            transition:"all 0.2s" }}>
+          {scanning ? (
+            <><div style={{ width:"14px", height:"14px",
+              border:"2px solid #64748b",
+              borderTop:"2px solid #00e5ff",
+              borderRadius:"50%",
+              animation:"spin 1s linear infinite" }} />Scanning...</>
+          ) : "▶ Run DSPM Scan"}
+        </button>
+      </div>
+
+      {/* Stats */}
+      {stats && (
+        <div style={{ display:"grid", gridTemplateColumns:"repeat(6, 1fr)",
+          gap:"12px", marginBottom:"28px" }}>
+          {[
+            { label:"Data Stores",   value:stats.total_datastores,                   color:"#00e5ff", icon:"🗄️"  },
+            { label:"Open Findings", value:stats.total_findings,                     color:"#ff8c00", icon:"⚠️"  },
+            { label:"Critical",      value:stats.critical_findings,                  color:"#ff3b5c", icon:"🚨"  },
+            { label:"Unencrypted",   value:stats.unencrypted_stores,                 color:"#ff3b5c", icon:"🔓"  },
+            { label:"Public Exposed",value:stats.public_stores,                      color:"#ff3b5c", icon:"🌐"  },
+            { label:"Avg Risk",      value:`${Math.round(stats.avg_risk)}`,          color:stats.avg_risk>=70?"#ff3b5c":stats.avg_risk>=40?"#ffd600":"#00ff88", icon:"📊" },
+          ].map(s => (
+            <div key={s.label} style={{ ...cardStyle({ padding:"18px" }),
+              borderColor:s.color+"25" }}>
+              <div style={{ fontSize:"18px", marginBottom:"6px" }}>{s.icon}</div>
+              <div style={{ fontSize:"22px", fontWeight:"800",
+                fontFamily:"JetBrains Mono, monospace",
+                color:s.color, lineHeight:1 }}>{s.value}</div>
+              <div style={{ fontSize:"10px", color:C.muted, marginTop:"4px",
+                textTransform:"uppercase", letterSpacing:"0.5px" }}>{s.label}</div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Tabs */}
+      <div style={{ display:"flex", gap:"4px", marginBottom:"20px",
+        background:C.card, padding:"4px", borderRadius:"12px",
+        border:`1px solid ${C.border}`, width:"fit-content" }}>
+        {[
+          { id:"datastores", label:`Data Stores (${datastores.length})` },
+          { id:"findings",   label:`Findings (${findings.length})`      },
+        ].map(t => (
+          <button key={t.id} onClick={() => setTab(t.id)}
+            style={{ padding:"8px 20px", borderRadius:"9px", border:"none",
+              cursor:"pointer", fontSize:"13px", fontWeight:"600",
+              transition:"all 0.2s",
+              background:tab===t.id
+                ? "linear-gradient(135deg,#00e5ff20,#a78bfa08)" : "transparent",
+              color:tab===t.id ? C.text : C.muted,
+              boxShadow:tab===t.id ? "inset 0 0 0 1px #00e5ff30" : "none" }}>
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      {/* Data Stores tab */}
+      {tab === "datastores" && (
+        <div>
+          {/* Sensitivity filter */}
+          <div style={{ display:"flex", gap:"8px",
+            marginBottom:"16px", flexWrap:"wrap" }}>
+            {[{id:"",label:"All"}, ...Object.entries(SENS_META).map(([id,m])=>({id,label:`${m.icon} ${m.label}`}))].map(s => (
+              <button key={s.id} onClick={() => setSensFilter(s.id)}
+                style={{ padding:"5px 14px", borderRadius:"100px",
+                  border:`1px solid ${sensFilter===s.id
+                    ? (SENS_META[s.id]?.color||C.cyan) : C.border}`,
+                  background:sensFilter===s.id
+                    ? (SENS_META[s.id]?.color||C.cyan)+"20" : "transparent",
+                  color:sensFilter===s.id
+                    ? (SENS_META[s.id]?.color||C.cyan) : C.muted,
+                  cursor:"pointer", fontSize:"12px",
+                  fontWeight:sensFilter===s.id ? "700" : "400" }}>
+                {s.label}
+              </button>
+            ))}
+          </div>
+
+          <div style={{ display:"flex", gap:"16px" }}>
+            {/* Store list */}
+            <div style={{ flex:1, display:"flex",
+              flexDirection:"column", gap:"8px" }}>
+              {datastores.map(store => {
+                const sm  = SENS_META[store.sensitivity] || SENS_META.internal;
+                const cc  = CLOUD_COLOR[store.cloud_provider] || "#64748b";
+                const rc  = store.risk_score >= 80 ? "#ff3b5c"
+                  : store.risk_score >= 50 ? "#ffd600" : "#00ff88";
+                const isSel = selStore?.id === store.id;
+                return (
+                  <div key={store.id} onClick={() => setSelStore(isSel ? null : store)}
+                    style={{ background:C.card,
+                      border:`1px solid ${isSel ? sm.color+"50" : C.border}`,
+                      borderLeft:`3px solid ${sm.color}`,
+                      borderRadius:"12px", padding:"14px 16px",
+                      cursor:"pointer",
+                      boxShadow:isSel ? `0 0 16px ${sm.color}10` : "none" }}>
+                    <div style={{ display:"flex", alignItems:"center", gap:"12px" }}>
+                      <div style={{ fontSize:"24px", flexShrink:0 }}>
+                        {TYPE_ICON[store.store_type] || "💾"}
+                      </div>
+                      <div style={{ flex:1 }}>
+                        <div style={{ display:"flex", alignItems:"center",
+                          gap:"8px", marginBottom:"4px" }}>
+                          <span style={{ fontWeight:"700", fontSize:"14px" }}>
+                            {store.name}
+                          </span>
+                          <span style={{ padding:"2px 8px", borderRadius:"100px",
+                            fontSize:"10px", fontWeight:"700",
+                            background:sm.color+"15", color:sm.color }}>
+                            {sm.icon} {sm.label}
+                          </span>
+                          <span style={{ padding:"2px 8px", borderRadius:"100px",
+                            fontSize:"10px", background:cc+"15", color:cc }}>
+                            {store.cloud_provider}
+                          </span>
+                        </div>
+                        <div style={{ display:"flex", gap:"12px",
+                          fontSize:"11px", color:C.muted }}>
+                          <span>{store.store_type.replace("_"," ")}</span>
+                          {store.size_gb > 0 && <span>{store.size_gb}GB</span>}
+                          {store.record_count > 0 && (
+                            <span>{store.record_count.toLocaleString()} records</span>
+                          )}
+                          <span style={{ color:store.encrypted_at_rest ? "#00ff88" : "#ff3b5c" }}>
+                            {store.encrypted_at_rest ? "🔒 Encrypted" : "🔓 Unencrypted"}
+                          </span>
+                          {store.publicly_accessible && (
+                            <span style={{ color:"#ff3b5c", fontWeight:"700" }}>
+                              🌐 PUBLIC
+                            </span>
+                          )}
+                        </div>
+                        {store.data_types?.length > 0 && (
+                          <div style={{ display:"flex", gap:"4px",
+                            marginTop:"6px", flexWrap:"wrap" }}>
+                            {store.data_types.map(dt => (
+                              <span key={dt} style={{ padding:"1px 7px",
+                                borderRadius:"100px", fontSize:"9px",
+                                fontWeight:"700", background:"#a78bfa15",
+                                color:"#a78bfa" }}>{dt}</span>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                      {/* Risk score */}
+                      <div style={{ width:"48px", height:"48px",
+                        borderRadius:"50%", flexShrink:0,
+                        background:rc+"12", border:`2px solid ${rc}`,
+                        display:"flex", flexDirection:"column",
+                        alignItems:"center", justifyContent:"center" }}>
+                        <div style={{ fontSize:"15px", fontWeight:"800",
+                          color:rc, fontFamily:"JetBrains Mono, monospace",
+                          lineHeight:1 }}>{store.risk_score}</div>
+                        <div style={{ fontSize:"7px", color:rc }}>RISK</div>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Store detail panel */}
+            {selStore && (
+              <div style={{ width:"320px", flexShrink:0 }}>
+                <div style={{ ...cardStyle({
+                  borderColor:(SENS_META[selStore.sensitivity]?.color||"#64748b")+"30" }) }}>
+                  <div style={{ fontWeight:"700", fontSize:"14px",
+                    marginBottom:"16px" }}>{selStore.name}</div>
+                  {/* Security posture */}
+                  <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr",
+                    gap:"8px", marginBottom:"16px" }}>
+                    {[
+                      { label:"Encrypted at Rest",   value:selStore.encrypted_at_rest,    ok:selStore.encrypted_at_rest },
+                      { label:"Encrypted in Transit", value:selStore.encrypted_in_transit, ok:selStore.encrypted_in_transit },
+                      { label:"Access Control",       value:selStore.access_control,       ok:selStore.access_control!=="none" },
+                      { label:"Public Exposure",      value:selStore.publicly_accessible?"YES":"NO", ok:!selStore.publicly_accessible },
+                    ].map(item => (
+                      <div key={item.label} style={{ padding:"10px",
+                        borderRadius:"8px",
+                        background:item.ok ? "#00ff8808" : "#ff3b5c08",
+                        border:`1px solid ${item.ok ? "#00ff8820" : "#ff3b5c20"}` }}>
+                        <div style={{ fontSize:"9px", color:C.muted,
+                          textTransform:"uppercase", letterSpacing:"0.5px",
+                          marginBottom:"4px" }}>{item.label}</div>
+                        <div style={{ fontSize:"12px", fontWeight:"700",
+                          color:item.ok ? "#00ff88" : "#ff3b5c" }}>
+                          {item.ok ? "✓" : "✗"} {String(item.value).toUpperCase()}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  {/* Findings for this store */}
+                  <div style={{ fontSize:"11px", fontWeight:"700",
+                    color:C.muted, textTransform:"uppercase",
+                    letterSpacing:"1px", marginBottom:"8px" }}>
+                    Findings ({selStore.finding_count})
+                  </div>
+                  <div style={{ display:"flex", flexDirection:"column", gap:"6px" }}>
+                    {findings
+                      .filter(f => f.datastore_id === selStore.id)
+                      .map(f => {
+                        const sc = SEV_COLOR[f.severity] || "#64748b";
+                        return (
+                          <div key={f.id} style={{ padding:"10px",
+                            borderRadius:"8px", background:C.surface,
+                            border:`1px solid ${sc}20`,
+                            borderLeft:`3px solid ${sc}` }}>
+                            <div style={{ display:"flex",
+                              justifyContent:"space-between",
+                              alignItems:"flex-start", gap:"8px" }}>
+                              <div style={{ flex:1 }}>
+                                <div style={{ fontSize:"11px", fontWeight:"700",
+                                  color:sc, marginBottom:"3px" }}>
+                                  {f.severity}
+                                </div>
+                                <div style={{ fontSize:"11px", color:C.text,
+                                  lineHeight:"1.4", marginBottom:"4px" }}>
+                                  {f.title}
+                                </div>
+                                {f.regulation && (
+                                  <div style={{ fontSize:"9px", color:"#a78bfa" }}>
+                                    {f.regulation}
+                                  </div>
+                                )}
+                              </div>
+                              <button onClick={() => handleResolve(f.id)}
+                                disabled={updating[f.id]}
+                                style={{ padding:"3px 8px", borderRadius:"6px",
+                                  border:"1px solid #00ff8830",
+                                  cursor:"pointer", fontSize:"10px",
+                                  background:"#00ff8810", color:"#00ff88",
+                                  flexShrink:0 }}>
+                                Resolve
+                              </button>
+                            </div>
+                          </div>
+                        );
+                      })}
+                  </div>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* Findings tab */}
+      {tab === "findings" && (
+        <div style={{ display:"flex", flexDirection:"column", gap:"8px" }}>
+          {findings.map(f => {
+            const sc = SEV_COLOR[f.severity] || "#64748b";
+            const store = datastores.find(s => s.id === f.datastore_id);
+            return (
+              <div key={f.id} style={{ background:C.card,
+                border:`1px solid ${sc}20`,
+                borderLeft:`3px solid ${sc}`,
+                borderRadius:"12px", padding:"14px 16px" }}>
+                <div style={{ display:"flex",
+                  alignItems:"flex-start", gap:"12px" }}>
+                  <div style={{ flex:1 }}>
+                    <div style={{ display:"flex", gap:"8px",
+                      alignItems:"center", marginBottom:"6px" }}>
+                      <span style={{ padding:"2px 8px", borderRadius:"100px",
+                        fontSize:"9px", fontWeight:"800", background:sc+"15",
+                        color:sc, textTransform:"uppercase" }}>
+                        {f.severity}
+                      </span>
+                      {store && (
+                        <span style={{ fontSize:"11px", color:C.muted }}>
+                          {TYPE_ICON[store.store_type]} {store.name}
+                        </span>
+                      )}
+                      {f.regulation && (
+                        <span style={{ padding:"2px 7px", borderRadius:"6px",
+                          fontSize:"9px", color:"#a78bfa",
+                          background:"#7c3aed10",
+                          border:"1px solid #7c3aed20",
+                          marginLeft:"auto" }}>
+                          {f.regulation.split(",")[0]}
+                        </span>
+                      )}
+                    </div>
+                    <div style={{ fontWeight:"700", fontSize:"13px",
+                      marginBottom:"4px" }}>{f.title}</div>
+                    <div style={{ fontSize:"11px", color:C.muted,
+                      lineHeight:"1.5", marginBottom:"6px" }}>
+                      {f.description}
+                    </div>
+                    {f.remediation && (
+                      <div style={{ fontSize:"11px", color:"#00ff88",
+                        padding:"6px 10px", borderRadius:"6px",
+                        background:"#00ff8808",
+                        border:"1px solid #00ff8820" }}>
+                        🔧 {f.remediation}
+                      </div>
+                    )}
+                  </div>
+                  <button onClick={() => handleResolve(f.id)}
+                    disabled={updating[f.id]}
+                    style={{ padding:"7px 14px", borderRadius:"8px",
+                      border:"1px solid #00ff8830", cursor:"pointer",
+                      fontSize:"12px", fontWeight:"600",
+                      background:"#00ff8810", color:"#00ff88",
+                      flexShrink:0 }}>
+                    Resolve
+                  </button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
 
 // ─────────────────────────────────────────────────────────────
 // AIPET X — Compliance Automation Page
@@ -17218,6 +17683,9 @@ export default function App() {
           )}
           {activeTab === "team" && (
             <TeamAccessPage token={token} showToast={showToast} />
+          )}
+          {activeTab === "dspm" && (
+            <DspmPage token={token} showToast={showToast} />
           )}
           {activeTab === "complianceauto" && (
             <ComplianceAutoPage token={token} showToast={showToast} />

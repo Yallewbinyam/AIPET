@@ -69,6 +69,8 @@ from dashboard.backend.behavioral.routes import behavioral_bp
 from dashboard.backend.behavioral.models import BaBaseline, BaAnomaly, BaPattern
 from dashboard.backend.complianceauto.routes import complianceauto_bp
 from dashboard.backend.complianceauto.models import CaFramework, CaControl, CaAssessment
+from dashboard.backend.dspm.routes import dspm_bp
+from dashboard.backend.dspm.models import DspmDatastore, DspmFinding, DspmScan
 from dashboard.backend.incidents.models import IrIncident, IrTask
 from dashboard.backend.monitoring.logger import setup_logging, get_logger
 from dashboard.backend.security import init_security
@@ -184,6 +186,7 @@ def create_app(config_name="development"):
     app.register_blueprint(identitygraph_bp)
     app.register_blueprint(behavioral_bp)
     app.register_blueprint(complianceauto_bp)
+    app.register_blueprint(dspm_bp)
     app.register_blueprint(api_keys_bp, url_prefix='/api/keys')
 
     # Setup logging
