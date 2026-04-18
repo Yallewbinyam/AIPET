@@ -6118,6 +6118,7 @@ const NAV_ITEMS = [
   { id: "attackpath", label: "Attack Paths",  icon: GitBranch,     group: "enterprise" },
   { id: "identitygraph",label: "Identity Graph", icon: Users,        group: "enterprise" },
   { id: "behavioral",  label: "Behavioral AI",  icon: Activity,      group: "enterprise" },
+  { id: "complianceauto",label: "Compliance Auto",icon: CheckCircle,   group: "enterprise" },
   { id: "settings",  label: "Settings",      icon: Settings,      group: "account"  },
 ];
 
@@ -6380,6 +6381,447 @@ function SettingsPage({ token, showToast }) {
   );
 }
 
+
+// ─────────────────────────────────────────────────────────────
+// AIPET X — Compliance Automation Page
+//
+// Features:
+//   • 4 frameworks: NIS2, ISO 27001, SOC 2, NIST CSF
+//   • Score gauges per framework
+//   • Control list with pass/fail/partial status
+//   • Category filters
+//   • Run assessment button
+//   • AI audit report generator
+//   • Score trend (assessment history)
+// ─────────────────────────────────────────────────────────────
+function ComplianceAutoPage({ token, showToast }) {
+
+  const [frameworks, setFrameworks] = useState([]);
+  const [stats,      setStats]      = useState(null);
+  const [controls,   setControls]   = useState([]);
+  const [history,    setHistory]    = useState([]);
+  const [loading,    setLoading]    = useState(true);
+  const [selFw,      setSelFw]      = useState(null);
+  const [assessing,  setAssessing]  = useState({});
+  const [genReport,  setGenReport]  = useState(false);
+  const [report,     setReport]     = useState(null);
+  const [statusFilter,setStatusFilter]=useState("");
+  const [tab,        setTab]        = useState("frameworks");
+
+  const H = { headers: { Authorization: `Bearer ${token}` } };
+
+  const FW_META = {
+    "NIS2 Directive": { color: "#00e5ff", icon: "🇪🇺" },
+    "ISO 27001":      { color: "#a78bfa", icon: "🔒" },
+    "SOC 2 Type II":  { color: "#00ff88", icon: "✅" },
+    "NIST CSF":       { color: "#ffd600", icon: "🏛️" },
+  };
+
+  const STATUS_META = {
+    pass:           { color: "#00ff88", label: "Pass",    icon: "✓" },
+    fail:           { color: "#ff3b5c", label: "Fail",    icon: "✗" },
+    partial:        { color: "#ffd600", label: "Partial", icon: "◑" },
+    not_tested:     { color: "#64748b", label: "N/A",     icon: "—" },
+    not_applicable: { color: "#334155", label: "N/A",     icon: "—" },
+  };
+
+  const C = {
+    bg: "#030712", card: "#0d1117", surface: "#080f1a",
+    border: "#1e2a3a", text: "#e2e8f0", muted: "#64748b",
+    faint: "#334155", cyan: "#00e5ff",
+  };
+  const cardStyle = (extra={}) => ({
+    background: C.card, border: `1px solid ${C.border}`,
+    borderRadius: "16px", padding: "24px", ...extra
+  });
+
+  const fetchAll = useCallback(async () => {
+    try {
+      const [fwRes, stRes] = await Promise.all([
+        axios.get(`${API}/complianceauto/frameworks`, H),
+        axios.get(`${API}/complianceauto/stats`, H),
+      ]);
+      setFrameworks(fwRes.data.frameworks || []);
+      setStats(stRes.data);
+    } catch { showToast("Failed to load compliance data", "error"); }
+    finally { setLoading(false); }
+  }, [token]);
+
+  useEffect(() => { fetchAll(); }, [fetchAll]);
+
+  const loadFramework = async (fw) => {
+    setSelFw(fw); setReport(null); setTab("controls");
+    try {
+      const [ctrlRes, histRes] = await Promise.all([
+        axios.get(`${API}/complianceauto/controls/${fw.id}${statusFilter ? "?status="+statusFilter : ""}`, H),
+        axios.get(`${API}/complianceauto/history/${fw.id}`, H),
+      ]);
+      setControls(ctrlRes.data.controls || []);
+      setHistory(histRes.data.history   || []);
+    } catch { showToast("Failed to load controls", "error"); }
+  };
+
+  const handleAssess = async (fwid) => {
+    setAssessing(prev => ({ ...prev, [fwid]: true }));
+    try {
+      const res = await axios.post(`${API}/complianceauto/assess/${fwid}`, {}, H);
+      showToast(`Assessment complete — score: ${res.data.score}/100`, "success");
+      fetchAll();
+      if (selFw?.id === fwid) loadFramework({...selFw, ...res.data.framework});
+    } catch (e) {
+      showToast(e.response?.data?.error || "Assessment failed", "error");
+    } finally {
+      setAssessing(prev => ({ ...prev, [fwid]: false }));
+    }
+  };
+
+  const handleReport = async (fwid) => {
+    setGenReport(true); setReport(null);
+    try {
+      const res = await axios.post(`${API}/complianceauto/report/${fwid}`, {}, H);
+      setReport(res.data.report);
+      showToast("Audit report generated", "success");
+    } catch (e) {
+      showToast(e.response?.data?.error || "Report failed", "error");
+    } finally { setGenReport(false); }
+  };
+
+  // Score gauge component
+  const ScoreGauge = ({ score, size=80 }) => {
+    const color = score >= 80 ? "#00ff88" : score >= 60 ? "#ffd600" : "#ff3b5c";
+    const label = score >= 80 ? "COMPLIANT" : score >= 60 ? "PARTIAL" : "AT RISK";
+    return (
+      <div style={{ display:"flex", flexDirection:"column",
+        alignItems:"center", gap:"6px" }}>
+        <div style={{ width:`${size}px`, height:`${size}px`,
+          borderRadius:"50%", background:color+"12",
+          border:`3px solid ${color}`,
+          display:"flex", flexDirection:"column",
+          alignItems:"center", justifyContent:"center",
+          boxShadow:`0 0 20px ${color}25` }}>
+          <div style={{ fontSize:`${size*0.28}px`, fontWeight:"900",
+            fontFamily:"JetBrains Mono, monospace", color, lineHeight:1 }}>
+            {score}
+          </div>
+          <div style={{ fontSize:"9px", color, opacity:0.8 }}>/ 100</div>
+        </div>
+        <div style={{ fontSize:"10px", fontWeight:"800", color,
+          letterSpacing:"1px" }}>{label}</div>
+      </div>
+    );
+  };
+
+  if (loading) return (
+    <div style={{ display:"flex", justifyContent:"center",
+      alignItems:"center", height:"60vh" }}>
+      <div style={{ width:"48px", height:"48px",
+        border:`3px solid ${C.border}`,
+        borderTop:`3px solid ${C.cyan}`,
+        borderRadius:"50%", animation:"spin 1s linear infinite" }} />
+    </div>
+  );
+
+  return (
+    <div style={{ padding:"32px 36px", background:C.bg,
+      minHeight:"100vh", fontFamily:"Inter, sans-serif", color:C.text }}>
+
+      {/* Header */}
+      <div style={{ display:"flex", alignItems:"center",
+        justifyContent:"space-between", marginBottom:"32px" }}>
+        <div style={{ display:"flex", alignItems:"center", gap:"16px" }}>
+          <div style={{ width:"52px", height:"52px", borderRadius:"14px",
+            background:"linear-gradient(135deg, #00ff8820, #00e5ff08)",
+            border:"1px solid #00ff8835", display:"flex",
+            alignItems:"center", justifyContent:"center", fontSize:"24px",
+            boxShadow:"0 0 20px #00ff8815" }}>📋</div>
+          <div>
+            <h1 style={{ margin:0, fontSize:"26px", fontWeight:"800",
+              letterSpacing:"-0.5px", fontFamily:"JetBrains Mono, monospace",
+              background:"linear-gradient(135deg, #00ff88, #00e5ff)",
+              WebkitBackgroundClip:"text", WebkitTextFillColor:"transparent" }}>
+              Compliance Automation
+            </h1>
+            <div style={{ fontSize:"13px", color:C.muted, marginTop:"2px" }}>
+              NIS2 · ISO 27001 · SOC 2 · NIST CSF · Auto-assessed · AI audit reports
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Stats bar */}
+      {stats && (
+        <div style={{ display:"grid", gridTemplateColumns:"repeat(5, 1fr)",
+          gap:"12px", marginBottom:"28px" }}>
+          {[
+            { label:"Frameworks",    value:stats.total_frameworks, color:"#00e5ff", icon:"📋" },
+            { label:"Avg Score",     value:`${stats.avg_score}%`,  color:stats.avg_score>=80?"#00ff88":stats.avg_score>=60?"#ffd600":"#ff3b5c", icon:"📊" },
+            { label:"Total Controls",value:stats.total_controls,   color:"#a78bfa", icon:"🎯" },
+            { label:"Passed",        value:stats.total_passed,     color:"#00ff88", icon:"✓" },
+            { label:"Failed",        value:stats.total_failed,     color:"#ff3b5c", icon:"✗" },
+          ].map(s => (
+            <div key={s.label} style={{ ...cardStyle({ padding:"18px" }),
+              borderColor:s.color+"25" }}>
+              <div style={{ fontSize:"18px", marginBottom:"6px" }}>{s.icon}</div>
+              <div style={{ fontSize:"22px", fontWeight:"800",
+                fontFamily:"JetBrains Mono, monospace",
+                color:s.color, lineHeight:1 }}>{s.value}</div>
+              <div style={{ fontSize:"10px", color:C.muted, marginTop:"4px",
+                textTransform:"uppercase", letterSpacing:"0.5px" }}>{s.label}</div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Tab bar */}
+      <div style={{ display:"flex", gap:"4px", marginBottom:"24px",
+        background:C.card, padding:"4px", borderRadius:"12px",
+        border:`1px solid ${C.border}`, width:"fit-content" }}>
+        {[
+          { id:"frameworks", label:"Frameworks" },
+          { id:"controls",   label:`Controls${selFw ? ` — ${selFw.name}` : ""}` },
+          { id:"report",     label:"Audit Report" },
+        ].map(t => (
+          <button key={t.id} onClick={() => setTab(t.id)}
+            style={{ padding:"8px 20px", borderRadius:"9px", border:"none",
+              cursor:"pointer", fontSize:"13px", fontWeight:"600",
+              transition:"all 0.2s",
+              background:tab===t.id
+                ? "linear-gradient(135deg,#00ff8820,#00e5ff08)" : "transparent",
+              color:tab===t.id ? C.text : C.muted,
+              boxShadow:tab===t.id ? "inset 0 0 0 1px #00ff8830" : "none" }}>
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      {/* Frameworks tab */}
+      {tab === "frameworks" && (
+        <div style={{ display:"grid", gridTemplateColumns:"repeat(2, 1fr)",
+          gap:"16px" }}>
+          {frameworks.map(fw => {
+            const meta = FW_META[fw.name] || { color:"#64748b", icon:"📋" };
+            const isAssessing = assessing[fw.id];
+            return (
+              <div key={fw.id} style={{ ...cardStyle({
+                borderColor:meta.color+"30",
+                boxShadow:`0 0 20px ${meta.color}08` }) }}>
+                <div style={{ display:"flex", alignItems:"center",
+                  gap:"20px", marginBottom:"20px" }}>
+                  <ScoreGauge score={fw.score} size={80} />
+                  <div style={{ flex:1 }}>
+                    <div style={{ display:"flex", alignItems:"center",
+                      gap:"8px", marginBottom:"6px" }}>
+                      <span style={{ fontSize:"20px" }}>{meta.icon}</span>
+                      <span style={{ fontWeight:"800", fontSize:"16px",
+                        color:meta.color }}>{fw.name}</span>
+                    </div>
+                    <div style={{ fontSize:"11px", color:C.muted,
+                      marginBottom:"10px" }}>{fw.description}</div>
+                    <div style={{ display:"flex", gap:"16px",
+                      fontSize:"12px" }}>
+                      <span style={{ color:"#00ff88" }}>✓ {fw.passed} passed</span>
+                      <span style={{ color:"#ffd600" }}>◑ {fw.partial} partial</span>
+                      <span style={{ color:"#ff3b5c" }}>✗ {fw.failed} failed</span>
+                    </div>
+                  </div>
+                </div>
+                {/* Progress bar */}
+                <div style={{ height:"6px", background:C.faint,
+                  borderRadius:"3px", marginBottom:"16px", overflow:"hidden" }}>
+                  <div style={{ display:"flex", height:"100%" }}>
+                    <div style={{ width:`${(fw.passed/fw.total_controls)*100}%`,
+                      background:"#00ff88" }} />
+                    <div style={{ width:`${(fw.partial/fw.total_controls)*100}%`,
+                      background:"#ffd600" }} />
+                    <div style={{ width:`${(fw.failed/fw.total_controls)*100}%`,
+                      background:"#ff3b5c" }} />
+                  </div>
+                </div>
+                {/* Actions */}
+                <div style={{ display:"flex", gap:"8px" }}>
+                  <button onClick={() => loadFramework(fw)}
+                    style={{ flex:1, padding:"9px", borderRadius:"10px",
+                      border:`1px solid ${meta.color}30`, cursor:"pointer",
+                      fontSize:"12px", fontWeight:"700",
+                      background:meta.color+"10", color:meta.color }}>
+                    View Controls
+                  </button>
+                  <button onClick={() => handleAssess(fw.id)}
+                    disabled={isAssessing}
+                    style={{ flex:1, padding:"9px", borderRadius:"10px",
+                      border:"none", cursor:"pointer",
+                      fontSize:"12px", fontWeight:"700",
+                      background:`linear-gradient(135deg, ${meta.color}, ${meta.color}aa)`,
+                      color:"#000", opacity:isAssessing ? 0.6 : 1 }}>
+                    {isAssessing ? "Assessing..." : "▶ Assess"}
+                  </button>
+                  <button onClick={() => { setSelFw(fw); handleReport(fw.id); setTab("report"); }}
+                    disabled={genReport}
+                    style={{ flex:1, padding:"9px", borderRadius:"10px",
+                      border:"1px solid #a78bfa30", cursor:"pointer",
+                      fontSize:"12px", fontWeight:"600",
+                      background:"#a78bfa10", color:"#a78bfa",
+                      opacity:genReport ? 0.6 : 1 }}>
+                    {genReport ? "..." : "📄 Report"}
+                  </button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Controls tab */}
+      {tab === "controls" && (
+        <div>
+          {!selFw ? (
+            <div style={{ ...cardStyle({ padding:"48px", textAlign:"center" }),
+              color:C.muted }}>
+              Select a framework to view its controls.
+            </div>
+          ) : (
+            <div>
+              {/* Status filter */}
+              <div style={{ display:"flex", gap:"8px",
+                marginBottom:"16px", flexWrap:"wrap" }}>
+                {["","pass","partial","fail"].map(s => {
+                  const m = STATUS_META[s] || { color:C.cyan, label:"All" };
+                  return (
+                    <button key={s} onClick={() => setStatusFilter(s)}
+                      style={{ padding:"5px 14px", borderRadius:"100px",
+                        border:`1px solid ${statusFilter===s ? m.color : C.border}`,
+                        background:statusFilter===s ? m.color+"20" : "transparent",
+                        color:statusFilter===s ? m.color : C.muted,
+                        cursor:"pointer", fontSize:"12px",
+                        fontWeight:statusFilter===s ? "700" : "400" }}>
+                      {s ? `${m.icon} ${m.label}` : "All Controls"}
+                    </button>
+                  );
+                })}
+              </div>
+              {/* Controls list */}
+              <div style={{ display:"flex", flexDirection:"column", gap:"6px" }}>
+                {controls
+                  .filter(c => !statusFilter || c.status === statusFilter)
+                  .map(ctrl => {
+                    const sm = STATUS_META[ctrl.status] || STATUS_META.not_tested;
+                    return (
+                      <div key={ctrl.id} style={{ background:C.card,
+                        border:`1px solid ${ctrl.status==="fail"
+                          ? "#ff3b5c20" : C.border}`,
+                        borderLeft:`3px solid ${sm.color}`,
+                        borderRadius:"10px", padding:"12px 16px" }}>
+                        <div style={{ display:"flex",
+                          alignItems:"flex-start", gap:"12px" }}>
+                          {/* Status badge */}
+                          <div style={{ width:"28px", height:"28px",
+                            borderRadius:"8px", flexShrink:0,
+                            background:sm.color+"20",
+                            border:`1px solid ${sm.color}40`,
+                            display:"flex", alignItems:"center",
+                            justifyContent:"center", fontSize:"13px",
+                            color:sm.color, fontWeight:"800" }}>
+                            {sm.icon}
+                          </div>
+                          <div style={{ flex:1 }}>
+                            <div style={{ display:"flex",
+                              alignItems:"center", gap:"8px",
+                              marginBottom:"4px" }}>
+                              <span style={{ fontFamily:"JetBrains Mono, monospace",
+                                fontSize:"11px", color:"#a78bfa",
+                                fontWeight:"700" }}>{ctrl.control_id}</span>
+                              <span style={{ fontWeight:"600",
+                                fontSize:"13px" }}>{ctrl.title}</span>
+                              <span style={{ padding:"1px 7px",
+                                borderRadius:"100px", fontSize:"9px",
+                                background:C.surface, color:C.muted,
+                                marginLeft:"auto" }}>{ctrl.category}</span>
+                            </div>
+                            {ctrl.evidence && (
+                              <div style={{ fontSize:"11px", color:C.muted,
+                                marginBottom:"3px" }}>
+                                ✓ {ctrl.evidence}
+                              </div>
+                            )}
+                            {ctrl.gap && (
+                              <div style={{ fontSize:"11px", color:"#ff8c00",
+                                display:"flex", alignItems:"center",
+                                gap:"4px" }}>
+                                ⚠ {ctrl.gap}
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Report tab */}
+      {tab === "report" && (
+        <div>
+          {!report ? (
+            <div style={{ ...cardStyle({ padding:"48px", textAlign:"center" }),
+              color:C.muted }}>
+              <div style={{ fontSize:"32px", marginBottom:"12px" }}>📄</div>
+              <div style={{ fontSize:"14px", color:C.text, marginBottom:"8px" }}>
+                AI Compliance Audit Report
+              </div>
+              <div style={{ fontSize:"13px", marginBottom:"20px" }}>
+                Click "Report" on any framework to generate an audit-ready report.
+              </div>
+            </div>
+          ) : (
+            <div style={{ ...cardStyle({ borderColor:"#a78bfa20" }) }}>
+              <div style={{ display:"flex", justifyContent:"space-between",
+                marginBottom:"16px" }}>
+                <div>
+                  <div style={{ fontWeight:"700", fontSize:"15px",
+                    marginBottom:"4px" }}>
+                    {selFw?.name} Audit Report
+                  </div>
+                  <div style={{ fontSize:"11px", color:C.muted }}>
+                    Generated {new Date().toLocaleDateString()}
+                  </div>
+                </div>
+                <div style={{ display:"flex", gap:"8px" }}>
+                  <button onClick={() => {
+                    navigator.clipboard.writeText(report);
+                    showToast("Copied", "success");
+                  }} style={{ padding:"7px 14px", borderRadius:"8px",
+                    border:"1px solid #a78bfa30", cursor:"pointer",
+                    fontSize:"12px", fontWeight:"600",
+                    background:"#a78bfa10", color:"#a78bfa" }}>Copy</button>
+                  <button onClick={() => {
+                    const blob = new Blob([report], { type:"text/plain" });
+                    const url  = URL.createObjectURL(blob);
+                    const a    = document.createElement("a");
+                    a.href = url;
+                    a.download = `${selFw?.name}-audit-${new Date().toISOString().slice(0,10)}.txt`;
+                    a.click(); URL.revokeObjectURL(url);
+                  }} style={{ padding:"7px 14px", borderRadius:"8px",
+                    border:"1px solid #a78bfa30", cursor:"pointer",
+                    fontSize:"12px", fontWeight:"600",
+                    background:"#a78bfa10", color:"#a78bfa" }}>↓ Download</button>
+                </div>
+              </div>
+              <div style={{ fontSize:"13px", lineHeight:"1.8", color:C.text,
+                whiteSpace:"pre-wrap", padding:"20px", borderRadius:"12px",
+                background:C.surface, border:`1px solid ${C.border}`,
+                maxHeight:"600px", overflowY:"auto" }}>
+                {report}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
 
 // ─────────────────────────────────────────────────────────────
 // AIPET X — Behavioral AI Engine Page
@@ -16776,6 +17218,9 @@ export default function App() {
           )}
           {activeTab === "team" && (
             <TeamAccessPage token={token} showToast={showToast} />
+          )}
+          {activeTab === "complianceauto" && (
+            <ComplianceAutoPage token={token} showToast={showToast} />
           )}
           {activeTab === "behavioral" && (
             <BehavioralAIPage token={token} showToast={showToast} />
