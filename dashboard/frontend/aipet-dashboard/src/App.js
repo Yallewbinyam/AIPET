@@ -6121,6 +6121,7 @@ const NAV_ITEMS = [
   { id: "complianceauto",label: "Compliance Auto",icon: CheckCircle,   group: "enterprise" },
   { id: "dspm",        label: "Data Security",  icon: Lock,          group: "enterprise" },
   { id: "costsecurity",label: "Cost Security",  icon: TrendingUp,    group: "enterprise" },
+  { id: "apisecurity", label: "API Security",  icon: Shield,        group: "enterprise" },
   { id: "settings",  label: "Settings",      icon: Settings,      group: "account"  },
 ];
 
@@ -6383,6 +6384,508 @@ function SettingsPage({ token, showToast }) {
   );
 }
 
+
+// ─────────────────────────────────────────────────────────────
+// AIPET X — API Security Layer Page
+//
+// Features:
+//   • Stats: endpoints, findings, unauthenticated, critical
+//   • Endpoint inventory with risk scores
+//   • OWASP API Top 10 mapping
+//   • Finding detail per endpoint
+//   • Run scan button
+//   • Service grouping
+//   • Auth type badges
+// ─────────────────────────────────────────────────────────────
+function ApiSecurityPage({ token, showToast }) {
+
+  const [endpoints, setEndpoints] = useState([]);
+  const [findings,  setFindings]  = useState([]);
+  const [stats,     setStats]     = useState(null);
+  const [loading,   setLoading]   = useState(true);
+  const [scanning,  setScanning]  = useState(false);
+  const [tab,       setTab]       = useState("endpoints");
+  const [selEndpoint,setSelEndpoint]=useState(null);
+  const [sevFilter, setSevFilter] = useState("");
+  const [updating,  setUpdating]  = useState({});
+
+  const H = { headers: { Authorization: `Bearer ${token}` } };
+
+  const METHOD_COLOR = {
+    GET:    "#00e5ff", POST:   "#00ff88",
+    PUT:    "#ffd600", DELETE: "#ff3b5c",
+    PATCH:  "#a78bfa",
+  };
+
+  const AUTH_META = {
+    none:    { color:"#ff3b5c", label:"None",    icon:"🔓" },
+    api_key: { color:"#ffd600", label:"API Key", icon:"🔑" },
+    jwt:     { color:"#00ff88", label:"JWT",     icon:"🎫" },
+    oauth2:  { color:"#00e5ff", label:"OAuth2",  icon:"🔐" },
+    basic:   { color:"#ff8c00", label:"Basic",   icon:"⚠️" },
+  };
+
+  const OWASP_COLOR = {
+    "API1":"#ff3b5c","API2":"#ff3b5c","API3":"#ff8c00",
+    "API4":"#ff8c00","API5":"#ff3b5c","API6":"#ffd600",
+    "API7":"#a78bfa","API8":"#ff8c00","API9":"#ffd600",
+    "API10":"#64748b",
+  };
+
+  const SEV_COLOR = {
+    Critical:"#ff3b5c", High:"#ff8c00",
+    Medium:"#ffd600",   Low:"#00ff88",
+  };
+
+  const C = {
+    bg:"#030712", card:"#0d1117", surface:"#080f1a",
+    border:"#1e2a3a", text:"#e2e8f0", muted:"#64748b",
+    faint:"#334155", cyan:"#00e5ff",
+  };
+  const cardStyle = (extra={}) => ({
+    background:C.card, border:`1px solid ${C.border}`,
+    borderRadius:"16px", padding:"24px", ...extra
+  });
+
+  const fetchAll = useCallback(async () => {
+    try {
+      const [epRes, fRes, stRes] = await Promise.all([
+        axios.get(`${API}/apisecurity/endpoints`, H),
+        axios.get(`${API}/apisecurity/findings?status=open${sevFilter?"&severity="+sevFilter:""}`, H),
+        axios.get(`${API}/apisecurity/stats`, H),
+      ]);
+      setEndpoints(epRes.data.endpoints || []);
+      setFindings(fRes.data.findings   || []);
+      setStats(stRes.data);
+    } catch { showToast("Failed to load API security data", "error"); }
+    finally { setLoading(false); }
+  }, [token, sevFilter]);
+
+  useEffect(() => { fetchAll(); }, [fetchAll]);
+
+  const handleScan = async () => {
+    setScanning(true);
+    try {
+      const res = await axios.post(`${API}/apisecurity/scan`, {}, H);
+      showToast(`Scan complete — ${res.data.findings_found} findings`, "success");
+      fetchAll();
+    } catch { showToast("Scan failed", "error"); }
+    finally { setScanning(false); }
+  };
+
+  const handleResolve = async (fid) => {
+    setUpdating(prev => ({ ...prev, [fid]: true }));
+    try {
+      await axios.put(`${API}/apisecurity/findings/${fid}`,
+        { status: "resolved" }, H);
+      fetchAll();
+      showToast("Finding resolved", "success");
+    } catch { showToast("Failed", "error"); }
+    finally { setUpdating(prev => ({ ...prev, [fid]: false })); }
+  };
+
+  // Group endpoints by service
+  const byService = endpoints.reduce((acc, ep) => {
+    const svc = ep.service || "Unknown";
+    if (!acc[svc]) acc[svc] = [];
+    acc[svc].push(ep);
+    return acc;
+  }, {});
+
+  if (loading) return (
+    <div style={{ display:"flex", justifyContent:"center",
+      alignItems:"center", height:"60vh" }}>
+      <div style={{ width:"48px", height:"48px",
+        border:`3px solid ${C.border}`,
+        borderTop:`3px solid ${C.cyan}`,
+        borderRadius:"50%", animation:"spin 1s linear infinite" }} />
+    </div>
+  );
+
+  return (
+    <div style={{ padding:"32px 36px", background:C.bg,
+      minHeight:"100vh", fontFamily:"Inter, sans-serif", color:C.text }}>
+
+      {/* Header */}
+      <div style={{ display:"flex", alignItems:"center",
+        justifyContent:"space-between", marginBottom:"32px" }}>
+        <div style={{ display:"flex", alignItems:"center", gap:"16px" }}>
+          <div style={{ width:"52px", height:"52px", borderRadius:"14px",
+            background:"linear-gradient(135deg, #ff8c0020, #ff3b5c08)",
+            border:"1px solid #ff8c0035", display:"flex",
+            alignItems:"center", justifyContent:"center", fontSize:"24px",
+            boxShadow:"0 0 20px #ff8c0015" }}>🔌</div>
+          <div>
+            <h1 style={{ margin:0, fontSize:"26px", fontWeight:"800",
+              letterSpacing:"-0.5px", fontFamily:"JetBrains Mono, monospace",
+              background:"linear-gradient(135deg, #ff8c00, #ff3b5c)",
+              WebkitBackgroundClip:"text", WebkitTextFillColor:"transparent" }}>
+              API Security Layer
+            </h1>
+            <div style={{ fontSize:"13px", color:C.muted, marginTop:"2px" }}>
+              OWASP API Top 10 · Endpoint discovery · Auth testing · Rate limit checks
+            </div>
+          </div>
+        </div>
+        <button onClick={handleScan} disabled={scanning}
+          style={{ padding:"12px 28px", borderRadius:"12px", border:"none",
+            cursor:scanning?"not-allowed":"pointer", fontSize:"14px",
+            fontWeight:"800",
+            background:scanning ? C.surface
+              : "linear-gradient(135deg, #ff8c00, #ff3b5c)",
+            color:scanning ? C.muted : "#fff",
+            boxShadow:scanning ? "none" : "0 0 24px rgba(255,140,0,0.3)",
+            display:"flex", alignItems:"center", gap:"8px",
+            transition:"all 0.2s" }}>
+          {scanning ? "Scanning..." : "▶ Run API Scan"}
+        </button>
+      </div>
+
+      {/* Stats */}
+      {stats && (
+        <div style={{ display:"grid", gridTemplateColumns:"repeat(6,1fr)",
+          gap:"12px", marginBottom:"28px" }}>
+          {[
+            { label:"Endpoints",      value:stats.total_endpoints,   color:"#ff8c00", icon:"🔌" },
+            { label:"Findings",       value:stats.total_findings,    color:"#ff3b5c", icon:"⚠️" },
+            { label:"Critical",       value:stats.critical_findings, color:"#ff3b5c", icon:"🚨" },
+            { label:"Unauthenticated",value:stats.unauthenticated,   color:"#ff3b5c", icon:"🔓" },
+            { label:"No Rate Limit",  value:stats.no_rate_limit,     color:"#ff8c00", icon:"⏱️" },
+            { label:"Avg Risk",       value:`${stats.avg_risk_score}`,color:stats.avg_risk_score>=70?"#ff3b5c":stats.avg_risk_score>=40?"#ffd600":"#00ff88", icon:"📊" },
+          ].map(s => (
+            <div key={s.label} style={{ ...cardStyle({ padding:"18px" }),
+              borderColor:s.color+"25" }}>
+              <div style={{ fontSize:"18px", marginBottom:"6px" }}>{s.icon}</div>
+              <div style={{ fontSize:"22px", fontWeight:"800",
+                fontFamily:"JetBrains Mono, monospace",
+                color:s.color, lineHeight:1 }}>{s.value}</div>
+              <div style={{ fontSize:"10px", color:C.muted, marginTop:"4px",
+                textTransform:"uppercase", letterSpacing:"0.5px" }}>{s.label}</div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* OWASP breakdown */}
+      {stats?.by_owasp && Object.keys(stats.by_owasp).length > 0 && (
+        <div style={{ ...cardStyle({ marginBottom:"24px" }) }}>
+          <div style={{ fontSize:"11px", fontWeight:"700", color:C.muted,
+            textTransform:"uppercase", letterSpacing:"1.5px",
+            marginBottom:"12px" }}>OWASP API Security Top 10 Coverage</div>
+          <div style={{ display:"flex", gap:"8px", flexWrap:"wrap" }}>
+            {Object.entries(stats.by_owasp).map(([id, count]) => {
+              const color = OWASP_COLOR[id] || "#64748b";
+              return (
+                <div key={id} style={{ padding:"6px 12px",
+                  borderRadius:"10px", background:color+"15",
+                  border:`1px solid ${color}30` }}>
+                  <div style={{ fontSize:"11px", fontWeight:"800",
+                    color, marginBottom:"2px" }}>{id}</div>
+                  <div style={{ fontSize:"10px", color:C.muted }}>
+                    {count} finding{count>1?"s":""}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Tabs */}
+      <div style={{ display:"flex", gap:"4px", marginBottom:"20px",
+        background:C.card, padding:"4px", borderRadius:"12px",
+        border:`1px solid ${C.border}`, width:"fit-content" }}>
+        {[
+          { id:"endpoints", label:`Endpoints (${endpoints.length})` },
+          { id:"findings",  label:`Findings (${findings.length})`   },
+        ].map(t => (
+          <button key={t.id} onClick={() => setTab(t.id)}
+            style={{ padding:"8px 20px", borderRadius:"9px", border:"none",
+              cursor:"pointer", fontSize:"13px", fontWeight:"600",
+              transition:"all 0.2s",
+              background:tab===t.id
+                ? "linear-gradient(135deg,#ff8c0020,#ff3b5c08)" : "transparent",
+              color:tab===t.id ? C.text : C.muted,
+              boxShadow:tab===t.id ? "inset 0 0 0 1px #ff8c0030" : "none" }}>
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      {/* Endpoints tab */}
+      {tab === "endpoints" && (
+        <div style={{ display:"flex", gap:"16px" }}>
+          <div style={{ flex:1 }}>
+            {Object.entries(byService).map(([svc, eps]) => (
+              <div key={svc} style={{ marginBottom:"20px" }}>
+                <div style={{ fontSize:"11px", fontWeight:"700",
+                  color:C.muted, textTransform:"uppercase",
+                  letterSpacing:"1.5px", marginBottom:"8px",
+                  display:"flex", alignItems:"center", gap:"8px" }}>
+                  <div style={{ flex:1, height:"1px",
+                    background:C.border }} />
+                  {svc}
+                  <div style={{ flex:1, height:"1px",
+                    background:C.border }} />
+                </div>
+                <div style={{ display:"flex",
+                  flexDirection:"column", gap:"6px" }}>
+                  {eps.map(ep => {
+                    const mc  = METHOD_COLOR[ep.method] || "#64748b";
+                    const am  = AUTH_META[ep.auth_type] || AUTH_META.none;
+                    const rc  = ep.risk_score >= 70 ? "#ff3b5c"
+                      : ep.risk_score >= 40 ? "#ffd600" : "#00ff88";
+                    const isSel = selEndpoint?.id === ep.id;
+                    return (
+                      <div key={ep.id}
+                        onClick={() => setSelEndpoint(isSel ? null : ep)}
+                        style={{ background:C.card,
+                          border:`1px solid ${isSel ? rc+"50" : C.border}`,
+                          borderLeft:`3px solid ${rc}`,
+                          borderRadius:"10px", padding:"12px 14px",
+                          cursor:"pointer" }}>
+                        <div style={{ display:"flex",
+                          alignItems:"center", gap:"10px" }}>
+                          <div style={{ padding:"3px 8px",
+                            borderRadius:"6px", fontSize:"11px",
+                            fontWeight:"800", background:mc+"20",
+                            color:mc, fontFamily:"JetBrains Mono, monospace",
+                            minWidth:"52px", textAlign:"center",
+                            flexShrink:0 }}>{ep.method}</div>
+                          <div style={{ fontFamily:"JetBrains Mono, monospace",
+                            fontSize:"12px", flex:1, color:C.text,
+                            overflow:"hidden", textOverflow:"ellipsis",
+                            whiteSpace:"nowrap" }}>{ep.path}</div>
+                          <div style={{ display:"flex", gap:"6px",
+                            flexShrink:0 }}>
+                            <span style={{ padding:"2px 7px",
+                              borderRadius:"100px", fontSize:"10px",
+                              fontWeight:"700", background:am.color+"15",
+                              color:am.color }}>
+                              {am.icon} {am.label}
+                            </span>
+                            {!ep.rate_limited && (
+                              <span style={{ padding:"2px 7px",
+                                borderRadius:"100px", fontSize:"10px",
+                                background:"#ff8c0015", color:"#ff8c00" }}>
+                                No RL
+                              </span>
+                            )}
+                            {ep.deprecated && (
+                              <span style={{ padding:"2px 7px",
+                                borderRadius:"100px", fontSize:"10px",
+                                background:"#64748b15", color:"#64748b" }}>
+                                Deprecated
+                              </span>
+                            )}
+                            <div style={{ width:"32px", height:"32px",
+                              borderRadius:"50%", background:rc+"15",
+                              border:`1px solid ${rc}`,
+                              display:"flex", alignItems:"center",
+                              justifyContent:"center", fontSize:"11px",
+                              fontWeight:"800", color:rc,
+                              fontFamily:"JetBrains Mono, monospace" }}>
+                              {ep.risk_score}
+                            </div>
+                          </div>
+                        </div>
+                        {ep.finding_count > 0 && (
+                          <div style={{ marginTop:"6px", fontSize:"10px",
+                            color:"#ff8c00" }}>
+                            ⚠ {ep.finding_count} security finding{ep.finding_count>1?"s":""}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* Endpoint detail */}
+          {selEndpoint && (
+            <div style={{ width:"320px", flexShrink:0 }}>
+              <div style={{ ...cardStyle() }}>
+                <div style={{ fontFamily:"JetBrains Mono, monospace",
+                  fontSize:"13px", fontWeight:"700", marginBottom:"12px",
+                  color:METHOD_COLOR[selEndpoint.method]||"#64748b" }}>
+                  {selEndpoint.method} {selEndpoint.path}
+                </div>
+                <div style={{ display:"grid",
+                  gridTemplateColumns:"1fr 1fr", gap:"8px",
+                  marginBottom:"16px" }}>
+                  {[
+                    { label:"Authentication", value:selEndpoint.authenticated?"✓ Yes":"✗ No", ok:selEndpoint.authenticated },
+                    { label:"Rate Limiting",  value:selEndpoint.rate_limited?"✓ Yes":"✗ No",  ok:selEndpoint.rate_limited  },
+                    { label:"Encryption",     value:selEndpoint.encrypted?"✓ TLS":"✗ HTTP",   ok:selEndpoint.encrypted     },
+                    { label:"CORS",           value:selEndpoint.cors_wildcard?"✗ Wildcard":selEndpoint.has_cors?"⚠ Restricted":"✓ None", ok:!selEndpoint.cors_wildcard },
+                  ].map(item => (
+                    <div key={item.label} style={{ padding:"8px",
+                      borderRadius:"8px",
+                      background:item.ok ? "#00ff8808" : "#ff3b5c08",
+                      border:`1px solid ${item.ok ? "#00ff8820" : "#ff3b5c20"}` }}>
+                      <div style={{ fontSize:"9px", color:C.muted,
+                        textTransform:"uppercase", marginBottom:"3px" }}>
+                        {item.label}
+                      </div>
+                      <div style={{ fontSize:"11px", fontWeight:"700",
+                        color:item.ok ? "#00ff88" : "#ff3b5c" }}>
+                        {item.value}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                <div style={{ fontSize:"11px", fontWeight:"700",
+                  color:C.muted, textTransform:"uppercase",
+                  letterSpacing:"1px", marginBottom:"8px" }}>
+                  Findings ({selEndpoint.finding_count})
+                </div>
+                <div style={{ display:"flex",
+                  flexDirection:"column", gap:"6px" }}>
+                  {findings
+                    .filter(f => f.endpoint_id === selEndpoint.id)
+                    .map(f => {
+                      const sc = SEV_COLOR[f.severity]||"#64748b";
+                      return (
+                        <div key={f.id} style={{ padding:"10px",
+                          borderRadius:"8px", background:C.surface,
+                          border:`1px solid ${sc}20`,
+                          borderLeft:`3px solid ${sc}` }}>
+                          <div style={{ display:"flex",
+                            justifyContent:"space-between",
+                            marginBottom:"4px" }}>
+                            <span style={{ fontSize:"10px",
+                              fontWeight:"800", color:sc }}>
+                              {f.severity}
+                            </span>
+                            {f.owasp_id && (
+                              <span style={{ fontSize:"10px",
+                                color:OWASP_COLOR[f.owasp_id]||"#64748b",
+                                fontWeight:"700" }}>{f.owasp_id}</span>
+                            )}
+                          </div>
+                          <div style={{ fontSize:"11px", color:C.text,
+                            marginBottom:"4px" }}>{f.title}</div>
+                          {f.remediation && (
+                            <div style={{ fontSize:"10px", color:"#00ff88",
+                              marginTop:"4px" }}>🔧 {f.remediation}</div>
+                          )}
+                        </div>
+                      );
+                    })}
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Findings tab */}
+      {tab === "findings" && (
+        <div>
+          <div style={{ display:"flex", gap:"8px",
+            marginBottom:"16px", flexWrap:"wrap" }}>
+            {["","Critical","High","Medium","Low"].map(s => {
+              const color = SEV_COLOR[s] || C.cyan;
+              return (
+                <button key={s} onClick={() => setSevFilter(s)}
+                  style={{ padding:"5px 14px", borderRadius:"100px",
+                    border:`1px solid ${sevFilter===s ? color : C.border}`,
+                    background:sevFilter===s ? color+"20" : "transparent",
+                    color:sevFilter===s ? color : C.muted,
+                    cursor:"pointer", fontSize:"12px",
+                    fontWeight:sevFilter===s ? "700" : "400" }}>
+                  {s || "All Severities"}
+                </button>
+              );
+            })}
+          </div>
+          <div style={{ display:"flex", flexDirection:"column", gap:"8px" }}>
+            {findings.map(f => {
+              const sc  = SEV_COLOR[f.severity]||"#64748b";
+              const ep  = endpoints.find(e => e.id === f.endpoint_id);
+              const mc  = ep ? (METHOD_COLOR[ep.method]||"#64748b") : "#64748b";
+              return (
+                <div key={f.id} style={{ background:C.card,
+                  border:`1px solid ${sc}20`,
+                  borderLeft:`3px solid ${sc}`,
+                  borderRadius:"12px", padding:"14px 16px" }}>
+                  <div style={{ display:"flex",
+                    alignItems:"flex-start", gap:"12px" }}>
+                    <div style={{ flex:1 }}>
+                      <div style={{ display:"flex", gap:"8px",
+                        alignItems:"center", marginBottom:"6px",
+                        flexWrap:"wrap" }}>
+                        <span style={{ padding:"2px 8px",
+                          borderRadius:"100px", fontSize:"9px",
+                          fontWeight:"800", background:sc+"15",
+                          color:sc, textTransform:"uppercase" }}>
+                          {f.severity}
+                        </span>
+                        {f.owasp_id && (
+                          <span style={{ padding:"2px 8px",
+                            borderRadius:"6px", fontSize:"10px",
+                            fontWeight:"700",
+                            color:OWASP_COLOR[f.owasp_id]||"#64748b",
+                            background:(OWASP_COLOR[f.owasp_id]||"#64748b")+"15",
+                            border:`1px solid ${(OWASP_COLOR[f.owasp_id]||"#64748b")}30` }}>
+                            {f.owasp_id}
+                          </span>
+                        )}
+                        {ep && (
+                          <span style={{ fontFamily:"JetBrains Mono, monospace",
+                            fontSize:"10px", color:mc,
+                            background:mc+"10", padding:"2px 7px",
+                            borderRadius:"6px" }}>
+                            {ep.method} {ep.path}
+                          </span>
+                        )}
+                      </div>
+                      <div style={{ fontWeight:"700", fontSize:"13px",
+                        marginBottom:"4px" }}>{f.title}</div>
+                      <div style={{ fontSize:"11px", color:C.muted,
+                        lineHeight:"1.5", marginBottom:"6px" }}>
+                        {f.description}
+                      </div>
+                      {f.evidence && (
+                        <div style={{ fontSize:"11px",
+                          fontFamily:"JetBrains Mono, monospace",
+                          color:"#ff8c00", padding:"6px 10px",
+                          borderRadius:"6px", background:"#ff8c0008",
+                          border:"1px solid #ff8c0020",
+                          marginBottom:"6px" }}>
+                          Evidence: {f.evidence}
+                        </div>
+                      )}
+                      {f.remediation && (
+                        <div style={{ fontSize:"11px", color:"#00ff88",
+                          padding:"6px 10px", borderRadius:"6px",
+                          background:"#00ff8808",
+                          border:"1px solid #00ff8820" }}>
+                          🔧 {f.remediation}
+                        </div>
+                      )}
+                    </div>
+                    <button onClick={() => handleResolve(f.id)}
+                      disabled={updating[f.id]}
+                      style={{ padding:"7px 14px", borderRadius:"8px",
+                        border:"1px solid #00ff8830", cursor:"pointer",
+                        fontSize:"12px", fontWeight:"600",
+                        background:"#00ff8810", color:"#00ff88",
+                        flexShrink:0 }}>
+                      Resolve
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
 
 // ─────────────────────────────────────────────────────────────
 // AIPET X — Cloud-Cost Security Optimizer Page
@@ -18118,6 +18621,9 @@ export default function App() {
           )}
           {activeTab === "team" && (
             <TeamAccessPage token={token} showToast={showToast} />
+          )}
+          {activeTab === "apisecurity" && (
+            <ApiSecurityPage token={token} showToast={showToast} />
           )}
           {activeTab === "costsecurity" && (
             <CostSecurityPage token={token} showToast={showToast} />
