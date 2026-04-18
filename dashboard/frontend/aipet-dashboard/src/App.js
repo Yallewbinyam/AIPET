@@ -6123,6 +6123,7 @@ const NAV_ITEMS = [
   { id: "costsecurity",label: "Cost Security",  icon: TrendingUp,    group: "enterprise" },
   { id: "apisecurity", label: "API Security",  icon: Shield,        group: "enterprise" },
   { id: "supplychain", label: "Supply Chain",  icon: GitBranch,     group: "enterprise" },
+  { id: "netvisualizer",label: "Network Map+",  icon: Globe,         group: "enterprise" },
   { id: "settings",  label: "Settings",      icon: Settings,      group: "account"  },
 ];
 
@@ -6385,6 +6386,684 @@ function SettingsPage({ token, showToast }) {
   );
 }
 
+
+// ─────────────────────────────────────────────────────────────
+// AIPET X — Cloud-Network Visualizer Page
+//
+// Features:
+//   • Force-directed D3.js network graph
+//   • 6 security zones — colour coded
+//   • Risk-heat node colouring (green→red)
+//   • Animated internet-facing node pulse
+//   • Click node → detail panel with connections
+//   • Edge risk colouring (safe=green, critical=red)
+//   • Stats bar: nodes, edges, issues, cross-zone
+//   • Issue list with node context
+//   • Zone filter tabs
+// ─────────────────────────────────────────────────────────────
+function NetVisualizerPage({ token, showToast }) {
+
+  const [graphData,  setGraphData]  = useState({ nodes: [], edges: [] });
+  const [issues,     setIssues]     = useState([]);
+  const [stats,      setStats]      = useState(null);
+  const [loading,    setLoading]    = useState(true);
+  const [scanning,   setScanning]   = useState(false);
+  const [selNode,    setSelNode]    = useState(null);
+  const [tab,        setTab]        = useState("graph");
+  const [updating,   setUpdating]   = useState({});
+  const svgRef = useRef(null);
+  const simRef = useRef(null);
+
+  const H = { headers: { Authorization: `Bearer ${token}` } };
+
+  // Zone metadata — colour + layer position
+  const ZONE_META = {
+    internet:      { color:"#ff3b5c", label:"Internet",       layer:0 },
+    dmz:           { color:"#ff8c00", label:"DMZ",            layer:1 },
+    corporate:     { color:"#ffd600", label:"Corporate",      layer:2 },
+    cloud_public:  { color:"#00e5ff", label:"Cloud Public",   layer:3 },
+    cloud_private: { color:"#00e5ff", label:"Cloud Private",  layer:3 },
+    ot:            { color:"#a78bfa", label:"OT/ICS",         layer:4 },
+    field:         { color:"#00ff88", label:"Field Devices",  layer:5 },
+  };
+
+  const TYPE_ICON = {
+    internet:     "🌐", server:       "🖥️",
+    database:     "🗄️", gateway:      "🔀",
+    firewall:     "🔥", iot_device:   "📡",
+    load_balancer:"⚖️", storage:      "🪣",
+    container:    "📦", function:     "λ",
+  };
+
+  const RISK_COLOR = (score) =>
+    score >= 80 ? "#ff3b5c" :
+    score >= 60 ? "#ff8c00" :
+    score >= 40 ? "#ffd600" : "#00ff88";
+
+  const EDGE_COLOR = {
+    critical: "#ff3b5c", high: "#ff8c00",
+    medium:   "#ffd600", low:  "#00e5ff", safe: "#00ff88",
+  };
+
+  const C = {
+    bg:"#030712", card:"#0d1117", surface:"#080f1a",
+    border:"#1e2a3a", text:"#e2e8f0", muted:"#64748b",
+    faint:"#334155", cyan:"#00e5ff",
+  };
+  const cardStyle = (extra={}) => ({
+    background:C.card, border:`1px solid ${C.border}`,
+    borderRadius:"16px", padding:"24px", ...extra
+  });
+
+  const fetchAll = useCallback(async () => {
+    try {
+      const [gRes, iRes, stRes] = await Promise.all([
+        axios.get(`${API}/netvisualizer/graph`, H),
+        axios.get(`${API}/netvisualizer/issues?status=open`, H),
+        axios.get(`${API}/netvisualizer/stats`, H),
+      ]);
+      setGraphData(gRes.data);
+      setIssues(iRes.data.issues || []);
+      setStats(stRes.data);
+    } catch { showToast("Failed to load network data", "error"); }
+    finally { setLoading(false); }
+  }, [token]);
+
+  useEffect(() => { fetchAll(); }, [fetchAll]);
+
+  // ── D3 Force Graph ────────────────────────────────────────
+  useEffect(() => {
+    if (!svgRef.current || graphData.nodes.length === 0 || tab !== "graph") return;
+
+    const container = svgRef.current.parentElement;
+    const W = container.clientWidth || 900;
+    const H_SVG = 520;
+
+    // Clear previous
+    d3.select(svgRef.current).selectAll("*").remove();
+
+    const svg = d3.select(svgRef.current)
+      .attr("width", W)
+      .attr("height", H_SVG);
+
+    // Zone background bands
+    const zones = ["internet","dmz","corporate","cloud_private","ot","field"];
+    const bandW = W / zones.length;
+    zones.forEach((zone, i) => {
+      const zm = ZONE_META[zone] || { color:"#64748b", label:zone };
+      svg.append("rect")
+        .attr("x", i * bandW).attr("y", 0)
+        .attr("width", bandW).attr("height", H_SVG)
+        .attr("fill", zm.color + "08");
+      svg.append("text")
+        .attr("x", i * bandW + bandW/2).attr("y", 18)
+        .attr("text-anchor","middle")
+        .attr("fill", zm.color + "80")
+        .attr("font-size","10px")
+        .attr("font-family","JetBrains Mono, monospace")
+        .attr("font-weight","700")
+        .attr("letter-spacing","1px")
+        .text(zm.label.toUpperCase());
+    });
+
+    // Build node + edge data with initial positions
+    const nodeMap = {};
+    const simNodes = graphData.nodes.map(n => {
+      const zm    = ZONE_META[n.zone] || ZONE_META.corporate;
+      const layer = zm.layer;
+      const x     = (layer / (zones.length - 1)) * (W - 80) + 40;
+      nodeMap[n.id] = n;
+      return { ...n, x, y: H_SVG/2 + (Math.random()-0.5)*200, fx:null, fy:null };
+    });
+
+    const simEdges = graphData.edges.map(e => ({
+      ...e,
+      source: simNodes.find(n => n.id === e.source) || simNodes[0],
+      target: simNodes.find(n => n.id === e.target) || simNodes[0],
+    }));
+
+    // Force simulation
+    const simulation = d3.forceSimulation(simNodes)
+      .force("link", d3.forceLink(simEdges).distance(100).strength(0.3))
+      .force("charge", d3.forceManyBody().strength(-200))
+      .force("y", d3.forceY(H_SVG/2).strength(0.05))
+      .force("collision", d3.forceCollide(30));
+    simRef.current = simulation;
+
+    // Arrow markers
+    svg.append("defs").selectAll("marker")
+      .data(["safe","low","medium","high","critical"])
+      .join("marker")
+      .attr("id", d => `arrow-${d}`)
+      .attr("viewBox","0 -4 8 8")
+      .attr("refX",18).attr("refY",0)
+      .attr("markerWidth",6).attr("markerHeight",6)
+      .attr("orient","auto")
+      .append("path")
+      .attr("d","M0,-4L8,0L0,4")
+      .attr("fill", d => EDGE_COLOR[d] || "#64748b")
+      .attr("opacity", 0.7);
+
+    // Edges
+    const link = svg.append("g").selectAll("line")
+      .data(simEdges).join("line")
+      .attr("stroke", d => EDGE_COLOR[d.risk_level] || "#334155")
+      .attr("stroke-width", d => d.risk_level === "critical" ? 2 : 1)
+      .attr("stroke-opacity", d => d.risk_level === "critical" ? 0.7 : 0.35)
+      .attr("stroke-dasharray", d => d.encrypted ? "none" : "4,3")
+      .attr("marker-end", d => `url(#arrow-${d.risk_level})`);
+
+    // Node groups
+    const node = svg.append("g").selectAll("g")
+      .data(simNodes).join("g")
+      .style("cursor","pointer")
+      .on("click", (event, d) => {
+        event.stopPropagation();
+        setSelNode(d);
+      })
+      .call(d3.drag()
+        .on("start", (event, d) => {
+          if (!event.active) simulation.alphaTarget(0.3).restart();
+          d.fx = d.x; d.fy = d.y;
+        })
+        .on("drag", (event, d) => { d.fx = event.x; d.fy = event.y; })
+        .on("end", (event, d) => {
+          if (!event.active) simulation.alphaTarget(0);
+          d.fx = null; d.fy = null;
+        })
+      );
+
+    // Node outer glow (internet-facing pulse)
+    node.filter(d => d.internet_facing)
+      .append("circle")
+      .attr("r", 22)
+      .attr("fill", "none")
+      .attr("stroke", d => RISK_COLOR(d.risk_score))
+      .attr("stroke-width", 1.5)
+      .attr("stroke-opacity", 0.4)
+      .attr("class","pulse-ring");
+
+    // Node circle
+    node.append("circle")
+      .attr("r", d => d.node_type === "internet" ? 18 : 14)
+      .attr("fill", d => {
+        const zm = ZONE_META[d.zone] || { color:"#64748b" };
+        return zm.color + "20";
+      })
+      .attr("stroke", d => RISK_COLOR(d.risk_score))
+      .attr("stroke-width", d => d.risk_score >= 70 ? 2.5 : 1.5);
+
+    // Risk score badge
+    node.filter(d => d.risk_score > 0)
+      .append("circle")
+      .attr("cx", 10).attr("cy", -10)
+      .attr("r", 8)
+      .attr("fill", d => RISK_COLOR(d.risk_score));
+
+    node.filter(d => d.risk_score > 0)
+      .append("text")
+      .attr("x", 10).attr("y", -6)
+      .attr("text-anchor","middle")
+      .attr("font-size","7px")
+      .attr("font-weight","900")
+      .attr("fill","#fff")
+      .attr("font-family","JetBrains Mono, monospace")
+      .text(d => d.risk_score);
+
+    // Node icon
+    node.append("text")
+      .attr("text-anchor","middle")
+      .attr("dy","0.35em")
+      .attr("font-size","12px")
+      .text(d => TYPE_ICON[d.node_type] || "●");
+
+    // Node label
+    node.append("text")
+      .attr("text-anchor","middle")
+      .attr("dy","28px")
+      .attr("font-size","8px")
+      .attr("fill", d => {
+        const zm = ZONE_META[d.zone] || { color:"#64748b" };
+        return zm.color;
+      })
+      .attr("font-weight","700")
+      .attr("font-family","Inter, sans-serif")
+      .text(d => d.name.length > 16 ? d.name.slice(0,14)+"…" : d.name);
+
+    // Simulation tick
+    simulation.on("tick", () => {
+      link
+        .attr("x1", d => Math.max(20, Math.min(W-20, d.source.x)))
+        .attr("y1", d => Math.max(20, Math.min(H_SVG-20, d.source.y)))
+        .attr("x2", d => Math.max(20, Math.min(W-20, d.target.x)))
+        .attr("y2", d => Math.max(20, Math.min(H_SVG-20, d.target.y)));
+      node.attr("transform", d =>
+        `translate(${Math.max(20,Math.min(W-20,d.x))},${Math.max(20,Math.min(H_SVG-20,d.y))})`);
+    });
+
+    // Click away to deselect
+    svg.on("click", () => setSelNode(null));
+
+    return () => simulation.stop();
+  }, [graphData, tab]);
+
+  const handleScan = async () => {
+    setScanning(true);
+    try {
+      const res = await axios.post(`${API}/netvisualizer/scan`, {}, H);
+      showToast(`Network scan complete — ${res.data.high_risk} high-risk nodes`, "success");
+      fetchAll();
+    } catch { showToast("Scan failed", "error"); }
+    finally { setScanning(false); }
+  };
+
+  const handleResolve = async (iid) => {
+    setUpdating(prev => ({ ...prev, [iid]: true }));
+    try {
+      await axios.put(`${API}/netvisualizer/issues/${iid}`,
+        { status: "resolved" }, H);
+      fetchAll();
+      showToast("Issue resolved", "success");
+    } catch { showToast("Failed", "error"); }
+    finally { setUpdating(prev => ({ ...prev, [iid]: false })); }
+  };
+
+  const SEV_COLOR = {
+    Critical:"#ff3b5c", High:"#ff8c00",
+    Medium:"#ffd600",   Low:"#00ff88",
+  };
+
+  if (loading) return (
+    <div style={{ display:"flex", justifyContent:"center",
+      alignItems:"center", height:"60vh" }}>
+      <div style={{ width:"48px", height:"48px",
+        border:`3px solid ${C.border}`,
+        borderTop:`3px solid ${C.cyan}`,
+        borderRadius:"50%", animation:"spin 1s linear infinite" }} />
+    </div>
+  );
+
+  return (
+    <div style={{ padding:"32px 36px", background:C.bg,
+      minHeight:"100vh", fontFamily:"Inter, sans-serif", color:C.text }}>
+
+      {/* Header */}
+      <div style={{ display:"flex", alignItems:"center",
+        justifyContent:"space-between", marginBottom:"32px" }}>
+        <div style={{ display:"flex", alignItems:"center", gap:"16px" }}>
+          <div style={{ width:"52px", height:"52px", borderRadius:"14px",
+            background:"linear-gradient(135deg, #00e5ff20, #00ff8808)",
+            border:"1px solid #00e5ff35", display:"flex",
+            alignItems:"center", justifyContent:"center", fontSize:"24px",
+            boxShadow:"0 0 20px #00e5ff15" }}>🗺️</div>
+          <div>
+            <h1 style={{ margin:0, fontSize:"26px", fontWeight:"800",
+              letterSpacing:"-0.5px", fontFamily:"JetBrains Mono, monospace",
+              background:"linear-gradient(135deg, #00e5ff, #00ff88)",
+              WebkitBackgroundClip:"text", WebkitTextFillColor:"transparent" }}>
+              Cloud-Network Visualizer
+            </h1>
+            <div style={{ fontSize:"13px", color:C.muted, marginTop:"2px" }}>
+              Live network topology · 6 security zones · Risk-heat mapping · D3 force graph
+            </div>
+          </div>
+        </div>
+        <button onClick={handleScan} disabled={scanning}
+          style={{ padding:"12px 28px", borderRadius:"12px", border:"none",
+            cursor:scanning?"not-allowed":"pointer", fontSize:"14px",
+            fontWeight:"800",
+            background:scanning ? C.surface
+              : "linear-gradient(135deg, #00e5ff, #00ff88)",
+            color:scanning ? C.muted : "#000",
+            boxShadow:scanning?"none":"0 0 24px rgba(0,229,255,0.3)",
+            display:"flex", alignItems:"center", gap:"8px",
+            transition:"all 0.2s" }}>
+          {scanning ? "Scanning..." : "▶ Refresh Map"}
+        </button>
+      </div>
+
+      {/* Stats */}
+      {stats && (
+        <div style={{ display:"grid", gridTemplateColumns:"repeat(6,1fr)",
+          gap:"12px", marginBottom:"28px" }}>
+          {[
+            { label:"Nodes",           value:stats.total_nodes,        color:"#00e5ff", icon:"🖥️" },
+            { label:"Connections",     value:stats.total_edges,        color:"#00ff88", icon:"🔗" },
+            { label:"Issues",          value:stats.total_issues,       color:"#ff3b5c", icon:"⚠️" },
+            { label:"Internet-Facing", value:stats.internet_facing,    color:"#ff3b5c", icon:"🌐" },
+            { label:"Unencrypted",     value:stats.unencrypted_edges,  color:"#ff8c00", icon:"🔓" },
+            { label:"Cross-Zone",      value:stats.cross_zone_edges,   color:"#ffd600", icon:"↔️" },
+          ].map(s => (
+            <div key={s.label} style={{ ...cardStyle({ padding:"18px" }),
+              borderColor:s.color+"25" }}>
+              <div style={{ fontSize:"18px", marginBottom:"6px" }}>{s.icon}</div>
+              <div style={{ fontSize:"22px", fontWeight:"800",
+                fontFamily:"JetBrains Mono, monospace",
+                color:s.color, lineHeight:1 }}>{s.value}</div>
+              <div style={{ fontSize:"10px", color:C.muted, marginTop:"4px",
+                textTransform:"uppercase", letterSpacing:"0.5px" }}>{s.label}</div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Zone legend */}
+      <div style={{ display:"flex", gap:"8px", marginBottom:"16px",
+        flexWrap:"wrap" }}>
+        {Object.entries(ZONE_META).map(([zone, zm]) => (
+          <div key={zone} style={{ display:"flex", alignItems:"center",
+            gap:"5px", padding:"4px 10px", borderRadius:"100px",
+            background:zm.color+"12",
+            border:`1px solid ${zm.color}30` }}>
+            <div style={{ width:"8px", height:"8px", borderRadius:"50%",
+              background:zm.color }} />
+            <span style={{ fontSize:"11px", color:zm.color,
+              fontWeight:"600" }}>{zm.label}</span>
+          </div>
+        ))}
+        <div style={{ display:"flex", alignItems:"center", gap:"5px",
+          padding:"4px 10px", borderRadius:"100px",
+          background:"#334155", marginLeft:"auto" }}>
+          <span style={{ fontSize:"10px", color:C.muted }}>
+            ── Encrypted &nbsp;· &nbsp; - - Unencrypted
+          </span>
+        </div>
+      </div>
+
+      {/* Tabs */}
+      <div style={{ display:"flex", gap:"4px", marginBottom:"16px",
+        background:C.card, padding:"4px", borderRadius:"12px",
+        border:`1px solid ${C.border}`, width:"fit-content" }}>
+        {[
+          { id:"graph",  label:"Network Graph"              },
+          { id:"issues", label:`Issues (${issues.length})`  },
+          { id:"nodes",  label:`Nodes (${graphData.nodes.length})` },
+        ].map(t => (
+          <button key={t.id} onClick={() => setTab(t.id)}
+            style={{ padding:"8px 18px", borderRadius:"9px", border:"none",
+              cursor:"pointer", fontSize:"13px", fontWeight:"600",
+              transition:"all 0.2s",
+              background:tab===t.id
+                ? "linear-gradient(135deg,#00e5ff20,#00ff8808)" : "transparent",
+              color:tab===t.id ? C.text : C.muted,
+              boxShadow:tab===t.id ? "inset 0 0 0 1px #00e5ff30" : "none" }}>
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      {/* Graph tab */}
+      {tab === "graph" && (
+        <div style={{ display:"flex", gap:"16px" }}>
+          <div style={{ flex:1, ...cardStyle({ padding:"0",
+            overflow:"hidden", minHeight:"520px" }) }}>
+            <svg ref={svgRef} style={{ width:"100%", display:"block" }} />
+          </div>
+          {/* Node detail panel */}
+          {selNode && (
+            <div style={{ width:"280px", flexShrink:0 }}>
+              <div style={{ ...cardStyle({
+                borderColor:(ZONE_META[selNode.zone]?.color||"#64748b")+"40" }) }}>
+                <div style={{ display:"flex", alignItems:"center",
+                  gap:"10px", marginBottom:"14px" }}>
+                  <span style={{ fontSize:"24px" }}>
+                    {TYPE_ICON[selNode.node_type]||"●"}
+                  </span>
+                  <div>
+                    <div style={{ fontWeight:"700", fontSize:"14px" }}>
+                      {selNode.name}
+                    </div>
+                    <div style={{ fontSize:"11px",
+                      color:ZONE_META[selNode.zone]?.color||"#64748b" }}>
+                      {ZONE_META[selNode.zone]?.label||selNode.zone}
+                    </div>
+                  </div>
+                </div>
+                {/* Risk gauge */}
+                <div style={{ display:"flex", alignItems:"center",
+                  gap:"12px", marginBottom:"14px",
+                  padding:"12px", borderRadius:"10px",
+                  background:RISK_COLOR(selNode.risk_score)+"10",
+                  border:`1px solid ${RISK_COLOR(selNode.risk_score)}25` }}>
+                  <div style={{ width:"44px", height:"44px",
+                    borderRadius:"50%", flexShrink:0,
+                    background:RISK_COLOR(selNode.risk_score)+"20",
+                    border:`2px solid ${RISK_COLOR(selNode.risk_score)}`,
+                    display:"flex", alignItems:"center",
+                    justifyContent:"center", fontSize:"16px",
+                    fontWeight:"900", color:RISK_COLOR(selNode.risk_score),
+                    fontFamily:"JetBrains Mono, monospace" }}>
+                    {selNode.risk_score}
+                  </div>
+                  <div>
+                    <div style={{ fontSize:"12px", fontWeight:"700",
+                      color:RISK_COLOR(selNode.risk_score) }}>
+                      Risk Score
+                    </div>
+                    <div style={{ fontSize:"10px", color:C.muted }}>
+                      {selNode.issue_count} open issues
+                    </div>
+                  </div>
+                </div>
+                {/* Properties */}
+                <div style={{ display:"grid",
+                  gridTemplateColumns:"1fr 1fr", gap:"6px",
+                  marginBottom:"14px" }}>
+                  {[
+                    { label:"Encrypted",       value:selNode.encrypted?"✓ Yes":"✗ No",        ok:selNode.encrypted },
+                    { label:"Internet-Facing", value:selNode.internet_facing?"⚠ Yes":"✓ No",  ok:!selNode.internet_facing },
+                    { label:"Cloud",           value:selNode.cloud_provider||"On-Premise",     ok:true },
+                    { label:"IP",              value:selNode.ip_address||"—",                  ok:true },
+                  ].map(p => (
+                    <div key={p.label} style={{ padding:"8px",
+                      borderRadius:"8px",
+                      background:p.ok ? "#00ff8808" : "#ff3b5c08",
+                      border:`1px solid ${p.ok?"#00ff8815":"#ff3b5c15"}` }}>
+                      <div style={{ fontSize:"9px", color:C.muted,
+                        textTransform:"uppercase", marginBottom:"3px" }}>
+                        {p.label}
+                      </div>
+                      <div style={{ fontSize:"11px", fontWeight:"700",
+                        color:p.ok ? "#00ff88" : "#ff3b5c" }}>
+                        {p.value}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                {/* Connections */}
+                <div style={{ fontSize:"11px", fontWeight:"700",
+                  color:C.muted, textTransform:"uppercase",
+                  letterSpacing:"1px", marginBottom:"8px" }}>
+                  Connections ({graphData.edges.filter(e =>
+                    e.source === selNode.id || e.target === selNode.id
+                  ).length})
+                </div>
+                <div style={{ display:"flex",
+                  flexDirection:"column", gap:"4px" }}>
+                  {graphData.edges
+                    .filter(e => e.source===selNode.id || e.target===selNode.id)
+                    .slice(0,6)
+                    .map((e,i) => {
+                      const otherId = e.source===selNode.id ? e.target : e.source;
+                      const other   = graphData.nodes.find(n => n.id===otherId);
+                      const ec      = EDGE_COLOR[e.risk_level]||"#64748b";
+                      return (
+                        <div key={i} style={{ display:"flex",
+                          alignItems:"center", gap:"8px",
+                          padding:"6px 8px", borderRadius:"8px",
+                          background:C.surface,
+                          border:`1px solid ${ec}20` }}>
+                          <span style={{ fontSize:"10px",
+                            fontFamily:"JetBrains Mono, monospace",
+                            color:ec, fontWeight:"700",
+                            minWidth:"50px" }}>
+                            {e.protocol}
+                          </span>
+                          <span style={{ fontSize:"10px",
+                            color:C.muted, flex:1,
+                            overflow:"hidden", textOverflow:"ellipsis",
+                            whiteSpace:"nowrap" }}>
+                            {other?.name||"Unknown"}
+                          </span>
+                          {!e.encrypted && (
+                            <span style={{ fontSize:"9px",
+                              color:"#ff3b5c" }}>🔓</span>
+                          )}
+                        </div>
+                      );
+                    })}
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Issues tab */}
+      {tab === "issues" && (
+        <div style={{ display:"flex", flexDirection:"column", gap:"8px" }}>
+          {issues.map(issue => {
+            const sc   = SEV_COLOR[issue.severity]||"#64748b";
+            const node = graphData.nodes.find(n => n.id === issue.node_id);
+            return (
+              <div key={issue.id} style={{ background:C.card,
+                border:`1px solid ${sc}20`,
+                borderLeft:`3px solid ${sc}`,
+                borderRadius:"12px", padding:"14px 16px" }}>
+                <div style={{ display:"flex",
+                  alignItems:"flex-start", gap:"12px" }}>
+                  <div style={{ flex:1 }}>
+                    <div style={{ display:"flex", gap:"8px",
+                      alignItems:"center", marginBottom:"6px",
+                      flexWrap:"wrap" }}>
+                      <span style={{ padding:"2px 8px",
+                        borderRadius:"100px", fontSize:"9px",
+                        fontWeight:"800", background:sc+"15",
+                        color:sc, textTransform:"uppercase" }}>
+                        {issue.severity}
+                      </span>
+                      {node && (
+                        <span style={{ fontSize:"11px", color:C.muted,
+                          display:"flex", alignItems:"center", gap:"4px" }}>
+                          {TYPE_ICON[node.node_type]||"●"} {node.name}
+                          <span style={{ padding:"1px 6px",
+                            borderRadius:"100px", fontSize:"9px",
+                            background:(ZONE_META[node.zone]?.color||"#64748b")+"15",
+                            color:ZONE_META[node.zone]?.color||"#64748b" }}>
+                            {ZONE_META[node.zone]?.label||node.zone}
+                          </span>
+                        </span>
+                      )}
+                    </div>
+                    <div style={{ fontWeight:"700", fontSize:"13px",
+                      marginBottom:"4px" }}>{issue.title}</div>
+                    <div style={{ fontSize:"11px", color:C.muted,
+                      lineHeight:"1.5", marginBottom:"6px" }}>
+                      {issue.description}
+                    </div>
+                    {issue.remediation && (
+                      <div style={{ fontSize:"11px", color:"#00ff88",
+                        padding:"6px 10px", borderRadius:"6px",
+                        background:"#00ff8808",
+                        border:"1px solid #00ff8820" }}>
+                        🔧 {issue.remediation}
+                      </div>
+                    )}
+                  </div>
+                  <button onClick={() => handleResolve(issue.id)}
+                    disabled={updating[issue.id]}
+                    style={{ padding:"7px 14px", borderRadius:"8px",
+                      border:"1px solid #00ff8830", cursor:"pointer",
+                      fontSize:"12px", fontWeight:"600",
+                      background:"#00ff8810", color:"#00ff88",
+                      flexShrink:0 }}>
+                    Resolve
+                  </button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Nodes tab */}
+      {tab === "nodes" && (
+        <div style={{ display:"grid",
+          gridTemplateColumns:"repeat(3,1fr)", gap:"10px" }}>
+          {graphData.nodes.map(node => {
+            const zm = ZONE_META[node.zone] || { color:"#64748b", label:node.zone };
+            const rc = RISK_COLOR(node.risk_score);
+            return (
+              <div key={node.id} style={{ background:C.card,
+                border:`1px solid ${zm.color}25`,
+                borderLeft:`3px solid ${rc}`,
+                borderRadius:"10px", padding:"14px",
+                cursor:"pointer" }}
+                onClick={() => { setSelNode(node); setTab("graph"); }}>
+                <div style={{ display:"flex",
+                  alignItems:"center", gap:"10px" }}>
+                  <span style={{ fontSize:"20px" }}>
+                    {TYPE_ICON[node.node_type]||"●"}
+                  </span>
+                  <div style={{ flex:1, minWidth:0 }}>
+                    <div style={{ fontWeight:"700", fontSize:"13px",
+                      overflow:"hidden", textOverflow:"ellipsis",
+                      whiteSpace:"nowrap" }}>{node.name}</div>
+                    <div style={{ fontSize:"10px", color:zm.color }}>
+                      {zm.label}
+                    </div>
+                  </div>
+                  <div style={{ width:"36px", height:"36px",
+                    borderRadius:"50%", flexShrink:0,
+                    background:rc+"15", border:`2px solid ${rc}`,
+                    display:"flex", alignItems:"center",
+                    justifyContent:"center", fontSize:"12px",
+                    fontWeight:"800", color:rc,
+                    fontFamily:"JetBrains Mono, monospace" }}>
+                    {node.risk_score}
+                  </div>
+                </div>
+                <div style={{ display:"flex", gap:"6px",
+                  marginTop:"8px", flexWrap:"wrap" }}>
+                  {node.internet_facing && (
+                    <span style={{ fontSize:"9px", color:"#ff3b5c",
+                      background:"#ff3b5c10", padding:"1px 6px",
+                      borderRadius:"100px", fontWeight:"700" }}>
+                      🌐 Internet
+                    </span>
+                  )}
+                  {!node.encrypted && (
+                    <span style={{ fontSize:"9px", color:"#ff8c00",
+                      background:"#ff8c0010", padding:"1px 6px",
+                      borderRadius:"100px", fontWeight:"700" }}>
+                      🔓 Unencrypted
+                    </span>
+                  )}
+                  {node.issue_count > 0 && (
+                    <span style={{ fontSize:"9px", color:"#ff3b5c",
+                      background:"#ff3b5c10", padding:"1px 6px",
+                      borderRadius:"100px", fontWeight:"700" }}>
+                      ⚠ {node.issue_count} issues
+                    </span>
+                  )}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      <style>{`
+        @keyframes pulse-ring {
+          0%   { transform: scale(1);   opacity: 0.6; }
+          50%  { transform: scale(1.4); opacity: 0.2; }
+          100% { transform: scale(1);   opacity: 0.6; }
+        }
+        .pulse-ring { animation: pulse-ring 2s ease-in-out infinite; }
+      `}</style>
+    </div>
+  );
+}
 
 // ─────────────────────────────────────────────────────────────
 // AIPET X — Supply Chain Security (SBOM) Page
@@ -19155,6 +19834,9 @@ export default function App() {
           )}
           {activeTab === "team" && (
             <TeamAccessPage token={token} showToast={showToast} />
+          )}
+          {activeTab === "netvisualizer" && (
+            <NetVisualizerPage token={token} showToast={showToast} />
           )}
           {activeTab === "supplychain" && (
             <SupplyChainPage token={token} showToast={showToast} />
