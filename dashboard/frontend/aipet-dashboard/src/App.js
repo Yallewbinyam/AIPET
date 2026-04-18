@@ -6120,6 +6120,7 @@ const NAV_ITEMS = [
   { id: "behavioral",  label: "Behavioral AI",  icon: Activity,      group: "enterprise" },
   { id: "complianceauto",label: "Compliance Auto",icon: CheckCircle,   group: "enterprise" },
   { id: "dspm",        label: "Data Security",  icon: Lock,          group: "enterprise" },
+  { id: "costsecurity",label: "Cost Security",  icon: TrendingUp,    group: "enterprise" },
   { id: "settings",  label: "Settings",      icon: Settings,      group: "account"  },
 ];
 
@@ -6382,6 +6383,440 @@ function SettingsPage({ token, showToast }) {
   );
 }
 
+
+// ─────────────────────────────────────────────────────────────
+// AIPET X — Cloud-Cost Security Optimizer Page
+//
+// Features:
+//   • Total savings potential + security score
+//   • Resource inventory with cost + security dual-view
+//   • Recommendation list sorted by saving
+//   • Priority filter (critical/high/medium/low)
+//   • Mark implemented / dismiss
+//   • Cloud provider breakdown
+//   • Annual saving projection
+// ─────────────────────────────────────────────────────────────
+function CostSecurityPage({ token, showToast }) {
+
+  const [resources, setResources] = useState([]);
+  const [recs,      setRecs]      = useState([]);
+  const [stats,     setStats]     = useState(null);
+  const [loading,   setLoading]   = useState(true);
+  const [tab,       setTab]       = useState("recommendations");
+  const [priority,  setPriority]  = useState("");
+  const [cloudFilter,setCloudFilter]=useState("");
+  const [updating,  setUpdating]  = useState({});
+  const [analysing, setAnalysing] = useState(false);
+
+  const H = { headers: { Authorization: `Bearer ${token}` } };
+
+  const CLOUD_META = {
+    "AWS":        { color: "#ff8c00", icon: "☁️"  },
+    "Azure":      { color: "#00e5ff", icon: "🔷"  },
+    "GCP":        { color: "#00ff88", icon: "🟢"  },
+    "On-Premise": { color: "#a78bfa", icon: "🏢"  },
+  };
+
+  const PRIORITY_META = {
+    critical: { color: "#ff3b5c", label: "Critical" },
+    high:     { color: "#ff8c00", label: "High"     },
+    medium:   { color: "#ffd600", label: "Medium"   },
+    low:      { color: "#64748b", label: "Low"      },
+  };
+
+  const EFFORT_META = {
+    low:    { color: "#00ff88", label: "Low effort"    },
+    medium: { color: "#ffd600", label: "Medium effort" },
+    high:   { color: "#ff8c00", label: "High effort"   },
+  };
+
+  const TYPE_ICON = {
+    ec2: "🖥️", rds: "🗄️", s3: "🪣", lambda: "λ",
+    virtual_machine: "🖥️", blob_storage: "🪣",
+    bigquery: "📊", elasticache: "⚡", nat_gateway: "🌐",
+    kubernetes: "⚓", sql_database: "🗄️",
+  };
+
+  const C = {
+    bg: "#030712", card: "#0d1117", surface: "#080f1a",
+    border: "#1e2a3a", text: "#e2e8f0", muted: "#64748b",
+    faint: "#334155", cyan: "#00e5ff",
+  };
+  const cardStyle = (extra={}) => ({
+    background: C.card, border: `1px solid ${C.border}`,
+    borderRadius: "16px", padding: "24px", ...extra
+  });
+
+  const fetchAll = useCallback(async () => {
+    try {
+      const [resRes, recRes, stRes] = await Promise.all([
+        axios.get(`${API}/costsecurity/resources${cloudFilter ? "?cloud_provider="+cloudFilter : ""}`, H),
+        axios.get(`${API}/costsecurity/recommendations?status=open${priority ? "&priority="+priority : ""}`, H),
+        axios.get(`${API}/costsecurity/stats`, H),
+      ]);
+      setResources(resRes.data.resources || []);
+      setRecs(recRes.data.recommendations || []);
+      setStats(stRes.data);
+    } catch { showToast("Failed to load data", "error"); }
+    finally { setLoading(false); }
+  }, [token, cloudFilter, priority]);
+
+  useEffect(() => { fetchAll(); }, [fetchAll]);
+
+  const handleImplement = async (rid) => {
+    setUpdating(prev => ({ ...prev, [rid]: true }));
+    try {
+      await axios.put(`${API}/costsecurity/recommendations/${rid}`,
+        { status: "implemented" }, H);
+      fetchAll();
+      showToast("Marked as implemented", "success");
+    } catch { showToast("Failed", "error"); }
+    finally { setUpdating(prev => ({ ...prev, [rid]: false })); }
+  };
+
+  const handleAnalyse = async () => {
+    setAnalysing(true);
+    try {
+      const res = await axios.post(`${API}/costsecurity/analyse`, {}, H);
+      showToast(`Analysis complete — £${res.data.total_saving?.toFixed(0)} monthly saving identified`, "success");
+      fetchAll();
+    } catch { showToast("Analysis failed", "error"); }
+    finally { setAnalysing(false); }
+  };
+
+  if (loading) return (
+    <div style={{ display:"flex", justifyContent:"center",
+      alignItems:"center", height:"60vh" }}>
+      <div style={{ width:"48px", height:"48px",
+        border:`3px solid ${C.border}`,
+        borderTop:`3px solid ${C.cyan}`,
+        borderRadius:"50%", animation:"spin 1s linear infinite" }} />
+    </div>
+  );
+
+  return (
+    <div style={{ padding:"32px 36px", background:C.bg,
+      minHeight:"100vh", fontFamily:"Inter, sans-serif", color:C.text }}>
+
+      {/* Header */}
+      <div style={{ display:"flex", alignItems:"center",
+        justifyContent:"space-between", marginBottom:"32px" }}>
+        <div style={{ display:"flex", alignItems:"center", gap:"16px" }}>
+          <div style={{ width:"52px", height:"52px", borderRadius:"14px",
+            background:"linear-gradient(135deg, #00ff8820, #ffd60008)",
+            border:"1px solid #00ff8835", display:"flex",
+            alignItems:"center", justifyContent:"center", fontSize:"24px",
+            boxShadow:"0 0 20px #00ff8815" }}>💰</div>
+          <div>
+            <h1 style={{ margin:0, fontSize:"26px", fontWeight:"800",
+              letterSpacing:"-0.5px", fontFamily:"JetBrains Mono, monospace",
+              background:"linear-gradient(135deg, #00ff88, #ffd600)",
+              WebkitBackgroundClip:"text", WebkitTextFillColor:"transparent" }}>
+              Cloud-Cost Security
+            </h1>
+            <div style={{ fontSize:"13px", color:C.muted, marginTop:"2px" }}>
+              Fix security risks · Save money · Two problems, one platform
+            </div>
+          </div>
+        </div>
+        <button onClick={handleAnalyse} disabled={analysing}
+          style={{ padding:"12px 28px", borderRadius:"12px", border:"none",
+            cursor:analysing?"not-allowed":"pointer", fontSize:"14px",
+            fontWeight:"800",
+            background:analysing ? C.surface
+              : "linear-gradient(135deg, #00ff88, #ffd600)",
+            color:analysing ? C.muted : "#000",
+            boxShadow:analysing ? "none" : "0 0 24px rgba(0,255,136,0.3)",
+            display:"flex", alignItems:"center", gap:"8px",
+            transition:"all 0.2s" }}>
+          {analysing ? "Analysing..." : "▶ Run Analysis"}
+        </button>
+      </div>
+
+      {/* Hero saving banner */}
+      {stats && (
+        <div style={{ ...cardStyle({ marginBottom:"24px",
+          background:"linear-gradient(135deg, #00ff8808, #ffd60005)",
+          borderColor:"#00ff8825" }) }}>
+          <div style={{ display:"flex", alignItems:"center",
+            justifyContent:"space-around", textAlign:"center" }}>
+            {[
+              { label:"Monthly Saving Potential", value:`£${stats.total_monthly_saving?.toLocaleString('en-GB', {minimumFractionDigits:0, maximumFractionDigits:0})}`, color:"#00ff88", size:"36px" },
+              { label:"Annual Saving Potential",  value:`£${stats.total_annual_saving?.toLocaleString('en-GB', {minimumFractionDigits:0, maximumFractionDigits:0})}`,  color:"#ffd600", size:"36px" },
+              { label:"Current Monthly Spend",   value:`£${stats.total_monthly_cost?.toLocaleString('en-GB', {minimumFractionDigits:0, maximumFractionDigits:0})}`,    color:"#ff8c00", size:"24px" },
+              { label:"Avg Security Score",      value:`${stats.avg_security_score}%`,  color:stats.avg_security_score>=70?"#00ff88":"#ff3b5c", size:"24px" },
+            ].map(s => (
+              <div key={s.label}>
+                <div style={{ fontSize:s.size, fontWeight:"900",
+                  fontFamily:"JetBrains Mono, monospace",
+                  color:s.color, lineHeight:1, marginBottom:"6px" }}>
+                  {s.value}
+                </div>
+                <div style={{ fontSize:"11px", color:C.muted,
+                  textTransform:"uppercase", letterSpacing:"0.5px" }}>
+                  {s.label}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Stats bar */}
+      {stats && (
+        <div style={{ display:"grid", gridTemplateColumns:"repeat(4, 1fr)",
+          gap:"12px", marginBottom:"28px" }}>
+          {Object.entries(stats.by_cloud || {}).map(([cloud, cost]) => {
+            const meta = CLOUD_META[cloud] || { color:"#64748b", icon:"☁️" };
+            return (
+              <div key={cloud} style={{ ...cardStyle({ padding:"18px" }),
+                borderColor:meta.color+"25", cursor:"pointer",
+                outline:cloudFilter===cloud ? `1px solid ${meta.color}` : "none" }}
+                onClick={() => setCloudFilter(cloudFilter===cloud ? "" : cloud)}>
+                <div style={{ fontSize:"20px", marginBottom:"8px" }}>{meta.icon}</div>
+                <div style={{ fontSize:"20px", fontWeight:"800",
+                  fontFamily:"JetBrains Mono, monospace",
+                  color:meta.color, lineHeight:1 }}>
+                  £{cost.toLocaleString('en-GB', {maximumFractionDigits:0})}
+                </div>
+                <div style={{ fontSize:"10px", color:C.muted, marginTop:"4px",
+                  textTransform:"uppercase", letterSpacing:"0.5px" }}>
+                  {cloud} / month
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Tabs */}
+      <div style={{ display:"flex", gap:"4px", marginBottom:"20px",
+        background:C.card, padding:"4px", borderRadius:"12px",
+        border:`1px solid ${C.border}`, width:"fit-content" }}>
+        {[
+          { id:"recommendations", label:`Recommendations (${recs.length})` },
+          { id:"resources",       label:`Resources (${resources.length})`  },
+        ].map(t => (
+          <button key={t.id} onClick={() => setTab(t.id)}
+            style={{ padding:"8px 20px", borderRadius:"9px", border:"none",
+              cursor:"pointer", fontSize:"13px", fontWeight:"600",
+              transition:"all 0.2s",
+              background:tab===t.id
+                ? "linear-gradient(135deg,#00ff8820,#ffd60008)" : "transparent",
+              color:tab===t.id ? C.text : C.muted,
+              boxShadow:tab===t.id ? "inset 0 0 0 1px #00ff8830" : "none" }}>
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      {/* Recommendations tab */}
+      {tab === "recommendations" && (
+        <div>
+          {/* Priority filter */}
+          <div style={{ display:"flex", gap:"8px",
+            marginBottom:"16px", flexWrap:"wrap" }}>
+            {[{id:"",label:"All Priorities"}, ...Object.entries(PRIORITY_META)
+              .map(([id,m])=>({id,label:m.label}))].map(p => {
+              const pm = PRIORITY_META[p.id];
+              return (
+                <button key={p.id} onClick={() => setPriority(p.id)}
+                  style={{ padding:"5px 14px", borderRadius:"100px",
+                    border:`1px solid ${priority===p.id
+                      ? (pm?.color||C.cyan) : C.border}`,
+                    background:priority===p.id
+                      ? (pm?.color||C.cyan)+"20" : "transparent",
+                    color:priority===p.id ? (pm?.color||C.cyan) : C.muted,
+                    cursor:"pointer", fontSize:"12px",
+                    fontWeight:priority===p.id ? "700" : "400" }}>
+                  {p.label}
+                </button>
+              );
+            })}
+          </div>
+
+          <div style={{ display:"flex", flexDirection:"column", gap:"10px" }}>
+            {recs.map(rec => {
+              const pm = PRIORITY_META[rec.priority] || PRIORITY_META.medium;
+              const em = EFFORT_META[rec.effort] || EFFORT_META.medium;
+              const res= resources.find(r => r.id === rec.resource_id);
+              return (
+                <div key={rec.id} style={{ background:C.card,
+                  border:`1px solid ${pm.color}20`,
+                  borderLeft:`4px solid ${pm.color}`,
+                  borderRadius:"14px", padding:"18px 20px" }}>
+                  <div style={{ display:"flex",
+                    alignItems:"flex-start", gap:"16px" }}>
+                    {/* Saving badge */}
+                    <div style={{ textAlign:"center", flexShrink:0,
+                      padding:"12px 16px", borderRadius:"12px",
+                      background:"#00ff8808",
+                      border:"1px solid #00ff8820",
+                      minWidth:"90px" }}>
+                      <div style={{ fontSize:"20px", fontWeight:"900",
+                        fontFamily:"JetBrains Mono, monospace",
+                        color:"#00ff88", lineHeight:1 }}>
+                        £{rec.monthly_saving.toFixed(0)}
+                      </div>
+                      <div style={{ fontSize:"9px", color:"#00ff88",
+                        marginTop:"2px" }}>/ month</div>
+                      <div style={{ fontSize:"9px", color:C.muted,
+                        marginTop:"4px" }}>
+                        £{rec.annual_saving.toLocaleString('en-GB', {maximumFractionDigits:0})}/yr
+                      </div>
+                    </div>
+                    <div style={{ flex:1 }}>
+                      {/* Badges */}
+                      <div style={{ display:"flex", gap:"6px",
+                        flexWrap:"wrap", marginBottom:"8px" }}>
+                        <span style={{ padding:"2px 9px",
+                          borderRadius:"100px", fontSize:"10px",
+                          fontWeight:"800", background:pm.color+"15",
+                          color:pm.color, textTransform:"uppercase" }}>
+                          {pm.label}
+                        </span>
+                        <span style={{ padding:"2px 9px",
+                          borderRadius:"100px", fontSize:"10px",
+                          background:C.surface, color:C.muted }}>
+                          {rec.category.replace("_"," ")}
+                        </span>
+                        <span style={{ padding:"2px 9px",
+                          borderRadius:"100px", fontSize:"10px",
+                          background:em.color+"15", color:em.color }}>
+                          {em.label}
+                        </span>
+                        {res && (
+                          <span style={{ padding:"2px 9px",
+                            borderRadius:"100px", fontSize:"10px",
+                            background:(CLOUD_META[res.cloud_provider]?.color||"#64748b")+"15",
+                            color:CLOUD_META[res.cloud_provider]?.color||"#64748b" }}>
+                            {CLOUD_META[res.cloud_provider]?.icon} {res.name}
+                          </span>
+                        )}
+                      </div>
+                      <div style={{ fontWeight:"700", fontSize:"14px",
+                        marginBottom:"6px" }}>{rec.title}</div>
+                      <div style={{ fontSize:"12px", color:C.muted,
+                        lineHeight:"1.5", marginBottom:"8px" }}>
+                        {rec.description}
+                      </div>
+                      {rec.security_gain && rec.security_gain !== "None — cost optimisation only" && (
+                        <div style={{ fontSize:"11px", color:"#00e5ff",
+                          padding:"6px 10px", borderRadius:"6px",
+                          background:"#00e5ff08",
+                          border:"1px solid #00e5ff20",
+                          marginBottom:"8px" }}>
+                          🛡️ Security gain: {rec.security_gain}
+                        </div>
+                      )}
+                      {rec.action && (
+                        <div style={{ fontSize:"11px", color:C.muted,
+                          padding:"8px 10px", borderRadius:"6px",
+                          background:C.surface,
+                          border:`1px solid ${C.border}`,
+                          whiteSpace:"pre-line", lineHeight:"1.6" }}>
+                          {rec.action}
+                        </div>
+                      )}
+                    </div>
+                    <button onClick={() => handleImplement(rec.id)}
+                      disabled={updating[rec.id]}
+                      style={{ padding:"8px 16px", borderRadius:"10px",
+                        border:"1px solid #00ff8830", cursor:"pointer",
+                        fontSize:"12px", fontWeight:"700",
+                        background:"#00ff8810", color:"#00ff88",
+                        flexShrink:0,
+                        opacity:updating[rec.id] ? 0.6 : 1 }}>
+                      ✓ Done
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Resources tab */}
+      {tab === "resources" && (
+        <div style={{ display:"grid", gridTemplateColumns:"repeat(2, 1fr)",
+          gap:"10px" }}>
+          {resources.map(r => {
+            const cm  = CLOUD_META[r.cloud_provider] || { color:"#64748b", icon:"☁️" };
+            const sc  = r.security_score >= 70 ? "#00ff88"
+              : r.security_score >= 40 ? "#ffd600" : "#ff3b5c";
+            const saving = r.monthly_cost - r.optimised_cost;
+            return (
+              <div key={r.id} style={{ background:C.card,
+                border:`1px solid ${C.border}`,
+                borderRadius:"12px", padding:"16px" }}>
+                <div style={{ display:"flex",
+                  alignItems:"center", gap:"12px", marginBottom:"12px" }}>
+                  <div style={{ fontSize:"22px" }}>
+                    {TYPE_ICON[r.resource_type] || "☁️"}
+                  </div>
+                  <div style={{ flex:1 }}>
+                    <div style={{ fontWeight:"700", fontSize:"13px",
+                      marginBottom:"3px" }}>{r.name}</div>
+                    <div style={{ display:"flex", gap:"6px",
+                      fontSize:"10px", color:C.muted }}>
+                      <span style={{ color:cm.color }}>{cm.icon} {r.cloud_provider}</span>
+                      <span>·</span>
+                      <span>{r.resource_type.replace("_"," ")}</span>
+                      {r.status !== "active" && (
+                        <span style={{ color:"#ff3b5c",
+                          fontWeight:"700" }}>· {r.status}</span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+                <div style={{ display:"grid",
+                  gridTemplateColumns:"1fr 1fr 1fr", gap:"8px" }}>
+                  <div style={{ textAlign:"center", padding:"8px",
+                    borderRadius:"8px", background:C.surface }}>
+                    <div style={{ fontSize:"14px", fontWeight:"800",
+                      fontFamily:"JetBrains Mono, monospace",
+                      color:"#ff8c00" }}>
+                      £{r.monthly_cost.toFixed(0)}
+                    </div>
+                    <div style={{ fontSize:"9px", color:C.muted }}>
+                      Current/mo
+                    </div>
+                  </div>
+                  <div style={{ textAlign:"center", padding:"8px",
+                    borderRadius:"8px",
+                    background:"#00ff8808",
+                    border:"1px solid #00ff8820" }}>
+                    <div style={{ fontSize:"14px", fontWeight:"800",
+                      fontFamily:"JetBrains Mono, monospace",
+                      color:"#00ff88" }}>
+                      £{saving.toFixed(0)}
+                    </div>
+                    <div style={{ fontSize:"9px", color:"#00ff88" }}>
+                      Save/mo
+                    </div>
+                  </div>
+                  <div style={{ textAlign:"center", padding:"8px",
+                    borderRadius:"8px",
+                    background:sc+"08",
+                    border:`1px solid ${sc}20` }}>
+                    <div style={{ fontSize:"14px", fontWeight:"800",
+                      fontFamily:"JetBrains Mono, monospace", color:sc }}>
+                      {r.security_score}
+                    </div>
+                    <div style={{ fontSize:"9px", color:sc }}>
+                      Security
+                    </div>
+                  </div>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
 
 // ─────────────────────────────────────────────────────────────
 // AIPET X — Data Security Posture Management (DSPM-Lite) Page
@@ -17683,6 +18118,9 @@ export default function App() {
           )}
           {activeTab === "team" && (
             <TeamAccessPage token={token} showToast={showToast} />
+          )}
+          {activeTab === "costsecurity" && (
+            <CostSecurityPage token={token} showToast={showToast} />
           )}
           {activeTab === "dspm" && (
             <DspmPage token={token} showToast={showToast} />
