@@ -4919,342 +4919,7 @@ function LoginPage({ onLogin }) {
 
 
 // ============================================================
-// AIPET TERMINAL — Real xterm.js terminal
-// ============================================================
 
-// ============================================================
-// TEAM & ACCESS PAGE (IAM + RBAC)
-// ============================================================
-function TeamAccessPage({ token, showToast }) {
-  const [roles, setRoles] = useState([]);
-  const [auditLog, setAuditLog] = useState([]);
-  const [activeTab, setActiveTab] = useState('roles');
-  const [loading, setLoading] = useState(true);
-
-  const headers = { Authorization: `Bearer ${token}` };
-
-  useEffect(() => {
-    fetchData();
-  }, []);
-
-  const fetchData = async () => {
-    setLoading(true);
-    try {
-      const [rolesRes, auditRes] = await Promise.all([
-        fetch('http://localhost:5001/api/iam/roles', { headers }),
-        fetch('http://localhost:5001/api/iam/audit', { headers }),
-      ]);
-      if (rolesRes.ok) setRoles(await rolesRes.json());
-      if (auditRes.ok) {
-        const data = await auditRes.json();
-        setAuditLog(data.logs || []);
-      }
-    } catch (e) {
-      showToast('Failed to load IAM data', 'error');
-    }
-    setLoading(false);
-  };
-
-  const ROLE_COLORS = {
-    owner:   '#f59e0b',
-    admin:   '#00e5ff',
-    analyst: '#a855f7',
-    viewer:  '#00ff88',
-  };
-
-  const STATUS_COLORS = {
-    success: '#00ff88',
-    failed:  '#ff4444',
-    blocked: '#f59e0b',
-  };
-
-  const tabs = [
-    { id: 'roles',   label: 'Roles & Permissions' },
-    { id: 'audit',   label: 'Audit Log' },
-    { id: 'sso',     label: 'SSO Configuration' },
-  ];
-
-  return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: '24px' }}>
-      {/* Header */}
-      <div>
-        <h2 style={{ fontSize: '20px', fontWeight: '800', color: '#e2e8f0', margin: 0 }}>
-          Team & Access Control
-        </h2>
-        <p style={{ fontSize: '13px', color: '#475569', margin: '4px 0 0' }}>
-          Manage roles, permissions, SSO providers, and audit logs
-        </p>
-      </div>
-
-      {/* Tabs */}
-      <div style={{ display: 'flex', gap: '4px', borderBottom: '1px solid #1e293b', paddingBottom: '0' }}>
-        {tabs.map(tab => (
-          <button key={tab.id} onClick={() => setActiveTab(tab.id)}
-            style={{
-              padding: '10px 20px', border: 'none', cursor: 'pointer', fontSize: '13px', fontWeight: '600',
-              backgroundColor: 'transparent',
-              color: activeTab === tab.id ? '#00e5ff' : '#475569',
-              borderBottom: activeTab === tab.id ? '2px solid #00e5ff' : '2px solid transparent',
-              transition: 'all 0.2s',
-            }}>
-            {tab.label}
-          </button>
-        ))}
-      </div>
-
-      {loading ? (
-        <div style={{ textAlign: 'center', color: '#475569', padding: '40px' }}>Loading...</div>
-      ) : (
-        <>
-          {/* Roles Tab */}
-          {activeTab === 'roles' && (
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, 1fr)', gap: '16px' }}>
-              {roles.map((role, i) => (
-                <div key={i} style={{ padding: '24px', borderRadius: '16px', border: `1px solid ${(ROLE_COLORS[role.name] || '#00e5ff')}30`, backgroundColor: '#0a1628' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '12px' }}>
-                    <div style={{ width: '10px', height: '10px', borderRadius: '50%', backgroundColor: ROLE_COLORS[role.name] || '#00e5ff' }} />
-                    <span style={{ fontSize: '16px', fontWeight: '700', color: ROLE_COLORS[role.name] || '#00e5ff', textTransform: 'capitalize' }}>{role.name}</span>
-                  </div>
-                  <p style={{ color: '#64748b', fontSize: '13px', margin: '0 0 16px', lineHeight: '1.5' }}>{role.description}</p>
-                  <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px' }}>
-                    {role.permissions.length > 0 ? role.permissions.map((perm, j) => (
-                      <span key={j} style={{ padding: '3px 10px', borderRadius: '100px', fontSize: '11px', fontWeight: '600', backgroundColor: 'rgba(0,229,255,0.08)', color: '#00e5ff', border: '1px solid rgba(0,229,255,0.2)' }}>
-                        {perm}
-                      </span>
-                    )) : (
-                      <span style={{ fontSize: '12px', color: '#334155' }}>No permissions assigned yet</span>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-
-          {/* Audit Log Tab */}
-          {activeTab === 'audit' && (
-            <div style={{ backgroundColor: '#0a1628', borderRadius: '16px', border: '1px solid #1e293b', overflow: 'hidden' }}>
-              <div style={{ padding: '16px 20px', borderBottom: '1px solid #1e293b', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                <span style={{ color: '#e2e8f0', fontWeight: '700', fontSize: '14px' }}>Recent Activity</span>
-                <span style={{ color: '#475569', fontSize: '12px' }}>{auditLog.length} events</span>
-              </div>
-              {auditLog.length === 0 ? (
-                <div style={{ padding: '40px', textAlign: 'center', color: '#475569' }}>No audit events yet</div>
-              ) : (
-                auditLog.slice(0, 50).map((log, i) => (
-                  <div key={i} style={{ padding: '12px 20px', borderBottom: '1px solid #0f1f30', display: 'flex', alignItems: 'center', gap: '16px' }}>
-                    <div style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: STATUS_COLORS[log.status] || '#64748b', flexShrink: 0 }} />
-                    <div style={{ flex: 1 }}>
-                      <span style={{ color: '#00e5ff', fontSize: '13px', fontFamily: 'monospace', fontWeight: '600' }}>{log.action}</span>
-                      {log.resource && <span style={{ color: '#475569', fontSize: '12px', marginLeft: '8px' }}>→ {log.resource}</span>}
-                    </div>
-                    <span style={{ color: '#334155', fontSize: '11px', fontFamily: 'monospace' }}>{log.ip_address}</span>
-                    <span style={{ color: '#334155', fontSize: '11px' }}>{new Date(log.timestamp).toLocaleString()}</span>
-                  </div>
-                ))
-              )}
-            </div>
-          )}
-
-          {/* SSO Tab */}
-          {activeTab === 'sso' && (
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '16px' }}>
-              {[
-                { name: 'Azure AD', icon: '🔵', desc: 'Microsoft Azure Active Directory — enterprise SSO for NHS, manufacturing, and government organisations', status: 'Configure' },
-                { name: 'Okta', icon: '🟡', desc: 'Okta Universal Directory — identity management for modern enterprises with SAML 2.0 support', status: 'Configure' },
-                { name: 'SAML 2.0', icon: '🔐', desc: 'Generic SAML 2.0 provider — connect any SAML-compatible identity provider to AIPET X', status: 'Configure' },
-              ].map((provider, i) => (
-                <div key={i} style={{ padding: '24px', borderRadius: '16px', border: '1px solid #1e293b', backgroundColor: '#0a1628' }}>
-                  <div style={{ fontSize: '32px', marginBottom: '12px' }}>{provider.icon}</div>
-                  <div style={{ fontSize: '16px', fontWeight: '700', color: '#e2e8f0', marginBottom: '8px' }}>{provider.name}</div>
-                  <p style={{ color: '#475569', fontSize: '13px', lineHeight: '1.6', marginBottom: '16px' }}>{provider.desc}</p>
-                  <button style={{ width: '100%', padding: '10px', borderRadius: '10px', backgroundColor: 'rgba(0,229,255,0.08)', border: '1px solid rgba(0,229,255,0.2)', color: '#00e5ff', fontSize: '13px', fontWeight: '600', cursor: 'pointer' }}>
-                    {provider.status} →
-                  </button>
-                </div>
-              ))}
-            </div>
-          )}
-        </>
-      )}
-    </div>
-  );
-}
-
-function TerminalPage({ token, showToast, findings }) {
-  const terminalRef = useRef(null);
-  const xtermRef = useRef(null);
-  const socketRef = useRef(null);
-  const fitAddonRef = useRef(null);
-  const [connected, setConnected] = useState(false);
-  const [status, setStatus] = useState('disconnected');
-
-  useEffect(() => {
-    // Dynamically import xterm
-    const loadTerminal = async () => {
-      const { Terminal } = await import('xterm');
-      const { FitAddon } = await import('xterm-addon-fit');
-      await import('xterm/css/xterm.css');
-
-      if (!terminalRef.current) return;
-
-      // Create xterm instance
-      const term = new Terminal({
-        cursorBlink: true,
-        fontSize: 14,
-        fontFamily: "'JetBrains Mono', 'Courier New', monospace",
-        theme: {
-          background: '#020810',
-          foreground: '#00e5ff',
-          cursor: '#00e5ff',
-          cursorAccent: '#020810',
-          selection: 'rgba(0,229,255,0.2)',
-          black: '#020810',
-          brightBlack: '#1e3a4a',
-          red: '#ff4444',
-          brightRed: '#ff6666',
-          green: '#00ff88',
-          brightGreen: '#00ffaa',
-          yellow: '#f59e0b',
-          brightYellow: '#fbbf24',
-          blue: '#00e5ff',
-          brightBlue: '#38bdf8',
-          magenta: '#a855f7',
-          brightMagenta: '#c084fc',
-          cyan: '#00e5ff',
-          brightCyan: '#67e8f9',
-          white: '#e2e8f0',
-          brightWhite: '#f8fafc',
-        },
-        scrollback: 1000,
-        rows: 30,
-        cols: 100,
-      });
-
-      const fitAddon = new FitAddon();
-      term.loadAddon(fitAddon);
-      term.open(terminalRef.current);
-      fitAddon.fit();
-
-      xtermRef.current = term;
-      fitAddonRef.current = fitAddon;
-
-      // Welcome message
-      term.writeln('[1;36m╔══════════════════════════════════════════════════╗[0m');
-      term.writeln('[1;36m║         AIPET X Terminal v1.0.0                  ║[0m');
-      term.writeln('[1;36m║    AI-Powered IoT Security Command Center         ║[0m');
-      term.writeln('[1;36m╚══════════════════════════════════════════════════╝[0m');
-      term.writeln('');
-      term.writeln('[33mConnecting to secure shell...[0m');
-
-      // Connect WebSocket
-      const { io } = await import('socket.io-client');
-      const socket = io('http://localhost:5001/terminal', {
-        query: { token },
-        transports: ['websocket'],
-        reconnectionAttempts: 3,
-        reconnectionDelay: 2000,
-      });
-
-      socketRef.current = socket;
-
-      socket.on('connect', () => {
-        setConnected(true);
-        setStatus('connected');
-        term.writeln('[32m✓ Connected to AIPET X Terminal[0m');
-        term.writeln('');
-      });
-
-      socket.on('output', (data) => {
-        term.write(data);
-      });
-
-      socket.on('disconnect', () => {
-        setConnected(false);
-        setStatus('disconnected');
-        term.writeln('\r\n\x1b[31m✗ Terminal session ended.\x1b[0m');
-      });
-
-      socket.on('connect_error', () => {
-        setStatus('error');
-        term.writeln('[31m✗ Connection failed. Is the backend running?[0m');
-      });
-
-      // Send keystrokes to backend
-      term.onData((data) => {
-        if (socket.connected) {
-          socket.emit('input', data);
-        }
-      });
-
-      // Handle resize
-      const handleResize = () => {
-        fitAddon.fit();
-        socket.emit('resize', { rows: term.rows, cols: term.cols });
-      };
-      window.addEventListener('resize', handleResize);
-
-      return () => {
-        window.removeEventListener('resize', handleResize);
-        socket.disconnect();
-        term.dispose();
-      };
-    };
-
-    loadTerminal();
-  }, [token]);
-
-  const statusColors = {
-    connected: '#00ff88',
-    disconnected: '#64748b',
-    error: '#ff4444',
-  };
-
-  return (
-    <div style={{ height: '100%', display: 'flex', flexDirection: 'column', gap: '16px' }}>
-      {/* Header */}
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <div>
-          <h2 style={{ fontSize: '20px', fontWeight: '800', color: '#e2e8f0', margin: 0, display: 'flex', alignItems: 'center', gap: '10px' }}>
-            <span style={{ color: '#00e5ff' }}>{'>'}_</span> AIPET X Terminal
-          </h2>
-          <p style={{ fontSize: '13px', color: '#475569', margin: '4px 0 0' }}>
-            Real-time secure shell — execute commands directly on your security infrastructure
-          </p>
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
-            <div style={{ width: '8px', height: '8px', borderRadius: '50%', backgroundColor: statusColors[status], boxShadow: `0 0 8px ${statusColors[status]}` }} />
-            <span style={{ fontSize: '12px', color: statusColors[status], fontFamily: 'monospace', textTransform: 'uppercase' }}>{status}</span>
-          </div>
-          <button
-            onClick={() => { if (socketRef.current) socketRef.current.disconnect(); }}
-            style={{ padding: '8px 16px', borderRadius: '8px', backgroundColor: 'rgba(255,68,68,0.1)', border: '1px solid rgba(255,68,68,0.3)', color: '#ff4444', fontSize: '13px', cursor: 'pointer' }}>
-            Disconnect
-          </button>
-        </div>
-      </div>
-
-      {/* Terminal window */}
-      <div style={{ flex: 1, backgroundColor: '#020810', borderRadius: '16px', border: `1px solid ${connected ? 'rgba(0,229,255,0.3)' : 'rgba(255,255,255,0.08)'}`, boxShadow: connected ? '0 0 40px rgba(0,229,255,0.08)' : 'none', overflow: 'hidden', display: 'flex', flexDirection: 'column', transition: 'all 0.3s' }}>
-        {/* Title bar */}
-        <div style={{ padding: '10px 16px', backgroundColor: '#0a1628', borderBottom: '1px solid rgba(0,229,255,0.1)', display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <div style={{ width: '12px', height: '12px', borderRadius: '50%', backgroundColor: '#ff5f57' }} />
-          <div style={{ width: '12px', height: '12px', borderRadius: '50%', backgroundColor: '#febc2e' }} />
-          <div style={{ width: '12px', height: '12px', borderRadius: '50%', backgroundColor: '#28c840' }} />
-          <span style={{ marginLeft: '8px', fontSize: '12px', color: '#475569', fontFamily: 'monospace' }}>aipet@terminal:~ — AIPET X Secure Shell</span>
-        </div>
-        {/* xterm.js mount point */}
-        <div ref={terminalRef} style={{ flex: 1, padding: '8px' }} />
-      </div>
-
-      {/* Security notice */}
-      <div style={{ padding: '10px 16px', borderRadius: '10px', backgroundColor: 'rgba(245,158,11,0.05)', border: '1px solid rgba(245,158,11,0.15)', display: 'flex', alignItems: 'center', gap: '8px' }}>
-        <span style={{ color: '#f59e0b', fontSize: '14px' }}>⚠</span>
-        <span style={{ color: '#64748b', fontSize: '12px' }}>This terminal executes real commands on your system. Only run commands you understand and trust.</span>
-      </div>
-    </div>
-  );
-}
 
 function ProtocolsPage({ token, showToast, currentPlan }) {
   const [protocol, setProtocol] = useState("modbus");
@@ -6094,7 +5759,7 @@ const NAV_ITEMS = [
   { id: "predict",   label: "CVE Intel",     icon: AlertTriangle, group: "intel"    },
   { id: "ask",       label: "Ask AIPET",     icon: Shield,        group: "intel"    },
   { id: "protocols", label: "Protocols",     icon: Cpu,           group: "intel"    },
-  { id: "terminal",  label: "Terminal",      icon: Shield,        group: "intel"    },
+
   { id: "ai",        label: "AI Analysis",   icon: Shield,        group: "reports"  },
   { id: "reports",   label: "Reports",       icon: FileText,      group: "reports"  },
   { id: "compliance",label: "Compliance",     icon: Lock,          group: "reports"  },
@@ -6124,6 +5789,7 @@ const NAV_ITEMS = [
   { id: "apisecurity", label: "API Security",  icon: Shield,        group: "enterprise" },
   { id: "supplychain", label: "Supply Chain",  icon: GitBranch,     group: "enterprise" },
   { id: "netvisualizer",label: "Network Map+",  icon: Globe,         group: "enterprise" },
+  { id: "terminal",    label: "Terminal",      icon: Cpu,           group: "enterprise" },
   { id: "settings",  label: "Settings",      icon: Settings,      group: "account"  },
 ];
 
@@ -6388,6 +6054,286 @@ function SettingsPage({ token, showToast }) {
 
 
 // ─────────────────────────────────────────────────────────────
+
+// ─────────────────────────────────────────────────────────────
+// AIPET X — Terminal v2.0
+//
+// Features:
+//   • REST-based command execution (no SocketIO)
+//   • Command history (↑/↓ navigation)
+//   • Built-in: help, clear, banner, + backend commands
+//   • AIPET X dark theme (cyan / near-black / JetBrains Mono)
+// ─────────────────────────────────────────────────────────────
+function AIPETTerminal({ token, showToast }) {
+  const [output,     setOutput]     = useState([
+    { type:"system", text:"  AIPET X  -  Terminal v2.0",                  color:"#00e5ff" },
+    { type:"system", text:"  AI-Powered IoT Security Suite",               color:"#64748b" },
+    { type:"system", text:"",                                              color:"#64748b" },
+    { type:"system", text:"  Zero-Trust verified  |  25 modules connected",color:"#00ff88" },
+    { type:"system", text:"",                                              color:"#64748b" },
+    { type:"system", text:"  Type help for commands",                      color:"#334155" },
+    { type:"system", text:"",                                              color:"#64748b" },
+  ]);
+  const [input,      setInput]      = useState("");
+  const [cmdHistory, setCmdHistory] = useState([]);
+  const [histIdx,    setHistIdx]    = useState(-1);
+  const [busy,       setBusy]       = useState(false);
+  const [nlPending,  setNlPending]  = useState(null);
+  const bottomRef = useRef(null);
+  const inputRef  = useRef(null);
+
+  const AUTH = { headers: { Authorization: "Bearer " + token } };
+  const CYAN="#00e5ff",GREEN="#00ff88",RED="#ff3b5c",ORANGE="#ff8c00",
+        PURPLE="#a78bfa",MUTED="#64748b",TEXT="#e2e8f0",
+        BG="#030712",CARD="#0a0f1a",BORDER="#1e2a3a",FAINT="#1e293b";
+
+  useEffect(() => {
+    if (bottomRef.current)
+      bottomRef.current.scrollIntoView({ behavior:"smooth" });
+  }, [output]);
+
+  const addLines = (lines) => {
+    if (!Array.isArray(lines)) return;
+    setOutput(prev => [
+      ...prev,
+      ...lines
+        .filter(l => l !== null && l !== undefined)
+        .map(l => ({ type:"output", text:String(l), color:TEXT }))
+    ]);
+  };
+
+  const addSystem = (text, color) =>
+    setOutput(prev => [...prev,
+      { type:"system", text:String(text||""), color:color||CYAN }]);
+
+  const addError = (text) =>
+    setOutput(prev => [...prev,
+      { type:"error", text:String(text||"Error"), color:RED }]);
+
+  const runCommand = async (cmd) => {
+    if (!cmd || !cmd.trim()) return;
+    const trimmed = cmd.trim();
+    setOutput(prev => [...prev, { type:"input", text:trimmed, color:CYAN }]);
+    setCmdHistory(prev => [trimmed, ...prev.filter(h=>h!==trimmed)].slice(0,50));
+    setHistIdx(-1);
+    setInput("");
+    setNlPending(null);
+    setBusy(true);
+    try {
+      const res  = await axios.post(API+"/terminal/command",{command:trimmed},AUTH);
+      const data = res.data;
+      if (!data) { addError("No response"); return; }
+      if (data.render==="clear") { setOutput([]); return; }
+      if (data.render==="nl_detect") {
+        setNlPending(trimmed);
+        addSystem("Natural language detected — press Enter to translate or Escape to cancel","#ffd600");
+        return;
+      }
+      if (Array.isArray(data.lines)) addLines(data.lines);
+      else if (data.error) addError(data.error);
+    } catch(err) {
+      addError("Request failed: "+(err.message||"unknown"));
+    } finally {
+      setBusy(false);
+      if (inputRef.current) inputRef.current.focus();
+    }
+  };
+
+  const runNL = async () => {
+    if (!nlPending) return;
+    const text = nlPending;
+    setNlPending(null);
+    addSystem("[AI] Translating...",PURPLE);
+    setBusy(true);
+    try {
+      const res  = await axios.post(API+"/terminal/nl",{text},AUTH);
+      const data = res.data;
+      if (!data) { addError("No response"); return; }
+      if (data.nl_translated) addSystem("[AI] Executing: "+data.nl_translated,PURPLE);
+      if (Array.isArray(data.lines)) addLines(data.lines);
+    } catch(err) {
+      addError("AI error: "+(err.message||"unknown"));
+    } finally {
+      setBusy(false);
+      if (inputRef.current) inputRef.current.focus();
+    }
+  };
+
+  const handleKey = (e) => {
+    if (e.key==="Enter") {
+      e.preventDefault();
+      if (nlPending) { runNL(); return; }
+      if (input.trim()) runCommand(input.trim());
+      return;
+    }
+    if (e.key==="Escape") { setNlPending(null); return; }
+    if (e.key==="ArrowUp") {
+      e.preventDefault();
+      const idx=Math.min(histIdx+1,cmdHistory.length-1);
+      setHistIdx(idx); setInput(cmdHistory[idx]||"");
+      return;
+    }
+    if (e.key==="ArrowDown") {
+      e.preventDefault();
+      const idx=Math.max(histIdx-1,-1);
+      setHistIdx(idx); setInput(idx===-1?"":(cmdHistory[idx]||""));
+      return;
+    }
+  };
+
+  const getColor = (line) => {
+    if (!line) return TEXT;
+    if (line.color) return line.color;
+    if (line.type==="error") return RED;
+    if (line.type==="system") return CYAN;
+    if (line.type==="input") return CYAN;
+    const t = String(line.text||"");
+    if (t.includes("CRITICAL")||t.includes("[Critical]")) return RED;
+    if (t.includes("[High]")||t.includes("HIGH"))         return ORANGE;
+    if (t.startsWith("  \u2713")||t.includes("HEALTHY"))  return GREEN;
+    if (t.startsWith("  \u2717")||t.includes("FAILED"))   return RED;
+    if (t.includes("[AI]"))                               return PURPLE;
+    return TEXT;
+  };
+
+  const SHORTCUTS=["help","status","identity risks","compliance status",
+    "supply vulns","behavioral anomalies","cost recs","network issues"];
+
+  return (
+    <div style={{display:"flex",flexDirection:"column",height:"100vh",
+      background:BG,fontFamily:"JetBrains Mono, monospace"}}
+      onClick={()=>inputRef.current&&inputRef.current.focus()}>
+
+      {/* Title bar */}
+      <div style={{display:"flex",alignItems:"center",
+        justifyContent:"space-between",padding:"8px 20px",
+        background:CARD,borderBottom:"1px solid "+BORDER,flexShrink:0}}>
+        <div style={{display:"flex",alignItems:"center",gap:"10px"}}>
+          <div style={{display:"flex",gap:"5px"}}>
+            {["#ff3b5c","#ffd600","#00ff88"].map((c,i)=>(
+              <div key={i} style={{width:"11px",height:"11px",
+                borderRadius:"50%",background:c}}/>
+            ))}
+          </div>
+          <span style={{fontSize:"11px",color:MUTED}}>
+            aipet-shell — secure@aipet-x
+          </span>
+        </div>
+        <div style={{display:"flex",alignItems:"center",gap:"12px"}}>
+          {busy&&<span style={{fontSize:"10px",color:CYAN}}>● Processing...</span>}
+          <span style={{fontSize:"10px",color:MUTED}}>
+            {output.filter(o=>o&&o.type==="input").length} commands
+          </span>
+        </div>
+      </div>
+
+      {/* Output */}
+      <div style={{flex:1,overflowY:"auto",padding:"12px 20px"}}>
+        {output.map((line,idx)=>{
+          if (!line) return null;
+          if (line.type==="input") return (
+            <div key={idx} style={{display:"flex",gap:"8px",marginTop:"6px"}}>
+              <span style={{color:CYAN,fontWeight:"700",
+                fontSize:"12px",flexShrink:0}}>aipet&gt;</span>
+              <span style={{color:TEXT,fontSize:"12px"}}>
+                {String(line.text||"")}
+              </span>
+            </div>
+          );
+          return (
+            <div key={idx} style={{fontFamily:"JetBrains Mono, monospace",
+              fontSize:"12px",lineHeight:"1.6",color:getColor(line),
+              whiteSpace:"pre-wrap",wordBreak:"break-word",minHeight:"4px"}}>
+              {String(line.text||"")}
+            </div>
+          );
+        })}
+        {busy&&(
+          <div style={{display:"flex",gap:"3px",padding:"4px 0"}}>
+            {[0,1,2].map(i=>(
+              <div key={i} style={{width:"4px",height:"4px",
+                borderRadius:"50%",background:CYAN,opacity:0.6}}/>
+            ))}
+          </div>
+        )}
+        <div ref={bottomRef}/>
+      </div>
+
+      {/* NL banner */}
+      {nlPending&&(
+        <div style={{padding:"8px 20px",background:"#ffd60010",
+          borderTop:"1px solid #ffd60030",display:"flex",
+          gap:"10px",alignItems:"center",flexShrink:0}}>
+          <span style={{fontSize:"11px",color:"#ffd600"}}>
+            AI: "{nlPending}"
+          </span>
+          <button onClick={runNL}
+            style={{padding:"3px 12px",borderRadius:"6px",
+              border:"none",background:CYAN,color:"#000",
+              cursor:"pointer",fontSize:"11px",fontWeight:"700"}}>
+            Enter Execute
+          </button>
+          <button onClick={()=>setNlPending(null)}
+            style={{padding:"3px 12px",borderRadius:"6px",
+              border:"1px solid "+BORDER,background:"transparent",
+              color:MUTED,cursor:"pointer",fontSize:"11px"}}>
+            X Cancel
+          </button>
+        </div>
+      )}
+
+      {/* Quick commands */}
+      <div style={{display:"flex",gap:"5px",padding:"5px 20px",
+        background:CARD,borderTop:"1px solid "+BORDER,
+        flexWrap:"wrap",flexShrink:0}}>
+        {SHORTCUTS.map(cmd=>(
+          <button key={cmd} onClick={()=>runCommand(cmd)}
+            style={{padding:"2px 8px",borderRadius:"5px",
+              border:"1px solid "+BORDER,background:"transparent",
+              color:MUTED,cursor:"pointer",fontSize:"10px"}}>
+            {cmd}
+          </button>
+        ))}
+      </div>
+
+      {/* Input bar */}
+      <div style={{display:"flex",alignItems:"center",
+        padding:"10px 20px",background:CARD,
+        borderTop:"1px solid "+BORDER,gap:"8px",flexShrink:0}}>
+        <span style={{color:nlPending?"#ffd600":CYAN,
+          fontWeight:"700",fontSize:"13px",flexShrink:0}}>
+          {nlPending?"ai>":"aipet>"}
+        </span>
+        <input ref={inputRef}
+          value={input}
+          onChange={e=>setInput(e.target.value)}
+          onKeyDown={handleKey}
+          disabled={busy}
+          placeholder="Enter command or ask a question..."
+          autoFocus
+          style={{flex:1,background:"transparent",border:"none",
+            outline:"none",color:TEXT,fontSize:"13px",
+            fontFamily:"JetBrains Mono, monospace",caretColor:CYAN}}/>
+        {input&&(
+          <button onClick={()=>runCommand(input.trim())}
+            style={{padding:"4px 12px",borderRadius:"6px",
+              border:"none",background:CYAN,color:"#000",
+              cursor:"pointer",fontSize:"12px",
+              fontWeight:"700",flexShrink:0}}>
+            Run
+          </button>
+        )}
+      </div>
+
+      {/* Hint */}
+      <div style={{padding:"3px 20px 6px",background:CARD,
+        fontSize:"10px",color:FAINT}}>
+        up/down history · Enter execute · Escape cancel
+      </div>
+    </div>
+  );
+}
+
 // AIPET X — Cloud-Network Visualizer Page
 //
 // Features:
@@ -19829,11 +19775,12 @@ export default function App() {
           {activeTab === "protocols" && (
             <ProtocolsPage token={token} showToast={showToast} currentPlan={usage?.plan} />
           )}
-          {activeTab === "terminal" && (
-            <TerminalPage token={token} showToast={showToast} findings={findings} />
-          )}
+          
           {activeTab === "team" && (
             <TeamAccessPage token={token} showToast={showToast} />
+          )}
+          {activeTab === "terminal" && (
+            <AIPETTerminal token={token} showToast={showToast} />
           )}
           {activeTab === "netvisualizer" && (
             <NetVisualizerPage token={token} showToast={showToast} />

@@ -77,6 +77,10 @@ from dashboard.backend.apisecurity.routes import apisecurity_bp
 from dashboard.backend.apisecurity.models import AsEndpoint, AsFinding, AsScan
 from dashboard.backend.supplychain.routes import supplychain_bp
 from dashboard.backend.supplychain.models import ScComponent, ScVuln, ScSbom
+from dashboard.backend.netvisualizer.routes import netvisualizer_bp
+from dashboard.backend.netvisualizer.models import NvNode, NvEdge, NvIssue
+from dashboard.backend.terminal.routes import terminal_bp
+from dashboard.backend.terminal.models import TerminalSession, TerminalAuditLog
 from dashboard.backend.incidents.models import IrIncident, IrTask
 from dashboard.backend.monitoring.logger import setup_logging, get_logger
 from dashboard.backend.security import init_security
@@ -196,6 +200,8 @@ def create_app(config_name="development"):
     app.register_blueprint(costsecurity_bp)
     app.register_blueprint(apisecurity_bp)
     app.register_blueprint(supplychain_bp)
+    app.register_blueprint(netvisualizer_bp)
+    app.register_blueprint(terminal_bp)
     app.register_blueprint(api_keys_bp, url_prefix='/api/keys')
 
     # Setup logging
@@ -767,13 +773,12 @@ from dashboard.backend.public_scan.routes import public_scan_bp
 app.register_blueprint(public_scan_bp)
 
 
-from dashboard.backend.terminal.routes import init_terminal
-socketio = init_terminal(app, os.environ.get("JWT_SECRET_KEY", "dev-secret"))
+
 
 if __name__ == "__main__":
     print("=" * 60)
     print("  AIPET Cloud Backend v2")
     print("  Running at: http://localhost:5001")
     print("=" * 60)
-    socketio.run(app, host="0.0.0.0", port=5001,
+    app.run(host="0.0.0.0", port=5001,
             debug=True, use_reloader=False)
