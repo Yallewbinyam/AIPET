@@ -5791,6 +5791,7 @@ const NAV_ITEMS = [
   { id: "netvisualizer",label: "Network Map+",  icon: Globe,         group: "enterprise" },
   { id: "terminal",    label: "Terminal",      icon: Cpu,           group: "enterprise" },
   { id: "resilience",  label: "Resilience",    icon: Shield,        group: "enterprise" },
+  { id: "drift",       label: "Identity Drift", icon: AlertTriangle, group: "enterprise" },
   { id: "settings",  label: "Settings",      icon: Settings,      group: "account"  },
 ];
 
@@ -6331,6 +6332,454 @@ function AIPETTerminal({ token, showToast }) {
         fontSize:"10px",color:FAINT}}>
         up/down history · Enter execute · Escape cancel
       </div>
+    </div>
+  );
+}
+
+// ─────────────────────────────────────────────────────────────
+// AIPET X — Cloud-Identity Drift Detector Page
+//
+// Features:
+//   • Drift score per identity (0-100)
+//   • Drift type badges (privilege escalation, wildcard, MFA disabled)
+//   • Old vs New permission comparison
+//   • Provider filter (AWS/Azure/GCP)
+//   • Run scan button
+//   • Resolve / Investigate / Accept workflow
+//   • Stats: total drifts, critical, avg score
+// ─────────────────────────────────────────────────────────────
+function DriftDetectorPage({ token, showToast }) {
+
+  const [baselines,  setBaselines]  = useState([]);
+  const [drifts,     setDrifts]     = useState([]);
+  const [stats,      setStats]      = useState(null);
+  const [loading,    setLoading]    = useState(true);
+  const [scanning,   setScanning]   = useState(false);
+  const [tab,        setTab]        = useState("drifts");
+  const [selBaseline,setSelBaseline]= useState(null);
+  const [sevFilter,  setSevFilter]  = useState("");
+  const [updating,   setUpdating]   = useState({});
+
+  const H = { headers: { Authorization: `Bearer ${token}` } };
+
+  const DRIFT_META = {
+    permission_added:     { icon:"➕", label:"Permission Added",     color:"#ff8c00" },
+    permission_removed:   { icon:"➖", label:"Permission Removed",   color:"#ffd600" },
+    role_added:           { icon:"👤", label:"Role Added",           color:"#ff8c00" },
+    role_removed:         { icon:"👤", label:"Role Removed",         color:"#64748b" },
+    policy_changed:       { icon:"📝", label:"Policy Changed",       color:"#ffd600" },
+    privilege_escalation: { icon:"⬆️", label:"Privilege Escalation", color:"#ff3b5c" },
+    dormant_activation:   { icon:"👻", label:"Dormant Activation",   color:"#ff3b5c" },
+    cross_account_access: { icon:"🔗", label:"Cross-Account",        color:"#ff3b5c" },
+    mfa_disabled:         { icon:"🔓", label:"MFA Disabled",         color:"#ff3b5c" },
+    wildcard_permission:  { icon:"⭐", label:"Wildcard Permission",   color:"#ff3b5c" },
+  };
+
+  const PROVIDER_COLOR = {
+    aws: "#ff8c00", azure: "#00e5ff", gcp: "#00ff88",
+    on_premise: "#a78bfa",
+  };
+
+  const SEV_COLOR = {
+    Critical:"#ff3b5c", High:"#ff8c00",
+    Medium:"#ffd600",   Low:"#00ff88",
+  };
+
+  const DRIFT_COLOR = (score) =>
+    score >= 70 ? "#ff3b5c" :
+    score >= 40 ? "#ff8c00" :
+    score >= 20 ? "#ffd600" : "#00ff88";
+
+  const C = {
+    bg:"#030712", card:"#0d1117", surface:"#080f1a",
+    border:"#1e2a3a", text:"#e2e8f0", muted:"#64748b",
+    faint:"#334155", cyan:"#00e5ff",
+  };
+  const cardStyle = (extra={}) => ({
+    background:C.card, border:`1px solid ${C.border}`,
+    borderRadius:"16px", padding:"24px", ...extra
+  });
+
+  const fetchAll = useCallback(async () => {
+    try {
+      const [bRes, dRes, stRes] = await Promise.all([
+        axios.get(`${API}/drift/baselines`, H),
+        axios.get(`${API}/drift/drifts?status=open${sevFilter?"&severity="+sevFilter:""}`, H),
+        axios.get(`${API}/drift/stats`, H),
+      ]);
+      setBaselines(bRes.data.baselines || []);
+      setDrifts(dRes.data.drifts       || []);
+      setStats(stRes.data);
+    } catch { showToast("Failed to load drift data", "error"); }
+    finally { setLoading(false); }
+  }, [token, sevFilter]);
+
+  useEffect(() => { fetchAll(); }, [fetchAll]);
+
+  const handleScan = async () => {
+    setScanning(true);
+    try {
+      const res = await axios.post(`${API}/drift/scan`, {}, H);
+      showToast(`Scan complete — ${res.data.drifts_found} drifts detected`, "success");
+      fetchAll();
+    } catch { showToast("Scan failed", "error"); }
+    finally { setScanning(false); }
+  };
+
+  const handleUpdate = async (did, status) => {
+    setUpdating(prev => ({ ...prev, [did]: true }));
+    try {
+      await axios.put(`${API}/drift/drifts/${did}`, { status }, H);
+      fetchAll();
+      showToast(`Status → ${status}`, "success");
+    } catch { showToast("Failed", "error"); }
+    finally { setUpdating(prev => ({ ...prev, [did]: false })); }
+  };
+
+  const handleReset = async (bid) => {
+    try {
+      await axios.post(`${API}/drift/baselines/${bid}/reset`, {}, H);
+      fetchAll();
+      showToast("Baseline reset — current state accepted as new baseline", "success");
+    } catch { showToast("Reset failed", "error"); }
+  };
+
+  if (loading) return (
+    <div style={{ display:"flex", justifyContent:"center",
+      alignItems:"center", height:"60vh" }}>
+      <div style={{ width:"48px", height:"48px",
+        border:`3px solid ${C.border}`,
+        borderTop:`3px solid ${C.cyan}`,
+        borderRadius:"50%", animation:"spin 1s linear infinite" }} />
+    </div>
+  );
+
+  return (
+    <div style={{ padding:"32px 36px", background:C.bg,
+      minHeight:"100vh", fontFamily:"Inter, sans-serif", color:C.text }}>
+
+      {/* Header */}
+      <div style={{ display:"flex", alignItems:"center",
+        justifyContent:"space-between", marginBottom:"32px" }}>
+        <div style={{ display:"flex", alignItems:"center", gap:"16px" }}>
+          <div style={{ width:"52px", height:"52px", borderRadius:"14px",
+            background:"linear-gradient(135deg, #ff8c0020, #ffd60008)",
+            border:"1px solid #ff8c0035", display:"flex",
+            alignItems:"center", justifyContent:"center", fontSize:"24px",
+            boxShadow:"0 0 20px #ff8c0015" }}>🎯</div>
+          <div>
+            <h1 style={{ margin:0, fontSize:"26px", fontWeight:"800",
+              letterSpacing:"-0.5px", fontFamily:"JetBrains Mono, monospace",
+              background:"linear-gradient(135deg, #ff8c00, #ffd600)",
+              WebkitBackgroundClip:"text", WebkitTextFillColor:"transparent" }}>
+              Identity Drift Detector
+            </h1>
+            <div style={{ fontSize:"13px", color:C.muted, marginTop:"2px" }}>
+              IAM change detection · Privilege creep · Policy drift · Zero-Trust enforcement
+            </div>
+          </div>
+        </div>
+        <button onClick={handleScan} disabled={scanning}
+          style={{ padding:"12px 28px", borderRadius:"12px", border:"none",
+            cursor:scanning?"not-allowed":"pointer", fontSize:"14px",
+            fontWeight:"800",
+            background:scanning?C.surface
+              :"linear-gradient(135deg, #ff8c00, #ffd600)",
+            color:scanning?C.muted:"#000",
+            boxShadow:scanning?"none":"0 0 24px rgba(255,140,0,0.3)",
+            display:"flex", alignItems:"center", gap:"8px",
+            transition:"all 0.2s" }}>
+          {scanning?"Scanning...":"▶ Run Drift Scan"}
+        </button>
+      </div>
+
+      {/* Stats */}
+      {stats && (
+        <div style={{ display:"grid", gridTemplateColumns:"repeat(5,1fr)",
+          gap:"12px", marginBottom:"28px" }}>
+          {[
+            { label:"Identities",      value:stats.total_identities,        color:"#ff8c00", icon:"👤" },
+            { label:"Open Drifts",     value:stats.total_drifts,            color:"#ff3b5c", icon:"⚡" },
+            { label:"Critical",        value:stats.critical_drifts,         color:"#ff3b5c", icon:"🚨" },
+            { label:"High Drift",      value:stats.high_drift_identities,   color:"#ff8c00", icon:"📈" },
+            { label:"Avg Drift Score", value:`${stats.avg_drift_score}`,    color:stats.avg_drift_score>=50?"#ff3b5c":stats.avg_drift_score>=25?"#ffd600":"#00ff88", icon:"📊" },
+          ].map(s => (
+            <div key={s.label} style={{ ...cardStyle({ padding:"18px" }),
+              borderColor:s.color+"25" }}>
+              <div style={{ fontSize:"18px", marginBottom:"6px" }}>{s.icon}</div>
+              <div style={{ fontSize:"22px", fontWeight:"800",
+                fontFamily:"JetBrains Mono, monospace",
+                color:s.color, lineHeight:1 }}>{s.value}</div>
+              <div style={{ fontSize:"10px", color:C.muted, marginTop:"4px",
+                textTransform:"uppercase", letterSpacing:"0.5px" }}>{s.label}</div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Tabs */}
+      <div style={{ display:"flex", gap:"4px", marginBottom:"20px",
+        background:C.card, padding:"4px", borderRadius:"12px",
+        border:`1px solid ${C.border}`, width:"fit-content" }}>
+        {[
+          { id:"drifts",    label:`Drifts (${drifts.length})`       },
+          { id:"baselines", label:`Identities (${baselines.length})` },
+        ].map(t => (
+          <button key={t.id} onClick={() => setTab(t.id)}
+            style={{ padding:"8px 18px", borderRadius:"9px", border:"none",
+              cursor:"pointer", fontSize:"13px", fontWeight:"600",
+              transition:"all 0.2s",
+              background:tab===t.id
+                ?"linear-gradient(135deg,#ff8c0020,#ffd60008)":"transparent",
+              color:tab===t.id?C.text:C.muted,
+              boxShadow:tab===t.id?"inset 0 0 0 1px #ff8c0030":"none" }}>
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      {/* Drifts tab */}
+      {tab === "drifts" && (
+        <div>
+          {/* Severity filter */}
+          <div style={{ display:"flex", gap:"8px",
+            marginBottom:"16px", flexWrap:"wrap" }}>
+            {["","Critical","High","Medium","Low"].map(s => {
+              const color = SEV_COLOR[s] || C.cyan;
+              return (
+                <button key={s} onClick={() => setSevFilter(s)}
+                  style={{ padding:"5px 14px", borderRadius:"100px",
+                    border:`1px solid ${sevFilter===s?color:C.border}`,
+                    background:sevFilter===s?color+"20":"transparent",
+                    color:sevFilter===s?color:C.muted,
+                    cursor:"pointer", fontSize:"12px",
+                    fontWeight:sevFilter===s?"700":"400" }}>
+                  {s||"All Severities"}
+                </button>
+              );
+            })}
+          </div>
+
+          <div style={{ display:"flex", flexDirection:"column", gap:"8px" }}>
+            {drifts.length === 0 ? (
+              <div style={{ ...cardStyle({ padding:"48px", textAlign:"center" }),
+                color:C.muted }}>
+                No open drifts detected. Run a scan to check for changes.
+              </div>
+            ) : drifts.map(drift => {
+              const sc = SEV_COLOR[drift.severity] || "#64748b";
+              const dm = DRIFT_META[drift.drift_type] ||
+                { icon:"⚡", label:drift.drift_type, color:"#64748b" };
+              const bl = baselines.find(b => b.id === drift.baseline_id);
+              const pc = bl ? (PROVIDER_COLOR[bl.provider] || "#64748b") : "#64748b";
+              return (
+                <div key={drift.id} style={{ background:C.card,
+                  border:`1px solid ${sc}20`,
+                  borderLeft:`3px solid ${sc}`,
+                  borderRadius:"12px", padding:"14px 16px" }}>
+                  <div style={{ display:"flex",
+                    alignItems:"flex-start", gap:"12px" }}>
+                    <div style={{ fontSize:"20px", flexShrink:0,
+                      marginTop:"2px" }}>{dm.icon}</div>
+                    <div style={{ flex:1 }}>
+                      {/* Badges */}
+                      <div style={{ display:"flex", gap:"6px",
+                        flexWrap:"wrap", marginBottom:"6px" }}>
+                        <span style={{ padding:"2px 8px",
+                          borderRadius:"100px", fontSize:"9px",
+                          fontWeight:"800", background:sc+"15",
+                          color:sc, textTransform:"uppercase" }}>
+                          {drift.severity}
+                        </span>
+                        <span style={{ padding:"2px 8px",
+                          borderRadius:"100px", fontSize:"10px",
+                          background:dm.color+"15", color:dm.color }}>
+                          {dm.label}
+                        </span>
+                        {bl && (
+                          <span style={{ padding:"2px 8px",
+                            borderRadius:"100px", fontSize:"10px",
+                            background:pc+"15", color:pc }}>
+                            {bl.provider.toUpperCase()}
+                          </span>
+                        )}
+                        <span style={{ fontSize:"10px", color:C.faint,
+                          marginLeft:"auto" }}>
+                          {new Date(drift.detected_at).toLocaleDateString()}
+                        </span>
+                      </div>
+                      {/* Title */}
+                      <div style={{ fontWeight:"700", fontSize:"13px",
+                        marginBottom:"4px" }}>{drift.title}</div>
+                      {/* Description */}
+                      <div style={{ fontSize:"11px", color:C.muted,
+                        lineHeight:"1.5", marginBottom:"8px" }}>
+                        {drift.description}
+                      </div>
+                      {/* Old vs New */}
+                      {drift.old_value && (
+                        <div style={{ display:"flex", gap:"12px",
+                          marginBottom:"8px" }}>
+                          <div style={{ flex:1, padding:"7px 10px",
+                            borderRadius:"8px", background:"#00ff8808",
+                            border:"1px solid #00ff8820" }}>
+                            <div style={{ fontSize:"9px", color:"#00ff88",
+                              fontWeight:"700", textTransform:"uppercase",
+                              marginBottom:"3px" }}>Baseline</div>
+                            <div style={{ fontSize:"10px", color:C.muted,
+                              fontFamily:"JetBrains Mono, monospace",
+                              overflow:"hidden", textOverflow:"ellipsis",
+                              whiteSpace:"nowrap" }}>{drift.old_value}</div>
+                          </div>
+                          <div style={{ flex:1, padding:"7px 10px",
+                            borderRadius:"8px", background:"#ff3b5c08",
+                            border:"1px solid #ff3b5c20" }}>
+                            <div style={{ fontSize:"9px", color:"#ff3b5c",
+                              fontWeight:"700", textTransform:"uppercase",
+                              marginBottom:"3px" }}>Current (Drifted)</div>
+                            <div style={{ fontSize:"10px", color:C.muted,
+                              fontFamily:"JetBrains Mono, monospace",
+                              overflow:"hidden", textOverflow:"ellipsis",
+                              whiteSpace:"nowrap" }}>{drift.new_value}</div>
+                          </div>
+                        </div>
+                      )}
+                      {/* Remediation */}
+                      {drift.remediation && (
+                        <div style={{ fontSize:"11px", color:"#00ff88",
+                          padding:"6px 10px", borderRadius:"6px",
+                          background:"#00ff8808",
+                          border:"1px solid #00ff8820" }}>
+                          🔧 {drift.remediation}
+                        </div>
+                      )}
+                      {drift.regulation && (
+                        <div style={{ fontSize:"10px", color:"#a78bfa",
+                          marginTop:"5px" }}>📋 {drift.regulation}</div>
+                      )}
+                    </div>
+                    {/* Actions */}
+                    <div style={{ display:"flex", flexDirection:"column",
+                      gap:"4px", flexShrink:0 }}>
+                      <button onClick={() => handleUpdate(drift.id,"resolved")}
+                        disabled={updating[drift.id]}
+                        style={{ padding:"5px 10px", borderRadius:"7px",
+                          border:"1px solid #00ff8830", cursor:"pointer",
+                          fontSize:"11px", fontWeight:"600",
+                          background:"#00ff8810", color:"#00ff88" }}>
+                        Resolve
+                      </button>
+                      <button onClick={() => handleUpdate(drift.id,"accepted")}
+                        disabled={updating[drift.id]}
+                        style={{ padding:"5px 10px", borderRadius:"7px",
+                          border:"1px solid #64748b30", cursor:"pointer",
+                          fontSize:"11px", background:"transparent",
+                          color:"#64748b" }}>
+                        Accept
+                      </button>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Baselines tab */}
+      {tab === "baselines" && (
+        <div style={{ display:"grid",
+          gridTemplateColumns:"repeat(2,1fr)", gap:"12px" }}>
+          {baselines.map(b => {
+            const dc  = DRIFT_COLOR(b.drift_score);
+            const pc  = PROVIDER_COLOR[b.provider] || "#64748b";
+            const isSel = selBaseline?.id === b.id;
+            return (
+              <div key={b.id}
+                onClick={() => setSelBaseline(isSel ? null : b)}
+                style={{ ...cardStyle({ cursor:"pointer",
+                  borderColor:isSel ? dc+"50" : C.border }),
+                  boxShadow:isSel ? `0 0 16px ${dc}10` : "none" }}>
+                <div style={{ display:"flex", alignItems:"center",
+                  gap:"12px" }}>
+                  {/* Drift score gauge */}
+                  <div style={{ width:"52px", height:"52px",
+                    borderRadius:"50%", flexShrink:0,
+                    background:dc+"12", border:`2px solid ${dc}`,
+                    display:"flex", flexDirection:"column",
+                    alignItems:"center", justifyContent:"center" }}>
+                    <div style={{ fontSize:"15px", fontWeight:"900",
+                      color:dc, fontFamily:"JetBrains Mono, monospace",
+                      lineHeight:1 }}>{b.drift_score}</div>
+                    <div style={{ fontSize:"7px", color:dc }}>DRIFT</div>
+                  </div>
+                  <div style={{ flex:1 }}>
+                    <div style={{ fontWeight:"700", fontSize:"13px",
+                      marginBottom:"4px", overflow:"hidden",
+                      textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
+                      {b.identity_name}
+                    </div>
+                    <div style={{ display:"flex", gap:"6px",
+                      marginBottom:"6px" }}>
+                      <span style={{ padding:"2px 7px",
+                        borderRadius:"100px", fontSize:"10px",
+                        background:pc+"15", color:pc }}>
+                        {b.provider.toUpperCase()}
+                      </span>
+                      <span style={{ padding:"2px 7px",
+                        borderRadius:"100px", fontSize:"10px",
+                        background:C.surface, color:C.muted }}>
+                        {b.identity_type}
+                      </span>
+                      <span style={{ fontSize:"10px", color:C.muted }}>
+                        {b.permission_count} permissions
+                      </span>
+                    </div>
+                    {/* Drift bar */}
+                    <div style={{ height:"3px", background:C.faint,
+                      borderRadius:"2px" }}>
+                      <div style={{ height:"100%",
+                        width:`${b.drift_score}%`,
+                        background:dc, borderRadius:"2px",
+                        transition:"width 0.5s ease" }} />
+                    </div>
+                  </div>
+                  {b.drift_count > 0 && (
+                    <div style={{ padding:"3px 8px",
+                      borderRadius:"100px", fontSize:"10px",
+                      fontWeight:"700", background:dc+"15",
+                      color:dc, flexShrink:0 }}>
+                      {b.drift_count} drifts
+                    </div>
+                  )}
+                </div>
+                {/* Reset baseline button */}
+                {isSel && (
+                  <div style={{ marginTop:"12px", display:"flex",
+                    gap:"8px" }}>
+                    <button onClick={(e) => {
+                      e.stopPropagation();
+                      handleReset(b.id);
+                    }} style={{ flex:1, padding:"8px",
+                      borderRadius:"8px",
+                      border:"1px solid #00e5ff30",
+                      cursor:"pointer", fontSize:"12px",
+                      fontWeight:"600",
+                      background:"#00e5ff10", color:"#00e5ff" }}>
+                      ↺ Reset Baseline
+                    </button>
+                    <div style={{ flex:2, padding:"8px",
+                      borderRadius:"8px", background:C.surface,
+                      fontSize:"11px", color:C.muted }}>
+                      Baseline set: {new Date(b.baseline_set_at).toLocaleDateString()}
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
 }
@@ -20252,6 +20701,9 @@ export default function App() {
           
           {activeTab === "team" && (
             <TeamAccessPage token={token} showToast={showToast} />
+          )}
+          {activeTab === "drift" && (
+            <DriftDetectorPage token={token} showToast={showToast} />
           )}
           {activeTab === "resilience" && (
             <ResiliencePage token={token} showToast={showToast} />
