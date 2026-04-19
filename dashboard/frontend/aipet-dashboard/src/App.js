@@ -6335,6 +6335,479 @@ function AIPETTerminal({ token, showToast }) {
   );
 }
 
+// ─────────────────────────────────────────────────────────────
+// AIPET X — Resilience Engine Page
+//
+// Features:
+//   • Readiness score per asset (0-100)
+//   • RTO/RPO target vs actual comparison
+//   • DR plan list + steps
+//   • Failover simulation button
+//   • Test history
+// ─────────────────────────────────────────────────────────────
+function ResiliencePage({ token, showToast }) {
+
+  const [assets,    setAssets]    = useState([]);
+  const [plans,     setPlans]     = useState([]);
+  const [tests,     setTests]     = useState([]);
+  const [stats,     setStats]     = useState(null);
+  const [loading,   setLoading]   = useState(true);
+  const [selAsset,  setSelAsset]  = useState(null);
+  const [tab,       setTab]       = useState("assets");
+  const [simulating,setSimulating]= useState({});
+  const [simResult, setSimResult] = useState(null);
+  const [updating,  setUpdating]  = useState({});
+
+  const H = { headers: { Authorization: `Bearer ${token}` } };
+
+  const CRIT_COLOR = {
+    Critical:"#ff3b5c", High:"#ff8c00",
+    Medium:"#ffd600",   Low:"#00ff88",
+  };
+  const READINESS_COLOR = (s) =>
+    s>=75?"#00ff88":s>=50?"#ffd600":s>=25?"#ff8c00":"#ff3b5c";
+  const TYPE_ICON = {
+    database:"🗄️",server:"🖥️",gateway:"🔀",
+    iot_device:"📡",cache:"⚡",firewall:"🔥",
+  };
+  const TEST_COLOR = {
+    passed:"#00ff88",failed:"#ff3b5c",
+    partial:"#ffd600",pending:"#64748b",
+  };
+  const C = {
+    bg:"#030712",card:"#0d1117",surface:"#080f1a",
+    border:"#1e2a3a",text:"#e2e8f0",muted:"#64748b",
+    faint:"#334155",cyan:"#00e5ff",
+  };
+  const cardStyle = (extra={}) => ({
+    background:C.card,border:`1px solid ${C.border}`,
+    borderRadius:"16px",padding:"24px",...extra
+  });
+
+  const fetchAll = useCallback(async () => {
+    try {
+      const [aRes,pRes,tRes,stRes] = await Promise.all([
+        axios.get(`${API}/resilience/assets`,H),
+        axios.get(`${API}/resilience/plans`,H),
+        axios.get(`${API}/resilience/tests`,H),
+        axios.get(`${API}/resilience/stats`,H),
+      ]);
+      setAssets(aRes.data.assets||[]);
+      setPlans(pRes.data.plans||[]);
+      setTests(tRes.data.tests||[]);
+      setStats(stRes.data);
+    } catch { showToast("Failed to load resilience data","error"); }
+    finally { setLoading(false); }
+  },[token]);
+
+  useEffect(()=>{ fetchAll(); },[fetchAll]);
+
+  const handleSimulate = async (aid) => {
+    setSimulating(prev=>({...prev,[aid]:true}));
+    setSimResult(null);
+    try {
+      const res = await axios.post(`${API}/resilience/simulate/${aid}`,{},H);
+      setSimResult(res.data);
+      showToast(`Simulation complete — ${res.data.recommendation}`,"success");
+      fetchAll();
+    } catch(e) {
+      showToast(e.response?.data?.error||"Simulation failed","error");
+    } finally { setSimulating(prev=>({...prev,[aid]:false})); }
+  };
+
+  const handleToggle = async (aid,field,value) => {
+    setUpdating(prev=>({...prev,[aid]:true}));
+    try {
+      await axios.put(`${API}/resilience/assets/${aid}`,{[field]:!value},H);
+      fetchAll();
+      showToast("Updated","success");
+    } catch { showToast("Failed","error"); }
+    finally { setUpdating(prev=>({...prev,[aid]:false})); }
+  };
+
+  if (loading) return (
+    <div style={{display:"flex",justifyContent:"center",
+      alignItems:"center",height:"60vh"}}>
+      <div style={{width:"48px",height:"48px",
+        border:`3px solid ${C.border}`,
+        borderTop:`3px solid ${C.cyan}`,
+        borderRadius:"50%",animation:"spin 1s linear infinite"}}/>
+    </div>
+  );
+
+  return (
+    <div style={{padding:"32px 36px",background:C.bg,
+      minHeight:"100vh",fontFamily:"Inter, sans-serif",color:C.text}}>
+
+      {/* Header */}
+      <div style={{display:"flex",alignItems:"center",
+        justifyContent:"space-between",marginBottom:"32px"}}>
+        <div style={{display:"flex",alignItems:"center",gap:"16px"}}>
+          <div style={{width:"52px",height:"52px",borderRadius:"14px",
+            background:"linear-gradient(135deg, #00ff8820, #00e5ff08)",
+            border:"1px solid #00ff8835",display:"flex",
+            alignItems:"center",justifyContent:"center",fontSize:"24px",
+            boxShadow:"0 0 20px #00ff8815"}}>🛡️</div>
+          <div>
+            <h1 style={{margin:0,fontSize:"26px",fontWeight:"800",
+              letterSpacing:"-0.5px",fontFamily:"JetBrains Mono, monospace",
+              background:"linear-gradient(135deg, #00ff88, #00e5ff)",
+              WebkitBackgroundClip:"text",WebkitTextFillColor:"transparent"}}>
+              Resilience Engine
+            </h1>
+            <div style={{fontSize:"13px",color:C.muted,marginTop:"2px"}}>
+              DR planning · RTO/RPO tracking · Failover simulation · Business continuity
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Stats */}
+      {stats && (
+        <div style={{display:"grid",gridTemplateColumns:"repeat(6,1fr)",
+          gap:"12px",marginBottom:"28px"}}>
+          {[
+            {label:"Assets",       value:stats.total_assets,  color:"#00e5ff",icon:"🖥️"},
+            {label:"DR Plans",     value:stats.total_plans,   color:"#00ff88",icon:"📋"},
+            {label:"Avg Readiness",value:`${stats.avg_readiness}%`,
+              color:stats.avg_readiness>=75?"#00ff88":stats.avg_readiness>=50?"#ffd600":"#ff3b5c",icon:"📊"},
+            {label:"No DR Plan",   value:stats.no_dr_plan,    color:"#ff3b5c",icon:"⚠️"},
+            {label:"No Backup",    value:stats.no_backup,     color:"#ff8c00",icon:"💾"},
+            {label:"RTO Breached", value:stats.rto_breached,  color:"#ff3b5c",icon:"⏰"},
+          ].map(s=>(
+            <div key={s.label} style={{...cardStyle({padding:"18px"}),
+              borderColor:s.color+"25"}}>
+              <div style={{fontSize:"18px",marginBottom:"6px"}}>{s.icon}</div>
+              <div style={{fontSize:"22px",fontWeight:"800",
+                fontFamily:"JetBrains Mono, monospace",
+                color:s.color,lineHeight:1}}>{s.value}</div>
+              <div style={{fontSize:"10px",color:C.muted,marginTop:"4px",
+                textTransform:"uppercase",letterSpacing:"0.5px"}}>{s.label}</div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Tabs */}
+      <div style={{display:"flex",gap:"4px",marginBottom:"20px",
+        background:C.card,padding:"4px",borderRadius:"12px",
+        border:`1px solid ${C.border}`,width:"fit-content"}}>
+        {[
+          {id:"assets", label:`Assets (${assets.length})`},
+          {id:"plans",  label:`DR Plans (${plans.length})`},
+          {id:"tests",  label:`Tests (${tests.length})`},
+        ].map(t=>(
+          <button key={t.id} onClick={()=>setTab(t.id)}
+            style={{padding:"8px 18px",borderRadius:"9px",border:"none",
+              cursor:"pointer",fontSize:"13px",fontWeight:"600",
+              transition:"all 0.2s",
+              background:tab===t.id
+                ?"linear-gradient(135deg,#00ff8820,#00e5ff08)":"transparent",
+              color:tab===t.id?C.text:C.muted,
+              boxShadow:tab===t.id?"inset 0 0 0 1px #00ff8830":"none"}}>
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      {/* Assets tab */}
+      {tab==="assets" && (
+        <div style={{display:"flex",gap:"16px"}}>
+          <div style={{flex:1,display:"flex",flexDirection:"column",gap:"10px"}}>
+            {assets.map(asset=>{
+              const rc=READINESS_COLOR(asset.readiness_score);
+              const cc=CRIT_COLOR[asset.criticality]||"#64748b";
+              const isSel=selAsset?.id===asset.id;
+              return (
+                <div key={asset.id}
+                  onClick={()=>setSelAsset(isSel?null:asset)}
+                  style={{background:C.card,
+                    border:`1px solid ${isSel?rc+"50":C.border}`,
+                    borderLeft:`4px solid ${rc}`,
+                    borderRadius:"14px",padding:"16px 20px",cursor:"pointer"}}>
+                  <div style={{display:"flex",alignItems:"center",gap:"14px"}}>
+                    <div style={{width:"56px",height:"56px",borderRadius:"50%",
+                      flexShrink:0,background:rc+"12",border:`2px solid ${rc}`,
+                      display:"flex",flexDirection:"column",
+                      alignItems:"center",justifyContent:"center",
+                      boxShadow:`0 0 14px ${rc}20`}}>
+                      <div style={{fontSize:"16px",fontWeight:"900",
+                        color:rc,fontFamily:"JetBrains Mono, monospace",
+                        lineHeight:1}}>{asset.readiness_score}</div>
+                      <div style={{fontSize:"8px",color:rc}}>READY</div>
+                    </div>
+                    <div style={{flex:1}}>
+                      <div style={{display:"flex",alignItems:"center",
+                        gap:"8px",marginBottom:"6px"}}>
+                        <span style={{fontSize:"16px"}}>
+                          {TYPE_ICON[asset.asset_type]||"💻"}
+                        </span>
+                        <span style={{fontWeight:"700",fontSize:"15px"}}>
+                          {asset.name}
+                        </span>
+                        <span style={{padding:"2px 8px",borderRadius:"100px",
+                          fontSize:"10px",fontWeight:"700",
+                          background:cc+"15",color:cc}}>
+                          {asset.criticality}
+                        </span>
+                      </div>
+                      <div style={{fontSize:"11px",color:C.muted,
+                        marginBottom:"8px"}}>{asset.location}</div>
+                      <div style={{display:"flex",gap:"16px"}}>
+                        {[
+                          {label:"RTO",target:asset.rto_target,
+                           actual:asset.rto_actual,breach:asset.rto_breach},
+                          {label:"RPO",target:asset.rpo_target,
+                           actual:asset.rpo_actual,breach:asset.rpo_breach},
+                        ].map(metric=>(
+                          <div key={metric.label} style={{flex:1}}>
+                            <div style={{display:"flex",
+                              justifyContent:"space-between",
+                              fontSize:"10px",marginBottom:"3px"}}>
+                              <span style={{color:C.muted,fontWeight:"700"}}>
+                                {metric.label}
+                              </span>
+                              <span style={{color:metric.breach?"#ff3b5c":"#00ff88",
+                                fontWeight:"700"}}>
+                                {metric.actual!==null&&metric.actual!==undefined
+                                  ?`${metric.actual}h / ${metric.target}h`
+                                  :`Target: ${metric.target}h`}
+                                {metric.breach?" ⚠":""}
+                              </span>
+                            </div>
+                            <div style={{height:"4px",background:C.faint,
+                              borderRadius:"2px"}}>
+                              {metric.actual!==null&&metric.actual!==undefined&&(
+                                <div style={{height:"100%",
+                                  width:`${Math.min(100,(metric.actual/metric.target)*100)}%`,
+                                  background:metric.breach?"#ff3b5c":"#00ff88",
+                                  borderRadius:"2px"}}/>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                    <div style={{display:"flex",flexDirection:"column",
+                      gap:"4px",alignItems:"flex-end",flexShrink:0}}>
+                      {[
+                        {label:"DR Plan", ok:asset.has_dr_plan},
+                        {label:"Backup",  ok:asset.has_backup},
+                        {label:"Tested",  ok:asset.backup_tested},
+                        {label:"Failover",ok:asset.failover_ready},
+                      ].map(s=>(
+                        <div key={s.label} style={{display:"flex",
+                          alignItems:"center",gap:"4px",
+                          fontSize:"10px",color:s.ok?"#00ff88":"#ff3b5c"}}>
+                          <span>{s.ok?"✓":"✗"}</span>
+                          <span style={{color:C.muted}}>{s.label}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {selAsset && (
+            <div style={{width:"300px",flexShrink:0}}>
+              <div style={{...cardStyle({
+                borderColor:READINESS_COLOR(selAsset.readiness_score)+"30",
+                marginBottom:"12px"})}}>
+                <div style={{fontWeight:"700",fontSize:"14px",
+                  marginBottom:"12px"}}>{selAsset.name}</div>
+                <div style={{fontSize:"11px",fontWeight:"700",color:C.muted,
+                  textTransform:"uppercase",letterSpacing:"1px",
+                  marginBottom:"8px"}}>Readiness Controls</div>
+                {[
+                  {label:"Has DR Plan",   field:"has_dr_plan",   value:selAsset.has_dr_plan},
+                  {label:"Has Backup",    field:"has_backup",    value:selAsset.has_backup},
+                  {label:"Backup Tested", field:"backup_tested", value:selAsset.backup_tested},
+                  {label:"Failover Ready",field:"failover_ready",value:selAsset.failover_ready},
+                ].map(ctrl=>(
+                  <div key={ctrl.field} style={{display:"flex",
+                    justifyContent:"space-between",alignItems:"center",
+                    padding:"8px 0",borderBottom:`1px solid ${C.faint}`}}>
+                    <span style={{fontSize:"12px",color:C.text}}>
+                      {ctrl.label}
+                    </span>
+                    <button
+                      onClick={()=>handleToggle(selAsset.id,ctrl.field,ctrl.value)}
+                      disabled={updating[selAsset.id]}
+                      style={{padding:"3px 12px",borderRadius:"100px",
+                        border:"none",cursor:"pointer",
+                        fontSize:"11px",fontWeight:"700",
+                        background:ctrl.value?"#00ff8820":"#ff3b5c20",
+                        color:ctrl.value?"#00ff88":"#ff3b5c"}}>
+                      {ctrl.value?"✓ Yes":"✗ No"}
+                    </button>
+                  </div>
+                ))}
+                <button onClick={()=>handleSimulate(selAsset.id)}
+                  disabled={simulating[selAsset.id]}
+                  style={{width:"100%",marginTop:"16px",padding:"10px",
+                    borderRadius:"10px",border:"none",cursor:"pointer",
+                    fontSize:"13px",fontWeight:"700",
+                    background:simulating[selAsset.id]?C.surface
+                      :"linear-gradient(135deg, #00ff88, #00e5ff)",
+                    color:simulating[selAsset.id]?C.muted:"#000",
+                    opacity:simulating[selAsset.id]?0.7:1}}>
+                  {simulating[selAsset.id]?"Simulating...":"▶ Simulate Failover"}
+                </button>
+              </div>
+              {simResult && (
+                <div style={{...cardStyle({
+                  borderColor:(simResult.rto_met&&simResult.rpo_met)
+                    ?"#00ff8830":"#ff3b5c30"})}}>
+                  <div style={{fontWeight:"700",fontSize:"13px",
+                    marginBottom:"12px"}}>Simulation Result</div>
+                  <div style={{display:"grid",gridTemplateColumns:"1fr 1fr",
+                    gap:"8px",marginBottom:"12px"}}>
+                    {[
+                      {label:"RTO",value:`${simResult.simulated_rto}h`,ok:simResult.rto_met},
+                      {label:"RPO",value:`${simResult.simulated_rpo}h`,ok:simResult.rpo_met},
+                    ].map(m=>(
+                      <div key={m.label} style={{padding:"8px",borderRadius:"8px",
+                        background:m.ok?"#00ff8808":"#ff3b5c08",
+                        border:`1px solid ${m.ok?"#00ff8820":"#ff3b5c20"}`}}>
+                        <div style={{fontSize:"9px",color:C.muted,
+                          textTransform:"uppercase",marginBottom:"3px"}}>{m.label}</div>
+                        <div style={{fontSize:"14px",fontWeight:"800",
+                          color:m.ok?"#00ff88":"#ff3b5c",
+                          fontFamily:"JetBrains Mono, monospace"}}>
+                          {m.ok?"✓":"✗"} {m.value}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                  <div style={{fontSize:"11px",color:C.muted,padding:"8px",
+                    borderRadius:"8px",background:C.surface,lineHeight:"1.5"}}>
+                    {simResult.recommendation}
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* Plans tab */}
+      {tab==="plans" && (
+        <div style={{display:"flex",flexDirection:"column",gap:"12px"}}>
+          {plans.length===0?(
+            <div style={{...cardStyle({padding:"48px",textAlign:"center"}),
+              color:C.muted}}>No DR plans yet.</div>
+          ):plans.map(plan=>{
+            const asset=assets.find(a=>a.id===plan.asset_id);
+            const sc=plan.status==="active"?"#00ff88":"#ffd600";
+            return (
+              <div key={plan.id} style={{...cardStyle({
+                borderColor:sc+"25",borderLeft:`4px solid ${sc}`})}}>
+                <div style={{display:"flex",justifyContent:"space-between",
+                  marginBottom:"10px"}}>
+                  <div>
+                    <div style={{fontWeight:"700",fontSize:"14px",
+                      marginBottom:"4px"}}>{plan.title}</div>
+                    {asset&&(
+                      <div style={{fontSize:"11px",color:C.muted}}>
+                        {TYPE_ICON[asset.asset_type]||"💻"} {asset.name}
+                      </div>
+                    )}
+                  </div>
+                  <span style={{padding:"3px 10px",borderRadius:"100px",
+                    fontSize:"11px",fontWeight:"700",
+                    background:sc+"15",color:sc,height:"fit-content"}}>
+                    {plan.status}
+                  </span>
+                </div>
+                {plan.description&&(
+                  <div style={{fontSize:"12px",color:C.muted,
+                    marginBottom:"10px"}}>{plan.description}</div>
+                )}
+                {plan.steps?.length>0&&(
+                  <div>
+                    <div style={{fontSize:"10px",fontWeight:"700",color:C.muted,
+                      textTransform:"uppercase",letterSpacing:"1px",
+                      marginBottom:"6px"}}>
+                      Recovery Steps ({plan.steps.length})
+                    </div>
+                    {plan.steps.map((step,i)=>(
+                      <div key={i} style={{display:"flex",gap:"8px",
+                        padding:"4px 0",fontSize:"12px",color:C.text}}>
+                        <span style={{color:C.muted,
+                          fontFamily:"JetBrains Mono, monospace",
+                          flexShrink:0,minWidth:"20px"}}>{i+1}.</span>
+                        {step}
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Tests tab */}
+      {tab==="tests" && (
+        <div style={{display:"flex",flexDirection:"column",gap:"8px"}}>
+          {tests.length===0?(
+            <div style={{...cardStyle({padding:"48px",textAlign:"center"}),
+              color:C.muted}}>No tests recorded yet.</div>
+          ):tests.map(test=>{
+            const tc=TEST_COLOR[test.result]||"#64748b";
+            const asset=assets.find(a=>a.id===test.asset_id);
+            return (
+              <div key={test.id} style={{background:C.card,
+                border:`1px solid ${tc}20`,borderLeft:`3px solid ${tc}`,
+                borderRadius:"12px",padding:"14px 16px"}}>
+                <div style={{display:"flex",gap:"8px",alignItems:"center",
+                  marginBottom:"6px",flexWrap:"wrap"}}>
+                  <span style={{padding:"2px 8px",borderRadius:"100px",
+                    fontSize:"10px",fontWeight:"800",
+                    background:tc+"15",color:tc,textTransform:"uppercase"}}>
+                    {test.result}
+                  </span>
+                  <span style={{fontSize:"11px",color:C.muted}}>
+                    {test.test_type.replace("_"," ")}
+                  </span>
+                  {asset&&(
+                    <span style={{fontSize:"11px",color:C.muted}}>
+                      · {asset.name}
+                    </span>
+                  )}
+                  <span style={{fontSize:"10px",color:C.faint,marginLeft:"auto"}}>
+                    {new Date(test.created_at).toLocaleDateString()}
+                  </span>
+                </div>
+                <div style={{display:"flex",gap:"16px",marginBottom:"6px"}}>
+                  {test.rto_achieved&&(
+                    <span style={{fontSize:"12px",
+                      fontFamily:"JetBrains Mono, monospace",color:C.muted}}>
+                      RTO: {test.rto_achieved}h
+                    </span>
+                  )}
+                  {test.rpo_achieved!==null&&test.rpo_achieved!==undefined&&(
+                    <span style={{fontSize:"12px",
+                      fontFamily:"JetBrains Mono, monospace",color:C.muted}}>
+                      RPO: {test.rpo_achieved}h
+                    </span>
+                  )}
+                </div>
+                {test.notes&&(
+                  <div style={{fontSize:"11px",color:C.muted,
+                    lineHeight:"1.5"}}>{test.notes}</div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // AIPET X — Cloud-Network Visualizer Page
 //
 // Features:
