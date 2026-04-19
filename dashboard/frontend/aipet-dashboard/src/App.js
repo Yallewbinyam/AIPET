@@ -5790,6 +5790,7 @@ const NAV_ITEMS = [
   { id: "supplychain", label: "Supply Chain",  icon: GitBranch,     group: "enterprise" },
   { id: "netvisualizer",label: "Network Map+",  icon: Globe,         group: "enterprise" },
   { id: "terminal",    label: "Terminal",      icon: Cpu,           group: "enterprise" },
+  { id: "resilience",  label: "Resilience",    icon: Shield,        group: "enterprise" },
   { id: "settings",  label: "Settings",      icon: Settings,      group: "account"  },
 ];
 
@@ -19778,6 +19779,9 @@ export default function App() {
           
           {activeTab === "team" && (
             <TeamAccessPage token={token} showToast={showToast} />
+          )}
+          {activeTab === "resilience" && (
+            <ResiliencePage token={token} showToast={showToast} />
           )}
           {activeTab === "terminal" && (
             <AIPETTerminal token={token} showToast={showToast} />
