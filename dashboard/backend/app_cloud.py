@@ -85,6 +85,8 @@ from dashboard.backend.resilience.routes import resilience_bp
 from dashboard.backend.resilience.models import ReAsset, RePlan, ReTest
 from dashboard.backend.driftdetector.routes import driftdetector_bp
 from dashboard.backend.driftdetector.models import DdBaseline, DdDrift, DdScan
+from dashboard.backend.timeline_enhanced.routes import timeline_enhanced_bp
+from dashboard.backend.timeline_enhanced.models import TeEvent, TeCluster
 from dashboard.backend.incidents.models import IrIncident, IrTask
 from dashboard.backend.monitoring.logger import setup_logging, get_logger
 from dashboard.backend.security import init_security
@@ -208,6 +210,7 @@ def create_app(config_name="development"):
     app.register_blueprint(terminal_bp)
     app.register_blueprint(resilience_bp)
     app.register_blueprint(driftdetector_bp)
+    app.register_blueprint(timeline_enhanced_bp)
     app.register_blueprint(api_keys_bp, url_prefix='/api/keys')
 
     # Setup logging

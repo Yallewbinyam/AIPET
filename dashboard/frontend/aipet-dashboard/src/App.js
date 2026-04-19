@@ -5792,6 +5792,7 @@ const NAV_ITEMS = [
   { id: "terminal",    label: "Terminal",      icon: Cpu,           group: "enterprise" },
   { id: "resilience",  label: "Resilience",    icon: Shield,        group: "enterprise" },
   { id: "drift",       label: "Identity Drift", icon: AlertTriangle, group: "enterprise" },
+  { id: "timeline_enhanced", label: "Unified Timeline", icon: Activity,   group: "enterprise" },
   { id: "settings",  label: "Settings",      icon: Settings,      group: "account"  },
 ];
 
@@ -6337,6 +6338,497 @@ function AIPETTerminal({ token, showToast }) {
 }
 
 // ─────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────
+// AIPET X — Unified Security Timeline Enhanced Page
+//
+// Features:
+//   • Collects events from ALL 11 Phase 5B modules
+//   • AI correlation clusters — groups related events
+//   • Cross-module attack chain visualization
+//   • Claude AI summary per cluster
+//   • Filter by module, severity, correlated
+//   • Stats: events, clusters, modules covered
+//   • Resolve events
+// ─────────────────────────────────────────────────────────────
+function TimelineEnhancedPage({ token, showToast }) {
+
+  const [events,    setEvents]    = useState([]);
+  const [clusters,  setClusters]  = useState([]);
+  const [stats,     setStats]     = useState(null);
+  const [loading,   setLoading]   = useState(true);
+  const [collecting,setCollecting]= useState(false);
+  const [correlating,setCorrelating]=useState(false);
+  const [tab,       setTab]       = useState("clusters");
+  const [sevFilter, setSevFilter] = useState("");
+  const [modFilter, setModFilter] = useState("");
+  const [updating,  setUpdating]  = useState({});
+  const [expanded,  setExpanded]  = useState({});
+
+  const H = { headers: { Authorization: `Bearer ${token}` } };
+
+  const MODULE_META = {
+    behavioral:     { color:"#a78bfa", icon:"🧠", label:"Behavioral AI"   },
+    identity_graph: { color:"#00e5ff", icon:"🕸️", label:"Identity Graph"  },
+    drift:          { color:"#ff8c00", icon:"🎯", label:"Drift Detector"  },
+    dspm:           { color:"#00e5ff", icon:"🛡️", label:"Data Security"  },
+    api_security:   { color:"#ff8c00", icon:"🔌", label:"API Security"    },
+    supply_chain:   { color:"#a78bfa", icon:"🔗", label:"Supply Chain"    },
+    network:        { color:"#00ff88", icon:"🗺️", label:"Network"         },
+    compliance:     { color:"#00ff88", icon:"📋", label:"Compliance"      },
+    cost_security:  { color:"#00ff88", icon:"💰", label:"Cost Security"   },
+    resilience:     { color:"#00ff88", icon:"🛡️", label:"Resilience"     },
+    siem:           { color:"#ff3b5c", icon:"⚡", label:"SIEM"            },
+    scan:           { color:"#00e5ff", icon:"🔍", label:"Scan"            },
+    user:           { color:"#64748b", icon:"👤", label:"User"            },
+  };
+
+  const SEV_COLOR = {
+    Critical:"#ff3b5c", High:"#ff8c00",
+    Medium:"#ffd600",   Low:"#00ff88", Info:"#64748b",
+  };
+
+  const CLUSTER_TYPE_META = {
+    attack_chain:      { icon:"⚔️",  color:"#ff3b5c", label:"Attack Chain"      },
+    policy_violation:  { icon:"📋",  color:"#ff8c00", label:"Policy Violation"  },
+    anomaly_group:     { icon:"⚡",  color:"#ffd600", label:"Anomaly Group"     },
+    compliance_breach: { icon:"⚠️",  color:"#ff8c00", label:"Compliance Breach" },
+    data_incident:     { icon:"🗄️", color:"#ff3b5c", label:"Data Incident"     },
+  };
+
+  const C = {
+    bg:"#030712", card:"#0d1117", surface:"#080f1a",
+    border:"#1e2a3a", text:"#e2e8f0", muted:"#64748b",
+    faint:"#334155", cyan:"#00e5ff",
+  };
+  const cardStyle = (extra={}) => ({
+    background:C.card, border:`1px solid ${C.border}`,
+    borderRadius:"16px", padding:"24px", ...extra
+  });
+
+  const fetchAll = useCallback(async () => {
+    try {
+      const params = new URLSearchParams({ days:7, per_page:50 });
+      if (sevFilter) params.append("severity", sevFilter);
+      if (modFilter) params.append("source_module", modFilter);
+      const [evRes, clRes, stRes] = await Promise.all([
+        axios.get(`${API}/timeline_enhanced/events?${params}`, H),
+        axios.get(`${API}/timeline_enhanced/clusters`, H),
+        axios.get(`${API}/timeline_enhanced/stats`, H),
+      ]);
+      setEvents(evRes.data.events   || []);
+      setClusters(clRes.data.clusters || []);
+      setStats(stRes.data);
+    } catch { showToast("Failed to load timeline", "error"); }
+    finally { setLoading(false); }
+  }, [token, sevFilter, modFilter]);
+
+  useEffect(() => { fetchAll(); }, [fetchAll]);
+
+  const handleCollect = async () => {
+    setCollecting(true);
+    try {
+      const res = await axios.post(`${API}/timeline_enhanced/collect`, {}, H);
+      showToast(`Collected ${res.data.events_added} new events from all modules`, "success");
+      fetchAll();
+    } catch { showToast("Collection failed", "error"); }
+    finally { setCollecting(false); }
+  };
+
+  const handleCorrelate = async () => {
+    setCorrelating(true);
+    try {
+      const res = await axios.post(`${API}/timeline_enhanced/correlate`, {}, H);
+      showToast(`AI correlation: ${res.data.clusters_created} new clusters created`, "success");
+      fetchAll();
+    } catch { showToast("Correlation failed", "error"); }
+    finally { setCorrelating(false); }
+  };
+
+  const handleResolve = async (eid) => {
+    setUpdating(prev => ({ ...prev, [eid]: true }));
+    try {
+      await axios.put(`${API}/timeline_enhanced/events/${eid}`,
+        { resolved: true }, H);
+      fetchAll();
+      showToast("Resolved", "success");
+    } catch { showToast("Failed", "error"); }
+    finally { setUpdating(prev => ({ ...prev, [eid]: false })); }
+  };
+
+  const formatTime = (dt) => {
+    const d    = new Date(dt);
+    const diff = Math.floor((new Date() - d) / 1000);
+    if (diff < 3600)  return `${Math.floor(diff/60)}m ago`;
+    if (diff < 86400) return `${Math.floor(diff/3600)}h ago`;
+    return `${Math.floor(diff/86400)}d ago`;
+  };
+
+  if (loading) return (
+    <div style={{ display:"flex", justifyContent:"center",
+      alignItems:"center", height:"60vh" }}>
+      <div style={{ width:"48px", height:"48px",
+        border:`3px solid ${C.border}`,
+        borderTop:`3px solid ${C.cyan}`,
+        borderRadius:"50%", animation:"spin 1s linear infinite" }} />
+    </div>
+  );
+
+  return (
+    <div style={{ padding:"32px 36px", background:C.bg,
+      minHeight:"100vh", fontFamily:"Inter, sans-serif", color:C.text }}>
+
+      {/* Header */}
+      <div style={{ display:"flex", alignItems:"center",
+        justifyContent:"space-between", marginBottom:"32px" }}>
+        <div style={{ display:"flex", alignItems:"center", gap:"16px" }}>
+          <div style={{ width:"52px", height:"52px", borderRadius:"14px",
+            background:"linear-gradient(135deg, #00e5ff20, #a78bfa08)",
+            border:"1px solid #00e5ff35", display:"flex",
+            alignItems:"center", justifyContent:"center", fontSize:"24px",
+            boxShadow:"0 0 20px #00e5ff15" }}>📅</div>
+          <div>
+            <h1 style={{ margin:0, fontSize:"26px", fontWeight:"800",
+              letterSpacing:"-0.5px", fontFamily:"JetBrains Mono, monospace",
+              background:"linear-gradient(135deg, #00e5ff, #a78bfa)",
+              WebkitBackgroundClip:"text", WebkitTextFillColor:"transparent" }}>
+              Unified Security Timeline
+            </h1>
+            <div style={{ fontSize:"13px", color:C.muted, marginTop:"2px" }}>
+              All modules · AI correlation · Cross-module attack chains · Claude AI summaries
+            </div>
+          </div>
+        </div>
+        <div style={{ display:"flex", gap:"10px" }}>
+          <button onClick={handleCollect} disabled={collecting}
+            style={{ padding:"10px 20px", borderRadius:"10px",
+              border:"1px solid #00e5ff35", cursor:"pointer",
+              fontSize:"13px", fontWeight:"700",
+              background:collecting ? C.surface : "#00e5ff15",
+              color:collecting ? C.muted : "#00e5ff" }}>
+            {collecting ? "Collecting..." : "↓ Collect Events"}
+          </button>
+          <button onClick={handleCorrelate} disabled={correlating}
+            style={{ padding:"10px 20px", borderRadius:"10px",
+              border:"none", cursor:"pointer",
+              fontSize:"13px", fontWeight:"800",
+              background:correlating ? C.surface
+                : "linear-gradient(135deg, #00e5ff, #a78bfa)",
+              color:correlating ? C.muted : "#000",
+              boxShadow:correlating ? "none"
+                : "0 0 20px rgba(0,229,255,0.3)" }}>
+            {correlating ? "Correlating..." : "🤖 AI Correlate"}
+          </button>
+        </div>
+      </div>
+
+      {/* Stats */}
+      {stats && (
+        <div style={{ display:"grid", gridTemplateColumns:"repeat(6,1fr)",
+          gap:"12px", marginBottom:"28px" }}>
+          {[
+            { label:"Events",      value:stats.total_events,     color:"#00e5ff", icon:"📅" },
+            { label:"Clusters",    value:stats.total_clusters,   color:"#a78bfa", icon:"🔗" },
+            { label:"Critical",    value:stats.critical_events,  color:"#ff3b5c", icon:"🚨" },
+            { label:"Correlated",  value:stats.correlated_events,color:"#ffd600", icon:"⚡" },
+            { label:"Unresolved",  value:stats.unresolved,       color:"#ff8c00", icon:"⏳" },
+            { label:"Modules",     value:stats.modules_covered,  color:"#00ff88", icon:"📡" },
+          ].map(s => (
+            <div key={s.label} style={{ ...cardStyle({ padding:"18px" }),
+              borderColor:s.color+"25" }}>
+              <div style={{ fontSize:"18px", marginBottom:"6px" }}>{s.icon}</div>
+              <div style={{ fontSize:"22px", fontWeight:"800",
+                fontFamily:"JetBrains Mono, monospace",
+                color:s.color, lineHeight:1 }}>{s.value}</div>
+              <div style={{ fontSize:"10px", color:C.muted, marginTop:"4px",
+                textTransform:"uppercase", letterSpacing:"0.5px" }}>{s.label}</div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Tabs */}
+      <div style={{ display:"flex", gap:"4px", marginBottom:"20px",
+        background:C.card, padding:"4px", borderRadius:"12px",
+        border:`1px solid ${C.border}`, width:"fit-content" }}>
+        {[
+          { id:"clusters", label:`Clusters (${clusters.length})`  },
+          { id:"events",   label:`All Events (${events.length})`  },
+        ].map(t => (
+          <button key={t.id} onClick={() => setTab(t.id)}
+            style={{ padding:"8px 18px", borderRadius:"9px", border:"none",
+              cursor:"pointer", fontSize:"13px", fontWeight:"600",
+              transition:"all 0.2s",
+              background:tab===t.id
+                ?"linear-gradient(135deg,#00e5ff20,#a78bfa08)":"transparent",
+              color:tab===t.id?C.text:C.muted,
+              boxShadow:tab===t.id?"inset 0 0 0 1px #00e5ff30":"none" }}>
+            {t.label}
+          </button>
+        ))}
+      </div>
+
+      {/* Clusters tab */}
+      {tab === "clusters" && (
+        <div style={{ display:"flex", flexDirection:"column", gap:"16px" }}>
+          {clusters.length === 0 ? (
+            <div style={{ ...cardStyle({ padding:"48px", textAlign:"center" }),
+              color:C.muted }}>
+              <div style={{ fontSize:"32px", marginBottom:"12px" }}>🤖</div>
+              <div style={{ fontSize:"14px", color:C.text, marginBottom:"8px" }}>
+                No correlated clusters yet
+              </div>
+              <div style={{ fontSize:"12px" }}>
+                Click "Collect Events" then "AI Correlate" to detect attack chains
+              </div>
+            </div>
+          ) : clusters.map(cluster => {
+            const ct  = CLUSTER_TYPE_META[cluster.cluster_type] ||
+              { icon:"⚡", color:"#64748b", label:cluster.cluster_type };
+            const sc  = SEV_COLOR[cluster.severity] || "#64748b";
+            const isExp = expanded[cluster.id];
+            return (
+              <div key={cluster.id} style={{ ...cardStyle({
+                borderColor:sc+"30",
+                borderLeft:`4px solid ${sc}` }) }}>
+                {/* Cluster header */}
+                <div style={{ display:"flex", alignItems:"flex-start",
+                  gap:"14px", cursor:"pointer" }}
+                  onClick={() => setExpanded(prev =>
+                    ({ ...prev, [cluster.id]: !isExp }))}>
+                  <div style={{ fontSize:"24px", flexShrink:0 }}>
+                    {ct.icon}
+                  </div>
+                  <div style={{ flex:1 }}>
+                    <div style={{ display:"flex", gap:"8px",
+                      flexWrap:"wrap", marginBottom:"6px" }}>
+                      <span style={{ padding:"2px 8px",
+                        borderRadius:"100px", fontSize:"9px",
+                        fontWeight:"800", background:sc+"15",
+                        color:sc, textTransform:"uppercase" }}>
+                        {cluster.severity}
+                      </span>
+                      <span style={{ padding:"2px 8px",
+                        borderRadius:"100px", fontSize:"10px",
+                        background:ct.color+"15", color:ct.color }}>
+                        {ct.label}
+                      </span>
+                      <span style={{ fontSize:"10px", color:C.muted }}>
+                        {cluster.event_count} events
+                      </span>
+                      {cluster.modules_involved?.map(m => {
+                        const mm = MODULE_META[m] || { color:"#64748b", icon:"📡" };
+                        return (
+                          <span key={m} style={{ padding:"1px 6px",
+                            borderRadius:"100px", fontSize:"9px",
+                            background:mm.color+"15", color:mm.color }}>
+                            {mm.icon} {m}
+                          </span>
+                        );
+                      })}
+                    </div>
+                    <div style={{ fontWeight:"700", fontSize:"14px",
+                      marginBottom:"8px" }}>{cluster.title}</div>
+                    {/* AI Summary */}
+                    {cluster.ai_summary && (
+                      <div style={{ padding:"10px 14px",
+                        borderRadius:"10px",
+                        background:"#a78bfa08",
+                        border:"1px solid #a78bfa20",
+                        marginBottom:"8px" }}>
+                        <div style={{ fontSize:"10px", color:"#a78bfa",
+                          fontWeight:"700", marginBottom:"4px" }}>
+                          🤖 AI Analysis
+                        </div>
+                        <div style={{ fontSize:"12px", color:C.text,
+                          lineHeight:"1.6" }}>
+                          {cluster.ai_summary}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                  <div style={{ fontSize:"16px", color:C.muted,
+                    flexShrink:0 }}>
+                    {isExp ? "▲" : "▼"}
+                  </div>
+                </div>
+
+                {/* Expanded event timeline */}
+                {isExp && cluster.events && cluster.events.length > 0 && (
+                  <div style={{ marginTop:"16px", paddingTop:"16px",
+                    borderTop:`1px solid ${C.border}` }}>
+                    <div style={{ fontSize:"10px", fontWeight:"700",
+                      color:C.muted, textTransform:"uppercase",
+                      letterSpacing:"1.5px", marginBottom:"12px" }}>
+                      Attack Timeline
+                    </div>
+                    <div style={{ position:"relative" }}>
+                      {/* Timeline line */}
+                      <div style={{ position:"absolute", left:"12px",
+                        top:"8px", bottom:"8px", width:"2px",
+                        background:C.faint }} />
+                      <div style={{ display:"flex",
+                        flexDirection:"column", gap:"8px" }}>
+                        {cluster.events.map((ev, i) => {
+                          const mm = MODULE_META[ev.source_module] ||
+                            { color:"#64748b", icon:"📡" };
+                          const sc2 = SEV_COLOR[ev.severity] || "#64748b";
+                          return (
+                            <div key={ev.id} style={{ display:"flex",
+                              gap:"12px", paddingLeft:"8px" }}>
+                              {/* Timeline dot */}
+                              <div style={{ width:"10px", height:"10px",
+                                borderRadius:"50%", flexShrink:0,
+                                background:sc2, marginTop:"4px",
+                                zIndex:1 }} />
+                              <div style={{ flex:1, padding:"8px 12px",
+                                borderRadius:"8px", background:C.surface,
+                                border:`1px solid ${sc2}20` }}>
+                                <div style={{ display:"flex",
+                                  alignItems:"center", gap:"6px",
+                                  marginBottom:"3px" }}>
+                                  <span style={{ fontSize:"10px" }}>
+                                    {mm.icon}
+                                  </span>
+                                  <span style={{ fontSize:"10px",
+                                    color:mm.color, fontWeight:"600" }}>
+                                    {mm.label}
+                                  </span>
+                                  <span style={{ fontSize:"10px",
+                                    color:C.faint, marginLeft:"auto" }}>
+                                    {formatTime(ev.created_at)}
+                                  </span>
+                                </div>
+                                <div style={{ fontSize:"12px",
+                                  color:C.text, fontWeight:"600" }}>
+                                  {ev.title}
+                                </div>
+                                {ev.entity && (
+                                  <div style={{ fontSize:"10px",
+                                    color:C.muted, marginTop:"2px",
+                                    fontFamily:"JetBrains Mono, monospace" }}>
+                                    {ev.entity}
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
+      )}
+
+      {/* Events tab */}
+      {tab === "events" && (
+        <div>
+          {/* Filters */}
+          <div style={{ display:"flex", gap:"8px",
+            flexWrap:"wrap", marginBottom:"16px" }}>
+            {["","Critical","High","Medium","Low"].map(s => {
+              const color = SEV_COLOR[s] || C.cyan;
+              return (
+                <button key={s} onClick={() => setSevFilter(s)}
+                  style={{ padding:"4px 12px", borderRadius:"100px",
+                    border:`1px solid ${sevFilter===s?color:C.border}`,
+                    background:sevFilter===s?color+"20":"transparent",
+                    color:sevFilter===s?color:C.muted,
+                    cursor:"pointer", fontSize:"12px",
+                    fontWeight:sevFilter===s?"700":"400" }}>
+                  {s||"All"}
+                </button>
+              );
+            })}
+            <select value={modFilter}
+              onChange={e => setModFilter(e.target.value)}
+              style={{ padding:"4px 10px", borderRadius:"10px",
+                border:`1px solid ${C.border}`,
+                background:C.surface, color:C.text,
+                fontSize:"12px", outline:"none", marginLeft:"auto" }}>
+              <option value="">All Modules</option>
+              {Object.entries(MODULE_META).map(([id,m]) => (
+                <option key={id} value={id}>{m.icon} {m.label}</option>
+              ))}
+            </select>
+          </div>
+
+          <div style={{ display:"flex", flexDirection:"column", gap:"6px" }}>
+            {events.map(ev => {
+              const sc = SEV_COLOR[ev.severity] || "#64748b";
+              const mm = MODULE_META[ev.source_module] ||
+                { color:"#64748b", icon:"📡", label:ev.source_module };
+              return (
+                <div key={ev.id} style={{ background:C.card,
+                  border:`1px solid ${ev.correlated ? sc+"30" : C.border}`,
+                  borderLeft:`3px solid ${sc}`,
+                  borderRadius:"10px", padding:"10px 14px",
+                  opacity:ev.resolved ? 0.55 : 1 }}>
+                  <div style={{ display:"flex",
+                    alignItems:"center", gap:"8px" }}>
+                    <span style={{ fontSize:"14px" }}>{mm.icon}</span>
+                    <span style={{ padding:"2px 7px",
+                      borderRadius:"100px", fontSize:"9px",
+                      fontWeight:"800", background:sc+"15",
+                      color:sc, textTransform:"uppercase",
+                      flexShrink:0 }}>{ev.severity}</span>
+                    <span style={{ padding:"2px 7px",
+                      borderRadius:"100px", fontSize:"10px",
+                      background:mm.color+"15", color:mm.color,
+                      flexShrink:0 }}>{mm.label}</span>
+                    {ev.correlated && (
+                      <span style={{ padding:"2px 7px",
+                        borderRadius:"100px", fontSize:"9px",
+                        background:"#ffd60015", color:"#ffd600",
+                        fontWeight:"700", flexShrink:0 }}>
+                        🔗 CORRELATED
+                      </span>
+                    )}
+                    {ev.mitre_id && (
+                      <span style={{ padding:"2px 7px",
+                        borderRadius:"6px", fontSize:"10px",
+                        fontWeight:"700", color:"#a78bfa",
+                        background:"#7c3aed10",
+                        fontFamily:"JetBrains Mono, monospace",
+                        flexShrink:0 }}>{ev.mitre_id}</span>
+                    )}
+                    <span style={{ flex:1, fontSize:"12px",
+                      fontWeight:"600", overflow:"hidden",
+                      textOverflow:"ellipsis", whiteSpace:"nowrap" }}>
+                      {ev.title}
+                    </span>
+                    {ev.entity && (
+                      <span style={{ fontSize:"10px", color:C.muted,
+                        fontFamily:"JetBrains Mono, monospace",
+                        flexShrink:0, whiteSpace:"nowrap" }}>
+                        {ev.entity}
+                      </span>
+                    )}
+                    <span style={{ fontSize:"10px", color:C.faint,
+                      flexShrink:0 }}>{formatTime(ev.created_at)}</span>
+                    {!ev.resolved && (
+                      <button onClick={() => handleResolve(ev.id)}
+                        disabled={updating[ev.id]}
+                        style={{ padding:"3px 8px", borderRadius:"6px",
+                          border:"1px solid #00ff8830",
+                          cursor:"pointer", fontSize:"10px",
+                          background:"#00ff8810", color:"#00ff88",
+                          flexShrink:0 }}>✓</button>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
 // AIPET X — Cloud-Identity Drift Detector Page
 //
 // Features:
@@ -20701,6 +21193,9 @@ export default function App() {
           
           {activeTab === "team" && (
             <TeamAccessPage token={token} showToast={showToast} />
+          )}
+          {activeTab === "timeline_enhanced" && (
+            <TimelineEnhancedPage token={token} showToast={showToast} />
           )}
           {activeTab === "drift" && (
             <DriftDetectorPage token={token} showToast={showToast} />
