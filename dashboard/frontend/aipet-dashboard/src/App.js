@@ -4723,6 +4723,7 @@ function LandingPage({ onGetStarted, onLogin, setLegalPage, setActivePage }) {
     </div>
   );
 }
+
 function LoginPage({ onLogin }) {
   const [isRegister, setIsRegister] = useState(false);
   const [email,      setEmail]      = useState("");
@@ -5804,8 +5805,6 @@ const NAV_ITEMS = [
   { id: "cloudhardener",     label: "Cloud Hardener", icon: Server,        group: "enterprise" },
   { id: "patchbrain",        label: "Patch Brain",    icon: Zap,           group: "enterprise" },
   { id: "archbuilder",       label: "Arch Builder",   icon: Cpu,           group: "enterprise" },
-  { id: "digitaltwinv2",     label: "Digital Twin v2",icon: Activity,      group: "enterprise" },
-  { id: "defensemesh",       label: "Defense Mesh",   icon: Globe,         group: "enterprise" },
   { id: "digitaltwinv2",     label: "Digital Twin v2",icon: Activity,      group: "enterprise" },
   { id: "defensemesh",       label: "Defense Mesh",   icon: Globe,         group: "enterprise" },
   { id: "settings",  label: "Settings",      icon: Settings,      group: "account"  },
@@ -23434,12 +23433,8 @@ export default function App() {
           {activeTab === "defensemesh" && (
             <DefenseMeshPage token={token} showToast={showToast} />
           )}
-          {activeTab === "digitaltwinv2" && (
-            <DigitalTwinV2Page token={token} showToast={showToast} />
-          )}
-          {activeTab === "defensemesh" && (
-            <DefenseMeshPage token={token} showToast={showToast} />
-          )}
+
+
           {activeTab === "terminal" && (
             <AIPETTerminal token={token} showToast={showToast} />
           )}

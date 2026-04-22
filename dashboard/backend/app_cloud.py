@@ -87,6 +87,17 @@ from dashboard.backend.driftdetector.routes import driftdetector_bp
 from dashboard.backend.driftdetector.models import DdBaseline, DdDrift, DdScan
 from dashboard.backend.timeline_enhanced.routes import timeline_enhanced_bp
 from dashboard.backend.code_security.routes import code_security_bp
+from dashboard.backend.forensics.routes import forensics_bp
+from dashboard.backend.compliance_fabric.routes import compliance_fabric_bp
+from dashboard.backend.identity_guardian.routes import identity_guardian_bp
+from dashboard.backend.soc_twin.routes import soc_twin_bp
+from dashboard.backend.policy_brain.routes import policy_brain_bp
+from dashboard.backend.threat_radar.routes import threat_radar_bp
+from dashboard.backend.cloud_hardener.routes import cloud_hardener_bp
+from dashboard.backend.patch_brain.routes import patch_brain_bp
+from dashboard.backend.arch_builder.routes import arch_builder_bp
+from dashboard.backend.digital_twin_v2.routes import digital_twin_v2_bp
+from dashboard.backend.defense_mesh.routes import defense_mesh_bp
 from dashboard.backend.timeline_enhanced.models import TeEvent, TeCluster
 from dashboard.backend.incidents.models import IrIncident, IrTask
 from dashboard.backend.monitoring.logger import setup_logging, get_logger
@@ -213,6 +224,17 @@ def create_app(config_name="development"):
     app.register_blueprint(driftdetector_bp)
     app.register_blueprint(timeline_enhanced_bp)
     app.register_blueprint(code_security_bp)
+    app.register_blueprint(forensics_bp)
+    app.register_blueprint(compliance_fabric_bp)
+    app.register_blueprint(identity_guardian_bp)
+    app.register_blueprint(soc_twin_bp)
+    app.register_blueprint(policy_brain_bp)
+    app.register_blueprint(threat_radar_bp)
+    app.register_blueprint(cloud_hardener_bp)
+    app.register_blueprint(patch_brain_bp)
+    app.register_blueprint(arch_builder_bp)
+    app.register_blueprint(digital_twin_v2_bp)
+    app.register_blueprint(defense_mesh_bp)
     app.register_blueprint(api_keys_bp, url_prefix='/api/keys')
 
     # Setup logging
