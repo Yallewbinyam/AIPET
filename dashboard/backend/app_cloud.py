@@ -105,6 +105,9 @@ from dashboard.backend.iam_exposure.routes import iam_exposure_bp
 from dashboard.backend.cloud_dashboard.routes import cloud_dashboard_bp
 from dashboard.backend.multicloud_scale.routes import multicloud_scale_bp
 from dashboard.backend.endpoint_agent.routes import endpoint_agent_bp
+from dashboard.backend.itdr.routes import itdr_bp
+from dashboard.backend.runtime_protection.routes import runtime_protection_bp
+from dashboard.backend.threat_intel_ingest.routes import threat_intel_ingest_bp
 from dashboard.backend.timeline_enhanced.models import TeEvent, TeCluster
 from dashboard.backend.incidents.models import IrIncident, IrTask
 from dashboard.backend.monitoring.logger import setup_logging, get_logger
@@ -249,6 +252,9 @@ def create_app(config_name="development"):
     app.register_blueprint(cloud_dashboard_bp)
     app.register_blueprint(multicloud_scale_bp)
     app.register_blueprint(endpoint_agent_bp)
+    app.register_blueprint(itdr_bp)
+    app.register_blueprint(runtime_protection_bp)
+    app.register_blueprint(threat_intel_ingest_bp)
     app.register_blueprint(api_keys_bp, url_prefix='/api/keys')
 
     # Setup logging

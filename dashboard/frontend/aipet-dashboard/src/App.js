@@ -7417,16 +7417,7 @@ function ThreatIntelIngestPage({ token, showToast }) {
           <div style={{ background:"#0d1526", borderRadius:"12px", padding:"20px", border:"1px solid #1e3a5f" }}>
             <p style={{ color:"#00e5ff", fontSize:"13px", marginTop:0 }}>Paste Raw Threat Intelligence</p>
             <textarea value={rawIntel} onChange={e=>setRawIntel(e.target.value)}
-              placeholder={"Paste any threat intelligence report, IOC list, or incident data. AIPET will automatically extract IOCs, identify threat actors and map TTPs.
-
-Example:
-APT29 (Cozy Bear) nobelium campaign targeting government entities.
-C2 server: 185.220.101.45
-Malicious domain: update-service.microsoft-cdn.com
-Malware hash: a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2
-Exploiting CVE-2023-23397 for credential theft.
-Phishing email: security-alert@microsoft-support.co
-Persistence: HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Run\updater"}
+              placeholder="Paste any threat intelligence report, IOC list or incident data. AIPET will auto-extract IOCs, identify threat actors and map TTPs to MITRE ATT&CK."
               style={{ width:"100%", height:"420px", background:"#0a1628", border:"1px solid #1e3a5f", borderRadius:"8px", padding:"12px", color:"#e0e0e0", fontSize:"13px", fontFamily:"JetBrains Mono, monospace", resize:"vertical", boxSizing:"border-box" }} />
           </div>
         </div>
