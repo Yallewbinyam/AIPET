@@ -5818,6 +5818,7 @@ const NAV_ITEMS = [
   { id: "runtimeprotection", label: "Runtime Protect", icon: Shield,        group: "enterprise" },
   { id: "threatintelingest", label: "Threat Intel",    icon: AlertTriangle, group: "enterprise" },
   { id: "adversaryprofiling", label: "Adversary Intel", icon: Eye,          group: "enterprise" },
+  { id: "malwaresandbox",    label: "Malware Sandbox",icon: AlertTriangle, group: "enterprise" },
   { id: "settings",  label: "Settings",      icon: Settings,      group: "account"  },
 ];
 
@@ -7325,8 +7326,184 @@ function DriftDetectorPage({ token, showToast }) {
 
 
 
+
+// ============================================================
+// AIPET X — Malware Analysis Sandbox
+// Static Analysis | Behavioural Detection | Classification
+// ============================================================
+function MalwareSandboxPage({ token, showToast }) {
+  const [tab, setTab] = useState("analyse");
+  const [sampleName, setSampleName] = useState("");
+  const [fileType, setFileType] = useState("PE32");
+  const [description, setDescription] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [analysisData, setAnalysisData] = useState(null);
+  const [history, setHistory] = useState([]);
+  const [filterCat, setFilterCat] = useState(null);
+  const [filterType, setFilterType] = useState(null);
+
+  const API = "http://localhost:5001";
+  const VERDICT_COLOR = { MALICIOUS:"#ff2d55", SUSPICIOUS:"#ffd60a", CLEAN:"#00ff88" };
+  const VERDICT_ICON  = { MALICIOUS:"☣️", SUSPICIOUS:"⚠️", CLEAN:"✅" };
+  const SEV_COLOR     = { CRITICAL:"#ff2d55", HIGH:"#ff6b00", MEDIUM:"#ffd60a", LOW:"#00e5ff" };
+  const CAT_ICON      = { "Static Analysis":"🔬", "Behavioural":"🧬", "Network IOC":"🌐", "Persistence":"🔒", "Process Injection":"💉", "Evasion":"🫥", "Credential Access":"🔑", "Ransomware":"💀", "C2":"📡", "Privilege Escalation":"⬆️", "Exfiltration":"📤", "Lateral Movement":"↔️" };
+  const FILE_TYPES    = ["PE32","PE64","ELF","Mach-O","JavaScript","PowerShell","Python","Office Macro","PDF","APK","DLL","Shellcode"];
+
+  useEffect(() => { fetchHistory(); }, []);
+
+  async function fetchHistory() {
+    try {
+      const r = await fetch(`${API}/api/malware-sandbox/history`, { headers:{ Authorization:`Bearer ${token}` }});
+      const d = await r.json();
+      setHistory(d.analyses || []);
+    } catch(e) {}
+  }
+
+  async function submitAnalysis() {
+    if (!description.trim()) { showToast("Describe the sample first", "error"); return; }
+    setLoading(true); setAnalysisData(null);
+    try {
+      const r = await fetch(`${API}/api/malware-sandbox/analyse`, {
+        method:"POST",
+        headers:{ "Content-Type":"application/json", Authorization:`Bearer ${token}` },
+        body: JSON.stringify({ sample_name:sampleName||"sample.bin", file_type:fileType, description })
+      });
+      const d = await r.json();
+      if (d.analysis_id) {
+        showToast(`Analysis complete — Verdict: ${d.verdict}, Score: ${d.threat_score}`, d.verdict==="MALICIOUS"?"error":d.verdict==="SUSPICIOUS"?"warning":"success");
+        await loadAnalysis(d.analysis_id);
+        fetchHistory();
+      } else { showToast(d.error || "Analysis failed", "error"); }
+    } catch(e) { showToast("Analysis failed", "error"); }
+    setLoading(false);
+  }
+
+  async function loadAnalysis(analysisId) {
+    try {
+      const r = await fetch(`${API}/api/malware-sandbox/analyses/${analysisId}`, { headers:{ Authorization:`Bearer ${token}` }});
+      const d = await r.json();
+      setAnalysisData(d); setFilterCat(null); setFilterType(null); setTab("results");
+    } catch(e) {}
+  }
+
+  const scoreColor = (s) => s >= 70 ? "#ff2d55" : s >= 40 ? "#ffd60a" : "#00ff88";
+  const filtered   = analysisData?.findings?.filter(f => (!filterCat || f.category===filterCat) && (!filterType || f.finding_type===filterType)) || [];
+
+  return (
+    <div style={{ padding:"24px", color:"#e0e0e0", fontFamily:"JetBrains Mono, monospace" }}>
+      <div style={{ marginBottom:"24px" }}>
+        <h2 style={{ color:"#00e5ff", fontSize:"22px", margin:0 }}>🔬 Malware Analysis Sandbox</h2>
+        <p style={{ color:"#888", margin:"4px 0 0", fontSize:"13px" }}>Static Analysis · Behavioural Detection · Family Classification · MITRE ATT&CK Mapping</p>
+      </div>
+
+      <div style={{ display:"flex", gap:"8px", marginBottom:"24px" }}>
+        {[["analyse","🔬 Analyse"],["results","📋 Report"],["history","🕒 History"]].map(([id,label]) => (
+          <button key={id} onClick={() => setTab(id)} style={{ padding:"8px 18px", borderRadius:"8px", border:"none", cursor:"pointer", fontSize:"13px", background: tab===id?"#00e5ff":"#1a2236", color: tab===id?"#000":"#aaa", fontFamily:"inherit" }}>{label}</button>
+        ))}
+      </div>
+
+      {tab === "analyse" && (
+        <div style={{ display:"grid", gridTemplateColumns:"280px 1fr", gap:"20px" }}>
+          <div style={{ background:"#0d1526", borderRadius:"12px", padding:"20px", border:"1px solid #1e3a5f" }}>
+            <p style={{ color:"#00e5ff", fontSize:"13px", marginTop:0 }}>Sample Name</p>
+            <input value={sampleName} onChange={e=>setSampleName(e.target.value)} placeholder="e.g. suspicious.exe" style={{ width:"100%", background:"#0a1628", border:"1px solid #1e3a5f", borderRadius:"8px", padding:"8px", color:"#e0e0e0", fontSize:"13px", boxSizing:"border-box", fontFamily:"inherit" }} />
+            <p style={{ color:"#00e5ff", fontSize:"13px", marginTop:"16px" }}>File Type</p>
+            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"5px" }}>
+              {FILE_TYPES.map(ft => (
+                <div key={ft} onClick={() => setFileType(ft)} style={{ padding:"6px 8px", borderRadius:"6px", cursor:"pointer", border:`1px solid ${fileType===ft?"#00e5ff":"#1e3a5f"}`, background: fileType===ft?"#0a2040":"transparent", color: fileType===ft?"#00e5ff":"#aaa", fontSize:"11px", textAlign:"center" }}>{ft}</div>
+              ))}
+            </div>
+            <button onClick={submitAnalysis} disabled={loading} style={{ marginTop:"16px", width:"100%", padding:"12px", borderRadius:"8px", background: loading?"#333":"#00e5ff", color:"#000", border:"none", cursor:"pointer", fontSize:"14px", fontWeight:"bold", fontFamily:"inherit" }}>
+              {loading ? "⏳ Analysing..." : "🔬 Analyse Sample"}
+            </button>
+          </div>
+          <div style={{ background:"#0d1526", borderRadius:"12px", padding:"20px", border:"1px solid #1e3a5f" }}>
+            <p style={{ color:"#00e5ff", fontSize:"13px", marginTop:0 }}>Describe Sample Behaviour & Indicators</p>
+            <textarea value={description} onChange={e=>setDescription(e.target.value)}
+              placeholder="Describe what you observe about this sample. Examples: Ransomware encrypting files AES shadow copy delete ransom note bitcoin. Trojan backdoor remote access C2 beacon credential theft keylogging. Infostealer browser password harvest cookie steal crypto wallet. Dropper payload extraction process injection anti-debug anti-vm. Rootkit kernel modification process hiding boot sector. Botnet C2 registration DDoS spam lateral movement. Cryptominer xmrig CPU spike mining pool stratum."
+              style={{ width:"100%", height:"400px", background:"#0a1628", border:"1px solid #1e3a5f", borderRadius:"8px", padding:"12px", color:"#e0e0e0", fontSize:"13px", fontFamily:"JetBrains Mono, monospace", resize:"vertical", boxSizing:"border-box" }} />
+          </div>
+        </div>
+      )}
+
+      {tab === "results" && analysisData && (
+        <div>
+          {/* Verdict hero */}
+          <div style={{ background:`${VERDICT_COLOR[analysisData.verdict]}11`, border:`2px solid ${VERDICT_COLOR[analysisData.verdict]}44`, borderRadius:"16px", padding:"24px", marginBottom:"20px", display:"grid", gridTemplateColumns:"auto 1fr auto", gap:"24px", alignItems:"center" }}>
+            <div style={{ fontSize:"64px", textAlign:"center" }}>{VERDICT_ICON[analysisData.verdict]}</div>
+            <div>
+              <div style={{ fontSize:"28px", fontWeight:"900", color: VERDICT_COLOR[analysisData.verdict], letterSpacing:"-0.03em", lineHeight:1 }}>{analysisData.verdict}</div>
+              <div style={{ color:"#888", fontSize:"14px", marginTop:"4px" }}>{analysisData.malware_family} — {analysisData.file_type}</div>
+              <div style={{ color:"#555", fontSize:"12px", fontFamily:"monospace", marginTop:"6px" }}>SHA256: {analysisData.sha256?.slice(0,32)}...</div>
+            </div>
+            <div style={{ textAlign:"center" }}>
+              <div style={{ fontSize:"48px", fontWeight:"900", color: scoreColor(analysisData.threat_score), lineHeight:1 }}>{analysisData.threat_score}</div>
+              <div style={{ color:"#555", fontSize:"12px", marginTop:"4px" }}>Threat Score</div>
+            </div>
+          </div>
+
+          <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:"12px", marginBottom:"20px" }}>
+            {[["Findings",analysisData.findings?.length,"#a78bfa"],["Behaviours",analysisData.behaviours,"#ff6b00"],["IOCs",analysisData.iocs_found,"#ff2d55"],["Severity",analysisData.severity,SEV_COLOR[analysisData.severity]]].map(([label,val,color]) => (
+              <div key={label} style={{ background:"#0d1526", borderRadius:"10px", padding:"14px", border:`1px solid ${color}33`, textAlign:"center" }}>
+                <div style={{ fontSize:"22px", fontWeight:"bold", color }}>{val}</div>
+                <div style={{ fontSize:"12px", color:"#888", marginTop:"4px" }}>{label}</div>
+              </div>
+            ))}
+          </div>
+
+          <div style={{ display:"flex", gap:"8px", marginBottom:"12px", flexWrap:"wrap" }}>
+            <button onClick={() => {setFilterCat(null);setFilterType(null);}} style={{ padding:"6px 14px", borderRadius:"6px", border:`1px solid ${!filterCat&&!filterType?"#00e5ff":"#1e3a5f"}`, background: !filterCat&&!filterType?"#0a2040":"transparent", color: !filterCat&&!filterType?"#00e5ff":"#aaa", cursor:"pointer", fontSize:"12px", fontFamily:"inherit" }}>All</button>
+            <button onClick={() => setFilterType("Static")} style={{ padding:"6px 14px", borderRadius:"6px", border:`1px solid ${filterType==="Static"?"#00e5ff":"#1e3a5f"}`, background: filterType==="Static"?"#0a2040":"transparent", color: filterType==="Static"?"#00e5ff":"#aaa", cursor:"pointer", fontSize:"12px", fontFamily:"inherit" }}>🔬 Static</button>
+            <button onClick={() => setFilterType("Dynamic")} style={{ padding:"6px 14px", borderRadius:"6px", border:`1px solid ${filterType==="Dynamic"?"#ff6b00":"#1e3a5f"}`, background: filterType==="Dynamic"?"#0a2040":"transparent", color: filterType==="Dynamic"?"#ff6b00":"#aaa", cursor:"pointer", fontSize:"12px", fontFamily:"inherit" }}>🧬 Behavioural</button>
+            {analysisData.categories?.map(cat => (
+              <button key={cat} onClick={() => setFilterCat(filterCat===cat?null:cat)} style={{ padding:"6px 14px", borderRadius:"6px", border:`1px solid ${filterCat===cat?"#00e5ff":"#1e3a5f"}`, background: filterCat===cat?"#0a2040":"transparent", color: filterCat===cat?"#00e5ff":"#aaa", cursor:"pointer", fontSize:"12px", fontFamily:"inherit" }}>{CAT_ICON[cat]||"🔍"} {cat}</button>
+            ))}
+          </div>
+
+          {filtered.map((f,i) => (
+            <div key={i} style={{ background:"#0d1526", borderRadius:"8px", padding:"14px 16px", marginBottom:"6px", border:`1px solid ${SEV_COLOR[f.severity]}22`, display:"grid", gridTemplateColumns:"auto 1fr auto", gap:"12px", alignItems:"start" }}>
+              <span style={{ fontSize:"18px" }}>{CAT_ICON[f.category]||"🔍"}</span>
+              <div>
+                <div style={{ display:"flex", gap:"8px", marginBottom:"4px", alignItems:"center" }}>
+                  <span style={{ color: SEV_COLOR[f.severity], fontSize:"11px", fontWeight:"bold", background:`${SEV_COLOR[f.severity]}22`, padding:"1px 8px", borderRadius:"20px" }}>{f.severity}</span>
+                  <span style={{ color:"#555", fontSize:"11px" }}>{f.finding_type} · {f.category}</span>
+                </div>
+                <div style={{ color:"#e0e0e0", fontSize:"13px", fontWeight:"bold", marginBottom:"3px" }}>{f.title}</div>
+                {f.ioc && <div style={{ color:"#ffd60a", fontSize:"11px", fontFamily:"monospace", marginBottom:"3px" }}>IOC: {f.ioc}</div>}
+                <div style={{ color:"#888", fontSize:"12px" }}>{f.description}</div>
+              </div>
+              {f.mitre_technique && <span style={{ color:"#a78bfa", fontSize:"11px", whiteSpace:"nowrap" }}>{f.mitre_technique}</span>}
+            </div>
+          ))}
+        </div>
+      )}
+      {tab === "results" && !analysisData && <div style={{ textAlign:"center", color:"#555", padding:"60px" }}>Analyse a sample first or select one from History.</div>}
+
+      {tab === "history" && (
+        <div>
+          {history.length === 0 && <div style={{ textAlign:"center", color:"#555", padding:"60px" }}>No analyses yet.</div>}
+          {history.map((s,i) => (
+            <div key={i} style={{ background:"#0d1526", borderRadius:"10px", padding:"16px", marginBottom:"8px", border:"1px solid #1e3a5f", display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+              <div>
+                <div style={{ color:"#e0e0e0", fontSize:"14px" }}>{VERDICT_ICON[s.verdict]} {s.sample_name} <span style={{ color:"#555", fontSize:"12px" }}>({s.file_type})</span></div>
+                <div style={{ color:"#555", fontSize:"12px", marginTop:"4px" }}>{s.malware_family} · {new Date(s.created_at).toLocaleString()}</div>
+              </div>
+              <div style={{ display:"flex", gap:"16px", alignItems:"center" }}>
+                <span style={{ color: VERDICT_COLOR[s.verdict], fontSize:"13px", fontWeight:"bold" }}>{s.verdict}</span>
+                <span style={{ color: scoreColor(s.threat_score), fontSize:"13px" }}>Score: {s.threat_score}</span>
+                <button onClick={() => loadAnalysis(s.analysis_id)} style={{ padding:"6px 14px", background:"#0a2040", border:"1px solid #00e5ff", borderRadius:"6px", color:"#00e5ff", cursor:"pointer", fontSize:"12px", fontFamily:"inherit" }}>View</button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ============================================================
 // AIPET X — Adversary Profiling Engine
+
 // Threat Actor Attribution | TTP Analysis | Campaign Tracking
 // ============================================================
 function AdversaryProfilingPage({ token, showToast }) {
@@ -25455,6 +25632,9 @@ export default function App() {
           )}
           {activeTab === "adversaryprofiling" && (
             <AdversaryProfilingPage token={token} showToast={showToast} />
+          )}
+          {activeTab === "malwaresandbox" && (
+            <MalwareSandboxPage token={token} showToast={showToast} />
           )}
 
 
