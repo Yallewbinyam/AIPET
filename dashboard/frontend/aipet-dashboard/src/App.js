@@ -5811,6 +5811,7 @@ const NAV_ITEMS = [
   { id: "k8sanalyzer",       label: "K8s Analyzer",   icon: Cpu,           group: "enterprise" },
   { id: "networkexposure",   label: "Network Exposure",icon: Globe,        group: "enterprise" },
   { id: "iamexposure",       label: "IAM Exposure",   icon: Shield,        group: "enterprise" },
+  { id: "clouddashboard",    label: "Cloud Dashboard", icon: Activity,     group: "enterprise" },
   { id: "settings",  label: "Settings",      icon: Settings,      group: "account"  },
 ];
 
@@ -7311,8 +7312,154 @@ function DriftDetectorPage({ token, showToast }) {
 
 
 
+
+// ============================================================
+// AIPET X — Enterprise Cloud Dashboards (Wiz Gap — Phase 1)
+// Unified Cloud Posture | Multi-Cloud Overview | Risk Trends
+// ============================================================
+function CloudDashboardPage({ token, showToast }) {
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
+
+  const API = "http://localhost:5001";
+
+  useEffect(() => { fetchDashboard(); }, []);
+
+  async function fetchDashboard() {
+    try {
+      const r = await fetch(`${API}/api/cloud-dashboard/latest`, { headers:{ Authorization:`Bearer ${token}` }});
+      const d = await r.json();
+      setData(d);
+    } catch(e) { showToast("Failed to load dashboard", "error"); }
+    setLoading(false);
+  }
+
+  async function refreshDashboard() {
+    setRefreshing(true);
+    try {
+      const r = await fetch(`${API}/api/cloud-dashboard/snapshot`, {
+        method:"POST",
+        headers:{ "Content-Type":"application/json", Authorization:`Bearer ${token}` },
+        body: JSON.stringify({ description:"aws azure gcp production" })
+      });
+      const d = await r.json();
+      setData(d);
+      showToast("Dashboard refreshed!", "success");
+    } catch(e) { showToast("Refresh failed", "error"); }
+    setRefreshing(false);
+  }
+
+  const scoreColor = (s) => s >= 80 ? "#00ff88" : s >= 60 ? "#ffd60a" : "#ff2d55";
+  const scoreGrade = (s) => s >= 80 ? "Good" : s >= 60 ? "Fair" : "Poor";
+
+  if (loading) return <div style={{ padding:"48px", textAlign:"center", color:"#555", fontFamily:"JetBrains Mono, monospace" }}>⏳ Loading cloud dashboard...</div>;
+
+  const maxTrend = data?.trend ? Math.max(...data.trend.map(t => t.score)) : 100;
+  const minTrend = data?.trend ? Math.min(...data.trend.map(t => t.score)) : 0;
+
+  return (
+    <div style={{ padding:"24px", color:"#e0e0e0", fontFamily:"JetBrains Mono, monospace" }}>
+      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:"24px" }}>
+        <div>
+          <h2 style={{ color:"#00e5ff", fontSize:"22px", margin:0 }}>☁️ Enterprise Cloud Dashboard</h2>
+          <p style={{ color:"#888", margin:"4px 0 0", fontSize:"13px" }}>Unified Cloud Posture · Multi-Cloud Overview · Risk Trends — Wiz Gap Phase 1</p>
+        </div>
+        <button onClick={refreshDashboard} disabled={refreshing} style={{ padding:"10px 20px", background:"#0a2040", border:"1px solid #00e5ff", borderRadius:"8px", color:"#00e5ff", cursor:"pointer", fontSize:"13px", fontFamily:"inherit", fontWeight:"bold" }}>
+          {refreshing ? "⏳ Refreshing..." : "🔄 Refresh"}
+        </button>
+      </div>
+
+      {/* Overall Score Hero */}
+      <div style={{ background:"linear-gradient(135deg,#0a1628,#0d1f3c)", border:"1px solid #1e3a5f", borderRadius:"16px", padding:"32px", marginBottom:"20px", display:"grid", gridTemplateColumns:"auto 1fr auto", gap:"32px", alignItems:"center" }}>
+        <div style={{ textAlign:"center" }}>
+          <div style={{ fontSize:"72px", fontWeight:"900", color: scoreColor(data?.overall_score||0), lineHeight:1, letterSpacing:"-0.04em" }}>{data?.overall_score||0}</div>
+          <div style={{ color:"#888", fontSize:"13px", marginTop:"4px" }}>Overall Cloud Score</div>
+          <div style={{ color: scoreColor(data?.overall_score||0), fontSize:"13px", fontWeight:"bold", marginTop:"4px" }}>{scoreGrade(data?.overall_score||0)}</div>
+        </div>
+        <div>
+          <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:"16px", marginBottom:"20px" }}>
+            {[["☁️ AWS",data?.aws_score],["🔷 Azure",data?.azure_score],["🟡 GCP",data?.gcp_score]].map(([label,score]) => (
+              <div key={label} style={{ background:"rgba(255,255,255,0.03)", borderRadius:"10px", padding:"16px" }}>
+                <div style={{ fontSize:"13px", color:"#888", marginBottom:"8px" }}>{label}</div>
+                <div style={{ fontSize:"28px", fontWeight:"900", color: scoreColor(score||0), letterSpacing:"-0.03em", marginBottom:"8px" }}>{score||0}</div>
+                <div style={{ background:"#0a1628", borderRadius:"20px", height:"6px", overflow:"hidden" }}>
+                  <div style={{ width:`${score||0}%`, height:"100%", background: scoreColor(score||0), borderRadius:"20px" }} />
+                </div>
+              </div>
+            ))}
+          </div>
+          {/* 7-day trend chart */}
+          <div style={{ background:"rgba(255,255,255,0.02)", borderRadius:"10px", padding:"16px" }}>
+            <div style={{ fontSize:"12px", color:"#555", marginBottom:"12px" }}>7-Day Security Score Trend</div>
+            <div style={{ display:"flex", alignItems:"flex-end", gap:"8px", height:"60px" }}>
+              {data?.trend?.map((t,i) => (
+                <div key={i} style={{ flex:1, display:"flex", flexDirection:"column", alignItems:"center", gap:"4px" }}>
+                  <div style={{ width:"100%", background: scoreColor(t.score), borderRadius:"3px 3px 0 0", height:`${((t.score-minTrend)/(maxTrend-minTrend||1))*50+10}px`, transition:"height 0.3s" }} title={`${t.date}: ${t.score}`} />
+                  <div style={{ fontSize:"9px", color:"#555" }}>{t.date.slice(5)}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+        </div>
+        <div style={{ display:"flex", flexDirection:"column", gap:"12px" }}>
+          {[["Total Resources",data?.total_resources,"#00e5ff"],["Exposed",data?.exposed_resources,"#ff2d55"],["Critical",data?.critical_findings,"#ff2d55"],["High",data?.high_findings,"#ff6b00"],["Medium",data?.medium_findings,"#ffd60a"],["Compliance",`${data?.compliance_score}%`,"#00ff88"]].map(([label,val,color]) => (
+            <div key={label} style={{ background:"rgba(255,255,255,0.03)", borderRadius:"8px", padding:"10px 16px", display:"flex", justifyContent:"space-between", alignItems:"center", minWidth:"160px" }}>
+              <span style={{ fontSize:"12px", color:"#888" }}>{label}</span>
+              <span style={{ fontSize:"16px", fontWeight:"bold", color }}>{val}</span>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Provider Cards */}
+      <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:"16px", marginBottom:"20px" }}>
+        {[
+          { provider:"AWS", score:data?.aws_score, icon:"☁️", color:"#ff9900", services:["EC2","S3","RDS","Lambda","EKS","IAM"] },
+          { provider:"Azure", score:data?.azure_score, icon:"🔷", color:"#0078d4", services:["VMs","Blob","SQL DB","Functions","AKS","AAD"] },
+          { provider:"GCP", score:data?.gcp_score, icon:"🟡", color:"#4285f4", services:["GCE","GCS","Cloud SQL","Functions","GKE","IAM"] },
+        ].map((p,i) => (
+          <div key={i} style={{ background:"#0d1526", borderRadius:"12px", padding:"20px", border:`1px solid ${p.color}22` }}>
+            <div style={{ display:"flex", alignItems:"center", gap:"10px", marginBottom:"16px" }}>
+              <span style={{ fontSize:"24px" }}>{p.icon}</span>
+              <div>
+                <div style={{ fontSize:"16px", fontWeight:"bold", color:p.color }}>{p.provider}</div>
+                <div style={{ fontSize:"11px", color:"#555" }}>Cloud Provider</div>
+              </div>
+              <div style={{ marginLeft:"auto", fontSize:"24px", fontWeight:"900", color: scoreColor(p.score||0) }}>{p.score||0}</div>
+            </div>
+            <div style={{ background:"#0a1628", borderRadius:"20px", height:"8px", overflow:"hidden", marginBottom:"16px" }}>
+              <div style={{ width:`${p.score||0}%`, height:"100%", background: scoreColor(p.score||0), borderRadius:"20px" }} />
+            </div>
+            <div style={{ display:"flex", flexWrap:"wrap", gap:"6px" }}>
+              {p.services.map(s => (
+                <span key={s} style={{ background:"rgba(255,255,255,0.04)", border:"1px solid rgba(255,255,255,0.08)", borderRadius:"6px", padding:"3px 8px", fontSize:"11px", color:"#888" }}>{s}</span>
+              ))}
+            </div>
+          </div>
+        ))}
+      </div>
+
+      {/* Quick Actions */}
+      <div style={{ background:"#0d1526", borderRadius:"12px", padding:"20px", border:"1px solid #1e3a5f" }}>
+        <div style={{ fontSize:"13px", color:"#00e5ff", marginBottom:"16px", fontWeight:"bold" }}>⚡ Quick Actions</div>
+        <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:"12px" }}>
+          {[["☁️ Cloud Runtime Scan","cloudruntime"],["⎈ K8s Analyzer","k8sanalyzer"],["🌐 Network Exposure","networkexposure"],["👑 IAM Exposure","iamexposure"]].map(([label, _id],i) => (
+            <div key={i} style={{ background:"rgba(0,212,255,0.05)", border:"1px solid rgba(0,212,255,0.15)", borderRadius:"10px", padding:"14px", cursor:"pointer", textAlign:"center", fontSize:"13px", color:"#00e5ff", transition:"all 0.2s" }}
+              onMouseEnter={e => e.currentTarget.style.background="rgba(0,212,255,0.1)"}
+              onMouseLeave={e => e.currentTarget.style.background="rgba(0,212,255,0.05)"}>
+              {label}
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ============================================================
 // AIPET X — IAM Exposure Analyzer (Wiz Gap — Phase 1)
+
 // Identity Risk | Permission Analysis | Privilege Paths
 // ============================================================
 function IAMExposurePage({ token, showToast }) {
@@ -24181,6 +24328,9 @@ export default function App() {
           )}
           {activeTab === "iamexposure" && (
             <IAMExposurePage token={token} showToast={showToast} />
+          )}
+          {activeTab === "clouddashboard" && (
+            <CloudDashboardPage token={token} showToast={showToast} />
           )}
 
 
