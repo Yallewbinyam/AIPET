@@ -5823,6 +5823,7 @@ const NAV_ITEMS = [
   { id: "loganalytics",      label: "Log Analytics",  icon: FileText,      group: "observability" },
   { id: "metricstraces",     label: "Metrics+Traces", icon: Activity,      group: "observability" },
   { id: "cloudsiem",         label: "Cloud SIEM",     icon: AlertTriangle, group: "observability" },
+  { id: "realtimeboard",     label: "Live Dashboard",  icon: Activity,      group: "observability" },
   { id: "settings",  label: "Settings",      icon: Settings,      group: "account"  },
 ];
 
@@ -7335,8 +7336,157 @@ function DriftDetectorPage({ token, showToast }) {
 
 
 
+
+// ============================================================
+// AIPET X — Real-Time Dashboards
+// Live Metrics | Security Posture | Operational Health
+// ============================================================
+function RealtimeDashboardPage({ token, showToast }) {
+  const [data, setData] = useState(null);
+  const [loading, setLoading] = useState(true);
+  const [autoRefresh, setAutoRefresh] = useState(false);
+  const [lastUpdated, setLastUpdated] = useState(null);
+
+  const API = "http://localhost:5001";
+  const THREAT_COLOR = { CRITICAL:"#ff2d55", HIGH:"#ff6b00", MEDIUM:"#ffd60a", LOW:"#00ff88" };
+  const SEV_COLOR    = { CRITICAL:"#ff2d55", HIGH:"#ff6b00", MEDIUM:"#ffd60a", LOW:"#00e5ff" };
+  const scoreColor   = (s) => s >= 80 ? "#00ff88" : s >= 60 ? "#ffd60a" : "#ff2d55";
+
+  useEffect(() => { fetchSnapshot(); }, []);
+
+  useEffect(() => {
+    if (!autoRefresh) return;
+    const interval = setInterval(fetchSnapshot, 15000);
+    return () => clearInterval(interval);
+  }, [autoRefresh]);
+
+  async function fetchSnapshot() {
+    try {
+      const r = await fetch(`${API}/api/realtime/snapshot`, { headers:{ Authorization:`Bearer ${token}` }});
+      const d = await r.json();
+      setData(d); setLastUpdated(new Date().toLocaleTimeString());
+    } catch(e) { showToast("Failed to load dashboard", "error"); }
+    setLoading(false);
+  }
+
+  if (loading) return <div style={{ padding:"48px", textAlign:"center", color:"#555", fontFamily:"JetBrains Mono, monospace" }}>⏳ Loading live dashboard...</div>;
+
+  const maxTimeline = data?.widgets?.timeline ? Math.max(...data.widgets.timeline.map(t => t.score)) : 100;
+  const minTimeline = data?.widgets?.timeline ? Math.min(...data.widgets.timeline.map(t => t.score)) : 0;
+
+  return (
+    <div style={{ padding:"24px", color:"#e0e0e0", fontFamily:"JetBrains Mono, monospace" }}>
+      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:"24px" }}>
+        <div>
+          <h2 style={{ color:"#00e5ff", fontSize:"22px", margin:0 }}>⚡ Live Security Dashboard</h2>
+          <p style={{ color:"#888", margin:"4px 0 0", fontSize:"13px" }}>Real-Time Security Posture · Threat Monitoring · Operational Health</p>
+        </div>
+        <div style={{ display:"flex", gap:"10px", alignItems:"center" }}>
+          {lastUpdated && <span style={{ color:"#555", fontSize:"12px" }}>Updated: {lastUpdated}</span>}
+          <button onClick={() => setAutoRefresh(!autoRefresh)} style={{ padding:"8px 14px", background: autoRefresh?"#00ff8822":"#1a2236", border:`1px solid ${autoRefresh?"#00ff88":"#1e3a5f"}`, borderRadius:"8px", color: autoRefresh?"#00ff88":"#aaa", cursor:"pointer", fontSize:"12px", fontFamily:"inherit" }}>
+            {autoRefresh ? "⏸ Auto-Refresh ON" : "▶ Auto-Refresh"}
+          </button>
+          <button onClick={fetchSnapshot} style={{ padding:"8px 16px", background:"#0a2040", border:"1px solid #00e5ff", borderRadius:"8px", color:"#00e5ff", cursor:"pointer", fontSize:"12px", fontFamily:"inherit", fontWeight:"bold" }}>🔄 Refresh</button>
+        </div>
+      </div>
+
+      {/* Hero metrics */}
+      <div style={{ display:"grid", gridTemplateColumns:"repeat(6,1fr)", gap:"12px", marginBottom:"20px" }}>
+        {[
+          ["Security Score",`${data?.security_score}`,scoreColor(data?.security_score||0)],
+          ["Threat Level",data?.threat_level,THREAT_COLOR[data?.threat_level]],
+          ["Active Threats",data?.active_threats,"#ff2d55"],
+          ["Open Incidents",data?.open_incidents,"#ff6b00"],
+          ["Compliance",`${data?.compliance_pct}%`,scoreColor(data?.compliance_pct||0)],
+          ["Uptime",`${data?.uptime_pct}%`,"#00ff88"],
+        ].map(([label,val,color]) => (
+          <div key={label} style={{ background:"#0d1526", borderRadius:"10px", padding:"16px", border:`1px solid ${color}33`, textAlign:"center" }}>
+            <div style={{ fontSize:"20px", fontWeight:"bold", color, lineHeight:1 }}>{val}</div>
+            <div style={{ fontSize:"11px", color:"#888", marginTop:"6px" }}>{label}</div>
+          </div>
+        ))}
+      </div>
+
+      <div style={{ display:"grid", gridTemplateColumns:"2fr 1fr", gap:"16px", marginBottom:"16px" }}>
+        {/* 24h timeline */}
+        <div style={{ background:"#0d1526", borderRadius:"12px", padding:"20px", border:"1px solid #1e3a5f" }}>
+          <div style={{ display:"flex", justifyContent:"space-between", marginBottom:"16px" }}>
+            <span style={{ color:"#00e5ff", fontSize:"13px", fontWeight:"bold" }}>📈 24-Hour Security Score</span>
+            <span style={{ color:"#555", fontSize:"12px" }}>Events/min: {data?.events_per_min}</span>
+          </div>
+          <div style={{ display:"flex", alignItems:"flex-end", gap:"3px", height:"80px" }}>
+            {data?.widgets?.timeline?.map((t,i) => (
+              <div key={i} style={{ flex:1, display:"flex", flexDirection:"column", alignItems:"center", gap:"2px" }}>
+                <div style={{ width:"100%", background: scoreColor(t.score), borderRadius:"2px 2px 0 0", height:`${((t.score-minTimeline)/(maxTimeline-minTimeline||1))*70+10}px`, opacity:0.85 }} title={`${t.hour}: ${t.score}`} />
+                {i % 6 === 0 && <div style={{ fontSize:"9px", color:"#555" }}>{t.hour}</div>}
+              </div>
+            ))}
+          </div>
+        </div>
+
+        {/* Top threats */}
+        <div style={{ background:"#0d1526", borderRadius:"12px", padding:"20px", border:"1px solid #1e3a5f" }}>
+          <div style={{ color:"#ff2d55", fontSize:"13px", fontWeight:"bold", marginBottom:"14px" }}>🎯 Top Threats Today</div>
+          {data?.widgets?.top_threats?.map((t,i) => (
+            <div key={i} style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:"10px" }}>
+              <div style={{ display:"flex", alignItems:"center", gap:"8px" }}>
+                <span style={{ color: SEV_COLOR[t.severity], fontSize:"10px", fontWeight:"bold" }}>{t.severity}</span>
+                <span style={{ fontSize:"12px", color:"#e0e0e0" }}>{t.type}</span>
+              </div>
+              <div style={{ display:"flex", alignItems:"center", gap:"8px" }}>
+                <span style={{ fontSize:"13px", fontWeight:"bold", color: SEV_COLOR[t.severity] }}>{t.count}</span>
+                <span style={{ fontSize:"12px", color: t.trend==="↑"?"#ff2d55":t.trend==="↓"?"#00ff88":"#888" }}>{t.trend}</span>
+              </div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"16px" }}>
+        {/* Module health */}
+        <div style={{ background:"#0d1526", borderRadius:"12px", padding:"20px", border:"1px solid #1e3a5f" }}>
+          <div style={{ color:"#00e5ff", fontSize:"13px", fontWeight:"bold", marginBottom:"14px" }}>🔧 Module Health</div>
+          {data?.widgets?.modules?.map((m,i) => (
+            <div key={i} style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"8px 0", borderBottom:"1px solid rgba(255,255,255,0.04)" }}>
+              <div style={{ display:"flex", alignItems:"center", gap:"8px" }}>
+                <div style={{ width:"8px", height:"8px", borderRadius:"50%", background:"#00ff88" }} />
+                <span style={{ fontSize:"12px", color:"#e0e0e0" }}>{m.name}</span>
+              </div>
+              <div style={{ display:"flex", gap:"12px" }}>
+                <span style={{ fontSize:"11px", color:"#555" }}>{m.scans} scans</span>
+                <span style={{ fontSize:"11px", color: m.findings>10?"#ff6b00":"#00ff88" }}>{m.findings} findings</span>
+              </div>
+            </div>
+          ))}
+        </div>
+
+        {/* Quick stats */}
+        <div style={{ background:"#0d1526", borderRadius:"12px", padding:"20px", border:"1px solid #1e3a5f" }}>
+          <div style={{ color:"#00e5ff", fontSize:"13px", fontWeight:"bold", marginBottom:"14px" }}>📊 Quick Stats</div>
+          {[
+            ["🌍 Geo Attack Sources",data?.widgets?.geo_attacks,"countries","#ff6b00"],
+            ["🛡️ Blocked Today",data?.widgets?.blocked_today?.toLocaleString(),"events","#00ff88"],
+            ["⏱️ Mean Detection Time",data?.widgets?.mean_detect_min,"minutes","#ffd60a"],
+            ["📡 Events/Minute",data?.events_per_min,"eps","#00e5ff"],
+          ].map(([label,val,unit,color]) => (
+            <div key={label} style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"10px 0", borderBottom:"1px solid rgba(255,255,255,0.04)" }}>
+              <span style={{ fontSize:"12px", color:"#888" }}>{label}</span>
+              <span style={{ fontSize:"14px", fontWeight:"bold", color }}>{val} <span style={{ fontSize:"11px", color:"#555" }}>{unit}</span></span>
+            </div>
+          ))}
+          <div style={{ marginTop:"16px", padding:"12px", background:"rgba(0,212,255,0.05)", border:"1px solid rgba(0,212,255,0.15)", borderRadius:"8px", textAlign:"center" }}>
+            <div style={{ fontSize:"11px", color:"#555", marginBottom:"4px" }}>Overall Threat Level</div>
+            <div style={{ fontSize:"22px", fontWeight:"900", color: THREAT_COLOR[data?.threat_level] }}>{data?.threat_level}</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 // ============================================================
 // AIPET X — Cloud SIEM Correlation Engine
+
 // Event Correlation | Alert Triage | Incident Detection
 // ============================================================
 function CloudSIEMPage({ token, showToast }) {
@@ -26277,6 +26427,9 @@ export default function App() {
           )}
           {activeTab === "cloudsiem" && (
             <CloudSIEMPage token={token} showToast={showToast} />
+          )}
+          {activeTab === "realtimeboard" && (
+            <RealtimeDashboardPage token={token} showToast={showToast} />
           )}
 
 
