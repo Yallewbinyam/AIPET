@@ -4367,13 +4367,14 @@ function LandingPage({ onGetStarted, onLogin, setLegalPage, setActivePage }) {
               { label: t("nav.solutions"), id: null, menu: "solutions" },
               { label: t("nav.pricing"), id: "pricing", menu: null },
               { label: t("nav.company"), id: null, menu: "company" },
+              { label: "Docs", id: null, menu: null, href: "http://localhost:3001" },
             ].map((link, i) => (
               <div key={i} style={{ position: "relative" }}>
                 <button
-                  onClick={() => { if (link.id) { document.getElementById(link.id)?.scrollIntoView({ behavior: "smooth" }); setActiveDropdown(null); } else { setActiveDropdown(activeDropdown === link.menu ? null : link.menu); }}}
+                  onClick={() => { if (link.href) { window.location.href = link.href; } else if (link.id) { document.getElementById(link.id)?.scrollIntoView({ behavior: "smooth" }); setActiveDropdown(null); } else { setActiveDropdown(activeDropdown === link.menu ? null : link.menu); }}}
                   style={{ color: activeDropdown === link.menu ? COLORS.blue : COLORS.text, background: "none", border: "none", cursor: "pointer", fontSize: "15px", fontWeight: "500", display: "flex", alignItems: "center", gap: "4px" }}
                   onMouseEnter={e => { e.currentTarget.style.color = COLORS.blue; }}
-                  onMouseLeave={e => { if (activeDropdown !== link.menu) e.currentTarget.style.color = COLORS.text; }}>
+                  onMouseLeave={e => { if (!link.menu || activeDropdown !== link.menu) e.currentTarget.style.color = COLORS.text; }}>
                   {link.label}
                   {link.menu && <span style={{ fontSize: "10px" }}>▾</span>}
                 </button>
