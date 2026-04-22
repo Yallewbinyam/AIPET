@@ -5816,6 +5816,7 @@ const NAV_ITEMS = [
   { id: "endpointagent",     label: "Endpoint Agent", icon: Shield,        group: "enterprise" },
   { id: "itdr",              label: "Identity Threats",icon: AlertTriangle, group: "enterprise" },
   { id: "runtimeprotection", label: "Runtime Protect", icon: Shield,        group: "enterprise" },
+  { id: "threatintelingest", label: "Threat Intel",    icon: AlertTriangle, group: "enterprise" },
   { id: "settings",  label: "Settings",      icon: Settings,      group: "account"  },
 ];
 
@@ -7321,8 +7322,199 @@ function DriftDetectorPage({ token, showToast }) {
 
 
 
+
+// ============================================================
+// AIPET X — Threat Intelligence Ingestion
+// IOC Processing | TTP Mapping | Threat Actor Detection
+// ============================================================
+function ThreatIntelIngestPage({ token, showToast }) {
+  const [tab, setTab] = useState("ingest");
+  const [feedName, setFeedName] = useState("");
+  const [feedType, setFeedType] = useState("manual");
+  const [rawIntel, setRawIntel] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [feedData, setFeedData] = useState(null);
+  const [history, setHistory] = useState([]);
+  const [filterType, setFilterType] = useState(null);
+
+  const API = "http://localhost:5001";
+  const SEV_COLOR  = { CRITICAL:"#ff2d55", HIGH:"#ff6b00", MEDIUM:"#ffd60a", LOW:"#00e5ff" };
+  const CONF_COLOR = { HIGH:"#00ff88", MEDIUM:"#ffd60a", LOW:"#888" };
+  const IOC_ICON   = { "IP Address":"🌐", "Domain":"🔗", "URL":"🔗", "MD5 Hash":"#️⃣", "SHA256 Hash":"#️⃣", "CVE":"⚠️", "Email":"📧", "Registry Key":"🗝️", "File Path":"📁" };
+  const FEED_TYPES = [["manual","✍️ Manual Input"],["osint","🌐 OSINT Feed"],["isac","🤝 ISAC Feed"],["vendor","🏢 Vendor Intel"],["dark_web","🕶️ Dark Web Monitor"]];
+
+  useEffect(() => { fetchHistory(); }, []);
+
+  async function fetchHistory() {
+    try {
+      const r = await fetch(`${API}/api/threat-intel-ingest/history`, { headers:{ Authorization:`Bearer ${token}` }});
+      const d = await r.json();
+      setHistory(d.feeds || []);
+    } catch(e) {}
+  }
+
+  async function submitIngest() {
+    if (!rawIntel.trim()) { showToast("Paste threat intelligence data first", "error"); return; }
+    setLoading(true); setFeedData(null);
+    try {
+      const r = await fetch(`${API}/api/threat-intel-ingest/process`, {
+        method:"POST",
+        headers:{ "Content-Type":"application/json", Authorization:`Bearer ${token}` },
+        body: JSON.stringify({ feed_name:feedName||"Manual Intel Feed", feed_type:feedType, raw_intel:rawIntel })
+      });
+      const d = await r.json();
+      if (d.feed_id) {
+        showToast(`Intel processed — ${d.total_iocs} IOC(s), ${d.threat_actors?.length} actor(s)`, "success");
+        await loadFeed(d.feed_id);
+        fetchHistory();
+      } else { showToast(d.error || "Processing failed", "error"); }
+    } catch(e) { showToast("Processing failed", "error"); }
+    setLoading(false);
+  }
+
+  async function loadFeed(feedId) {
+    try {
+      const r = await fetch(`${API}/api/threat-intel-ingest/feeds/${feedId}`, { headers:{ Authorization:`Bearer ${token}` }});
+      const d = await r.json();
+      setFeedData(d); setFilterType(null); setTab("results");
+    } catch(e) {}
+  }
+
+  const riskColor = (s) => s >= 70 ? "#ff2d55" : s >= 45 ? "#ff6b00" : s >= 20 ? "#ffd60a" : "#00ff88";
+  const filtered  = feedData?.iocs?.filter(i => !filterType || i.ioc_type===filterType) || [];
+  const iocTypes  = feedData ? [...new Set(feedData.iocs?.map(i => i.ioc_type))] : [];
+
+  return (
+    <div style={{ padding:"24px", color:"#e0e0e0", fontFamily:"JetBrains Mono, monospace" }}>
+      <div style={{ marginBottom:"24px" }}>
+        <h2 style={{ color:"#00e5ff", fontSize:"22px", margin:0 }}>🔭 Threat Intelligence Ingestion</h2>
+        <p style={{ color:"#888", margin:"4px 0 0", fontSize:"13px" }}>IOC Extraction · TTP Mapping · Threat Actor Detection · MITRE ATT&CK</p>
+      </div>
+
+      <div style={{ display:"flex", gap:"8px", marginBottom:"24px" }}>
+        {[["ingest","📥 Ingest"],["results","📋 Intelligence"],["history","🕒 History"]].map(([id,label]) => (
+          <button key={id} onClick={() => setTab(id)} style={{ padding:"8px 18px", borderRadius:"8px", border:"none", cursor:"pointer", fontSize:"13px", background: tab===id?"#00e5ff":"#1a2236", color: tab===id?"#000":"#aaa", fontFamily:"inherit" }}>{label}</button>
+        ))}
+      </div>
+
+      {tab === "ingest" && (
+        <div style={{ display:"grid", gridTemplateColumns:"280px 1fr", gap:"20px" }}>
+          <div style={{ background:"#0d1526", borderRadius:"12px", padding:"20px", border:"1px solid #1e3a5f" }}>
+            <p style={{ color:"#00e5ff", fontSize:"13px", marginTop:0 }}>Feed Name</p>
+            <input value={feedName} onChange={e=>setFeedName(e.target.value)} placeholder="e.g. APT29 IOC Report" style={{ width:"100%", background:"#0a1628", border:"1px solid #1e3a5f", borderRadius:"8px", padding:"8px", color:"#e0e0e0", fontSize:"13px", boxSizing:"border-box", fontFamily:"inherit" }} />
+            <p style={{ color:"#00e5ff", fontSize:"13px", marginTop:"16px" }}>Feed Type</p>
+            {FEED_TYPES.map(([val,label]) => (
+              <div key={val} onClick={() => setFeedType(val)} style={{ padding:"8px 12px", borderRadius:"8px", marginBottom:"5px", cursor:"pointer", border:`1px solid ${feedType===val?"#00e5ff":"#1e3a5f"}`, background: feedType===val?"#0a2040":"transparent", color: feedType===val?"#00e5ff":"#aaa", fontSize:"12px" }}>{label}</div>
+            ))}
+            <p style={{ color:"#00e5ff", fontSize:"13px", marginTop:"16px" }}>Auto-Extracts</p>
+            {["IP Addresses","Domains","URLs","MD5/SHA256 Hashes","CVEs","Email Addresses","Registry Keys","File Paths"].map(t => (
+              <div key={t} style={{ fontSize:"11px", color:"#555", marginBottom:"3px" }}>✓ {t}</div>
+            ))}
+            <button onClick={submitIngest} disabled={loading} style={{ marginTop:"12px", width:"100%", padding:"12px", borderRadius:"8px", background: loading?"#333":"#00e5ff", color:"#000", border:"none", cursor:"pointer", fontSize:"14px", fontWeight:"bold", fontFamily:"inherit" }}>
+              {loading ? "⏳ Processing..." : "🔭 Process Intel"}
+            </button>
+          </div>
+          <div style={{ background:"#0d1526", borderRadius:"12px", padding:"20px", border:"1px solid #1e3a5f" }}>
+            <p style={{ color:"#00e5ff", fontSize:"13px", marginTop:0 }}>Paste Raw Threat Intelligence</p>
+            <textarea value={rawIntel} onChange={e=>setRawIntel(e.target.value)}
+              placeholder={"Paste any threat intelligence report, IOC list, or incident data. AIPET will automatically extract IOCs, identify threat actors and map TTPs.
+
+Example:
+APT29 (Cozy Bear) nobelium campaign targeting government entities.
+C2 server: 185.220.101.45
+Malicious domain: update-service.microsoft-cdn.com
+Malware hash: a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2c3d4e5f6a1b2
+Exploiting CVE-2023-23397 for credential theft.
+Phishing email: security-alert@microsoft-support.co
+Persistence: HKEY_CURRENT_USER\Software\Microsoft\Windows\CurrentVersion\Run\updater"}
+              style={{ width:"100%", height:"420px", background:"#0a1628", border:"1px solid #1e3a5f", borderRadius:"8px", padding:"12px", color:"#e0e0e0", fontSize:"13px", fontFamily:"JetBrains Mono, monospace", resize:"vertical", boxSizing:"border-box" }} />
+          </div>
+        </div>
+      )}
+
+      {tab === "results" && feedData && (
+        <div>
+          <div style={{ display:"grid", gridTemplateColumns:"repeat(5,1fr)", gap:"12px", marginBottom:"20px" }}>
+            {[["Risk Score",feedData.risk_score,riskColor(feedData.risk_score)],["IOCs",feedData.total_iocs,"#00e5ff"],["Critical IOCs",feedData.critical_iocs,"#ff2d55"],["Threat Actors",feedData.threat_actors?.length,"#a78bfa"],["TTPs Mapped",feedData.ttps_mapped?.length,"#ffd60a"]].map(([label,val,color]) => (
+              <div key={label} style={{ background:"#0d1526", borderRadius:"10px", padding:"16px", border:`1px solid ${color}33`, textAlign:"center" }}>
+                <div style={{ fontSize:"22px", fontWeight:"bold", color }}>{val}</div>
+                <div style={{ fontSize:"12px", color:"#888", marginTop:"4px" }}>{label}</div>
+              </div>
+            ))}
+          </div>
+
+          {/* Threat Actors */}
+          {feedData.threat_actors?.length > 0 && (
+            <div style={{ background:"#0d1526", borderRadius:"10px", padding:"16px", marginBottom:"12px", border:"1px solid #ff2d5533" }}>
+              <div style={{ color:"#ff2d55", fontSize:"13px", fontWeight:"bold", marginBottom:"10px" }}>🎯 Threat Actors Identified</div>
+              <div style={{ display:"flex", gap:"8px", flexWrap:"wrap" }}>
+                {feedData.threat_actors.map((a,i) => (
+                  <span key={i} style={{ background:"#ff2d5522", border:"1px solid #ff2d5544", borderRadius:"8px", padding:"4px 12px", fontSize:"12px", color:"#ff2d55", fontWeight:"bold" }}>{a}</span>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* TTPs */}
+          {feedData.ttps_mapped?.length > 0 && (
+            <div style={{ background:"#0d1526", borderRadius:"10px", padding:"16px", marginBottom:"12px", border:"1px solid #ffd60a33" }}>
+              <div style={{ color:"#ffd60a", fontSize:"13px", fontWeight:"bold", marginBottom:"10px" }}>⚔️ MITRE ATT&CK TTPs Mapped</div>
+              <div style={{ display:"flex", gap:"8px", flexWrap:"wrap" }}>
+                {feedData.ttps_mapped.map((t,i) => (
+                  <span key={i} style={{ background:"#ffd60a22", border:"1px solid #ffd60a44", borderRadius:"8px", padding:"4px 12px", fontSize:"11px", color:"#ffd60a", fontWeight:"600" }}>{t}</span>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* IOC filters */}
+          <div style={{ display:"flex", gap:"8px", marginBottom:"12px", flexWrap:"wrap" }}>
+            <button onClick={() => setFilterType(null)} style={{ padding:"6px 14px", borderRadius:"6px", border:`1px solid ${!filterType?"#00e5ff":"#1e3a5f"}`, background: !filterType?"#0a2040":"transparent", color: !filterType?"#00e5ff":"#aaa", cursor:"pointer", fontSize:"12px", fontFamily:"inherit" }}>All ({feedData.iocs?.length})</button>
+            {iocTypes.map(type => (
+              <button key={type} onClick={() => setFilterType(filterType===type?null:type)} style={{ padding:"6px 14px", borderRadius:"6px", border:`1px solid ${filterType===type?"#00e5ff":"#1e3a5f"}`, background: filterType===type?"#0a2040":"transparent", color: filterType===type?"#00e5ff":"#aaa", cursor:"pointer", fontSize:"12px", fontFamily:"inherit" }}>{IOC_ICON[type]||"🔍"} {type}</button>
+            ))}
+          </div>
+
+          {filtered.length === 0 && <div style={{ textAlign:"center", color:"#555", padding:"40px", background:"#0d1526", borderRadius:"12px" }}>No IOCs found.</div>}
+          {filtered.map((ioc,i) => (
+            <div key={i} style={{ background:"#0d1526", borderRadius:"8px", padding:"12px 16px", marginBottom:"6px", border:`1px solid ${SEV_COLOR[ioc.severity]}22`, display:"grid", gridTemplateColumns:"auto 1fr auto auto", gap:"12px", alignItems:"center" }}>
+              <span style={{ fontSize:"16px" }}>{IOC_ICON[ioc.ioc_type]||"🔍"}</span>
+              <div>
+                <div style={{ color:"#e0e0e0", fontSize:"13px", fontWeight:"600", fontFamily:"monospace" }}>{ioc.ioc_value}</div>
+                <div style={{ color:"#555", fontSize:"11px", marginTop:"2px" }}>{ioc.ioc_type}{ioc.threat_actor?` · ${ioc.threat_actor}`:""}{ioc.ttp?` · ${ioc.ttp}`:""}</div>
+              </div>
+              <span style={{ color: SEV_COLOR[ioc.severity], fontSize:"11px", fontWeight:"bold", background:`${SEV_COLOR[ioc.severity]}22`, padding:"2px 8px", borderRadius:"20px" }}>{ioc.severity}</span>
+              <span style={{ color: CONF_COLOR[ioc.confidence], fontSize:"11px" }}>{ioc.confidence}</span>
+            </div>
+          ))}
+        </div>
+      )}
+      {tab === "results" && !feedData && <div style={{ textAlign:"center", color:"#555", padding:"60px" }}>Process intel first or select one from History.</div>}
+
+      {tab === "history" && (
+        <div>
+          {history.length === 0 && <div style={{ textAlign:"center", color:"#555", padding:"60px" }}>No feeds processed yet.</div>}
+          {history.map((f,i) => (
+            <div key={i} style={{ background:"#0d1526", borderRadius:"10px", padding:"16px", marginBottom:"10px", border:"1px solid #1e3a5f", display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+              <div>
+                <div style={{ color:"#e0e0e0", fontSize:"14px" }}>🔭 {f.feed_name}</div>
+                <div style={{ color:"#555", fontSize:"12px", marginTop:"4px" }}>{f.total_iocs} IOC(s) · {f.critical_iocs} critical · {f.threat_actors} actor(s) · {new Date(f.created_at).toLocaleString()}</div>
+              </div>
+              <div style={{ display:"flex", gap:"16px", alignItems:"center" }}>
+                <span style={{ color: riskColor(f.risk_score), fontSize:"13px", fontWeight:"bold" }}>Risk: {f.risk_score}</span>
+                <button onClick={() => loadFeed(f.feed_id)} style={{ padding:"6px 14px", background:"#0a2040", border:"1px solid #00e5ff", borderRadius:"6px", color:"#00e5ff", cursor:"pointer", fontSize:"12px", fontFamily:"inherit" }}>View</button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ============================================================
 // AIPET X — Runtime Workload Protection
+
 // Process Injection | Fileless Malware | Memory Protection
 // ============================================================
 function RuntimeProtectionPage({ token, showToast }) {
@@ -25034,6 +25226,9 @@ export default function App() {
           )}
           {activeTab === "runtimeprotection" && (
             <RuntimeProtectionPage token={token} showToast={showToast} />
+          )}
+          {activeTab === "threatintelingest" && (
+            <ThreatIntelIngestPage token={token} showToast={showToast} />
           )}
 
 
