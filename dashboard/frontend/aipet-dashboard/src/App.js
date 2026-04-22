@@ -5804,6 +5804,8 @@ const NAV_ITEMS = [
   { id: "cloudhardener",     label: "Cloud Hardener", icon: Server,        group: "enterprise" },
   { id: "patchbrain",        label: "Patch Brain",    icon: Zap,           group: "enterprise" },
   { id: "archbuilder",       label: "Arch Builder",   icon: Cpu,           group: "enterprise" },
+  { id: "digitaltwinv2",     label: "Digital Twin v2",icon: Activity,      group: "enterprise" },
+  { id: "digitaltwinv2",     label: "Digital Twin v2",icon: Activity,      group: "enterprise" },
   { id: "settings",  label: "Settings",      icon: Settings,      group: "account"  },
 ];
 
@@ -7298,8 +7300,210 @@ function DriftDetectorPage({ token, showToast }) {
 
 
 
+
+// ============================================================
+// AIPET X — Cognitive Digital Twin v2 Page (#45)
+// Device Simulation | Anomaly Detection | Attack Simulation
+// ============================================================
+function DigitalTwinV2Page({ token, showToast }) {
+  const [tab, setTab] = useState("create");
+  const [name, setName] = useState("");
+  const [envType, setEnvType] = useState("industrial");
+  const [description, setDescription] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [envData, setEnvData] = useState(null);
+  const [history, setHistory] = useState([]);
+  const [activeView, setActiveView] = useState("devices");
+
+  const API = "http://localhost:5001";
+  const SEV_COLOR  = { CRITICAL:"#ff2d55", HIGH:"#ff6b00", MEDIUM:"#ffd60a", LOW:"#00e5ff" };
+  const RISK_COLOR = { CRITICAL:"#ff2d55", HIGH:"#ff6b00", MEDIUM:"#ffd60a", LOW:"#00ff88" };
+  const TYPE_ICON  = { plc:"⚙️", hmi:"🖥️", sensor:"📡", camera:"📷", gateway:"🔀", server:"🖧", switch:"🔌", robot:"🤖" };
+  const ENV_TYPES  = [["industrial","🏭 Industrial / OT"],["smart_building","🏢 Smart Building"],["healthcare","🏥 Healthcare IoT"],["energy","⚡ Energy / Utilities"],["transport","🚗 Transport / Logistics"],["datacenter","🖧 Data Centre"]];
+
+  useEffect(() => { fetchHistory(); }, []);
+
+  async function fetchHistory() {
+    try {
+      const r = await fetch(`${API}/api/digital-twin-v2/history`, { headers:{ Authorization:`Bearer ${token}` }});
+      const d = await r.json();
+      setHistory(d.environments || []);
+    } catch(e) {}
+  }
+
+  async function submitCreate() {
+    if (!description.trim()) { showToast("Describe your environment first", "error"); return; }
+    setLoading(true); setEnvData(null);
+    try {
+      const r = await fetch(`${API}/api/digital-twin-v2/create`, {
+        method:"POST",
+        headers:{ "Content-Type":"application/json", Authorization:`Bearer ${token}` },
+        body: JSON.stringify({ name: name||"My Digital Twin", env_type:envType, description })
+      });
+      const d = await r.json();
+      if (d.env_id) {
+        showToast(`Digital Twin created — ${d.device_count} devices, ${d.anomaly_count} anomaly(s)`, d.anomaly_count > 0 ? "warning" : "success");
+        await loadEnv(d.env_id);
+        fetchHistory();
+      } else { showToast(d.error || "Creation failed", "error"); }
+    } catch(e) { showToast("Creation failed", "error"); }
+    setLoading(false);
+  }
+
+  async function loadEnv(envId) {
+    try {
+      const r = await fetch(`${API}/api/digital-twin-v2/environments/${envId}`, { headers:{ Authorization:`Bearer ${token}` }});
+      const d = await r.json();
+      setEnvData(d); setActiveView("devices"); setTab("twin");
+    } catch(e) {}
+  }
+
+  const riskColor = (s) => s >= 70 ? "#ff2d55" : s >= 45 ? "#ff6b00" : s >= 20 ? "#ffd60a" : "#00ff88";
+  const healthColor = (s) => s >= 80 ? "#00ff88" : s >= 60 ? "#ffd60a" : "#ff2d55";
+
+  return (
+    <div style={{ padding:"24px", color:"#e0e0e0", fontFamily:"JetBrains Mono, monospace" }}>
+      <div style={{ marginBottom:"24px" }}>
+        <h2 style={{ color:"#00e5ff", fontSize:"22px", margin:0 }}>🔮 Cognitive Digital Twin v2</h2>
+        <p style={{ color:"#888", margin:"4px 0 0", fontSize:"13px" }}>Device Simulation · Anomaly Detection · Attack Simulation — Module #45</p>
+      </div>
+
+      <div style={{ display:"flex", gap:"8px", marginBottom:"24px" }}>
+        {[["create","⚡ Create Twin"],["twin","🔮 Twin View"],["history","🕒 History"]].map(([id,label]) => (
+          <button key={id} onClick={() => setTab(id)} style={{ padding:"8px 18px", borderRadius:"8px", border:"none", cursor:"pointer", fontSize:"13px", background: tab===id?"#00e5ff":"#1a2236", color: tab===id?"#000":"#aaa", fontFamily:"inherit" }}>{label}</button>
+        ))}
+      </div>
+
+      {tab === "create" && (
+        <div style={{ display:"grid", gridTemplateColumns:"280px 1fr", gap:"20px" }}>
+          <div style={{ background:"#0d1526", borderRadius:"12px", padding:"20px", border:"1px solid #1e3a5f" }}>
+            <p style={{ color:"#00e5ff", fontSize:"13px", marginTop:0 }}>Twin Name</p>
+            <input value={name} onChange={e=>setName(e.target.value)} placeholder="e.g. Factory Floor Twin" style={{ width:"100%", background:"#0a1628", border:"1px solid #1e3a5f", borderRadius:"8px", padding:"8px", color:"#e0e0e0", fontSize:"13px", boxSizing:"border-box", fontFamily:"inherit" }} />
+            <p style={{ color:"#00e5ff", fontSize:"13px", marginTop:"16px" }}>Environment Type</p>
+            {ENV_TYPES.map(([val,label]) => (
+              <div key={val} onClick={() => setEnvType(val)} style={{ padding:"8px 12px", borderRadius:"8px", marginBottom:"5px", cursor:"pointer", border:`1px solid ${envType===val?"#00e5ff":"#1e3a5f"}`, background: envType===val?"#0a2040":"transparent", color: envType===val?"#00e5ff":"#aaa", fontSize:"12px" }}>{label}</div>
+            ))}
+            <button onClick={submitCreate} disabled={loading} style={{ marginTop:"8px", width:"100%", padding:"12px", borderRadius:"8px", background: loading?"#333":"#00e5ff", color:"#000", border:"none", cursor:"pointer", fontSize:"14px", fontWeight:"bold", fontFamily:"inherit" }}>
+              {loading ? "⏳ Building Twin..." : "🔮 Create Digital Twin"}
+            </button>
+          </div>
+          <div style={{ background:"#0d1526", borderRadius:"12px", padding:"20px", border:"1px solid #1e3a5f" }}>
+            <p style={{ color:"#00e5ff", fontSize:"13px", marginTop:0 }}>Describe Your Environment</p>
+            <textarea value={description} onChange={e=>setDescription(e.target.value)}
+              placeholder="Describe your cyber-physical environment. Include devices, protocols, and any anomalies. Examples: Factory with 5 PLC controllers, 3 HMI terminals, 20 sensors and 2 industrial robots. Firmware change detected on PLC. New device joined network. ARP spoofing detected on switch."
+              style={{ width:"100%", height:"400px", background:"#0a1628", border:"1px solid #1e3a5f", borderRadius:"8px", padding:"12px", color:"#e0e0e0", fontSize:"13px", fontFamily:"JetBrains Mono, monospace", resize:"vertical", boxSizing:"border-box" }} />
+          </div>
+        </div>
+      )}
+
+      {tab === "twin" && envData && (
+        <div>
+          <div style={{ display:"grid", gridTemplateColumns:"repeat(5,1fr)", gap:"12px", marginBottom:"20px" }}>
+            {[["Health Score",`${envData.health_score}%`,healthColor(envData.health_score)],["Risk Score",envData.risk_score,riskColor(envData.risk_score)],["Devices",envData.device_count,"#00e5ff"],["Online",envData.by_status?.online,"#00ff88"],["Anomalies",envData.anomaly_count,"#ff2d55"]].map(([label,val,color]) => (
+              <div key={label} style={{ background:"#0d1526", borderRadius:"10px", padding:"16px", border:`1px solid ${color}33`, textAlign:"center" }}>
+                <div style={{ fontSize:"22px", fontWeight:"bold", color }}>{val}</div>
+                <div style={{ fontSize:"12px", color:"#888", marginTop:"4px" }}>{label}</div>
+              </div>
+            ))}
+          </div>
+
+          <div style={{ background:"#0d1526", borderRadius:"10px", padding:"16px", marginBottom:"16px", border:"1px solid #1e3a5f" }}>
+            <div style={{ display:"flex", justifyContent:"space-between", marginBottom:"8px" }}>
+              <span style={{ color:"#00e5ff", fontSize:"13px" }}>🔮 {envData.name} — {envData.env_type}</span>
+              <span style={{ color: healthColor(envData.health_score), fontWeight:"bold" }}>Health: {envData.health_score}%</span>
+            </div>
+            <div style={{ background:"#0a1628", borderRadius:"20px", height:"10px", overflow:"hidden", marginBottom:"8px" }}>
+              <div style={{ width:`${envData.health_score}%`, height:"100%", background: healthColor(envData.health_score), borderRadius:"20px" }} />
+            </div>
+            <div style={{ color:"#888", fontSize:"12px" }}>{envData.summary}</div>
+          </div>
+
+          <div style={{ display:"flex", gap:"8px", marginBottom:"16px" }}>
+            {[["devices","📡 Devices"],["anomalies","⚠️ Anomalies"]].map(([id,label]) => (
+              <button key={id} onClick={() => setActiveView(id)} style={{ padding:"8px 18px", borderRadius:"8px", border:"none", cursor:"pointer", fontSize:"13px", background: activeView===id?"#00e5ff":"#1a2236", color: activeView===id?"#000":"#aaa", fontFamily:"inherit" }}>{label}</button>
+            ))}
+          </div>
+
+          {activeView === "devices" && (
+            <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:"10px" }}>
+              {envData.devices?.map((d,i) => (
+                <div key={i} style={{ background:"#0d1526", borderRadius:"10px", padding:"14px", border:`1px solid ${RISK_COLOR[d.risk_level]||"#1e3a5f"}33` }}>
+                  <div style={{ display:"flex", justifyContent:"space-between", marginBottom:"8px" }}>
+                    <span style={{ fontSize:"20px" }}>{TYPE_ICON[d.device_type]||"📟"}</span>
+                    <span style={{ color: d.status==="online"?"#00ff88":"#ff2d55", fontSize:"11px", background: d.status==="online"?"#00ff8822":"#ff2d5522", padding:"2px 8px", borderRadius:"20px" }}>{d.status}</span>
+                  </div>
+                  <div style={{ color:"#e0e0e0", fontSize:"13px", fontWeight:"bold" }}>{d.device_name}</div>
+                  <div style={{ color:"#555", fontSize:"11px", marginTop:"2px" }}>{d.ip_address}</div>
+                  <div style={{ marginTop:"10px" }}>
+                    <div style={{ display:"flex", justifyContent:"space-between", fontSize:"11px", color:"#888", marginBottom:"3px" }}>
+                      <span>CPU</span><span style={{ color: d.cpu_usage>80?"#ff2d55":"#00e5ff" }}>{d.cpu_usage}%</span>
+                    </div>
+                    <div style={{ background:"#0a1628", borderRadius:"4px", height:"4px" }}>
+                      <div style={{ width:`${d.cpu_usage}%`, height:"100%", background: d.cpu_usage>80?"#ff2d55":"#00e5ff", borderRadius:"4px" }} />
+                    </div>
+                    <div style={{ display:"flex", justifyContent:"space-between", fontSize:"11px", color:"#888", marginBottom:"3px", marginTop:"6px" }}>
+                      <span>MEM</span><span style={{ color: d.memory_usage>85?"#ff2d55":"#00ff88" }}>{d.memory_usage}%</span>
+                    </div>
+                    <div style={{ background:"#0a1628", borderRadius:"4px", height:"4px" }}>
+                      <div style={{ width:`${d.memory_usage}%`, height:"100%", background: d.memory_usage>85?"#ff2d55":"#00ff88", borderRadius:"4px" }} />
+                    </div>
+                  </div>
+                  <div style={{ marginTop:"8px", display:"flex", justifyContent:"flex-end" }}>
+                    <span style={{ color: RISK_COLOR[d.risk_level], fontSize:"11px", background:`${RISK_COLOR[d.risk_level]}22`, padding:"2px 8px", borderRadius:"20px" }}>{d.risk_level}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {activeView === "anomalies" && (
+            <div>
+              {envData.anomalies?.length === 0 && <div style={{ textAlign:"center", color:"#00ff88", padding:"40px", background:"#0d1526", borderRadius:"12px" }}>✅ No anomalies detected — environment is healthy!</div>}
+              {envData.anomalies?.map((a,i) => (
+                <div key={i} style={{ background:"#0d1526", borderRadius:"10px", padding:"16px", marginBottom:"10px", border:`1px solid ${SEV_COLOR[a.severity]}33` }}>
+                  <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:"8px" }}>
+                    <div style={{ display:"flex", gap:"8px" }}>
+                      <span style={{ color: SEV_COLOR[a.severity], fontSize:"11px", fontWeight:"bold", background:`${SEV_COLOR[a.severity]}22`, padding:"2px 8px", borderRadius:"20px" }}>{a.severity}</span>
+                      <span style={{ color:"#555", fontSize:"11px" }}>📡 {a.device_name}</span>
+                    </div>
+                    {a.mitre_tactic && <span style={{ color:"#a78bfa", fontSize:"11px" }}>MITRE: {a.mitre_tactic}</span>}
+                  </div>
+                  <div style={{ color:"#e0e0e0", fontSize:"13px", fontWeight:"bold" }}>{a.anomaly_type}</div>
+                  <div style={{ color:"#888", fontSize:"12px", margin:"6px 0" }}>{a.description}</div>
+                  <div style={{ color:"#00e5ff", fontSize:"12px" }}>💡 {a.recommendation}</div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+      {tab === "twin" && !envData && <div style={{ textAlign:"center", color:"#555", padding:"60px" }}>Create a twin first or select one from History.</div>}
+
+      {tab === "history" && (
+        <div>
+          {history.length === 0 && <div style={{ textAlign:"center", color:"#555", padding:"60px" }}>No twins created yet.</div>}
+          {history.map((e,i) => (
+            <div key={i} style={{ background:"#0d1526", borderRadius:"10px", padding:"16px", marginBottom:"10px", border:"1px solid #1e3a5f", display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+              <div>
+                <div style={{ color:"#e0e0e0", fontSize:"14px" }}>🔮 {e.name}</div>
+                <div style={{ color:"#555", fontSize:"12px", marginTop:"4px" }}>{e.env_type} · {e.device_count} devices · {e.anomaly_count} anomaly(s) · {new Date(e.created_at).toLocaleString()}</div>
+              </div>
+              <div style={{ display:"flex", gap:"16px", alignItems:"center" }}>
+                <span style={{ color: healthColor(e.health_score), fontSize:"13px" }}>Health: {e.health_score}%</span>
+                <span style={{ color: riskColor(e.risk_score), fontSize:"13px" }}>Risk: {e.risk_score}</span>
+                <button onClick={() => loadEnv(e.env_id)} style={{ padding:"6px 14px", background:"#0a2040", border:"1px solid #00e5ff", borderRadius:"6px", color:"#00e5ff", cursor:"pointer", fontSize:"12px", fontFamily:"inherit" }}>View</button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ============================================================
 // AIPET X — Autonomous Architecture Builder Page (#44)
+
 // Zero Trust Design | Secure Cloud Architecture | IaC Generation
 // ============================================================
 function ArchBuilderPage({ token, showToast }) {
@@ -23028,6 +23232,12 @@ export default function App() {
           )}
           {activeTab === "archbuilder" && (
             <ArchBuilderPage token={token} showToast={showToast} />
+          )}
+          {activeTab === "digitaltwinv2" && (
+            <DigitalTwinV2Page token={token} showToast={showToast} />
+          )}
+          {activeTab === "digitaltwinv2" && (
+            <DigitalTwinV2Page token={token} showToast={showToast} />
           )}
           {activeTab === "terminal" && (
             <AIPETTerminal token={token} showToast={showToast} />
