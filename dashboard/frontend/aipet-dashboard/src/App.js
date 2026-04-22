@@ -3449,7 +3449,7 @@ function PlatformPage({ onBack, onGetStarted }) {
         {/* Modules */}
         <div style={{ maxWidth: "1100px", margin: "0 auto", padding: "0 48px 80px" }}>
           {MODULES.map((module, i) => (
-            <div key={i} style={{ marginBottom: "16px", borderRadius: "20px", border: `1px solid ${expanded === module.id ? module.color + "60" : COLORS.border}`, backgroundColor: COLORS.card, overflow: "hidden", transition: "all 0.3s", boxShadow: expanded === module.id ? `0 0 40px ${module.color}15` : "none" }}>
+            <div key={i} style={{ marginBottom: "16px", borderRadius: "20px", border: `1px solid ${expanded === module.id ? module.color + "60" : COLORS.border}`, backgroundColor: COLORS.card, overflow: "auto", transition: "all 0.3s", boxShadow: expanded === module.id ? `0 0 40px ${module.color}15` : "none" }}>
 
               {/* Module header — always visible */}
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "24px 32px", cursor: "pointer" }}
@@ -3734,7 +3734,7 @@ function SolutionsPage({ onBack, onGetStarted }) {
           </div>
 
           {/* Active solution content */}
-          <div style={{ borderRadius: "24px", border: `1px solid ${active.color}30`, backgroundColor: COLORS.card, overflow: "hidden", boxShadow: `0 0 60px ${active.color}10` }}>
+          <div style={{ borderRadius: "24px", border: `1px solid ${active.color}30`, backgroundColor: COLORS.card, overflow: "auto", boxShadow: `0 0 60px ${active.color}10` }}>
 
             {/* Solution hero */}
             <div style={{ padding: "48px", background: `linear-gradient(135deg, ${active.color}12, transparent)`, borderBottom: `1px solid ${active.color}20` }}>
@@ -4603,7 +4603,7 @@ function LandingPage({ onGetStarted, onLogin, setLegalPage, setActivePage }) {
                   backgroundColor: plan.founder ? plan.color : plan.popular ? plan.color : "transparent",
                   color: plan.founder ? "white" : plan.popular ? "white" : plan.color,
                   border: `2px solid ${plan.color}`,
-                  position: "relative", overflow: "hidden" }}>
+                  position: "relative", overflow: "auto" }}>
                 {plan.founder && (
                   <span style={{ position: "absolute", top: "-1px", right: "-1px",
                     background: "#ffd600", color: "#000", fontSize: "9px",
@@ -5785,8 +5785,8 @@ const NAV_ITEMS = [
   { id: "attackpath", label: "Attack Paths",  icon: GitBranch,     group: "enterprise" },
   { id: "identitygraph",label: "Identity Graph", icon: Users,        group: "enterprise" },
   { id: "behavioral",  label: "Behavioral AI",  icon: Activity,      group: "enterprise" },
-  { id: "syntheticmon",      label: "Synthetic Mon",  icon: Eye,           group: "enterprise" },
-  { id: "complianceauto",label: "Compliance Auto",icon: CheckCircle,   group: "enterprise" },
+    { id: "syntheticmon",      label: "Synthetic Mon",  icon: Eye,           group: "enterprise" },
+    { id: "complianceautomation", label: "Compliance Auto", icon: CheckCircle, group: "enterprise" },
   { id: "enterpriserbac",    label: "RBAC + SSO",     icon: Users,         group: "enterprise" },
   { id: "multitenant",       label: "Multi-Tenant",   icon: Server,        group: "enterprise" },
   { id: "dspm",        label: "Data Security",  icon: Lock,          group: "enterprise" },
@@ -18818,7 +18818,7 @@ function TimelinePage({ token, showToast }) {
                   {/* Title */}
                   <div style={{ flex: 1, fontSize: "13px",
                     fontWeight: "600", color: C.text,
-                    overflow: "hidden", textOverflow: "ellipsis",
+                    overflow: "auto", textOverflow: "ellipsis",
                     whiteSpace: "nowrap",
                     textDecoration: event.resolved
                       ? "line-through" : "none" }}>
@@ -18871,7 +18871,7 @@ function TimelinePage({ token, showToast }) {
                 {event.detail && (
                   <div style={{ marginTop: "5px", fontSize: "11px",
                     color: C.muted, paddingLeft: "42px",
-                    overflow: "hidden", textOverflow: "ellipsis",
+                    overflow: "auto", textOverflow: "ellipsis",
                     whiteSpace: "nowrap" }}>
                     {event.detail}
                   </div>
@@ -19344,7 +19344,7 @@ function MarketplacePage({ token, showToast }) {
                       alignItems: "center", gap: "6px",
                       marginBottom: "3px" }}>
                       <span style={{ fontWeight: "700",
-                        fontSize: "14px", overflow: "hidden",
+                        fontSize: "14px", overflow: "auto",
                         textOverflow: "ellipsis",
                         whiteSpace: "nowrap" }}>
                         {plugin.name}
@@ -19374,7 +19374,7 @@ function MarketplacePage({ token, showToast }) {
                   display: "-webkit-box",
                   WebkitLineClamp: 2,
                   WebkitBoxOrient: "vertical",
-                  overflow: "hidden" }}>
+                  overflow: "auto" }}>
                   {plugin.description}
                 </div>
                 {/* Rating + installs */}
@@ -20138,7 +20138,7 @@ function AiRedTeamPage({ token, showToast }) {
                         {/* Technique */}
                         <div style={{ flex: 1, fontSize: "12px",
                           fontWeight: "600", color: C.text,
-                          overflow: "hidden",
+                          overflow: "auto",
                           textOverflow: "ellipsis",
                           whiteSpace: "nowrap" }}>
                           {attack.technique}
@@ -20154,7 +20154,7 @@ function AiRedTeamPage({ token, showToast }) {
                           <div style={{ fontSize: "10px",
                             color: "#00ff88",
                             whiteSpace: "nowrap",
-                            maxWidth: "140px", overflow: "hidden",
+                            maxWidth: "140px", overflow: "auto",
                             textOverflow: "ellipsis" }}>
                             ✓ {attack.blocked_by}
                           </div>
@@ -20632,7 +20632,7 @@ function DigitalTwinPage({ token, showToast }) {
           gridTemplateColumns: "1fr 300px", gap: "16px" }}>
           {/* Graph canvas */}
           <div style={{ ...cardStyle({ padding: "0",
-            overflow: "hidden", minHeight: "560px" }) }}>
+            overflow: "auto", minHeight: "560px" }) }}>
             {renderGraph()}
             {/* Legend */}
             <div style={{ padding: "12px 16px",
@@ -23650,7 +23650,7 @@ function AutonomousDefensePage({ token, showToast }) {
                   </div>
                   {/* Outcome */}
                   <div style={{ flex: 1, fontSize: "11px", color: C.muted,
-                    overflow: "hidden", textOverflow: "ellipsis",
+                    overflow: "auto", textOverflow: "ellipsis",
                     whiteSpace: "nowrap" }}>
                     {a.outcome}
                   </div>
@@ -24339,7 +24339,7 @@ function ZeroTrustPage({ token, showToast }) {
                   </div>
                   {/* Policy name */}
                   <div style={{ flex: 1, fontSize: "12px", color: C.muted,
-                    overflow: "hidden", textOverflow: "ellipsis",
+                    overflow: "auto", textOverflow: "ellipsis",
                     whiteSpace: "nowrap" }}>
                     {entry.policy_name || entry.reason}
                   </div>
@@ -24793,7 +24793,7 @@ function ThreatIntelPage({ token, showToast }) {
                     </div>
                     {/* Description */}
                     <div style={{ flex: 1, fontSize: "12px", color: C.muted,
-                      overflow: "hidden", textOverflow: "ellipsis",
+                      overflow: "auto", textOverflow: "ellipsis",
                       whiteSpace: "nowrap" }}>
                       {ioc.description}
                     </div>
@@ -25247,12 +25247,12 @@ function SiemPage({ token, showToast }) {
                     {/* Title + source */}
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div style={{ fontWeight: "600", fontSize: "13px", color: C.text,
-                        overflow: "hidden", textOverflow: "ellipsis",
+                        overflow: "auto", textOverflow: "ellipsis",
                         whiteSpace: "nowrap" }}>
                         {ev.title}
                       </div>
                       <div style={{ fontSize: "11px", color: C.muted, marginTop: "2px",
-                        overflow: "hidden", textOverflow: "ellipsis",
+                        overflow: "auto", textOverflow: "ellipsis",
                         whiteSpace: "nowrap" }}>
                         {ev.source}
                         {ev.description && ` — ${ev.description}`}
@@ -25708,7 +25708,7 @@ export default function App() {
       color: "#e2e8f0",
       fontFamily: "'Inter', sans-serif",
       position: "relative",
-      overflow: "hidden",
+      overflow: "auto",
     }}>
 
       {/* Background atmospheric effect */}
@@ -25785,7 +25785,7 @@ export default function App() {
         )}
 
         {/* Navigation */}
-        <nav style={{ flex: 1, padding: "16px 12px", overflowY: "auto" }}>
+        <nav style={{ flex: 1, padding: "16px 12px", overflowY: "scroll", maxHeight: "calc(100vh - 120px)" }}>
           {NAV_GROUPS.map(group => {
             const groupItems = NAV_ITEMS.filter(item => item.group === group.id);
             const isCollapsed = collapsedGroups[group.id] || false;
@@ -25944,7 +25944,7 @@ export default function App() {
       </div>
 
       {/* Main content */}
-      <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden", position: "relative", zIndex: 10 }}>
+      <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "auto", position: "relative", zIndex: 10 }}>
 
         {/* Top header */}
         <div style={{
@@ -26456,6 +26456,18 @@ export default function App() {
           )}
           {activeTab === "complianceauto" && (
             <ComplianceAutoPage token={token} showToast={showToast} />
+          )}
+          {activeTab === "syntheticmon" && (
+            <SyntheticMonitoringPage token={token} showToast={showToast} />
+          )}
+          {activeTab === "complianceautomation" && (
+            <ComplianceAutomationPage token={token} showToast={showToast} />
+          )}
+          {activeTab === "enterpriserbac" && (
+            <EnterpriseRBACPage token={token} showToast={showToast} />
+          )}
+          {activeTab === "multitenant" && (
+            <MultiTenantPage token={token} showToast={showToast} />
           )}
           {activeTab === "behavioral" && (
             <BehavioralAIPage token={token} showToast={showToast} />
