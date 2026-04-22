@@ -5813,6 +5813,7 @@ const NAV_ITEMS = [
   { id: "iamexposure",       label: "IAM Exposure",   icon: Shield,        group: "enterprise" },
   { id: "clouddashboard",    label: "Cloud Dashboard", icon: Activity,     group: "enterprise" },
   { id: "multicloudscale",   label: "Multi-Cloud Scale",icon: Globe,       group: "enterprise" },
+  { id: "endpointagent",     label: "Endpoint Agent", icon: Shield,        group: "enterprise" },
   { id: "settings",  label: "Settings",      icon: Settings,      group: "account"  },
 ];
 
@@ -7315,8 +7316,195 @@ function DriftDetectorPage({ token, showToast }) {
 
 
 
+
+// ============================================================
+// AIPET X — Endpoint Agent (CrowdStrike Gap — Phase 2)
+// Device Health | EDR Simulation | Behavioural Analysis
+// ============================================================
+function EndpointAgentPage({ token, showToast }) {
+  const [tab, setTab] = useState("scan");
+  const [hostname, setHostname] = useState("");
+  const [osType, setOsType] = useState("Windows");
+  const [osVersion, setOsVersion] = useState("Windows 11");
+  const [description, setDescription] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [scanData, setScanData] = useState(null);
+  const [history, setHistory] = useState([]);
+  const [filterCat, setFilterCat] = useState(null);
+
+  const API = "http://localhost:5001";
+  const SEV_COLOR = { CRITICAL:"#ff2d55", HIGH:"#ff6b00", MEDIUM:"#ffd60a", LOW:"#00e5ff" };
+  const CAT_ICON  = { "Patch Management":"🔧", "Malware Detection":"🦠", "Persistence":"🔒", "Credential Theft":"🔑", "Lateral Movement":"↔️", "Defence Evasion":"🛡️", "Security Posture":"🏥" };
+  const CAT_COLOR = { "Patch Management":"#00e5ff", "Malware Detection":"#ff2d55", "Persistence":"#ff6b00", "Credential Theft":"#a78bfa", "Lateral Movement":"#ffd60a", "Defence Evasion":"#ff6b00", "Security Posture":"#00ff88" };
+  const OS_VERSIONS = { Windows:["Windows 11","Windows 10","Windows Server 2022","Windows Server 2019"], Linux:["Ubuntu 22.04","Ubuntu 20.04","RHEL 9","CentOS 7"], macOS:["macOS Ventura","macOS Monterey","macOS Big Sur"] };
+
+  useEffect(() => { fetchHistory(); }, []);
+
+  async function fetchHistory() {
+    try {
+      const r = await fetch(`${API}/api/endpoint-agent/history`, { headers:{ Authorization:`Bearer ${token}` }});
+      const d = await r.json();
+      setHistory(d.scans || []);
+    } catch(e) {}
+  }
+
+  async function submitScan() {
+    if (!description.trim()) { showToast("Describe the endpoint first", "error"); return; }
+    setLoading(true); setScanData(null);
+    try {
+      const r = await fetch(`${API}/api/endpoint-agent/scan`, {
+        method:"POST",
+        headers:{ "Content-Type":"application/json", Authorization:`Bearer ${token}` },
+        body: JSON.stringify({ hostname: hostname||"WORKSTATION-01", os_type:osType, os_version:osVersion, description })
+      });
+      const d = await r.json();
+      if (d.scan_id) {
+        showToast(`Endpoint scan complete — Health: ${d.health_score}%, ${d.critical_count} critical`, d.critical_count > 0 ? "error" : "success");
+        await loadScan(d.scan_id);
+        fetchHistory();
+      } else { showToast(d.error || "Scan failed", "error"); }
+    } catch(e) { showToast("Scan failed", "error"); }
+    setLoading(false);
+  }
+
+  async function loadScan(scanId) {
+    try {
+      const r = await fetch(`${API}/api/endpoint-agent/scans/${scanId}`, { headers:{ Authorization:`Bearer ${token}` }});
+      const d = await r.json();
+      setScanData(d); setFilterCat(null); setTab("results");
+    } catch(e) {}
+  }
+
+  const riskColor  = (s) => s >= 70 ? "#ff2d55" : s >= 45 ? "#ff6b00" : s >= 20 ? "#ffd60a" : "#00ff88";
+  const healthColor= (s) => s >= 80 ? "#00ff88" : s >= 50 ? "#ffd60a" : "#ff2d55";
+  const filtered   = scanData?.findings?.filter(f => !filterCat || f.category===filterCat) || [];
+
+  return (
+    <div style={{ padding:"24px", color:"#e0e0e0", fontFamily:"JetBrains Mono, monospace" }}>
+      <div style={{ marginBottom:"24px" }}>
+        <h2 style={{ color:"#00e5ff", fontSize:"22px", margin:0 }}>🖥️ Endpoint Agent</h2>
+        <p style={{ color:"#888", margin:"4px 0 0", fontSize:"13px" }}>Device Health · EDR Simulation · Behavioural Analysis · MITRE ATT&CK — CrowdStrike Gap Phase 2</p>
+      </div>
+
+      <div style={{ display:"flex", gap:"8px", marginBottom:"24px" }}>
+        {[["scan","🔍 Scan"],["results","📋 Findings"],["history","🕒 History"]].map(([id,label]) => (
+          <button key={id} onClick={() => setTab(id)} style={{ padding:"8px 18px", borderRadius:"8px", border:"none", cursor:"pointer", fontSize:"13px", background: tab===id?"#00e5ff":"#1a2236", color: tab===id?"#000":"#aaa", fontFamily:"inherit" }}>{label}</button>
+        ))}
+      </div>
+
+      {tab === "scan" && (
+        <div style={{ display:"grid", gridTemplateColumns:"280px 1fr", gap:"20px" }}>
+          <div style={{ background:"#0d1526", borderRadius:"12px", padding:"20px", border:"1px solid #1e3a5f" }}>
+            <p style={{ color:"#00e5ff", fontSize:"13px", marginTop:0 }}>Hostname</p>
+            <input value={hostname} onChange={e=>setHostname(e.target.value)} placeholder="e.g. WORKSTATION-01" style={{ width:"100%", background:"#0a1628", border:"1px solid #1e3a5f", borderRadius:"8px", padding:"8px", color:"#e0e0e0", fontSize:"13px", boxSizing:"border-box", fontFamily:"inherit" }} />
+            <p style={{ color:"#00e5ff", fontSize:"13px", marginTop:"16px" }}>OS Type</p>
+            {["Windows","Linux","macOS"].map(os => (
+              <div key={os} onClick={() => { setOsType(os); setOsVersion(OS_VERSIONS[os][0]); }} style={{ padding:"8px 12px", borderRadius:"8px", marginBottom:"6px", cursor:"pointer", border:`1px solid ${osType===os?"#00e5ff":"#1e3a5f"}`, background: osType===os?"#0a2040":"transparent", color: osType===os?"#00e5ff":"#aaa", fontSize:"13px" }}>
+                {os==="Windows"?"🪟":os==="Linux"?"🐧":"🍎"} {os}
+              </div>
+            ))}
+            <p style={{ color:"#00e5ff", fontSize:"13px", marginTop:"12px" }}>OS Version</p>
+            {OS_VERSIONS[osType]?.map(v => (
+              <div key={v} onClick={() => setOsVersion(v)} style={{ padding:"7px 12px", borderRadius:"8px", marginBottom:"4px", cursor:"pointer", border:`1px solid ${osVersion===v?"#00e5ff":"#1e3a5f"}`, background: osVersion===v?"#0a2040":"transparent", color: osVersion===v?"#00e5ff":"#aaa", fontSize:"12px" }}>{v}</div>
+            ))}
+            <button onClick={submitScan} disabled={loading} style={{ marginTop:"16px", width:"100%", padding:"12px", borderRadius:"8px", background: loading?"#333":"#00e5ff", color:"#000", border:"none", cursor:"pointer", fontSize:"14px", fontWeight:"bold", fontFamily:"inherit" }}>
+              {loading ? "⏳ Scanning..." : "🖥️ Scan Endpoint"}
+            </button>
+          </div>
+          <div style={{ background:"#0d1526", borderRadius:"12px", padding:"20px", border:"1px solid #1e3a5f" }}>
+            <p style={{ color:"#00e5ff", fontSize:"13px", marginTop:0 }}>Describe Endpoint Observations</p>
+            <textarea value={description} onChange={e=>setDescription(e.target.value)}
+              placeholder="Describe what you observe on this endpoint. Examples: Critical OS patches missing unpatched system. Suspicious powershell encoded command running. Ransomware file encryption detected shadow copy delete. LSASS process dump mimikatz detected. No EDR agent installed. Antivirus disabled tamper protection off. Registry autorun suspicious entry. Pass the hash lateral movement attempt. Scheduled task created malware. New admin account created backdoor. Disk not encrypted no bitlocker. USB unrestricted removable media allowed."
+              style={{ width:"100%", height:"400px", background:"#0a1628", border:"1px solid #1e3a5f", borderRadius:"8px", padding:"12px", color:"#e0e0e0", fontSize:"13px", fontFamily:"JetBrains Mono, monospace", resize:"vertical", boxSizing:"border-box" }} />
+          </div>
+        </div>
+      )}
+
+      {tab === "results" && scanData && (
+        <div>
+          {/* Health + Risk hero */}
+          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"16px", marginBottom:"20px" }}>
+            <div style={{ background:"#0d1526", borderRadius:"12px", padding:"20px", border:`1px solid ${healthColor(scanData.health_score)}33`, textAlign:"center" }}>
+              <div style={{ fontSize:"56px", fontWeight:"900", color: healthColor(scanData.health_score), lineHeight:1, letterSpacing:"-0.04em" }}>{scanData.health_score}%</div>
+              <div style={{ color:"#888", fontSize:"13px", marginTop:"6px" }}>Endpoint Health Score</div>
+              <div style={{ background:"#0a1628", borderRadius:"20px", height:"8px", overflow:"hidden", marginTop:"12px" }}>
+                <div style={{ width:`${scanData.health_score}%`, height:"100%", background: healthColor(scanData.health_score), borderRadius:"20px" }} />
+              </div>
+            </div>
+            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"12px" }}>
+              {[["Risk Score",scanData.risk_score,riskColor(scanData.risk_score)],["Severity",scanData.severity,SEV_COLOR[scanData.severity]],["Findings",scanData.total_findings,"#a78bfa"],["Critical",scanData.critical_count,"#ff2d55"]].map(([label,val,color]) => (
+                <div key={label} style={{ background:"#0d1526", borderRadius:"10px", padding:"14px", border:`1px solid ${color}33`, textAlign:"center" }}>
+                  <div style={{ fontSize:"22px", fontWeight:"bold", color }}>{val}</div>
+                  <div style={{ fontSize:"12px", color:"#888", marginTop:"4px" }}>{label}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Endpoint info */}
+          <div style={{ background:"#0d1526", borderRadius:"10px", padding:"14px", marginBottom:"16px", border:"1px solid #1e3a5f", display:"flex", justifyContent:"space-between" }}>
+            <div>
+              <span style={{ color:"#00e5ff", fontSize:"14px", fontWeight:"bold" }}>🖥️ {scanData.hostname}</span>
+              <span style={{ color:"#555", fontSize:"12px", marginLeft:"12px" }}>{scanData.os_type} — {scanData.os_version}</span>
+            </div>
+            <div style={{ color:"#888", fontSize:"12px" }}>{scanData.summary}</div>
+          </div>
+
+          {/* Category filters */}
+          <div style={{ display:"flex", gap:"8px", marginBottom:"12px", flexWrap:"wrap" }}>
+            <button onClick={() => setFilterCat(null)} style={{ padding:"6px 14px", borderRadius:"6px", border:`1px solid ${!filterCat?"#00e5ff":"#1e3a5f"}`, background: !filterCat?"#0a2040":"transparent", color: !filterCat?"#00e5ff":"#aaa", cursor:"pointer", fontSize:"12px", fontFamily:"inherit" }}>All ({scanData.findings?.length})</button>
+            {scanData.categories?.map(cat => (
+              <button key={cat} onClick={() => setFilterCat(filterCat===cat?null:cat)} style={{ padding:"6px 14px", borderRadius:"6px", border:`1px solid ${filterCat===cat?(CAT_COLOR[cat]||"#1e3a5f"):"#1e3a5f"}`, background: filterCat===cat?"#0a2040":"transparent", color: filterCat===cat?(CAT_COLOR[cat]||"#aaa"):"#aaa", cursor:"pointer", fontSize:"12px", fontFamily:"inherit" }}>{CAT_ICON[cat]} {cat}</button>
+            ))}
+          </div>
+
+          {filtered.length === 0 && <div style={{ textAlign:"center", color:"#00ff88", padding:"40px", background:"#0d1526", borderRadius:"12px" }}>✅ Endpoint is clean — no threats detected!</div>}
+          {filtered.map((f,i) => (
+            <div key={i} style={{ background:"#0d1526", borderRadius:"10px", padding:"16px", marginBottom:"8px", border:`1px solid ${SEV_COLOR[f.severity]}33` }}>
+              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:"8px" }}>
+                <div style={{ display:"flex", gap:"8px", alignItems:"center" }}>
+                  <span>{CAT_ICON[f.category]||"🖥️"}</span>
+                  <span style={{ color: SEV_COLOR[f.severity], fontSize:"11px", fontWeight:"bold", background:`${SEV_COLOR[f.severity]}22`, padding:"2px 8px", borderRadius:"20px" }}>{f.severity}</span>
+                  <span style={{ color: CAT_COLOR[f.category]||"#888", fontSize:"11px", background:`${CAT_COLOR[f.category]||"#888"}22`, padding:"2px 8px", borderRadius:"20px" }}>{f.category}</span>
+                </div>
+                <span style={{ color:"#a78bfa", fontSize:"11px" }}>{f.technique}</span>
+              </div>
+              <div style={{ color:"#e0e0e0", fontSize:"14px", fontWeight:"bold", marginBottom:"4px" }}>{f.title}</div>
+              <div style={{ color:"#ff6b00", fontSize:"12px", marginBottom:"4px" }}>🎯 Tactic: {f.tactic}</div>
+              {f.ioc && <div style={{ color:"#555", fontSize:"11px", marginBottom:"4px" }}>IOC: {f.ioc}</div>}
+              <div style={{ color:"#888", fontSize:"12px", marginBottom:"6px" }}>{f.description}</div>
+              <div style={{ color:"#00e5ff", fontSize:"12px" }}>💡 {f.remediation}</div>
+            </div>
+          ))}
+        </div>
+      )}
+      {tab === "results" && !scanData && <div style={{ textAlign:"center", color:"#555", padding:"60px" }}>Run a scan first or select one from History.</div>}
+
+      {tab === "history" && (
+        <div>
+          {history.length === 0 && <div style={{ textAlign:"center", color:"#555", padding:"60px" }}>No scans yet.</div>}
+          {history.map((s,i) => (
+            <div key={i} style={{ background:"#0d1526", borderRadius:"10px", padding:"16px", marginBottom:"10px", border:"1px solid #1e3a5f", display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+              <div>
+                <div style={{ color:"#e0e0e0", fontSize:"14px" }}>🖥️ {s.hostname} — {s.os_type}</div>
+                <div style={{ color:"#555", fontSize:"12px", marginTop:"4px" }}>{s.total_findings} finding(s) · {s.critical_count} critical · {new Date(s.created_at).toLocaleString()}</div>
+              </div>
+              <div style={{ display:"flex", gap:"16px", alignItems:"center" }}>
+                <span style={{ color: healthColor(s.health_score), fontSize:"13px", fontWeight:"bold" }}>Health: {s.health_score}%</span>
+                <span style={{ color: riskColor(s.risk_score), fontSize:"13px" }}>Risk: {s.risk_score}</span>
+                <button onClick={() => loadScan(s.scan_id)} style={{ padding:"6px 14px", background:"#0a2040", border:"1px solid #00e5ff", borderRadius:"6px", color:"#00e5ff", cursor:"pointer", fontSize:"12px", fontFamily:"inherit" }}>View</button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ============================================================
 // AIPET X — Multi-Cloud Scale Engine (Wiz Gap — Phase 1)
+
 // Cross-Cloud Orchestration | Scale Analysis | Cost Security
 // ============================================================
 function MultiCloudScalePage({ token, showToast }) {
@@ -24487,6 +24675,9 @@ export default function App() {
           )}
           {activeTab === "multicloudscale" && (
             <MultiCloudScalePage token={token} showToast={showToast} />
+          )}
+          {activeTab === "endpointagent" && (
+            <EndpointAgentPage token={token} showToast={showToast} />
           )}
 
 
