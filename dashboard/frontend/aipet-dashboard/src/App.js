@@ -5819,11 +5819,11 @@ const NAV_ITEMS = [
   { id: "threatintelingest", label: "Threat Intel",    icon: AlertTriangle, group: "enterprise" },
   { id: "adversaryprofiling", label: "Adversary Intel", icon: Eye,          group: "enterprise" },
   { id: "malwaresandbox",    label: "Malware Sandbox",icon: AlertTriangle, group: "enterprise" },
-  { id: "apmengine",         label: "APM Engine",     icon: Activity,      group: "observability" },
-  { id: "loganalytics",      label: "Log Analytics",  icon: FileText,      group: "observability" },
-  { id: "metricstraces",     label: "Metrics+Traces", icon: Activity,      group: "observability" },
-  { id: "cloudsiem",         label: "Cloud SIEM",     icon: AlertTriangle, group: "observability" },
-  { id: "realtimeboard",     label: "Live Dashboard",  icon: Activity,      group: "observability" },
+  { id: "apmengine",         label: "APM Engine",     icon: Activity,      group: "enterprise" },
+  { id: "loganalytics",      label: "Log Analytics",  icon: FileText,      group: "enterprise" },
+  { id: "metricstraces",     label: "Metrics+Traces", icon: Activity,      group: "enterprise" },
+  { id: "cloudsiem",         label: "Cloud SIEM",     icon: AlertTriangle, group: "enterprise" },
+  { id: "realtimeboard",     label: "Live Dashboard",  icon: Activity,      group: "enterprise" },
   { id: "settings",  label: "Settings",      icon: Settings,      group: "account"  },
 ];
 
