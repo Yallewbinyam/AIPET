@@ -5819,6 +5819,7 @@ const NAV_ITEMS = [
   { id: "threatintelingest", label: "Threat Intel",    icon: AlertTriangle, group: "enterprise" },
   { id: "adversaryprofiling", label: "Adversary Intel", icon: Eye,          group: "enterprise" },
   { id: "malwaresandbox",    label: "Malware Sandbox",icon: AlertTriangle, group: "enterprise" },
+  { id: "apmengine",         label: "APM Engine",     icon: Activity,      group: "observability" },
   { id: "settings",  label: "Settings",      icon: Settings,      group: "account"  },
 ];
 
@@ -7327,8 +7328,170 @@ function DriftDetectorPage({ token, showToast }) {
 
 
 
+
+// ============================================================
+// AIPET X — APM Engine
+// Latency | Throughput | Error Rates | Service Health
+// ============================================================
+function APMEnginePage({ token, showToast }) {
+  const [tab, setTab] = useState("analyse");
+  const [serviceName, setServiceName] = useState("");
+  const [environment, setEnvironment] = useState("production");
+  const [description, setDescription] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [reportData, setReportData] = useState(null);
+  const [history, setHistory] = useState([]);
+
+  const API = "http://localhost:5001";
+  const SEV_COLOR   = { CRITICAL:"#ff2d55", HIGH:"#ff6b00", MEDIUM:"#ffd60a", LOW:"#00e5ff" };
+  const STATUS_COLOR= { HEALTHY:"#00ff88", WARNING:"#ffd60a", DEGRADED:"#ff2d55" };
+  const healthColor = (s) => s >= 80 ? "#00ff88" : s >= 60 ? "#ffd60a" : "#ff2d55";
+  const apdexColor  = (s) => s >= 0.9 ? "#00ff88" : s >= 0.7 ? "#ffd60a" : "#ff2d55";
+
+  useEffect(() => { fetchHistory(); }, []);
+
+  async function fetchHistory() {
+    try {
+      const r = await fetch(`${API}/api/apm/history`, { headers:{ Authorization:`Bearer ${token}` }});
+      const d = await r.json();
+      setHistory(d.reports || []);
+    } catch(e) {}
+  }
+
+  async function submitAnalysis() {
+    if (!description.trim()) { showToast("Describe your service first", "error"); return; }
+    setLoading(true); setReportData(null);
+    try {
+      const r = await fetch(`${API}/api/apm/analyse`, {
+        method:"POST",
+        headers:{ "Content-Type":"application/json", Authorization:`Bearer ${token}` },
+        body: JSON.stringify({ service_name:serviceName||"my-service", environment, description })
+      });
+      const d = await r.json();
+      if (d.report_id) {
+        showToast(`APM analysis complete — Health: ${d.health_score}%, ${d.issues} issue(s)`, d.issues > 0 ? "warning" : "success");
+        setReportData(d); setTab("results");
+        fetchHistory();
+      } else { showToast(d.error || "Analysis failed", "error"); }
+    } catch(e) { showToast("Analysis failed", "error"); }
+    setLoading(false);
+  }
+
+  return (
+    <div style={{ padding:"24px", color:"#e0e0e0", fontFamily:"JetBrains Mono, monospace" }}>
+      <div style={{ marginBottom:"24px" }}>
+        <h2 style={{ color:"#00e5ff", fontSize:"22px", margin:0 }}>📊 APM Engine</h2>
+        <p style={{ color:"#888", margin:"4px 0 0", fontSize:"13px" }}>Application Performance Monitoring · Latency · Throughput · Error Rates · Service Health</p>
+      </div>
+
+      <div style={{ display:"flex", gap:"8px", marginBottom:"24px" }}>
+        {[["analyse","🔍 Analyse"],["results","📋 Report"],["history","🕒 History"]].map(([id,label]) => (
+          <button key={id} onClick={() => setTab(id)} style={{ padding:"8px 18px", borderRadius:"8px", border:"none", cursor:"pointer", fontSize:"13px", background: tab===id?"#00e5ff":"#1a2236", color: tab===id?"#000":"#aaa", fontFamily:"inherit" }}>{label}</button>
+        ))}
+      </div>
+
+      {tab === "analyse" && (
+        <div style={{ display:"grid", gridTemplateColumns:"280px 1fr", gap:"20px" }}>
+          <div style={{ background:"#0d1526", borderRadius:"12px", padding:"20px", border:"1px solid #1e3a5f" }}>
+            <p style={{ color:"#00e5ff", fontSize:"13px", marginTop:0 }}>Service Name</p>
+            <input value={serviceName} onChange={e=>setServiceName(e.target.value)} placeholder="e.g. payment-api" style={{ width:"100%", background:"#0a1628", border:"1px solid #1e3a5f", borderRadius:"8px", padding:"8px", color:"#e0e0e0", fontSize:"13px", boxSizing:"border-box", fontFamily:"inherit" }} />
+            <p style={{ color:"#00e5ff", fontSize:"13px", marginTop:"16px" }}>Environment</p>
+            {[["production","🔴 Production"],["staging","🟡 Staging"],["development","🟢 Development"]].map(([val,label]) => (
+              <div key={val} onClick={() => setEnvironment(val)} style={{ padding:"7px 12px", borderRadius:"8px", marginBottom:"5px", cursor:"pointer", border:`1px solid ${environment===val?"#00e5ff":"#1e3a5f"}`, background: environment===val?"#0a2040":"transparent", color: environment===val?"#00e5ff":"#aaa", fontSize:"12px" }}>{label}</div>
+            ))}
+            <p style={{ color:"#00e5ff", fontSize:"13px", marginTop:"16px" }}>Monitors</p>
+            {["Latency & P99","Error Rates","Throughput (RPS)","Apdex Score","Memory & CPU","DB Connections","Service Dependencies"].map(m => (
+              <div key={m} style={{ fontSize:"11px", color:"#555", marginBottom:"3px" }}>✓ {m}</div>
+            ))}
+            <button onClick={submitAnalysis} disabled={loading} style={{ marginTop:"12px", width:"100%", padding:"12px", borderRadius:"8px", background: loading?"#333":"#00e5ff", color:"#000", border:"none", cursor:"pointer", fontSize:"14px", fontWeight:"bold", fontFamily:"inherit" }}>
+              {loading ? "⏳ Analysing..." : "📊 Analyse Performance"}
+            </button>
+          </div>
+          <div style={{ background:"#0d1526", borderRadius:"12px", padding:"20px", border:"1px solid #1e3a5f" }}>
+            <p style={{ color:"#00e5ff", fontSize:"13px", marginTop:0 }}>Describe Service Performance Observations</p>
+            <textarea value={description} onChange={e=>setDescription(e.target.value)}
+              placeholder="Describe what you observe about your service performance. Examples: High latency slow response p99 latency spike API timeout. Error rate 5xx errors exception rate spike failure. Low throughput requests dropping rps degraded capacity. Memory leak heap growing OOM out of memory. CPU high saturation throttling. Database connection pool exhausted max connections timeout. Dependency service degraded upstream error. Low apdex score user satisfaction poor performance."
+              style={{ width:"100%", height:"400px", background:"#0a1628", border:"1px solid #1e3a5f", borderRadius:"8px", padding:"12px", color:"#e0e0e0", fontSize:"13px", fontFamily:"JetBrains Mono, monospace", resize:"vertical", boxSizing:"border-box" }} />
+          </div>
+        </div>
+      )}
+
+      {tab === "results" && reportData && (
+        <div>
+          {/* Metrics hero */}
+          <div style={{ display:"grid", gridTemplateColumns:"repeat(6,1fr)", gap:"12px", marginBottom:"20px" }}>
+            {[["Health",`${reportData.health_score}%`,healthColor(reportData.health_score)],["Avg Latency",`${reportData.avg_latency_ms}ms`,reportData.avg_latency_ms>500?"#ff2d55":reportData.avg_latency_ms>200?"#ffd60a":"#00ff88"],["P99 Latency",`${reportData.p99_latency_ms}ms`,"#ff6b00"],["Throughput",`${reportData.throughput_rps} rps`,"#00e5ff"],["Error Rate",`${reportData.error_rate_pct}%`,reportData.error_rate_pct>5?"#ff2d55":reportData.error_rate_pct>1?"#ffd60a":"#00ff88"],["Apdex",reportData.apdex_score,apdexColor(reportData.apdex_score)]].map(([label,val,color]) => (
+              <div key={label} style={{ background:"#0d1526", borderRadius:"10px", padding:"14px", border:`1px solid ${color}33`, textAlign:"center" }}>
+                <div style={{ fontSize:"18px", fontWeight:"bold", color }}>{val}</div>
+                <div style={{ fontSize:"11px", color:"#888", marginTop:"4px" }}>{label}</div>
+              </div>
+            ))}
+          </div>
+
+          {/* Service map */}
+          <div style={{ background:"#0d1526", borderRadius:"12px", padding:"20px", marginBottom:"16px", border:"1px solid #1e3a5f" }}>
+            <div style={{ color:"#00e5ff", fontSize:"13px", fontWeight:"bold", marginBottom:"14px" }}>🗺️ Service Map</div>
+            <div style={{ display:"grid", gridTemplateColumns:"repeat(5,1fr)", gap:"10px" }}>
+              {reportData.services?.map((svc,i) => (
+                <div key={i} style={{ background:"rgba(255,255,255,0.03)", borderRadius:"10px", padding:"14px", border:`1px solid ${STATUS_COLOR[svc.status]}33`, textAlign:"center" }}>
+                  <div style={{ fontSize:"10px", color:STATUS_COLOR[svc.status], fontWeight:"bold", marginBottom:"6px" }}>● {svc.status}</div>
+                  <div style={{ fontSize:"12px", color:"#e0e0e0", fontWeight:"bold", marginBottom:"8px" }}>{svc.name}</div>
+                  <div style={{ fontSize:"11px", color:"#555" }}>{svc.latency_ms}ms</div>
+                  <div style={{ fontSize:"11px", color:"#555" }}>{svc.error_rate}% err</div>
+                  <div style={{ fontSize:"11px", color:"#555" }}>{svc.rps} rps</div>
+                  <div style={{ background:"#0a1628", borderRadius:"20px", height:"4px", overflow:"hidden", marginTop:"8px" }}>
+                    <div style={{ width:`${svc.health}%`, height:"100%", background:STATUS_COLOR[svc.status], borderRadius:"20px" }} />
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Issues */}
+          {reportData.issue_details?.length > 0 && (
+            <div>
+              <div style={{ color:"#00e5ff", fontSize:"13px", fontWeight:"bold", marginBottom:"12px" }}>⚠️ Performance Issues</div>
+              {reportData.issue_details.map((issue,i) => (
+                <div key={i} style={{ background:"#0d1526", borderRadius:"10px", padding:"16px", marginBottom:"8px", border:`1px solid ${SEV_COLOR[issue.severity]}33` }}>
+                  <div style={{ display:"flex", gap:"8px", alignItems:"center", marginBottom:"8px" }}>
+                    <span style={{ color: SEV_COLOR[issue.severity], fontSize:"11px", fontWeight:"bold", background:`${SEV_COLOR[issue.severity]}22`, padding:"2px 8px", borderRadius:"20px" }}>{issue.severity}</span>
+                    <span style={{ color:"#e0e0e0", fontSize:"14px", fontWeight:"bold" }}>{issue.title}</span>
+                  </div>
+                  <div style={{ color:"#ff6b00", fontSize:"12px", marginBottom:"6px" }}>⚠️ {issue.impact}</div>
+                  <div style={{ color:"#00e5ff", fontSize:"12px" }}>💡 {issue.fix}</div>
+                </div>
+              ))}
+            </div>
+          )}
+          {reportData.issue_details?.length === 0 && <div style={{ textAlign:"center", color:"#00ff88", padding:"32px", background:"#0d1526", borderRadius:"12px" }}>✅ All services performing within normal parameters!</div>}
+        </div>
+      )}
+      {tab === "results" && !reportData && <div style={{ textAlign:"center", color:"#555", padding:"60px" }}>Run an analysis first.</div>}
+
+      {tab === "history" && (
+        <div>
+          {history.length === 0 && <div style={{ textAlign:"center", color:"#555", padding:"60px" }}>No analyses yet.</div>}
+          {history.map((r,i) => (
+            <div key={i} style={{ background:"#0d1526", borderRadius:"10px", padding:"16px", marginBottom:"8px", border:"1px solid #1e3a5f", display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+              <div>
+                <div style={{ color:"#e0e0e0", fontSize:"14px" }}>📊 {r.service_name} — {r.environment}</div>
+                <div style={{ color:"#555", fontSize:"12px", marginTop:"4px" }}>{r.issues} issue(s) · Apdex: {r.apdex_score} · {new Date(r.created_at).toLocaleString()}</div>
+              </div>
+              <div style={{ display:"flex", gap:"16px", alignItems:"center" }}>
+                <span style={{ color: healthColor(r.health_score), fontSize:"13px", fontWeight:"bold" }}>Health: {r.health_score}%</span>
+                <span style={{ color: r.error_rate_pct>5?"#ff2d55":"#00ff88", fontSize:"13px" }}>Err: {r.error_rate_pct}%</span>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ============================================================
 // AIPET X — Malware Analysis Sandbox
+
 // Static Analysis | Behavioural Detection | Classification
 // ============================================================
 function MalwareSandboxPage({ token, showToast }) {
@@ -25635,6 +25798,9 @@ export default function App() {
           )}
           {activeTab === "malwaresandbox" && (
             <MalwareSandboxPage token={token} showToast={showToast} />
+          )}
+          {activeTab === "apmengine" && (
+            <APMEnginePage token={token} showToast={showToast} />
           )}
 
 
