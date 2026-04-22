@@ -5802,6 +5802,7 @@ const NAV_ITEMS = [
   { id: "policybrain",       label: "Policy Brain",   icon: FileText,      group: "enterprise" },
   { id: "threatradar",       label: "Threat Radar",   icon: Globe,         group: "enterprise" },
   { id: "cloudhardener",     label: "Cloud Hardener", icon: Server,        group: "enterprise" },
+  { id: "patchbrain",        label: "Patch Brain",    icon: Zap,           group: "enterprise" },
   { id: "settings",  label: "Settings",      icon: Settings,      group: "account"  },
 ];
 
@@ -7294,8 +7295,177 @@ function DriftDetectorPage({ token, showToast }) {
 
 
 
+
+// ============================================================
+// AIPET X — Autonomous Patch Brain Page (#43)
+// CVE Prioritisation | Patch Scheduling | Risk Scoring
+// ============================================================
+function PatchBrainPage({ token, showToast }) {
+  const [tab, setTab] = useState("analyse");
+  const [environment, setEnvironment] = useState("production");
+  const [ecosystem, setEcosystem] = useState("");
+  const [description, setDescription] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [sessionData, setSessionData] = useState(null);
+  const [history, setHistory] = useState([]);
+  const [filterSev, setFilterSev] = useState(null);
+
+  const API = "http://localhost:5001";
+  const SEV_COLOR = { CRITICAL:"#ff2d55", HIGH:"#ff6b00", MEDIUM:"#ffd60a", LOW:"#00e5ff" };
+  const DEADLINE_COLOR = { Immediate:"#ff2d55", "7 days":"#ff6b00", "30 days":"#ffd60a", "90 days":"#00ff88" };
+
+  useEffect(() => { fetchHistory(); }, []);
+
+  async function fetchHistory() {
+    try {
+      const r = await fetch(`${API}/api/patch-brain/history`, { headers:{ Authorization:`Bearer ${token}` }});
+      const d = await r.json();
+      setHistory(d.sessions || []);
+    } catch(e) {}
+  }
+
+  async function submitAnalysis() {
+    if (!description.trim()) { showToast("Describe your environment first", "error"); return; }
+    setLoading(true); setSessionData(null);
+    try {
+      const r = await fetch(`${API}/api/patch-brain/analyse`, {
+        method:"POST",
+        headers:{ "Content-Type":"application/json", Authorization:`Bearer ${token}` },
+        body: JSON.stringify({ environment, ecosystem: ecosystem||undefined, description })
+      });
+      const d = await r.json();
+      if (d.session_id) {
+        showToast(`Patch Brain complete — ${d.total_patches} patch(es) required`, d.critical > 0 ? "error" : "warning");
+        await loadSession(d.session_id);
+        fetchHistory();
+      } else { showToast(d.error || "Analysis failed", "error"); }
+    } catch(e) { showToast("Analysis failed", "error"); }
+    setLoading(false);
+  }
+
+  async function loadSession(sessionId) {
+    try {
+      const r = await fetch(`${API}/api/patch-brain/sessions/${sessionId}`, { headers:{ Authorization:`Bearer ${token}` }});
+      const d = await r.json();
+      setSessionData(d); setFilterSev(null); setTab("report");
+    } catch(e) {}
+  }
+
+  const riskColor = (s) => s >= 70 ? "#ff2d55" : s >= 45 ? "#ff6b00" : s >= 20 ? "#ffd60a" : "#00ff88";
+  const filtered = sessionData?.patches?.filter(p => !filterSev || p.severity===filterSev) || [];
+
+  return (
+    <div style={{ padding:"24px", color:"#e0e0e0", fontFamily:"JetBrains Mono, monospace" }}>
+      <div style={{ marginBottom:"24px" }}>
+        <h2 style={{ color:"#00e5ff", fontSize:"22px", margin:0 }}>⚡ Autonomous Patch Brain</h2>
+        <p style={{ color:"#888", margin:"4px 0 0", fontSize:"13px" }}>CVE Prioritisation · Patch Scheduling · Exploit Awareness — Module #43</p>
+      </div>
+
+      <div style={{ display:"flex", gap:"8px", marginBottom:"24px" }}>
+        {[["analyse","🔍 Analyse"],["report","📋 Patch Report"],["history","🕒 History"]].map(([id,label]) => (
+          <button key={id} onClick={() => setTab(id)} style={{ padding:"8px 18px", borderRadius:"8px", border:"none", cursor:"pointer", fontSize:"13px", background: tab===id?"#00e5ff":"#1a2236", color: tab===id?"#000":"#aaa", fontFamily:"inherit" }}>{label}</button>
+        ))}
+      </div>
+
+      {tab === "analyse" && (
+        <div style={{ display:"grid", gridTemplateColumns:"280px 1fr", gap:"20px" }}>
+          <div style={{ background:"#0d1526", borderRadius:"12px", padding:"20px", border:"1px solid #1e3a5f" }}>
+            <p style={{ color:"#00e5ff", fontSize:"13px", marginTop:0 }}>Environment</p>
+            {[["production","🔴 Production"],["staging","🟡 Staging"],["development","🟢 Development"]].map(([val,label]) => (
+              <div key={val} onClick={() => setEnvironment(val)} style={{ padding:"8px 12px", borderRadius:"8px", marginBottom:"6px", cursor:"pointer", border:`1px solid ${environment===val?"#00e5ff":"#1e3a5f"}`, background: environment===val?"#0a2040":"transparent", color: environment===val?"#00e5ff":"#aaa", fontSize:"13px" }}>{label}</div>
+            ))}
+            <p style={{ color:"#00e5ff", fontSize:"13px", marginTop:"16px" }}>Ecosystem</p>
+            {[["","🤖 Auto-detect"],["pip","🐍 Python (pip)"],["npm","📦 Node.js (npm)"],["os","🖥️ OS / System"]].map(([val,label]) => (
+              <div key={val} onClick={() => setEcosystem(val)} style={{ padding:"8px 12px", borderRadius:"8px", marginBottom:"6px", cursor:"pointer", border:`1px solid ${ecosystem===val?"#00e5ff":"#1e3a5f"}`, background: ecosystem===val?"#0a2040":"transparent", color: ecosystem===val?"#00e5ff":"#aaa", fontSize:"12px" }}>{label}</div>
+            ))}
+            <button onClick={submitAnalysis} disabled={loading} style={{ marginTop:"8px", width:"100%", padding:"12px", borderRadius:"8px", background: loading?"#333":"#00e5ff", color:"#000", border:"none", cursor:"pointer", fontSize:"14px", fontWeight:"bold", fontFamily:"inherit" }}>
+              {loading ? "⏳ Analysing..." : "⚡ Run Patch Brain"}
+            </button>
+          </div>
+          <div style={{ background:"#0d1526", borderRadius:"12px", padding:"20px", border:"1px solid #1e3a5f" }}>
+            <p style={{ color:"#00e5ff", fontSize:"13px", marginTop:0 }}>Describe Your Environment / Dependencies</p>
+            <textarea value={description} onChange={e=>setDescription(e.target.value)}
+              placeholder="List your software stack, OS packages, or dependencies. Examples: Running Django 3.2, Flask 2.0, requests 2.28, pyyaml 5.3, cryptography 40.0 on Ubuntu with OpenSSH 8.9, Apache 2.4.54, sudo 1.9.12, curl 7.88 and OpenSSL 1.1.1"
+              style={{ width:"100%", height:"400px", background:"#0a1628", border:"1px solid #1e3a5f", borderRadius:"8px", padding:"12px", color:"#e0e0e0", fontSize:"13px", fontFamily:"JetBrains Mono, monospace", resize:"vertical", boxSizing:"border-box" }} />
+          </div>
+        </div>
+      )}
+
+      {tab === "report" && sessionData && (
+        <div>
+          <div style={{ display:"grid", gridTemplateColumns:"repeat(5,1fr)", gap:"12px", marginBottom:"20px" }}>
+            {[["Risk Score",sessionData.risk_score,riskColor(sessionData.risk_score)],["Severity",sessionData.severity,SEV_COLOR[sessionData.severity]],["Total Patches",sessionData.total_patches,"#00e5ff"],["Critical",sessionData.critical_count,"#ff2d55"],["Exploited",sessionData.patches?.filter(p=>p.exploited).length,"#ff6b00"]].map(([label,val,color]) => (
+              <div key={label} style={{ background:"#0d1526", borderRadius:"10px", padding:"16px", border:`1px solid ${color}33`, textAlign:"center" }}>
+                <div style={{ fontSize:"22px", fontWeight:"bold", color }}>{val}</div>
+                <div style={{ fontSize:"12px", color:"#888", marginTop:"4px" }}>{label}</div>
+              </div>
+            ))}
+          </div>
+
+          <div style={{ background:"#0d1526", borderRadius:"10px", padding:"16px", marginBottom:"16px", border:"1px solid #1e3a5f" }}>
+            <div style={{ display:"flex", justifyContent:"space-between", marginBottom:"8px" }}>
+              <span style={{ color:"#00e5ff", fontSize:"13px" }}>Patch Risk Score — {sessionData.environment} / {sessionData.ecosystem}</span>
+              <span style={{ color: riskColor(sessionData.risk_score), fontWeight:"bold" }}>{sessionData.risk_score}/100</span>
+            </div>
+            <div style={{ background:"#0a1628", borderRadius:"20px", height:"10px", overflow:"hidden", marginBottom:"8px" }}>
+              <div style={{ width:`${sessionData.risk_score}%`, height:"100%", background: riskColor(sessionData.risk_score), borderRadius:"20px" }} />
+            </div>
+            <div style={{ color:"#888", fontSize:"12px" }}>{sessionData.summary}</div>
+          </div>
+
+          <div style={{ display:"flex", gap:"8px", marginBottom:"12px" }}>
+            <button onClick={() => setFilterSev(null)} style={{ padding:"6px 14px", borderRadius:"6px", border:`1px solid ${!filterSev?"#00e5ff":"#1e3a5f"}`, background: !filterSev?"#0a2040":"transparent", color: !filterSev?"#00e5ff":"#aaa", cursor:"pointer", fontSize:"12px", fontFamily:"inherit" }}>All</button>
+            {["CRITICAL","HIGH","MEDIUM","LOW"].map(sev => (
+              <button key={sev} onClick={() => setFilterSev(sev)} style={{ padding:"6px 14px", borderRadius:"6px", border:`1px solid ${filterSev===sev?(SEV_COLOR[sev]||"#1e3a5f"):"#1e3a5f"}`, background: filterSev===sev?"#0a2040":"transparent", color: filterSev===sev?(SEV_COLOR[sev]||"#aaa"):"#aaa", cursor:"pointer", fontSize:"12px", fontFamily:"inherit" }}>{sev}</button>
+            ))}
+          </div>
+
+          {filtered.map((p,i) => (
+            <div key={i} style={{ background:"#0d1526", borderRadius:"10px", padding:"16px", marginBottom:"8px", border:`1px solid ${SEV_COLOR[p.severity]}33` }}>
+              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:"8px" }}>
+                <div style={{ display:"flex", gap:"8px", alignItems:"center" }}>
+                  <span style={{ color:"#555", fontSize:"13px", fontWeight:"bold" }}>#{p.priority}</span>
+                  <span style={{ color: SEV_COLOR[p.severity], fontSize:"11px", fontWeight:"bold", background:`${SEV_COLOR[p.severity]}22`, padding:"2px 8px", borderRadius:"20px" }}>{p.severity}</span>
+                  <span style={{ color:"#fff", fontSize:"12px", fontWeight:"bold" }}>CVSS {p.cvss_score}</span>
+                  {p.exploited && <span style={{ color:"#ff2d55", fontSize:"11px", background:"#ff2d5522", padding:"2px 8px", borderRadius:"20px" }}>⚠️ EXPLOITED IN WILD</span>}
+                  <span style={{ color: DEADLINE_COLOR[p.deadline]||"#888", fontSize:"11px" }}>⏱ {p.deadline}</span>
+                </div>
+                <span style={{ color:"#a78bfa", fontSize:"11px" }}>{p.cve_id}</span>
+              </div>
+              <div style={{ color:"#e0e0e0", fontSize:"14px", fontWeight:"bold", marginBottom:"4px" }}>{p.component}</div>
+              <div style={{ color:"#888", fontSize:"12px", marginBottom:"6px" }}>{p.current_version} → <span style={{ color:"#00ff88" }}>{p.fixed_version}</span></div>
+              <div style={{ background:"#0a1628", borderRadius:"6px", padding:"8px", color:"#00e5ff", fontSize:"12px", fontFamily:"monospace" }}>$ {p.patch_action}</div>
+            </div>
+          ))}
+        </div>
+      )}
+      {tab === "report" && !sessionData && <div style={{ textAlign:"center", color:"#555", padding:"60px" }}>Run an analysis first or select one from History.</div>}
+
+      {tab === "history" && (
+        <div>
+          {history.length === 0 && <div style={{ textAlign:"center", color:"#555", padding:"60px" }}>No analyses yet.</div>}
+          {history.map((s,i) => (
+            <div key={i} style={{ background:"#0d1526", borderRadius:"10px", padding:"16px", marginBottom:"10px", border:"1px solid #1e3a5f", display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+              <div>
+                <div style={{ color:"#e0e0e0", fontSize:"14px" }}>{s.environment} — {s.total_patches} patch(es)</div>
+                <div style={{ color:"#555", fontSize:"12px", marginTop:"4px" }}>{s.critical_count} critical · {new Date(s.created_at).toLocaleString()}</div>
+              </div>
+              <div style={{ display:"flex", gap:"16px", alignItems:"center" }}>
+                <span style={{ color: SEV_COLOR[s.severity], fontSize:"13px", fontWeight:"bold" }}>{s.severity}</span>
+                <span style={{ color: riskColor(s.risk_score), fontSize:"13px" }}>Risk: {s.risk_score}</span>
+                <button onClick={() => loadSession(s.session_id)} style={{ padding:"6px 14px", background:"#0a2040", border:"1px solid #00e5ff", borderRadius:"6px", color:"#00e5ff", cursor:"pointer", fontSize:"12px", fontFamily:"inherit" }}>View</button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ============================================================
 // AIPET X — Autonomous Cloud Hardener Page (#42)
+
 // CIS Benchmarks | Misconfiguration Detection | Auto-Remediation
 // ============================================================
 function CloudHardenerPage({ token, showToast }) {
@@ -22683,6 +22853,9 @@ export default function App() {
           )}
           {activeTab === "cloudhardener" && (
             <CloudHardenerPage token={token} showToast={showToast} />
+          )}
+          {activeTab === "patchbrain" && (
+            <PatchBrainPage token={token} showToast={showToast} />
           )}
           {activeTab === "terminal" && (
             <AIPETTerminal token={token} showToast={showToast} />
