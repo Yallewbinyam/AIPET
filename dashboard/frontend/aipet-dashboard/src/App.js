@@ -5797,6 +5797,7 @@ const NAV_ITEMS = [
   { id: "codesecurity",     label: "Code Security",  icon: Shield,        group: "enterprise" },
   { id: "forensics",        label: "AI Forensics",   icon: Eye,           group: "enterprise" },
   { id: "compliancefabric",  label: "Compliance AI",  icon: CheckCircle,   group: "enterprise" },
+  { id: "identityguardian",  label: "Identity Guard", icon: Shield,        group: "enterprise" },
   { id: "settings",  label: "Settings",      icon: Settings,      group: "account"  },
 ];
 
@@ -7284,8 +7285,175 @@ function DriftDetectorPage({ token, showToast }) {
 
 
 
+
+// ============================================================
+// AIPET X — AI Identity Guardian Page (#38)
+// Privilege | Behaviour Anomaly | Credential Risk
+// ============================================================
+function IdentityGuardianPage({ token, showToast }) {
+  const [tab, setTab] = useState("analyse");
+  const [subject, setSubject] = useState("");
+  const [profile, setProfile] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [alertData, setAlertData] = useState(null);
+  const [history, setHistory] = useState([]);
+
+  const API = "http://localhost:5001";
+  const SEV_COLOR = { CRITICAL:"#ff2d55", HIGH:"#ff6b00", MEDIUM:"#ffd60a", LOW:"#00e5ff" };
+  const TYPE_COLOR = { PRIVILEGE:"#a78bfa", BEHAVIOUR:"#ff6b00", CREDENTIAL:"#ff2d55" };
+  const TYPE_ICON  = { PRIVILEGE:"👑", BEHAVIOUR:"🔍", CREDENTIAL:"🔑" };
+
+  useEffect(() => { fetchHistory(); }, []);
+
+  async function fetchHistory() {
+    try {
+      const r = await fetch(`${API}/api/identity-guardian/history`, { headers:{ Authorization:`Bearer ${token}` }});
+      const d = await r.json();
+      setHistory(d.alerts || []);
+    } catch(e) {}
+  }
+
+  async function submitAnalysis() {
+    if (!profile.trim()) { showToast("Describe the identity profile first", "error"); return; }
+    setLoading(true); setAlertData(null);
+    try {
+      const r = await fetch(`${API}/api/identity-guardian/analyse`, {
+        method: "POST",
+        headers: { "Content-Type":"application/json", Authorization:`Bearer ${token}` },
+        body: JSON.stringify({ subject: subject || "Unknown Identity", profile })
+      });
+      const d = await r.json();
+      if (d.alert_id) {
+        showToast(`Analysis complete — Risk Score: ${d.risk_score}`, d.risk_score >= 70 ? "error" : "warning");
+        await loadAlert(d.alert_id);
+        fetchHistory();
+      } else { showToast(d.error || "Analysis failed", "error"); }
+    } catch(e) { showToast("Analysis failed", "error"); }
+    setLoading(false);
+  }
+
+  async function loadAlert(alertId) {
+    try {
+      const r = await fetch(`${API}/api/identity-guardian/alerts/${alertId}`, { headers:{ Authorization:`Bearer ${token}` }});
+      const d = await r.json();
+      setAlertData(d); setTab("report");
+    } catch(e) {}
+  }
+
+  const riskColor = (s) => s >= 70 ? "#ff2d55" : s >= 45 ? "#ff6b00" : s >= 20 ? "#ffd60a" : "#00ff88";
+
+  return (
+    <div style={{ padding:"24px", color:"#e0e0e0", fontFamily:"JetBrains Mono, monospace" }}>
+      <div style={{ marginBottom:"24px" }}>
+        <h2 style={{ color:"#00e5ff", fontSize:"22px", margin:0 }}>🛡️ AI Identity Guardian</h2>
+        <p style={{ color:"#888", margin:"4px 0 0", fontSize:"13px" }}>Privilege Analysis · Behaviour Anomaly · Credential Risk — Module #38</p>
+      </div>
+
+      {/* Tabs */}
+      <div style={{ display:"flex", gap:"8px", marginBottom:"24px" }}>
+        {[["analyse","🔍 Analyse"],["report","📋 Risk Report"],["history","🕒 History"]].map(([id,label]) => (
+          <button key={id} onClick={() => setTab(id)} style={{ padding:"8px 18px", borderRadius:"8px", border:"none", cursor:"pointer", fontSize:"13px", background: tab===id ? "#00e5ff" : "#1a2236", color: tab===id ? "#000" : "#aaa", fontFamily:"inherit" }}>{label}</button>
+        ))}
+      </div>
+
+      {/* ANALYSE TAB */}
+      {tab === "analyse" && (
+        <div style={{ display:"grid", gridTemplateColumns:"280px 1fr", gap:"20px" }}>
+          <div style={{ background:"#0d1526", borderRadius:"12px", padding:"20px", border:"1px solid #1e3a5f" }}>
+            <p style={{ color:"#00e5ff", fontSize:"13px", marginTop:0 }}>Identity Subject</p>
+            <input value={subject} onChange={e=>setSubject(e.target.value)} placeholder="e.g. john.doe@company.com" style={{ width:"100%", background:"#0a1628", border:"1px solid #1e3a5f", borderRadius:"8px", padding:"8px", color:"#e0e0e0", fontSize:"13px", boxSizing:"border-box", fontFamily:"inherit" }} />
+            <p style={{ color:"#00e5ff", fontSize:"13px", marginTop:"20px" }}>Risk Signal Categories</p>
+            {[["👑 PRIVILEGE","Admin sprawl, stale accounts, over-privileged roles"],["🔍 BEHAVIOUR","Unusual logins, impossible travel, brute force"],["🔑 CREDENTIAL","No MFA, weak passwords, hardcoded secrets"]].map(([label,desc]) => (
+              <div key={label} style={{ padding:"10px 12px", borderRadius:"8px", marginBottom:"8px", border:"1px solid #1e3a5f", background:"#0a1628" }}>
+                <div style={{ color:"#e0e0e0", fontSize:"13px" }}>{label}</div>
+                <div style={{ color:"#555", fontSize:"11px", marginTop:"2px" }}>{desc}</div>
+              </div>
+            ))}
+            <button onClick={submitAnalysis} disabled={loading} style={{ marginTop:"12px", width:"100%", padding:"12px", borderRadius:"8px", background: loading?"#333":"#00e5ff", color:"#000", border:"none", cursor:"pointer", fontSize:"14px", fontWeight:"bold", fontFamily:"inherit" }}>
+              {loading ? "⏳ Analysing..." : "🛡️ Analyse Identity"}
+            </button>
+          </div>
+          <div style={{ background:"#0d1526", borderRadius:"12px", padding:"20px", border:"1px solid #1e3a5f" }}>
+            <p style={{ color:"#00e5ff", fontSize:"13px", marginTop:0 }}>Identity Profile / Observations</p>
+            <textarea value={profile} onChange={e=>setProfile(e.target.value)}
+              placeholder="Describe identity behaviours: admin sprawl, unusual logins, no MFA, hardcoded secrets, shared accounts..."
+              style={{ width:"100%", height:"400px", background:"#0a1628", border:"1px solid #1e3a5f", borderRadius:"8px", padding:"12px", color:"#e0e0e0", fontSize:"13px", fontFamily:"JetBrains Mono, monospace", resize:"vertical", boxSizing:"border-box" }} />
+          </div>
+        </div>
+      )}
+
+      {/* REPORT TAB */}
+      {tab === "report" && alertData && (
+        <div>
+          {/* Score cards */}
+          <div style={{ display:"grid", gridTemplateColumns:"repeat(5,1fr)", gap:"12px", marginBottom:"20px" }}>
+            {[["Risk Score", alertData.risk_score, riskColor(alertData.risk_score)],["Severity", alertData.severity, SEV_COLOR[alertData.severity]],["Privilege", alertData.summary_by_type?.PRIVILEGE, "#a78bfa"],["Behaviour", alertData.summary_by_type?.BEHAVIOUR, "#ff6b00"],["Credential", alertData.summary_by_type?.CREDENTIAL, "#ff2d55"]].map(([label,val,color]) => (
+              <div key={label} style={{ background:"#0d1526", borderRadius:"10px", padding:"16px", border:`1px solid ${color}33`, textAlign:"center" }}>
+                <div style={{ fontSize:"22px", fontWeight:"bold", color }}>{val}</div>
+                <div style={{ fontSize:"12px", color:"#888", marginTop:"4px" }}>{label}</div>
+              </div>
+            ))}
+          </div>
+
+          {/* Risk bar */}
+          <div style={{ background:"#0d1526", borderRadius:"10px", padding:"16px", marginBottom:"16px", border:"1px solid #1e3a5f" }}>
+            <div style={{ display:"flex", justifyContent:"space-between", marginBottom:"8px" }}>
+              <span style={{ color:"#00e5ff", fontSize:"13px" }}>Identity Risk Score — {alertData.subject}</span>
+              <span style={{ color: riskColor(alertData.risk_score), fontSize:"13px", fontWeight:"bold" }}>{alertData.risk_score}/100</span>
+            </div>
+            <div style={{ background:"#0a1628", borderRadius:"20px", height:"12px", overflow:"hidden" }}>
+              <div style={{ width:`${alertData.risk_score}%`, height:"100%", background: riskColor(alertData.risk_score), borderRadius:"20px" }} />
+            </div>
+            <div style={{ color:"#888", fontSize:"12px", marginTop:"8px" }}>{alertData.summary}</div>
+          </div>
+
+          {/* Signals */}
+          {alertData.signals?.length === 0 && <div style={{ textAlign:"center", color:"#00ff88", padding:"40px", background:"#0d1526", borderRadius:"12px" }}>✅ No identity risk signals detected.</div>}
+          {alertData.signals?.map((s,i) => (
+            <div key={i} style={{ background:"#0d1526", borderRadius:"10px", padding:"16px", marginBottom:"10px", border:`1px solid ${SEV_COLOR[s.severity]}33` }}>
+              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:"8px" }}>
+                <div style={{ display:"flex", gap:"8px", alignItems:"center" }}>
+                  <span style={{ fontSize:"18px" }}>{TYPE_ICON[s.signal_type]}</span>
+                  <span style={{ color: TYPE_COLOR[s.signal_type], fontSize:"11px", fontWeight:"bold", background:`${TYPE_COLOR[s.signal_type]}22`, padding:"2px 8px", borderRadius:"20px" }}>{s.signal_type}</span>
+                  <span style={{ color: SEV_COLOR[s.severity], fontSize:"11px", fontWeight:"bold", background:`${SEV_COLOR[s.severity]}22`, padding:"2px 8px", borderRadius:"20px" }}>{s.severity}</span>
+                </div>
+              </div>
+              <div style={{ color:"#e0e0e0", fontSize:"14px", fontWeight:"bold" }}>{s.title}</div>
+              <div style={{ color:"#888", fontSize:"12px", margin:"6px 0" }}>{s.description}</div>
+              <div style={{ color:"#00e5ff", fontSize:"12px" }}>💡 {s.recommendation}</div>
+            </div>
+          ))}
+        </div>
+      )}
+      {tab === "report" && !alertData && <div style={{ textAlign:"center", color:"#555", padding:"60px" }}>Run an analysis first or select one from History.</div>}
+
+      {/* HISTORY TAB */}
+      {tab === "history" && (
+        <div>
+          {history.length === 0 && <div style={{ textAlign:"center", color:"#555", padding:"60px" }}>No analyses yet.</div>}
+          {history.map((a,i) => (
+            <div key={i} style={{ background:"#0d1526", borderRadius:"10px", padding:"16px", marginBottom:"10px", border:"1px solid #1e3a5f", display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+              <div>
+                <div style={{ color:"#e0e0e0", fontSize:"14px" }}>{a.subject}</div>
+                <div style={{ color:"#555", fontSize:"12px", marginTop:"4px" }}>{new Date(a.created_at).toLocaleString()}</div>
+              </div>
+              <div style={{ display:"flex", gap:"16px", alignItems:"center" }}>
+                <span style={{ color: SEV_COLOR[a.severity], fontSize:"13px", fontWeight:"bold" }}>{a.severity}</span>
+                <span style={{ color: riskColor(a.risk_score), fontSize:"13px" }}>Risk: {a.risk_score}</span>
+                <span style={{ color: a.status==="open"?"#ff2d55":"#00ff88", fontSize:"12px" }}>{a.status}</span>
+                <button onClick={() => loadAlert(a.alert_id)} style={{ padding:"6px 14px", background:"#0a2040", border:"1px solid #00e5ff", borderRadius:"6px", color:"#00e5ff", cursor:"pointer", fontSize:"12px", fontFamily:"inherit" }}>View</button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ============================================================
 // AIPET X — Autonomous Compliance Fabric Page (#37)
+
 // NIS2 | ISO 27001 | NIST CSF | SOC2 | GDPR | PCI-DSS
 // ============================================================
 function ComplianceFabricPage({ token, showToast }) {
@@ -21766,6 +21934,9 @@ export default function App() {
           )}
           {activeTab === "compliancefabric" && (
             <ComplianceFabricPage token={token} showToast={showToast} />
+          )}
+          {activeTab === "identityguardian" && (
+            <IdentityGuardianPage token={token} showToast={showToast} />
           )}
           {activeTab === "terminal" && (
             <AIPETTerminal token={token} showToast={showToast} />
