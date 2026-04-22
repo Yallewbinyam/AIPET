@@ -5803,6 +5803,7 @@ const NAV_ITEMS = [
   { id: "threatradar",       label: "Threat Radar",   icon: Globe,         group: "enterprise" },
   { id: "cloudhardener",     label: "Cloud Hardener", icon: Server,        group: "enterprise" },
   { id: "patchbrain",        label: "Patch Brain",    icon: Zap,           group: "enterprise" },
+  { id: "archbuilder",       label: "Arch Builder",   icon: Cpu,           group: "enterprise" },
   { id: "settings",  label: "Settings",      icon: Settings,      group: "account"  },
 ];
 
@@ -7296,8 +7297,176 @@ function DriftDetectorPage({ token, showToast }) {
 
 
 
+
+// ============================================================
+// AIPET X — Autonomous Architecture Builder Page (#44)
+// Zero Trust Design | Secure Cloud Architecture | IaC Generation
+// ============================================================
+function ArchBuilderPage({ token, showToast }) {
+  const [tab, setTab] = useState("design");
+  const [title, setTitle] = useState("");
+  const [provider, setProvider] = useState("aws");
+  const [archType, setArchType] = useState("");
+  const [description, setDescription] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [designData, setDesignData] = useState(null);
+  const [history, setHistory] = useState([]);
+  const [activeLayer, setActiveLayer] = useState(null);
+  const [showIac, setShowIac] = useState({});
+
+  const API = "http://localhost:5001";
+  const LAYER_COLOR = { Edge:"#ff6b00", DNS:"#ffd60a", Identity:"#a78bfa", Network:"#00e5ff", Compute:"#00ff88", API:"#ff6b00", Data:"#ff2d55", Secrets:"#a78bfa", Observability:"#00e5ff", Backup:"#00ff88", "Service Mesh":"#ff6b00", Container:"#00e5ff", Device:"#ffd60a", Communication:"#00ff88", Gateway:"#ff6b00", Ingestion:"#00e5ff", Storage:"#ff2d55", Security:"#a78bfa", Application:"#00ff88", Monitoring:"#ffd60a" };
+
+  useEffect(() => { fetchHistory(); }, []);
+
+  async function fetchHistory() {
+    try {
+      const r = await fetch(`${API}/api/arch-builder/history`, { headers:{ Authorization:`Bearer ${token}` }});
+      const d = await r.json();
+      setHistory(d.designs || []);
+    } catch(e) {}
+  }
+
+  async function submitDesign() {
+    if (!description.trim()) { showToast("Describe your system first", "error"); return; }
+    setLoading(true); setDesignData(null);
+    try {
+      const r = await fetch(`${API}/api/arch-builder/design`, {
+        method:"POST",
+        headers:{ "Content-Type":"application/json", Authorization:`Bearer ${token}` },
+        body: JSON.stringify({ title, cloud_provider:provider, arch_type:archType||undefined, description })
+      });
+      const d = await r.json();
+      if (d.design_id) {
+        showToast(`Architecture generated — ${d.component_count} components, Security Score: ${d.security_score}%`, "success");
+        await loadDesign(d.design_id);
+        fetchHistory();
+      } else { showToast(d.error || "Generation failed", "error"); }
+    } catch(e) { showToast("Generation failed", "error"); }
+    setLoading(false);
+  }
+
+  async function loadDesign(designId) {
+    try {
+      const r = await fetch(`${API}/api/arch-builder/designs/${designId}`, { headers:{ Authorization:`Bearer ${token}` }});
+      const d = await r.json();
+      setDesignData(d); setActiveLayer(null); setShowIac({}); setTab("blueprint");
+    } catch(e) {}
+  }
+
+  const scoreColor = (s) => s >= 90 ? "#00ff88" : s >= 75 ? "#00e5ff" : "#ffd60a";
+  const filtered = designData?.components?.filter(c => !activeLayer || c.layer===activeLayer) || [];
+
+  return (
+    <div style={{ padding:"24px", color:"#e0e0e0", fontFamily:"JetBrains Mono, monospace" }}>
+      <div style={{ marginBottom:"24px" }}>
+        <h2 style={{ color:"#00e5ff", fontSize:"22px", margin:0 }}>🏗️ Autonomous Architecture Builder</h2>
+        <p style={{ color:"#888", margin:"4px 0 0", fontSize:"13px" }}>Zero Trust Design · Secure Cloud Architecture · IaC Generation — Module #44</p>
+      </div>
+
+      <div style={{ display:"flex", gap:"8px", marginBottom:"24px" }}>
+        {[["design","✍️ Design"],["blueprint","🏗️ Blueprint"],["history","🕒 History"]].map(([id,label]) => (
+          <button key={id} onClick={() => setTab(id)} style={{ padding:"8px 18px", borderRadius:"8px", border:"none", cursor:"pointer", fontSize:"13px", background: tab===id?"#00e5ff":"#1a2236", color: tab===id?"#000":"#aaa", fontFamily:"inherit" }}>{label}</button>
+        ))}
+      </div>
+
+      {tab === "design" && (
+        <div style={{ display:"grid", gridTemplateColumns:"280px 1fr", gap:"20px" }}>
+          <div style={{ background:"#0d1526", borderRadius:"12px", padding:"20px", border:"1px solid #1e3a5f" }}>
+            <p style={{ color:"#00e5ff", fontSize:"13px", marginTop:0 }}>Project Title</p>
+            <input value={title} onChange={e=>setTitle(e.target.value)} placeholder="e.g. AIPET Cloud Platform" style={{ width:"100%", background:"#0a1628", border:"1px solid #1e3a5f", borderRadius:"8px", padding:"8px", color:"#e0e0e0", fontSize:"13px", boxSizing:"border-box", fontFamily:"inherit" }} />
+            <p style={{ color:"#00e5ff", fontSize:"13px", marginTop:"16px" }}>Cloud Provider</p>
+            {[["aws","☁️ AWS"],["azure","🔷 Azure"],["gcp","🟡 GCP"]].map(([val,label]) => (
+              <div key={val} onClick={() => setProvider(val)} style={{ padding:"8px 12px", borderRadius:"8px", marginBottom:"6px", cursor:"pointer", border:`1px solid ${provider===val?"#00e5ff":"#1e3a5f"}`, background: provider===val?"#0a2040":"transparent", color: provider===val?"#00e5ff":"#aaa", fontSize:"13px" }}>{label}</div>
+            ))}
+            <p style={{ color:"#00e5ff", fontSize:"13px", marginTop:"16px" }}>Architecture Type</p>
+            {[["","🤖 Auto-detect"],["web_app","🌐 Web Application"],["microservices","⚙️ Microservices"],["iot","📡 IoT Platform"],["zero_trust","🔒 Zero Trust"]].map(([val,label]) => (
+              <div key={val} onClick={() => setArchType(val)} style={{ padding:"7px 12px", borderRadius:"8px", marginBottom:"5px", cursor:"pointer", border:`1px solid ${archType===val?"#00e5ff":"#1e3a5f"}`, background: archType===val?"#0a2040":"transparent", color: archType===val?"#00e5ff":"#aaa", fontSize:"12px" }}>{label}</div>
+            ))}
+            <button onClick={submitDesign} disabled={loading} style={{ marginTop:"8px", width:"100%", padding:"12px", borderRadius:"8px", background: loading?"#333":"#00e5ff", color:"#000", border:"none", cursor:"pointer", fontSize:"14px", fontWeight:"bold", fontFamily:"inherit" }}>
+              {loading ? "⏳ Building..." : "🏗️ Generate Architecture"}
+            </button>
+          </div>
+          <div style={{ background:"#0d1526", borderRadius:"12px", padding:"20px", border:"1px solid #1e3a5f" }}>
+            <p style={{ color:"#00e5ff", fontSize:"13px", marginTop:0 }}>Describe Your System</p>
+            <textarea value={description} onChange={e=>setDescription(e.target.value)}
+              placeholder="Describe what you are building. Examples: A SaaS web application with user authentication, REST API, PostgreSQL database and file storage on AWS. A microservices platform with Kubernetes, service mesh and API gateway. An IoT platform collecting sensor data from 10000 devices."
+              style={{ width:"100%", height:"420px", background:"#0a1628", border:"1px solid #1e3a5f", borderRadius:"8px", padding:"12px", color:"#e0e0e0", fontSize:"13px", fontFamily:"JetBrains Mono, monospace", resize:"vertical", boxSizing:"border-box" }} />
+          </div>
+        </div>
+      )}
+
+      {tab === "blueprint" && designData && (
+        <div>
+          <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:"12px", marginBottom:"20px" }}>
+            {[["Security Score",`${designData.security_score}%`,scoreColor(designData.security_score)],["Architecture",designData.arch_type?.replace("_"," ").toUpperCase(),"#00e5ff"],["Provider",designData.cloud_provider?.toUpperCase(),"#a78bfa"],["Components",designData.components?.length,"#00ff88"]].map(([label,val,color]) => (
+              <div key={label} style={{ background:"#0d1526", borderRadius:"10px", padding:"16px", border:`1px solid ${color}33`, textAlign:"center" }}>
+                <div style={{ fontSize: label==="Architecture"||label==="Provider"?"13px":"22px", fontWeight:"bold", color }}>{val}</div>
+                <div style={{ fontSize:"12px", color:"#888", marginTop:"4px" }}>{label}</div>
+              </div>
+            ))}
+          </div>
+
+          <div style={{ background:"#0d1526", borderRadius:"10px", padding:"16px", marginBottom:"16px", border:"1px solid #1e3a5f" }}>
+            <div style={{ color:"#00e5ff", fontSize:"13px", marginBottom:"4px" }}>🏗️ {designData.title}</div>
+            <div style={{ color:"#888", fontSize:"12px" }}>{designData.summary}</div>
+          </div>
+
+          <div style={{ display:"flex", gap:"8px", marginBottom:"16px", flexWrap:"wrap" }}>
+            <button onClick={() => setActiveLayer(null)} style={{ padding:"6px 14px", borderRadius:"6px", border:`1px solid ${!activeLayer?"#00e5ff":"#1e3a5f"}`, background: !activeLayer?"#0a2040":"transparent", color: !activeLayer?"#00e5ff":"#aaa", cursor:"pointer", fontSize:"12px", fontFamily:"inherit" }}>All Layers</button>
+            {designData.layers?.map(layer => (
+              <button key={layer} onClick={() => setActiveLayer(activeLayer===layer?null:layer)} style={{ padding:"6px 14px", borderRadius:"6px", border:`1px solid ${activeLayer===layer?(LAYER_COLOR[layer]||"#00e5ff"):"#1e3a5f"}`, background: activeLayer===layer?"#0a2040":"transparent", color: activeLayer===layer?(LAYER_COLOR[layer]||"#00e5ff"):"#aaa", cursor:"pointer", fontSize:"12px", fontFamily:"inherit" }}>{layer}</button>
+            ))}
+          </div>
+
+          {filtered.map((c,i) => (
+            <div key={i} style={{ background:"#0d1526", borderRadius:"10px", marginBottom:"10px", border:`1px solid ${LAYER_COLOR[c.layer]||"#1e3a5f"}33`, overflow:"hidden" }}>
+              <div style={{ padding:"14px 16px", display:"grid", gridTemplateColumns:"auto 1fr auto", gap:"12px", alignItems:"start" }}>
+                <div style={{ background:`${LAYER_COLOR[c.layer]||"#00e5ff"}22`, border:`1px solid ${LAYER_COLOR[c.layer]||"#00e5ff"}`, borderRadius:"6px", padding:"4px 10px", fontSize:"11px", color: LAYER_COLOR[c.layer]||"#00e5ff", whiteSpace:"nowrap" }}>{c.layer}</div>
+                <div>
+                  <div style={{ color:"#e0e0e0", fontSize:"14px", fontWeight:"bold" }}>{c.component}</div>
+                  <div style={{ color:"#a78bfa", fontSize:"12px", marginTop:"2px" }}>{c.service}</div>
+                  <div style={{ color:"#888", fontSize:"12px", marginTop:"6px", lineHeight:"1.5" }}>{c.purpose}</div>
+                  <div style={{ color:"#00e5ff", fontSize:"12px", marginTop:"6px" }}>🔒 {c.security_note}</div>
+                </div>
+                <button onClick={() => setShowIac(prev => ({...prev,[i]:!prev[i]}))} style={{ padding:"6px 12px", background:"#0a2040", border:"1px solid #00ff88", borderRadius:"6px", color:"#00ff88", cursor:"pointer", fontSize:"11px", fontFamily:"inherit", whiteSpace:"nowrap" }}>{showIac[i]?"Hide IaC":"Show IaC"}</button>
+              </div>
+              {showIac[i] && (
+                <div style={{ background:"#050d1a", padding:"14px 16px", borderTop:"1px solid #1e3a5f" }}>
+                  <div style={{ color:"#555", fontSize:"11px", marginBottom:"6px" }}>Terraform / IaC Snippet:</div>
+                  <pre style={{ color:"#00ff88", fontSize:"12px", margin:0, fontFamily:"monospace", overflowX:"auto", whiteSpace:"pre-wrap" }}>{c.iac_snippet}</pre>
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+      {tab === "blueprint" && !designData && <div style={{ textAlign:"center", color:"#555", padding:"60px" }}>Generate an architecture first or select one from History.</div>}
+
+      {tab === "history" && (
+        <div>
+          {history.length === 0 && <div style={{ textAlign:"center", color:"#555", padding:"60px" }}>No designs yet.</div>}
+          {history.map((d,i) => (
+            <div key={i} style={{ background:"#0d1526", borderRadius:"10px", padding:"16px", marginBottom:"10px", border:"1px solid #1e3a5f", display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+              <div>
+                <div style={{ color:"#e0e0e0", fontSize:"14px" }}>{d.title}</div>
+                <div style={{ color:"#555", fontSize:"12px", marginTop:"4px" }}>{d.arch_type?.replace("_"," ")} · {d.cloud_provider?.toUpperCase()} · {new Date(d.created_at).toLocaleString()}</div>
+              </div>
+              <div style={{ display:"flex", gap:"16px", alignItems:"center" }}>
+                <span style={{ color: scoreColor(d.security_score), fontSize:"13px", fontWeight:"bold" }}>{d.security_score}%</span>
+                <button onClick={() => loadDesign(d.design_id)} style={{ padding:"6px 14px", background:"#0a2040", border:"1px solid #00e5ff", borderRadius:"6px", color:"#00e5ff", cursor:"pointer", fontSize:"12px", fontFamily:"inherit" }}>View</button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ============================================================
 // AIPET X — Autonomous Patch Brain Page (#43)
+
 // CVE Prioritisation | Patch Scheduling | Risk Scoring
 // ============================================================
 function PatchBrainPage({ token, showToast }) {
@@ -22856,6 +23025,9 @@ export default function App() {
           )}
           {activeTab === "patchbrain" && (
             <PatchBrainPage token={token} showToast={showToast} />
+          )}
+          {activeTab === "archbuilder" && (
+            <ArchBuilderPage token={token} showToast={showToast} />
           )}
           {activeTab === "terminal" && (
             <AIPETTerminal token={token} showToast={showToast} />
