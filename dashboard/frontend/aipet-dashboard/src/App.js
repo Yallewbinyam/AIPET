@@ -5821,6 +5821,7 @@ const NAV_ITEMS = [
   { id: "malwaresandbox",    label: "Malware Sandbox",icon: AlertTriangle, group: "enterprise" },
   { id: "apmengine",         label: "APM Engine",     icon: Activity,      group: "observability" },
   { id: "loganalytics",      label: "Log Analytics",  icon: FileText,      group: "observability" },
+  { id: "metricstraces",     label: "Metrics+Traces", icon: Activity,      group: "observability" },
   { id: "settings",  label: "Settings",      icon: Settings,      group: "account"  },
 ];
 
@@ -7331,8 +7332,169 @@ function DriftDetectorPage({ token, showToast }) {
 
 
 
+
+// ============================================================
+// AIPET X — Metrics + Traces Pipeline
+// Custom Metrics | Distributed Tracing | Span Analysis
+// ============================================================
+function MetricsTracesPage({ token, showToast }) {
+  const [tab, setTab] = useState("analyse");
+  const [serviceName, setServiceName] = useState("");
+  const [description, setDescription] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [reportData, setReportData] = useState(null);
+  const [history, setHistory] = useState([]);
+
+  const API = "http://localhost:5001";
+  const SEV_COLOR    = { CRITICAL:"#ff2d55", HIGH:"#ff6b00", MEDIUM:"#ffd60a", LOW:"#00e5ff" };
+  const STATUS_COLOR = { OK:"#00ff88", ERROR:"#ff2d55" };
+
+  useEffect(() => { fetchHistory(); }, []);
+
+  async function fetchHistory() {
+    try {
+      const r = await fetch(`${API}/api/metrics-traces/history`, { headers:{ Authorization:`Bearer ${token}` }});
+      const d = await r.json();
+      setHistory(d.reports || []);
+    } catch(e) {}
+  }
+
+  async function submitAnalysis() {
+    if (!description.trim()) { showToast("Describe your service traces first", "error"); return; }
+    setLoading(true); setReportData(null);
+    try {
+      const r = await fetch(`${API}/api/metrics-traces/analyse`, {
+        method:"POST",
+        headers:{ "Content-Type":"application/json", Authorization:`Bearer ${token}` },
+        body: JSON.stringify({ service_name:serviceName||"my-service", description })
+      });
+      const d = await r.json();
+      if (d.report_id) {
+        showToast(`Trace analysis complete — ${d.total_duration_ms}ms total, bottleneck: ${d.bottleneck}`, d.error_spans > 0 ? "error" : "success");
+        setReportData(d); setTab("results");
+        fetchHistory();
+      } else { showToast(d.error || "Analysis failed", "error"); }
+    } catch(e) { showToast("Analysis failed", "error"); }
+    setLoading(false);
+  }
+
+  const maxSpanDur = reportData?.spans ? Math.max(...reportData.spans.map(s => s.duration_ms)) : 1;
+
+  return (
+    <div style={{ padding:"24px", color:"#e0e0e0", fontFamily:"JetBrains Mono, monospace" }}>
+      <div style={{ marginBottom:"24px" }}>
+        <h2 style={{ color:"#00e5ff", fontSize:"22px", margin:0 }}>📡 Metrics + Traces Pipeline</h2>
+        <p style={{ color:"#888", margin:"4px 0 0", fontSize:"13px" }}>Distributed Tracing · Span Analysis · Custom Metrics · Bottleneck Detection</p>
+      </div>
+
+      <div style={{ display:"flex", gap:"8px", marginBottom:"24px" }}>
+        {[["analyse","🔍 Analyse"],["results","📋 Traces"],["history","🕒 History"]].map(([id,label]) => (
+          <button key={id} onClick={() => setTab(id)} style={{ padding:"8px 18px", borderRadius:"8px", border:"none", cursor:"pointer", fontSize:"13px", background: tab===id?"#00e5ff":"#1a2236", color: tab===id?"#000":"#aaa", fontFamily:"inherit" }}>{label}</button>
+        ))}
+      </div>
+
+      {tab === "analyse" && (
+        <div style={{ display:"grid", gridTemplateColumns:"240px 1fr", gap:"20px" }}>
+          <div style={{ background:"#0d1526", borderRadius:"12px", padding:"20px", border:"1px solid #1e3a5f" }}>
+            <p style={{ color:"#00e5ff", fontSize:"13px", marginTop:0 }}>Service Name</p>
+            <input value={serviceName} onChange={e=>setServiceName(e.target.value)} placeholder="e.g. checkout-service" style={{ width:"100%", background:"#0a1628", border:"1px solid #1e3a5f", borderRadius:"8px", padding:"8px", color:"#e0e0e0", fontSize:"13px", boxSizing:"border-box", fontFamily:"inherit" }} />
+            <p style={{ color:"#00e5ff", fontSize:"13px", marginTop:"16px" }}>Detects</p>
+            {["N+1 Query Problems","Blocking Calls","Long-Running Spans","Missing Trace Context","High Cardinality","Missing SLOs","Low Sampling","Counter Resets"].map(d => (
+              <div key={d} style={{ fontSize:"11px", color:"#555", marginBottom:"3px" }}>✓ {d}</div>
+            ))}
+            <button onClick={submitAnalysis} disabled={loading} style={{ marginTop:"12px", width:"100%", padding:"12px", borderRadius:"8px", background: loading?"#333":"#00e5ff", color:"#000", border:"none", cursor:"pointer", fontSize:"14px", fontWeight:"bold", fontFamily:"inherit" }}>
+              {loading ? "⏳ Analysing..." : "📡 Analyse Traces"}
+            </button>
+          </div>
+          <div style={{ background:"#0d1526", borderRadius:"12px", padding:"20px", border:"1px solid #1e3a5f" }}>
+            <p style={{ color:"#00e5ff", fontSize:"13px", marginTop:0 }}>Describe Trace & Metric Observations</p>
+            <textarea value={description} onChange={e=>setDescription(e.target.value)}
+              placeholder="Describe trace and metric observations. Examples: N+1 query problem repeated database calls in loop. Synchronous blocking HTTP calls between services. Long span duration database slow 3000ms. Missing trace context propagation broken correlation. High cardinality label explosion metric series. No SLO defined error budget missing. Trace sampling too low traces dropped. Counter metric reset detected."
+              style={{ width:"100%", height:"400px", background:"#0a1628", border:"1px solid #1e3a5f", borderRadius:"8px", padding:"12px", color:"#e0e0e0", fontSize:"13px", fontFamily:"JetBrains Mono, monospace", resize:"vertical", boxSizing:"border-box" }} />
+          </div>
+        </div>
+      )}
+
+      {tab === "results" && reportData && (
+        <div>
+          <div style={{ display:"grid", gridTemplateColumns:"repeat(5,1fr)", gap:"12px", marginBottom:"20px" }}>
+            {[["Total Duration",`${reportData.total_duration_ms}ms`,"#00e5ff"],["Spans",reportData.total_spans,"#a78bfa"],["Error Spans",reportData.error_spans,"#ff2d55"],["Bottleneck",reportData.bottleneck,"#ffd60a"],["Issues",reportData.anomalies,"#ff6b00"]].map(([label,val,color]) => (
+              <div key={label} style={{ background:"#0d1526", borderRadius:"10px", padding:"14px", border:`1px solid ${color}33`, textAlign:"center" }}>
+                <div style={{ fontSize: label==="Bottleneck"?"12px":"20px", fontWeight:"bold", color }}>{val}</div>
+                <div style={{ fontSize:"11px", color:"#888", marginTop:"4px" }}>{label}</div>
+              </div>
+            ))}
+          </div>
+
+          {/* Trace waterfall */}
+          <div style={{ background:"#0d1526", borderRadius:"12px", padding:"20px", marginBottom:"16px", border:"1px solid #1e3a5f" }}>
+            <div style={{ color:"#00e5ff", fontSize:"13px", fontWeight:"bold", marginBottom:"4px" }}>🌊 Trace Waterfall</div>
+            <div style={{ color:"#555", fontSize:"11px", marginBottom:"16px" }}>Trace ID: {reportData.trace_id}</div>
+            {reportData.spans?.map((span,i) => (
+              <div key={i} style={{ marginBottom:"8px" }}>
+                <div style={{ display:"flex", justifyContent:"space-between", marginBottom:"3px" }}>
+                  <span style={{ fontSize:"12px", color: STATUS_COLOR[span.status] }}>● {span.service}</span>
+                  <span style={{ fontSize:"11px", color:"#555" }}>{span.duration_ms}ms</span>
+                </div>
+                <div style={{ background:"#0a1628", borderRadius:"4px", height:"20px", overflow:"hidden", position:"relative" }}>
+                  <div style={{ position:"absolute", left:`${(span.start_offset_ms / reportData.total_duration_ms)*100}%`, width:`${(span.duration_ms / reportData.total_duration_ms)*100}%`, height:"100%", background: span.status==="ERROR"?"#ff2d55":span.duration_ms===Math.max(...reportData.spans.map(s=>s.duration_ms))?"#ffd60a":"#00e5ff", borderRadius:"4px", opacity:0.8 }} />
+                </div>
+              </div>
+            ))}
+          </div>
+
+          {/* System metrics */}
+          <div style={{ background:"#0d1526", borderRadius:"12px", padding:"20px", marginBottom:"16px", border:"1px solid #1e3a5f" }}>
+            <div style={{ color:"#00e5ff", fontSize:"13px", fontWeight:"bold", marginBottom:"14px" }}>📊 System Metrics</div>
+            <div style={{ display:"grid", gridTemplateColumns:"repeat(5,1fr)", gap:"12px" }}>
+              {reportData.metrics && Object.entries(reportData.metrics).map(([key,val]) => (
+                <div key={key} style={{ background:"rgba(255,255,255,0.03)", borderRadius:"8px", padding:"12px", textAlign:"center" }}>
+                  <div style={{ fontSize:"18px", fontWeight:"bold", color:"#00e5ff" }}>{val}{key.includes("pct")?"%" : key.includes("ms")?"ms":""}</div>
+                  <div style={{ fontSize:"10px", color:"#555", marginTop:"4px" }}>{key.replace(/_/g," ")}</div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          {/* Issues */}
+          {reportData.issues?.map((issue,i) => (
+            <div key={i} style={{ background:"#0d1526", borderRadius:"10px", padding:"14px", marginBottom:"8px", border:`1px solid ${SEV_COLOR[issue.severity]}33` }}>
+              <div style={{ display:"flex", gap:"8px", alignItems:"center", marginBottom:"6px" }}>
+                <span style={{ color: SEV_COLOR[issue.severity], fontSize:"11px", fontWeight:"bold", background:`${SEV_COLOR[issue.severity]}22`, padding:"2px 8px", borderRadius:"20px" }}>{issue.severity}</span>
+                <span style={{ color:"#e0e0e0", fontSize:"13px", fontWeight:"bold" }}>{issue.title}</span>
+              </div>
+              <div style={{ color:"#ff6b00", fontSize:"12px", marginBottom:"4px" }}>⚠️ {issue.impact}</div>
+              <div style={{ color:"#00e5ff", fontSize:"12px" }}>💡 {issue.fix}</div>
+            </div>
+          ))}
+        </div>
+      )}
+      {tab === "results" && !reportData && <div style={{ textAlign:"center", color:"#555", padding:"60px" }}>Run an analysis first.</div>}
+
+      {tab === "history" && (
+        <div>
+          {history.length === 0 && <div style={{ textAlign:"center", color:"#555", padding:"60px" }}>No analyses yet.</div>}
+          {history.map((r,i) => (
+            <div key={i} style={{ background:"#0d1526", borderRadius:"10px", padding:"14px", marginBottom:"8px", border:"1px solid #1e3a5f", display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+              <div>
+                <div style={{ color:"#e0e0e0", fontSize:"14px" }}>📡 {r.service_name}</div>
+                <div style={{ color:"#555", fontSize:"12px", marginTop:"3px" }}>{r.total_spans} span(s) · {r.error_spans} error(s) · {r.total_duration_ms}ms · {new Date(r.created_at).toLocaleString()}</div>
+              </div>
+              <div style={{ display:"flex", gap:"12px" }}>
+                <span style={{ color:"#ffd60a", fontSize:"12px" }}>Bottleneck: {r.bottleneck}</span>
+                <span style={{ color:"#ff6b00", fontSize:"12px" }}>{r.anomalies} issue(s)</span>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ============================================================
 // AIPET X — Log Ingestion + Analytics
+
 // Log Parsing | Anomaly Detection | Pattern Analysis
 // ============================================================
 function LogAnalyticsPage({ token, showToast }) {
@@ -25945,6 +26107,9 @@ export default function App() {
           )}
           {activeTab === "loganalytics" && (
             <LogAnalyticsPage token={token} showToast={showToast} />
+          )}
+          {activeTab === "metricstraces" && (
+            <MetricsTracesPage token={token} showToast={showToast} />
           )}
 
 
