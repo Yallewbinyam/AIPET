@@ -5798,6 +5798,7 @@ const NAV_ITEMS = [
   { id: "forensics",        label: "AI Forensics",   icon: Eye,           group: "enterprise" },
   { id: "compliancefabric",  label: "Compliance AI",  icon: CheckCircle,   group: "enterprise" },
   { id: "identityguardian",  label: "Identity Guard", icon: Shield,        group: "enterprise" },
+  { id: "soctwin",           label: "SOC Twin",       icon: Activity,      group: "enterprise" },
   { id: "settings",  label: "Settings",      icon: Settings,      group: "account"  },
 ];
 
@@ -7286,8 +7287,183 @@ function DriftDetectorPage({ token, showToast }) {
 
 
 
+
+// ============================================================
+// AIPET X — Cognitive SOC Twin Page (#39)
+// Scenario Classification | SOC Playbooks | Threat Actor Profiling
+// ============================================================
+function SocTwinPage({ token, showToast }) {
+  const [tab, setTab] = useState("simulate");
+  const [scenarioName, setScenarioName] = useState("");
+  const [description, setDescription] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [sessionData, setSessionData] = useState(null);
+  const [history, setHistory] = useState([]);
+  const [activePhase, setActivePhase] = useState(null);
+
+  const API = "http://localhost:5001";
+  const SEV_COLOR  = { CRITICAL:"#ff2d55", HIGH:"#ff6b00", MEDIUM:"#ffd60a", LOW:"#00e5ff" };
+  const PHASE_COLOR = { Immediate:"#ff2d55", Containment:"#ff6b00", Investigation:"#ffd60a", Eradication:"#00e5ff", Recovery:"#00ff88", Notification:"#a78bfa", Legal:"#a78bfa", Hardening:"#00ff88", Analysis:"#ffd60a", Communication:"#00e5ff", Detection:"#ff6b00", "Post-Incident":"#888" };
+  const SCENARIO_ICON = { RANSOMWARE:"🔒", DATA_BREACH:"💾", APT:"🎯", INSIDER_THREAT:"👤", DDOS:"🌊", PHISHING:"🎣", MALWARE:"🦠", CLOUD_BREACH:"☁️", SUPPLY_CHAIN:"📦", CREDENTIAL_ATTACK:"🔑", UNKNOWN:"❓" };
+
+  useEffect(() => { fetchHistory(); }, []);
+
+  async function fetchHistory() {
+    try {
+      const r = await fetch(`${API}/api/soc-twin/history`, { headers:{ Authorization:`Bearer ${token}` }});
+      const d = await r.json();
+      setHistory(d.sessions || []);
+    } catch(e) {}
+  }
+
+  async function submitSimulation() {
+    if (!description.trim()) { showToast("Describe the incident first", "error"); return; }
+    setLoading(true); setSessionData(null);
+    try {
+      const r = await fetch(`${API}/api/soc-twin/simulate`, {
+        method: "POST",
+        headers: { "Content-Type":"application/json", Authorization:`Bearer ${token}` },
+        body: JSON.stringify({ scenario_name: scenarioName || "Unnamed Incident", description })
+      });
+      const d = await r.json();
+      if (d.session_id) {
+        showToast(`SOC Twin activated — ${d.action_count} response actions generated`, "success");
+        await loadSession(d.session_id);
+        fetchHistory();
+      } else { showToast(d.error || "Simulation failed", "error"); }
+    } catch(e) { showToast("Simulation failed", "error"); }
+    setLoading(false);
+  }
+
+  async function loadSession(sessionId) {
+    try {
+      const r = await fetch(`${API}/api/soc-twin/sessions/${sessionId}`, { headers:{ Authorization:`Bearer ${token}` }});
+      const d = await r.json();
+      setSessionData(d);
+      setActivePhase(d.phases?.[0] || null);
+      setTab("playbook");
+    } catch(e) {}
+  }
+
+  const riskColor = (s) => s >= 85 ? "#ff2d55" : s >= 60 ? "#ff6b00" : s >= 35 ? "#ffd60a" : "#00ff88";
+  const filteredActions = sessionData?.actions?.filter(a => !activePhase || a.phase === activePhase) || [];
+
+  return (
+    <div style={{ padding:"24px", color:"#e0e0e0", fontFamily:"JetBrains Mono, monospace" }}>
+      <div style={{ marginBottom:"24px" }}>
+        <h2 style={{ color:"#00e5ff", fontSize:"22px", margin:0 }}>🧠 Cognitive SOC Twin</h2>
+        <p style={{ color:"#888", margin:"4px 0 0", fontSize:"13px" }}>Scenario Classification · SOC Playbooks · Threat Actor Profiling — Module #39</p>
+      </div>
+
+      {/* Tabs */}
+      <div style={{ display:"flex", gap:"8px", marginBottom:"24px" }}>
+        {[["simulate","⚡ Simulate"],["playbook","📋 SOC Playbook"],["history","🕒 History"]].map(([id,label]) => (
+          <button key={id} onClick={() => setTab(id)} style={{ padding:"8px 18px", borderRadius:"8px", border:"none", cursor:"pointer", fontSize:"13px", background: tab===id ? "#00e5ff" : "#1a2236", color: tab===id ? "#000" : "#aaa", fontFamily:"inherit" }}>{label}</button>
+        ))}
+      </div>
+
+      {/* SIMULATE TAB */}
+      {tab === "simulate" && (
+        <div style={{ display:"grid", gridTemplateColumns:"280px 1fr", gap:"20px" }}>
+          <div style={{ background:"#0d1526", borderRadius:"12px", padding:"20px", border:"1px solid #1e3a5f" }}>
+            <p style={{ color:"#00e5ff", fontSize:"13px", marginTop:0 }}>Incident Name</p>
+            <input value={scenarioName} onChange={e=>setScenarioName(e.target.value)} placeholder="e.g. Ransomware Attack 2026" style={{ width:"100%", background:"#0a1628", border:"1px solid #1e3a5f", borderRadius:"8px", padding:"8px", color:"#e0e0e0", fontSize:"13px", boxSizing:"border-box", fontFamily:"inherit" }} />
+            <p style={{ color:"#00e5ff", fontSize:"13px", marginTop:"20px" }}>Supported Scenarios</p>
+            {[["🔒","Ransomware"],["💾","Data Breach"],["🎯","APT / Nation-State"],["👤","Insider Threat"],["🌊","DDoS"],["🎣","Phishing / BEC"],["🦠","Malware"],["☁️","Cloud Breach"],["📦","Supply Chain"],["🔑","Credential Attack"]].map(([icon,label]) => (
+              <div key={label} style={{ padding:"6px 10px", borderRadius:"6px", marginBottom:"4px", background:"#0a1628", border:"1px solid #1e3a5f", fontSize:"12px", color:"#aaa" }}>{icon} {label}</div>
+            ))}
+            <button onClick={submitSimulation} disabled={loading} style={{ marginTop:"12px", width:"100%", padding:"12px", borderRadius:"8px", background: loading?"#333":"#00e5ff", color:"#000", border:"none", cursor:"pointer", fontSize:"14px", fontWeight:"bold", fontFamily:"inherit" }}>
+              {loading ? "⏳ Simulating..." : "🧠 Run SOC Twin"}
+            </button>
+          </div>
+          <div style={{ background:"#0d1526", borderRadius:"12px", padding:"20px", border:"1px solid #1e3a5f" }}>
+            <p style={{ color:"#00e5ff", fontSize:"13px", marginTop:0 }}>Describe the Incident</p>
+            <textarea value={description} onChange={e=>setDescription(e.target.value)}
+              placeholder="Describe the security incident in detail. The SOC Twin will classify the scenario, profile the threat actor, and generate a full response playbook."
+              style={{ width:"100%", height:"420px", background:"#0a1628", border:"1px solid #1e3a5f", borderRadius:"8px", padding:"12px", color:"#e0e0e0", fontSize:"13px", fontFamily:"JetBrains Mono, monospace", resize:"vertical", boxSizing:"border-box" }} />
+          </div>
+        </div>
+      )}
+
+      {/* PLAYBOOK TAB */}
+      {tab === "playbook" && sessionData && (
+        <div>
+          {/* Score cards */}
+          <div style={{ display:"grid", gridTemplateColumns:"repeat(5,1fr)", gap:"12px", marginBottom:"20px" }}>
+            {[
+              ["Scenario", SCENARIO_ICON[sessionData.scenario_type] + " " + sessionData.scenario_type?.replace("_"," "), "#00e5ff"],
+              ["Severity", sessionData.severity, SEV_COLOR[sessionData.severity]],
+              ["Risk", sessionData.risk_score, riskColor(sessionData.risk_score)],
+              ["Impact", sessionData.impact_score, riskColor(sessionData.impact_score)],
+              ["Actions", sessionData.actions?.length, "#a78bfa"]
+            ].map(([label,val,color]) => (
+              <div key={label} style={{ background:"#0d1526", borderRadius:"10px", padding:"16px", border:`1px solid ${color}33`, textAlign:"center" }}>
+                <div style={{ fontSize: label==="Scenario"?"13px":"22px", fontWeight:"bold", color }}>{val}</div>
+                <div style={{ fontSize:"12px", color:"#888", marginTop:"4px" }}>{label}</div>
+              </div>
+            ))}
+          </div>
+
+          {/* Threat actor */}
+          <div style={{ background:"#0d1526", borderRadius:"10px", padding:"16px", marginBottom:"16px", border:"1px solid #ff6b0033" }}>
+            <div style={{ color:"#ff6b00", fontSize:"13px", marginBottom:"4px" }}>🎯 Threat Actor Profile</div>
+            <div style={{ color:"#e0e0e0", fontSize:"14px", fontWeight:"bold" }}>{sessionData.threat_actor}</div>
+            <div style={{ color:"#888", fontSize:"12px", marginTop:"4px" }}>{sessionData.summary}</div>
+          </div>
+
+          {/* Phase filter */}
+          <div style={{ display:"flex", gap:"8px", marginBottom:"16px", flexWrap:"wrap" }}>
+            <button onClick={() => setActivePhase(null)} style={{ padding:"6px 14px", borderRadius:"6px", border:`1px solid ${!activePhase?"#00e5ff":"#1e3a5f"}`, background: !activePhase?"#0a2040":"transparent", color: !activePhase?"#00e5ff":"#aaa", cursor:"pointer", fontSize:"12px", fontFamily:"inherit" }}>All Phases</button>
+            {sessionData.phases?.map(phase => (
+              <button key={phase} onClick={() => setActivePhase(phase)} style={{ padding:"6px 14px", borderRadius:"6px", border:`1px solid ${activePhase===phase?(PHASE_COLOR[phase]||"#00e5ff"):"#1e3a5f"}`, background: activePhase===phase?"#0a2040":"transparent", color: activePhase===phase?(PHASE_COLOR[phase]||"#00e5ff"):"#aaa", cursor:"pointer", fontSize:"12px", fontFamily:"inherit" }}>{phase}</button>
+            ))}
+          </div>
+
+          {/* Actions */}
+          {filteredActions.map((a,i) => (
+            <div key={i} style={{ background:"#0d1526", borderRadius:"10px", padding:"16px", marginBottom:"10px", border:`1px solid ${PHASE_COLOR[a.phase]||"#1e3a5f"}33`, display:"grid", gridTemplateColumns:"40px 1fr", gap:"12px" }}>
+              <div style={{ width:"32px", height:"32px", borderRadius:"50%", background:`${PHASE_COLOR[a.phase]||"#00e5ff"}22`, border:`2px solid ${PHASE_COLOR[a.phase]||"#00e5ff"}`, display:"flex", alignItems:"center", justifyContent:"center", color: PHASE_COLOR[a.phase]||"#00e5ff", fontWeight:"bold", fontSize:"13px" }}>{a.priority}</div>
+              <div>
+                <div style={{ display:"flex", gap:"8px", marginBottom:"6px", flexWrap:"wrap" }}>
+                  <span style={{ color: PHASE_COLOR[a.phase]||"#00e5ff", fontSize:"11px", fontWeight:"bold", background:`${PHASE_COLOR[a.phase]||"#00e5ff"}22`, padding:"2px 8px", borderRadius:"20px" }}>{a.phase}</span>
+                  <span style={{ color:"#555", fontSize:"11px" }}>⏱ {a.timeframe}</span>
+                  <span style={{ color:"#555", fontSize:"11px" }}>👤 {a.owner}</span>
+                  {a.mitre_ref && <span style={{ color:"#a78bfa", fontSize:"11px" }}>MITRE: {a.mitre_ref}</span>}
+                </div>
+                <div style={{ color:"#e0e0e0", fontSize:"13px" }}>{a.action}</div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+      {tab === "playbook" && !sessionData && <div style={{ textAlign:"center", color:"#555", padding:"60px" }}>Run a simulation first or select one from History.</div>}
+
+      {/* HISTORY TAB */}
+      {tab === "history" && (
+        <div>
+          {history.length === 0 && <div style={{ textAlign:"center", color:"#555", padding:"60px" }}>No simulations yet.</div>}
+          {history.map((s,i) => (
+            <div key={i} style={{ background:"#0d1526", borderRadius:"10px", padding:"16px", marginBottom:"10px", border:"1px solid #1e3a5f", display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+              <div>
+                <div style={{ color:"#e0e0e0", fontSize:"14px" }}>{SCENARIO_ICON[s.scenario_type]} {s.scenario_name}</div>
+                <div style={{ color:"#555", fontSize:"12px", marginTop:"4px" }}>{s.scenario_type?.replace("_"," ")} · {new Date(s.created_at).toLocaleString()}</div>
+              </div>
+              <div style={{ display:"flex", gap:"16px", alignItems:"center" }}>
+                <span style={{ color: SEV_COLOR[s.severity], fontSize:"13px", fontWeight:"bold" }}>{s.severity}</span>
+                <span style={{ color: riskColor(s.risk_score), fontSize:"13px" }}>Risk: {s.risk_score}</span>
+                <button onClick={() => loadSession(s.session_id)} style={{ padding:"6px 14px", background:"#0a2040", border:"1px solid #00e5ff", borderRadius:"6px", color:"#00e5ff", cursor:"pointer", fontSize:"12px", fontFamily:"inherit" }}>View</button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ============================================================
 // AIPET X — AI Identity Guardian Page (#38)
+
 // Privilege | Behaviour Anomaly | Credential Risk
 // ============================================================
 function IdentityGuardianPage({ token, showToast }) {
@@ -21937,6 +22113,9 @@ export default function App() {
           )}
           {activeTab === "identityguardian" && (
             <IdentityGuardianPage token={token} showToast={showToast} />
+          )}
+          {activeTab === "soctwin" && (
+            <SocTwinPage token={token} showToast={showToast} />
           )}
           {activeTab === "terminal" && (
             <AIPETTerminal token={token} showToast={showToast} />
