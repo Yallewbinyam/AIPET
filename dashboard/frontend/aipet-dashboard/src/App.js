@@ -5799,6 +5799,7 @@ const NAV_ITEMS = [
   { id: "compliancefabric",  label: "Compliance AI",  icon: CheckCircle,   group: "enterprise" },
   { id: "identityguardian",  label: "Identity Guard", icon: Shield,        group: "enterprise" },
   { id: "soctwin",           label: "SOC Twin",       icon: Activity,      group: "enterprise" },
+  { id: "policybrain",       label: "Policy Brain",   icon: FileText,      group: "enterprise" },
   { id: "settings",  label: "Settings",      icon: Settings,      group: "account"  },
 ];
 
@@ -7288,8 +7289,191 @@ function DriftDetectorPage({ token, showToast }) {
 
 
 
+
+// ============================================================
+// AIPET X — AI Policy Brain Page (#40)
+// Policy Generation | Framework Mapping | Compliance Coverage
+// ============================================================
+function PolicyBrainPage({ token, showToast }) {
+  const [tab, setTab] = useState("generate");
+  const [orgName, setOrgName] = useState("");
+  const [description, setDescription] = useState("");
+  const [policyType, setPolicyType] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [policyData, setPolicyData] = useState(null);
+  const [history, setHistory] = useState([]);
+  const [expandedSection, setExpandedSection] = useState(null);
+
+  const API = "http://localhost:5001";
+
+  const POLICY_TYPES = [
+    ["information_security","🔐","Information Security Policy","General ISMS policy"],
+    ["acceptable_use","💻","Acceptable Use Policy","IT resource usage rules"],
+    ["password","🔑","Password & Auth Policy","Password and MFA requirements"],
+    ["incident_response","🚨","Incident Response Policy","Incident handling procedures"],
+    ["data_protection","🛡️","Data Protection Policy","GDPR and privacy compliance"],
+    ["remote_working","🏠","Remote Working Policy","Work from home security"],
+  ];
+
+  useEffect(() => { fetchHistory(); }, []);
+
+  async function fetchHistory() {
+    try {
+      const r = await fetch(`${API}/api/policy-brain/history`, { headers:{ Authorization:`Bearer ${token}` }});
+      const d = await r.json();
+      setHistory(d.policies || []);
+    } catch(e) {}
+  }
+
+  async function generatePolicy() {
+    if (!description.trim()) { showToast("Describe what policy you need first", "error"); return; }
+    setLoading(true); setPolicyData(null);
+    try {
+      const r = await fetch(`${API}/api/policy-brain/generate`, {
+        method: "POST",
+        headers: { "Content-Type":"application/json", Authorization:`Bearer ${token}` },
+        body: JSON.stringify({ org_name: orgName || "Your Organisation", description, policy_type: policyType || undefined })
+      });
+      const d = await r.json();
+      if (d.policy_id) {
+        showToast(`Policy generated — ${d.section_count} sections, ${d.word_count} words`, "success");
+        await loadPolicy(d.policy_id);
+        fetchHistory();
+      } else { showToast(d.error || "Generation failed", "error"); }
+    } catch(e) { showToast("Generation failed", "error"); }
+    setLoading(false);
+  }
+
+  async function loadPolicy(policyId) {
+    try {
+      const r = await fetch(`${API}/api/policy-brain/policies/${policyId}`, { headers:{ Authorization:`Bearer ${token}` }});
+      const d = await r.json();
+      setPolicyData(d); setTab("policy"); setExpandedSection(1);
+    } catch(e) {}
+  }
+
+  function copyPolicy() {
+    if (!policyData) return;
+    const text = policyData.sections.map(s => s.title + "\n\n" + s.content).join("\n\n---\n\n");
+    navigator.clipboard.writeText(policyData.title + "\n\n" + text);
+    showToast("Policy copied to clipboard!", "success");
+  }
+
+  const scoreColor = (s) => s >= 90 ? "#00ff88" : s >= 75 ? "#00e5ff" : s >= 60 ? "#ffd60a" : "#ff2d55";
+
+  return (
+    <div style={{ padding:"24px", color:"#e0e0e0", fontFamily:"JetBrains Mono, monospace" }}>
+      <div style={{ marginBottom:"24px" }}>
+        <h2 style={{ color:"#00e5ff", fontSize:"22px", margin:0 }}>🧠 AI Policy Brain</h2>
+        <p style={{ color:"#888", margin:"4px 0 0", fontSize:"13px" }}>Policy Generation · Framework Mapping · Compliance Coverage — Module #40</p>
+      </div>
+
+      {/* Tabs */}
+      <div style={{ display:"flex", gap:"8px", marginBottom:"24px" }}>
+        {[["generate","✍️ Generate"],["policy","📄 Policy"],["history","🕒 History"]].map(([id,label]) => (
+          <button key={id} onClick={() => setTab(id)} style={{ padding:"8px 18px", borderRadius:"8px", border:"none", cursor:"pointer", fontSize:"13px", background: tab===id ? "#00e5ff" : "#1a2236", color: tab===id ? "#000" : "#aaa", fontFamily:"inherit" }}>{label}</button>
+        ))}
+      </div>
+
+      {/* GENERATE TAB */}
+      {tab === "generate" && (
+        <div style={{ display:"grid", gridTemplateColumns:"300px 1fr", gap:"20px" }}>
+          <div style={{ background:"#0d1526", borderRadius:"12px", padding:"20px", border:"1px solid #1e3a5f" }}>
+            <p style={{ color:"#00e5ff", fontSize:"13px", marginTop:0 }}>Organisation Name</p>
+            <input value={orgName} onChange={e=>setOrgName(e.target.value)} placeholder="e.g. AIPET Ltd" style={{ width:"100%", background:"#0a1628", border:"1px solid #1e3a5f", borderRadius:"8px", padding:"8px", color:"#e0e0e0", fontSize:"13px", boxSizing:"border-box", fontFamily:"inherit" }} />
+            <p style={{ color:"#00e5ff", fontSize:"13px", marginTop:"16px" }}>Policy Type (optional)</p>
+            <div onClick={() => setPolicyType("")} style={{ padding:"8px 12px", borderRadius:"8px", marginBottom:"6px", cursor:"pointer", border:`1px solid ${policyType===""?"#00e5ff":"#1e3a5f"}`, background: policyType===""?"#0a2040":"transparent", color: policyType===""?"#00e5ff":"#aaa", fontSize:"12px" }}>🤖 Auto-detect from description</div>
+            {POLICY_TYPES.map(([val,icon,label,desc]) => (
+              <div key={val} onClick={() => setPolicyType(val)} style={{ padding:"8px 12px", borderRadius:"8px", marginBottom:"6px", cursor:"pointer", border:`1px solid ${policyType===val?"#00e5ff":"#1e3a5f"}`, background: policyType===val?"#0a2040":"transparent" }}>
+                <div style={{ color: policyType===val?"#00e5ff":"#e0e0e0", fontSize:"12px" }}>{icon} {label}</div>
+                <div style={{ color:"#555", fontSize:"11px" }}>{desc}</div>
+              </div>
+            ))}
+            <button onClick={generatePolicy} disabled={loading} style={{ marginTop:"8px", width:"100%", padding:"12px", borderRadius:"8px", background: loading?"#333":"#00e5ff", color:"#000", border:"none", cursor:"pointer", fontSize:"14px", fontWeight:"bold", fontFamily:"inherit" }}>
+              {loading ? "⏳ Generating..." : "🧠 Generate Policy"}
+            </button>
+          </div>
+          <div style={{ background:"#0d1526", borderRadius:"12px", padding:"20px", border:"1px solid #1e3a5f" }}>
+            <p style={{ color:"#00e5ff", fontSize:"13px", marginTop:0 }}>Describe Your Requirements</p>
+            <textarea value={description} onChange={e=>setDescription(e.target.value)}
+              placeholder="Describe what policy you need and any specific requirements. Examples: We need a password policy requiring MFA for all staff. We need a GDPR data protection policy for our SaaS platform. We need an incident response policy covering ransomware and data breaches."
+              style={{ width:"100%", height:"420px", background:"#0a1628", border:"1px solid #1e3a5f", borderRadius:"8px", padding:"12px", color:"#e0e0e0", fontSize:"13px", fontFamily:"JetBrains Mono, monospace", resize:"vertical", boxSizing:"border-box" }} />
+          </div>
+        </div>
+      )}
+
+      {/* POLICY TAB */}
+      {tab === "policy" && policyData && (
+        <div>
+          {/* Header */}
+          <div style={{ background:"#0d1526", borderRadius:"12px", padding:"20px", marginBottom:"16px", border:"1px solid #1e3a5f" }}>
+            <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start" }}>
+              <div>
+                <h3 style={{ color:"#00e5ff", margin:"0 0 8px" }}>{policyData.title}</h3>
+                <div style={{ display:"flex", gap:"8px", flexWrap:"wrap" }}>
+                  {policyData.frameworks?.map((f,i) => (
+                    <span key={i} style={{ background:"#0a2040", border:"1px solid #1e3a5f", borderRadius:"6px", padding:"2px 8px", fontSize:"11px", color:"#a78bfa" }}>{f}</span>
+                  ))}
+                </div>
+              </div>
+              <div style={{ display:"flex", gap:"12px", alignItems:"center" }}>
+                <div style={{ textAlign:"center" }}>
+                  <div style={{ color: scoreColor(policyData.coverage_score), fontSize:"22px", fontWeight:"bold" }}>{policyData.coverage_score}%</div>
+                  <div style={{ color:"#555", fontSize:"11px" }}>Coverage</div>
+                </div>
+                <div style={{ textAlign:"center" }}>
+                  <div style={{ color:"#00e5ff", fontSize:"22px", fontWeight:"bold" }}>{policyData.word_count}</div>
+                  <div style={{ color:"#555", fontSize:"11px" }}>Words</div>
+                </div>
+                <button onClick={copyPolicy} style={{ padding:"8px 16px", background:"#0a2040", border:"1px solid #00e5ff", borderRadius:"8px", color:"#00e5ff", cursor:"pointer", fontSize:"12px", fontFamily:"inherit" }}>📋 Copy</button>
+              </div>
+            </div>
+          </div>
+
+          {/* Sections */}
+          {policyData.sections?.map((s,i) => (
+            <div key={i} style={{ background:"#0d1526", borderRadius:"10px", marginBottom:"8px", border:"1px solid #1e3a5f", overflow:"hidden" }}>
+              <div onClick={() => setExpandedSection(expandedSection===s.number ? null : s.number)}
+                style={{ padding:"14px 16px", cursor:"pointer", display:"flex", justifyContent:"space-between", alignItems:"center", background: expandedSection===s.number?"#0a2040":"transparent" }}>
+                <span style={{ color:"#00e5ff", fontSize:"13px", fontWeight:"bold" }}>{s.title}</span>
+                <span style={{ color:"#555", fontSize:"16px" }}>{expandedSection===s.number ? "▲" : "▼"}</span>
+              </div>
+              {expandedSection===s.number && (
+                <div style={{ padding:"16px", borderTop:"1px solid #1e3a5f", color:"#e0e0e0", fontSize:"13px", lineHeight:"1.7" }}>
+                  {s.content}
+                </div>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+      {tab === "policy" && !policyData && <div style={{ textAlign:"center", color:"#555", padding:"60px" }}>Generate a policy first or select one from History.</div>}
+
+      {/* HISTORY TAB */}
+      {tab === "history" && (
+        <div>
+          {history.length === 0 && <div style={{ textAlign:"center", color:"#555", padding:"60px" }}>No policies generated yet.</div>}
+          {history.map((p,i) => (
+            <div key={i} style={{ background:"#0d1526", borderRadius:"10px", padding:"16px", marginBottom:"10px", border:"1px solid #1e3a5f", display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+              <div>
+                <div style={{ color:"#e0e0e0", fontSize:"14px" }}>{p.title}</div>
+                <div style={{ color:"#555", fontSize:"12px", marginTop:"4px" }}>{p.policy_type?.replace("_"," ")} · {p.word_count} words · {new Date(p.created_at).toLocaleString()}</div>
+              </div>
+              <div style={{ display:"flex", gap:"16px", alignItems:"center" }}>
+                <span style={{ color: scoreColor(p.coverage_score), fontSize:"13px", fontWeight:"bold" }}>{p.coverage_score}%</span>
+                <button onClick={() => loadPolicy(p.policy_id)} style={{ padding:"6px 14px", background:"#0a2040", border:"1px solid #00e5ff", borderRadius:"6px", color:"#00e5ff", cursor:"pointer", fontSize:"12px", fontFamily:"inherit" }}>View</button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ============================================================
 // AIPET X — Cognitive SOC Twin Page (#39)
+
 // Scenario Classification | SOC Playbooks | Threat Actor Profiling
 // ============================================================
 function SocTwinPage({ token, showToast }) {
@@ -22116,6 +22300,9 @@ export default function App() {
           )}
           {activeTab === "soctwin" && (
             <SocTwinPage token={token} showToast={showToast} />
+          )}
+          {activeTab === "policybrain" && (
+            <PolicyBrainPage token={token} showToast={showToast} />
           )}
           {activeTab === "terminal" && (
             <AIPETTerminal token={token} showToast={showToast} />
