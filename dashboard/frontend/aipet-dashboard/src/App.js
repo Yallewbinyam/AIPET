@@ -5815,6 +5815,7 @@ const NAV_ITEMS = [
   { id: "multicloudscale",   label: "Multi-Cloud Scale",icon: Globe,       group: "enterprise" },
   { id: "endpointagent",     label: "Endpoint Agent", icon: Shield,        group: "enterprise" },
   { id: "itdr",              label: "Identity Threats",icon: AlertTriangle, group: "enterprise" },
+  { id: "runtimeprotection", label: "Runtime Protect", icon: Shield,        group: "enterprise" },
   { id: "settings",  label: "Settings",      icon: Settings,      group: "account"  },
 ];
 
@@ -7319,8 +7320,181 @@ function DriftDetectorPage({ token, showToast }) {
 
 
 
+
+// ============================================================
+// AIPET X — Runtime Workload Protection
+// Process Injection | Fileless Malware | Memory Protection
+// ============================================================
+function RuntimeProtectionPage({ token, showToast }) {
+  const [tab, setTab] = useState("scan");
+  const [workloadType, setWorkloadType] = useState("container");
+  const [workloadName, setWorkloadName] = useState("");
+  const [description, setDescription] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [scanData, setScanData] = useState(null);
+  const [history, setHistory] = useState([]);
+  const [filterCat, setFilterCat] = useState(null);
+
+  const API = "http://localhost:5001";
+  const SEV_COLOR  = { CRITICAL:"#ff2d55", HIGH:"#ff6b00", MEDIUM:"#ffd60a", LOW:"#00e5ff" };
+  const CONF_COLOR = { HIGH:"#00ff88", MEDIUM:"#ffd60a", LOW:"#888" };
+  const CAT_ICON   = { "Process Injection":"💉", "Fileless Malware":"👻", "Memory Protection":"🧠", "Container Escape":"🐳", "Supply Chain":"📦", "Cryptomining":"⛏️" };
+  const CAT_COLOR  = { "Process Injection":"#ff2d55", "Fileless Malware":"#a78bfa", "Memory Protection":"#ff6b00", "Container Escape":"#ffd60a", "Supply Chain":"#00e5ff", "Cryptomining":"#00ff88" };
+
+  useEffect(() => { fetchHistory(); }, []);
+
+  async function fetchHistory() {
+    try {
+      const r = await fetch(`${API}/api/runtime-protection/history`, { headers:{ Authorization:`Bearer ${token}` }});
+      const d = await r.json();
+      setHistory(d.scans || []);
+    } catch(e) {}
+  }
+
+  async function submitScan() {
+    if (!description.trim()) { showToast("Describe the workload first", "error"); return; }
+    setLoading(true); setScanData(null);
+    try {
+      const r = await fetch(`${API}/api/runtime-protection/scan`, {
+        method:"POST",
+        headers:{ "Content-Type":"application/json", Authorization:`Bearer ${token}` },
+        body: JSON.stringify({ workload_type:workloadType, workload_name:workloadName||"unnamed-workload", description })
+      });
+      const d = await r.json();
+      if (d.scan_id) {
+        showToast(`Runtime scan complete — ${d.total_findings} threat(s), ${d.critical_count} critical`, d.critical_count > 0 ? "error" : "success");
+        await loadScan(d.scan_id);
+        fetchHistory();
+      } else { showToast(d.error || "Scan failed", "error"); }
+    } catch(e) { showToast("Scan failed", "error"); }
+    setLoading(false);
+  }
+
+  async function loadScan(scanId) {
+    try {
+      const r = await fetch(`${API}/api/runtime-protection/scans/${scanId}`, { headers:{ Authorization:`Bearer ${token}` }});
+      const d = await r.json();
+      setScanData(d); setFilterCat(null); setTab("results");
+    } catch(e) {}
+  }
+
+  const riskColor = (s) => s >= 70 ? "#ff2d55" : s >= 45 ? "#ff6b00" : s >= 20 ? "#ffd60a" : "#00ff88";
+  const filtered  = scanData?.findings?.filter(f => !filterCat || f.category===filterCat) || [];
+
+  return (
+    <div style={{ padding:"24px", color:"#e0e0e0", fontFamily:"JetBrains Mono, monospace" }}>
+      <div style={{ marginBottom:"24px" }}>
+        <h2 style={{ color:"#00e5ff", fontSize:"22px", margin:0 }}>🔐 Runtime Workload Protection</h2>
+        <p style={{ color:"#888", margin:"4px 0 0", fontSize:"13px" }}>Process Injection · Fileless Malware · Memory Protection · Container Escape · Supply Chain</p>
+      </div>
+
+      <div style={{ display:"flex", gap:"8px", marginBottom:"24px" }}>
+        {[["scan","🔍 Scan"],["results","📋 Threats"],["history","🕒 History"]].map(([id,label]) => (
+          <button key={id} onClick={() => setTab(id)} style={{ padding:"8px 18px", borderRadius:"8px", border:"none", cursor:"pointer", fontSize:"13px", background: tab===id?"#00e5ff":"#1a2236", color: tab===id?"#000":"#aaa", fontFamily:"inherit" }}>{label}</button>
+        ))}
+      </div>
+
+      {tab === "scan" && (
+        <div style={{ display:"grid", gridTemplateColumns:"280px 1fr", gap:"20px" }}>
+          <div style={{ background:"#0d1526", borderRadius:"12px", padding:"20px", border:"1px solid #1e3a5f" }}>
+            <p style={{ color:"#00e5ff", fontSize:"13px", marginTop:0 }}>Workload Type</p>
+            {[["container","🐳 Container"],["vm","🖥️ Virtual Machine"],["serverless","⚡ Serverless"],["kubernetes","⎈ Kubernetes Pod"],["host","🖧 Bare Metal Host"]].map(([val,label]) => (
+              <div key={val} onClick={() => setWorkloadType(val)} style={{ padding:"8px 12px", borderRadius:"8px", marginBottom:"6px", cursor:"pointer", border:`1px solid ${workloadType===val?"#00e5ff":"#1e3a5f"}`, background: workloadType===val?"#0a2040":"transparent", color: workloadType===val?"#00e5ff":"#aaa", fontSize:"13px" }}>{label}</div>
+            ))}
+            <p style={{ color:"#00e5ff", fontSize:"13px", marginTop:"12px" }}>Workload Name</p>
+            <input value={workloadName} onChange={e=>setWorkloadName(e.target.value)} placeholder="e.g. api-server-pod" style={{ width:"100%", background:"#0a1628", border:"1px solid #1e3a5f", borderRadius:"8px", padding:"8px", color:"#e0e0e0", fontSize:"13px", boxSizing:"border-box", fontFamily:"inherit" }} />
+            <p style={{ color:"#00e5ff", fontSize:"13px", marginTop:"12px" }}>Detection Categories</p>
+            {Object.entries(CAT_ICON).map(([cat,icon]) => (
+              <div key={cat} style={{ fontSize:"11px", color:"#555", marginBottom:"3px" }}>{icon} {cat}</div>
+            ))}
+            <button onClick={submitScan} disabled={loading} style={{ marginTop:"12px", width:"100%", padding:"12px", borderRadius:"8px", background: loading?"#333":"#00e5ff", color:"#000", border:"none", cursor:"pointer", fontSize:"14px", fontWeight:"bold", fontFamily:"inherit" }}>
+              {loading ? "⏳ Scanning..." : "🔐 Scan Workload"}
+            </button>
+          </div>
+          <div style={{ background:"#0d1526", borderRadius:"12px", padding:"20px", border:"1px solid #1e3a5f" }}>
+            <p style={{ color:"#00e5ff", fontSize:"13px", marginTop:0 }}>Describe Runtime Observations</p>
+            <textarea value={description} onChange={e=>setDescription(e.target.value)}
+              placeholder="Describe runtime threat indicators. Examples: Reflective DLL injection detected in process memory. PowerShell download cradle iex downloadstring fileless. Process hollowing detected. CreateRemoteThread cross-process injection. WMI persistence subscription fileless execution. Container escape via kernel exploit namespace escape. Docker socket mount exploitation docker.sock. Cryptomining xmrig monero CPU spike mining pool. Heap spray shellcode memory attack. Living off the land certutil mshta abuse. Malicious npm package supply chain backdoor."
+              style={{ width:"100%", height:"400px", background:"#0a1628", border:"1px solid #1e3a5f", borderRadius:"8px", padding:"12px", color:"#e0e0e0", fontSize:"13px", fontFamily:"JetBrains Mono, monospace", resize:"vertical", boxSizing:"border-box" }} />
+          </div>
+        </div>
+      )}
+
+      {tab === "results" && scanData && (
+        <div>
+          <div style={{ display:"grid", gridTemplateColumns:"repeat(5,1fr)", gap:"12px", marginBottom:"20px" }}>
+            {[["Risk Score",scanData.risk_score,riskColor(scanData.risk_score)],["Severity",scanData.severity,SEV_COLOR[scanData.severity]],["Workload",scanData.workload_type,"#00e5ff"],["Threats",scanData.total_findings,"#a78bfa"],["Critical",scanData.critical_count,"#ff2d55"]].map(([label,val,color]) => (
+              <div key={label} style={{ background:"#0d1526", borderRadius:"10px", padding:"16px", border:`1px solid ${color}33`, textAlign:"center" }}>
+                <div style={{ fontSize: label==="Workload"?"13px":"22px", fontWeight:"bold", color }}>{val}</div>
+                <div style={{ fontSize:"12px", color:"#888", marginTop:"4px" }}>{label}</div>
+              </div>
+            ))}
+          </div>
+
+          <div style={{ background:"#0d1526", borderRadius:"10px", padding:"14px", marginBottom:"16px", border:"1px solid #1e3a5f" }}>
+            <div style={{ display:"flex", justifyContent:"space-between", marginBottom:"8px" }}>
+              <span style={{ color:"#00e5ff", fontSize:"13px" }}>🔐 {scanData.workload_name} — {scanData.workload_type}</span>
+              <span style={{ color: riskColor(scanData.risk_score), fontWeight:"bold" }}>{scanData.risk_score}/100</span>
+            </div>
+            <div style={{ background:"#0a1628", borderRadius:"20px", height:"10px", overflow:"hidden", marginBottom:"8px" }}>
+              <div style={{ width:`${scanData.risk_score}%`, height:"100%", background: riskColor(scanData.risk_score), borderRadius:"20px" }} />
+            </div>
+            <div style={{ color:"#888", fontSize:"12px" }}>{scanData.summary}</div>
+          </div>
+
+          <div style={{ display:"flex", gap:"8px", marginBottom:"12px", flexWrap:"wrap" }}>
+            <button onClick={() => setFilterCat(null)} style={{ padding:"6px 14px", borderRadius:"6px", border:`1px solid ${!filterCat?"#00e5ff":"#1e3a5f"}`, background: !filterCat?"#0a2040":"transparent", color: !filterCat?"#00e5ff":"#aaa", cursor:"pointer", fontSize:"12px", fontFamily:"inherit" }}>All ({scanData.findings?.length})</button>
+            {scanData.categories?.map(cat => (
+              <button key={cat} onClick={() => setFilterCat(filterCat===cat?null:cat)} style={{ padding:"6px 14px", borderRadius:"6px", border:`1px solid ${filterCat===cat?(CAT_COLOR[cat]||"#1e3a5f"):"#1e3a5f"}`, background: filterCat===cat?"#0a2040":"transparent", color: filterCat===cat?(CAT_COLOR[cat]||"#aaa"):"#aaa", cursor:"pointer", fontSize:"12px", fontFamily:"inherit" }}>{CAT_ICON[cat]} {cat}</button>
+            ))}
+          </div>
+
+          {filtered.length === 0 && <div style={{ textAlign:"center", color:"#00ff88", padding:"40px", background:"#0d1526", borderRadius:"12px" }}>✅ No runtime threats detected!</div>}
+          {filtered.map((f,i) => (
+            <div key={i} style={{ background:"#0d1526", borderRadius:"10px", padding:"16px", marginBottom:"8px", border:`1px solid ${SEV_COLOR[f.severity]}33` }}>
+              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:"8px" }}>
+                <div style={{ display:"flex", gap:"8px", alignItems:"center" }}>
+                  <span>{CAT_ICON[f.category]||"🔐"}</span>
+                  <span style={{ color: SEV_COLOR[f.severity], fontSize:"11px", fontWeight:"bold", background:`${SEV_COLOR[f.severity]}22`, padding:"2px 8px", borderRadius:"20px" }}>{f.severity}</span>
+                  <span style={{ color: CAT_COLOR[f.category]||"#888", fontSize:"11px", background:`${CAT_COLOR[f.category]||"#888"}22`, padding:"2px 8px", borderRadius:"20px" }}>{f.category}</span>
+                  <span style={{ color: CONF_COLOR[f.confidence], fontSize:"11px" }}>Confidence: {f.confidence}</span>
+                </div>
+                <span style={{ color:"#a78bfa", fontSize:"11px" }}>{f.technique}</span>
+              </div>
+              <div style={{ color:"#e0e0e0", fontSize:"14px", fontWeight:"bold", marginBottom:"4px" }}>{f.title}</div>
+              <div style={{ color:"#888", fontSize:"12px", marginBottom:"6px" }}>{f.description}</div>
+              <div style={{ color:"#00e5ff", fontSize:"12px" }}>💡 {f.remediation}</div>
+            </div>
+          ))}
+        </div>
+      )}
+      {tab === "results" && !scanData && <div style={{ textAlign:"center", color:"#555", padding:"60px" }}>Run a scan first or select one from History.</div>}
+
+      {tab === "history" && (
+        <div>
+          {history.length === 0 && <div style={{ textAlign:"center", color:"#555", padding:"60px" }}>No scans yet.</div>}
+          {history.map((s,i) => (
+            <div key={i} style={{ background:"#0d1526", borderRadius:"10px", padding:"16px", marginBottom:"10px", border:"1px solid #1e3a5f", display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+              <div>
+                <div style={{ color:"#e0e0e0", fontSize:"14px" }}>🔐 {s.workload_name} — {s.workload_type}</div>
+                <div style={{ color:"#555", fontSize:"12px", marginTop:"4px" }}>{s.total_findings} threat(s) · {s.critical_count} critical · {new Date(s.created_at).toLocaleString()}</div>
+              </div>
+              <div style={{ display:"flex", gap:"16px", alignItems:"center" }}>
+                <span style={{ color: SEV_COLOR[s.severity], fontSize:"13px", fontWeight:"bold" }}>{s.severity}</span>
+                <span style={{ color: riskColor(s.risk_score), fontSize:"13px" }}>Risk: {s.risk_score}</span>
+                <button onClick={() => loadScan(s.scan_id)} style={{ padding:"6px 14px", background:"#0a2040", border:"1px solid #00e5ff", borderRadius:"6px", color:"#00e5ff", cursor:"pointer", fontSize:"12px", fontFamily:"inherit" }}>View</button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ============================================================
 // AIPET X — Identity Threat Detection (ITDR)
+
 // Kerberos | NTLM | MFA Attacks | Privilege Escalation
 // ============================================================
 function ITDRPage({ token, showToast }) {
@@ -7495,7 +7669,6 @@ function ITDRPage({ token, showToast }) {
 
 // ============================================================
 // AIPET X — Endpoint Agent
- (AIPET X )
 // Device Health | EDR Simulation | Behavioural Analysis
 // ============================================================
 function EndpointAgentPage({ token, showToast }) {
@@ -24858,6 +25031,9 @@ export default function App() {
           )}
           {activeTab === "itdr" && (
             <ITDRPage token={token} showToast={showToast} />
+          )}
+          {activeTab === "runtimeprotection" && (
+            <RuntimeProtectionPage token={token} showToast={showToast} />
           )}
 
 
