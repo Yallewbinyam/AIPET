@@ -5808,6 +5808,7 @@ const NAV_ITEMS = [
   { id: "digitaltwinv2",     label: "Digital Twin v2",icon: Activity,      group: "enterprise" },
   { id: "defensemesh",       label: "Defense Mesh",   icon: Globe,         group: "enterprise" },
   { id: "cloudruntime",      label: "Cloud Runtime",  icon: Server,        group: "enterprise" },
+  { id: "k8sanalyzer",       label: "K8s Analyzer",   icon: Cpu,           group: "enterprise" },
   { id: "settings",  label: "Settings",      icon: Settings,      group: "account"  },
 ];
 
@@ -7305,8 +7306,180 @@ function DriftDetectorPage({ token, showToast }) {
 
 
 
+
+// ============================================================
+// AIPET X — Kubernetes Runtime Analyzer (Wiz Gap — Phase 1)
+// K8s Security | Pod Analysis | RBAC | Network Policy
+// ============================================================
+function K8sAnalyzerPage({ token, showToast }) {
+  const [tab, setTab] = useState("scan");
+  const [clusterName, setClusterName] = useState("");
+  const [k8sVersion, setK8sVersion] = useState("1.28");
+  const [description, setDescription] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [scanData, setScanData] = useState(null);
+  const [history, setHistory] = useState([]);
+  const [filterCat, setFilterCat] = useState(null);
+
+  const API = "http://localhost:5001";
+  const SEV_COLOR = { CRITICAL:"#ff2d55", HIGH:"#ff6b00", MEDIUM:"#ffd60a", LOW:"#00e5ff" };
+  const CAT_ICON = { "Pod Security":"🛡️", "RBAC":"👑", "Network Policy":"🌐", "Secrets Management":"🔑", "Control Plane":"⚙️", "Image Security":"🐳" };
+  const RES_COLOR = { Pod:"#00e5ff", ClusterRoleBinding:"#ff2d55", ServiceAccount:"#ff6b00", NetworkPolicy:"#00ff88", Secret:"#a78bfa", ConfigMap:"#ffd60a", APIServer:"#ff2d55", Role:"#ff6b00" };
+
+  useEffect(() => { fetchHistory(); }, []);
+
+  async function fetchHistory() {
+    try {
+      const r = await fetch(`${API}/api/k8s/history`, { headers:{ Authorization:`Bearer ${token}` }});
+      const d = await r.json();
+      setHistory(d.scans || []);
+    } catch(e) {}
+  }
+
+  async function submitScan() {
+    if (!description.trim()) { showToast("Describe your K8s cluster first", "error"); return; }
+    setLoading(true); setScanData(null);
+    try {
+      const r = await fetch(`${API}/api/k8s/scan`, {
+        method:"POST",
+        headers:{ "Content-Type":"application/json", Authorization:`Bearer ${token}` },
+        body: JSON.stringify({ cluster_name: clusterName||"my-cluster", k8s_version: k8sVersion, description })
+      });
+      const d = await r.json();
+      if (d.scan_id) {
+        showToast(`K8s analysis complete — ${d.total_findings} finding(s), ${d.critical_count} critical`, d.critical_count > 0 ? "error" : "warning");
+        await loadScan(d.scan_id);
+        fetchHistory();
+      } else { showToast(d.error || "Analysis failed", "error"); }
+    } catch(e) { showToast("Analysis failed", "error"); }
+    setLoading(false);
+  }
+
+  async function loadScan(scanId) {
+    try {
+      const r = await fetch(`${API}/api/k8s/scans/${scanId}`, { headers:{ Authorization:`Bearer ${token}` }});
+      const d = await r.json();
+      setScanData(d); setFilterCat(null); setTab("results");
+    } catch(e) {}
+  }
+
+  const riskColor = (s) => s >= 70 ? "#ff2d55" : s >= 45 ? "#ff6b00" : s >= 20 ? "#ffd60a" : "#00ff88";
+  const filtered = scanData?.findings?.filter(f => !filterCat || f.category===filterCat) || [];
+
+  return (
+    <div style={{ padding:"24px", color:"#e0e0e0", fontFamily:"JetBrains Mono, monospace" }}>
+      <div style={{ marginBottom:"24px" }}>
+        <h2 style={{ color:"#00e5ff", fontSize:"22px", margin:0 }}>⎈ Kubernetes Runtime Analyzer</h2>
+        <p style={{ color:"#888", margin:"4px 0 0", fontSize:"13px" }}>Pod Security · RBAC · Network Policy · Secrets · Control Plane — Wiz Gap Phase 1</p>
+      </div>
+
+      <div style={{ display:"flex", gap:"8px", marginBottom:"24px" }}>
+        {[["scan","🔍 Analyse"],["results","📋 Results"],["history","🕒 History"]].map(([id,label]) => (
+          <button key={id} onClick={() => setTab(id)} style={{ padding:"8px 18px", borderRadius:"8px", border:"none", cursor:"pointer", fontSize:"13px", background: tab===id?"#00e5ff":"#1a2236", color: tab===id?"#000":"#aaa", fontFamily:"inherit" }}>{label}</button>
+        ))}
+      </div>
+
+      {tab === "scan" && (
+        <div style={{ display:"grid", gridTemplateColumns:"280px 1fr", gap:"20px" }}>
+          <div style={{ background:"#0d1526", borderRadius:"12px", padding:"20px", border:"1px solid #1e3a5f" }}>
+            <p style={{ color:"#00e5ff", fontSize:"13px", marginTop:0 }}>Cluster Name</p>
+            <input value={clusterName} onChange={e=>setClusterName(e.target.value)} placeholder="e.g. prod-eks-cluster" style={{ width:"100%", background:"#0a1628", border:"1px solid #1e3a5f", borderRadius:"8px", padding:"8px", color:"#e0e0e0", fontSize:"13px", boxSizing:"border-box", fontFamily:"inherit" }} />
+            <p style={{ color:"#00e5ff", fontSize:"13px", marginTop:"16px" }}>Kubernetes Version</p>
+            {["1.28","1.27","1.26","1.25"].map(v => (
+              <div key={v} onClick={() => setK8sVersion(v)} style={{ padding:"7px 12px", borderRadius:"8px", marginBottom:"5px", cursor:"pointer", border:`1px solid ${k8sVersion===v?"#00e5ff":"#1e3a5f"}`, background: k8sVersion===v?"#0a2040":"transparent", color: k8sVersion===v?"#00e5ff":"#aaa", fontSize:"12px" }}>K8s v{v}</div>
+            ))}
+            <p style={{ color:"#00e5ff", fontSize:"13px", marginTop:"16px" }}>CIS Benchmark Categories</p>
+            {Object.entries(CAT_ICON).map(([cat,icon]) => (
+              <div key={cat} style={{ fontSize:"11px", color:"#555", marginBottom:"3px" }}>{icon} {cat}</div>
+            ))}
+            <button onClick={submitScan} disabled={loading} style={{ marginTop:"16px", width:"100%", padding:"12px", borderRadius:"8px", background: loading?"#333":"#00e5ff", color:"#000", border:"none", cursor:"pointer", fontSize:"14px", fontWeight:"bold", fontFamily:"inherit" }}>
+              {loading ? "⏳ Analysing..." : "⎈ Analyse Cluster"}
+            </button>
+          </div>
+          <div style={{ background:"#0d1526", borderRadius:"12px", padding:"20px", border:"1px solid #1e3a5f" }}>
+            <p style={{ color:"#00e5ff", fontSize:"13px", marginTop:0 }}>Describe Your Kubernetes Cluster Configuration</p>
+            <textarea value={description} onChange={e=>setDescription(e.target.value)}
+              placeholder="Describe your K8s cluster setup and any known issues. Examples: Privileged pods running in production namespace. Cluster-admin role binding for developer service accounts. No network policies defined. API server anonymous auth enabled. Secrets not encrypted in etcd. Containers using latest tag without digest. No admission controllers configured. Default service account used by all pods."
+              style={{ width:"100%", height:"400px", background:"#0a1628", border:"1px solid #1e3a5f", borderRadius:"8px", padding:"12px", color:"#e0e0e0", fontSize:"13px", fontFamily:"JetBrains Mono, monospace", resize:"vertical", boxSizing:"border-box" }} />
+          </div>
+        </div>
+      )}
+
+      {tab === "results" && scanData && (
+        <div>
+          <div style={{ display:"grid", gridTemplateColumns:"repeat(5,1fr)", gap:"12px", marginBottom:"20px" }}>
+            {[["Risk Score",scanData.risk_score,riskColor(scanData.risk_score)],["Severity",scanData.severity,SEV_COLOR[scanData.severity]],["Cluster",scanData.cluster_name,"#00e5ff"],["Findings",scanData.total_findings,"#a78bfa"],["Critical",scanData.critical_count,"#ff2d55"]].map(([label,val,color]) => (
+              <div key={label} style={{ background:"#0d1526", borderRadius:"10px", padding:"16px", border:`1px solid ${color}33`, textAlign:"center" }}>
+                <div style={{ fontSize: label==="Cluster"?"13px":"22px", fontWeight:"bold", color }}>{val}</div>
+                <div style={{ fontSize:"12px", color:"#888", marginTop:"4px" }}>{label}</div>
+              </div>
+            ))}
+          </div>
+
+          <div style={{ background:"#0d1526", borderRadius:"10px", padding:"14px", marginBottom:"16px", border:"1px solid #1e3a5f" }}>
+            <div style={{ display:"flex", justifyContent:"space-between", marginBottom:"8px" }}>
+              <span style={{ color:"#00e5ff", fontSize:"13px" }}>⎈ {scanData.cluster_name} — K8s v{scanData.k8s_version}</span>
+              <span style={{ color: riskColor(scanData.risk_score), fontWeight:"bold" }}>{scanData.risk_score}/100</span>
+            </div>
+            <div style={{ background:"#0a1628", borderRadius:"20px", height:"10px", overflow:"hidden", marginBottom:"8px" }}>
+              <div style={{ width:`${scanData.risk_score}%`, height:"100%", background: riskColor(scanData.risk_score), borderRadius:"20px" }} />
+            </div>
+            <div style={{ color:"#888", fontSize:"12px" }}>{scanData.summary}</div>
+          </div>
+
+          <div style={{ display:"flex", gap:"8px", marginBottom:"12px", flexWrap:"wrap" }}>
+            <button onClick={() => setFilterCat(null)} style={{ padding:"6px 14px", borderRadius:"6px", border:`1px solid ${!filterCat?"#00e5ff":"#1e3a5f"}`, background: !filterCat?"#0a2040":"transparent", color: !filterCat?"#00e5ff":"#aaa", cursor:"pointer", fontSize:"12px", fontFamily:"inherit" }}>All ({scanData.findings?.length})</button>
+            {scanData.categories?.map(cat => (
+              <button key={cat} onClick={() => setFilterCat(filterCat===cat?null:cat)} style={{ padding:"6px 14px", borderRadius:"6px", border:`1px solid ${filterCat===cat?"#00e5ff":"#1e3a5f"}`, background: filterCat===cat?"#0a2040":"transparent", color: filterCat===cat?"#00e5ff":"#aaa", cursor:"pointer", fontSize:"12px", fontFamily:"inherit" }}>{CAT_ICON[cat]} {cat}</button>
+            ))}
+          </div>
+
+          {filtered.length === 0 && <div style={{ textAlign:"center", color:"#00ff88", padding:"40px", background:"#0d1526", borderRadius:"12px" }}>✅ No K8s issues detected!</div>}
+          {filtered.map((f,i) => (
+            <div key={i} style={{ background:"#0d1526", borderRadius:"10px", padding:"16px", marginBottom:"8px", border:`1px solid ${SEV_COLOR[f.severity]}33` }}>
+              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:"8px" }}>
+                <div style={{ display:"flex", gap:"8px", alignItems:"center" }}>
+                  <span>{CAT_ICON[f.category]||"⎈"}</span>
+                  <span style={{ color: SEV_COLOR[f.severity], fontSize:"11px", fontWeight:"bold", background:`${SEV_COLOR[f.severity]}22`, padding:"2px 8px", borderRadius:"20px" }}>{f.severity}</span>
+                  <span style={{ color: RES_COLOR[f.resource_type]||"#888", fontSize:"11px", background:`${RES_COLOR[f.resource_type]||"#888"}22`, padding:"2px 8px", borderRadius:"20px" }}>{f.resource_type}</span>
+                  <span style={{ color:"#555", fontSize:"11px" }}>ns: {f.namespace}</span>
+                </div>
+                <span style={{ color:"#a78bfa", fontSize:"11px" }}>{f.cis_ref}</span>
+              </div>
+              <div style={{ color:"#e0e0e0", fontSize:"14px", fontWeight:"bold", marginBottom:"4px" }}>{f.title}</div>
+              <div style={{ color:"#888", fontSize:"12px", marginBottom:"6px" }}>{f.description}</div>
+              <div style={{ color:"#00e5ff", fontSize:"12px" }}>💡 {f.remediation}</div>
+            </div>
+          ))}
+        </div>
+      )}
+      {tab === "results" && !scanData && <div style={{ textAlign:"center", color:"#555", padding:"60px" }}>Run an analysis first or select one from History.</div>}
+
+      {tab === "history" && (
+        <div>
+          {history.length === 0 && <div style={{ textAlign:"center", color:"#555", padding:"60px" }}>No analyses yet.</div>}
+          {history.map((s,i) => (
+            <div key={i} style={{ background:"#0d1526", borderRadius:"10px", padding:"16px", marginBottom:"10px", border:"1px solid #1e3a5f", display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+              <div>
+                <div style={{ color:"#e0e0e0", fontSize:"14px" }}>⎈ {s.cluster_name} — v{s.k8s_version}</div>
+                <div style={{ color:"#555", fontSize:"12px", marginTop:"4px" }}>{s.total_findings} finding(s) · {s.critical_count} critical · {new Date(s.created_at).toLocaleString()}</div>
+              </div>
+              <div style={{ display:"flex", gap:"16px", alignItems:"center" }}>
+                <span style={{ color: SEV_COLOR[s.severity], fontSize:"13px", fontWeight:"bold" }}>{s.severity}</span>
+                <span style={{ color: riskColor(s.risk_score), fontSize:"13px" }}>Risk: {s.risk_score}</span>
+                <button onClick={() => loadScan(s.scan_id)} style={{ padding:"6px 14px", background:"#0a2040", border:"1px solid #00e5ff", borderRadius:"6px", color:"#00e5ff", cursor:"pointer", fontSize:"12px", fontFamily:"inherit" }}>View</button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ============================================================
 // AIPET X — Cloud Runtime Scanner (Wiz Gap — Phase 1)
+
 // Runtime Threat Detection | Exposure Analysis | Zero Trust
 // ============================================================
 function CloudRuntimePage({ token, showToast }) {
@@ -23612,6 +23785,9 @@ export default function App() {
           )}
           {activeTab === "cloudruntime" && (
             <CloudRuntimePage token={token} showToast={showToast} />
+          )}
+          {activeTab === "k8sanalyzer" && (
+            <K8sAnalyzerPage token={token} showToast={showToast} />
           )}
 
 
