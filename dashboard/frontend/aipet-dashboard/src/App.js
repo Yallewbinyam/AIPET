@@ -5809,6 +5809,7 @@ const NAV_ITEMS = [
   { id: "defensemesh",       label: "Defense Mesh",   icon: Globe,         group: "enterprise" },
   { id: "cloudruntime",      label: "Cloud Runtime",  icon: Server,        group: "enterprise" },
   { id: "k8sanalyzer",       label: "K8s Analyzer",   icon: Cpu,           group: "enterprise" },
+  { id: "networkexposure",   label: "Network Exposure",icon: Globe,        group: "enterprise" },
   { id: "settings",  label: "Settings",      icon: Settings,      group: "account"  },
 ];
 
@@ -7307,8 +7308,215 @@ function DriftDetectorPage({ token, showToast }) {
 
 
 
+
+// ============================================================
+// AIPET X — Cloud Network Exposure Graph (Wiz Gap — Phase 1)
+// Network Topology | Exposure Paths | Attack Surface Mapping
+// ============================================================
+function NetworkExposurePage({ token, showToast }) {
+  const [tab, setTab] = useState("scan");
+  const [provider, setProvider] = useState("aws");
+  const [environment, setEnvironment] = useState("production");
+  const [description, setDescription] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [scanData, setScanData] = useState(null);
+  const [history, setHistory] = useState([]);
+  const [activeView, setActiveView] = useState("paths");
+  const [filterType, setFilterType] = useState(null);
+
+  const API = "http://localhost:5001";
+  const SEV_COLOR = { CRITICAL:"#ff2d55", HIGH:"#ff6b00", MEDIUM:"#ffd60a", LOW:"#00e5ff" };
+  const TYPE_COLOR = { "Internet Exposure":"#ff2d55", "Lateral Movement":"#ff6b00", "Data Exfiltration":"#ffd60a", "Privilege Path":"#a78bfa", "Unencrypted Traffic":"#00e5ff" };
+  const TYPE_ICON  = { "Internet Exposure":"🌐", "Lateral Movement":"↔️", "Data Exfiltration":"📤", "Privilege Path":"⬆️", "Unencrypted Traffic":"🔓" };
+  const RISK_COLOR = { CRITICAL:"#ff2d55", HIGH:"#ff6b00", MEDIUM:"#ffd60a", LOW:"#00ff88" };
+
+  useEffect(() => { fetchHistory(); }, []);
+
+  async function fetchHistory() {
+    try {
+      const r = await fetch(`${API}/api/network-exposure/history`, { headers:{ Authorization:`Bearer ${token}` }});
+      const d = await r.json();
+      setHistory(d.scans || []);
+    } catch(e) {}
+  }
+
+  async function submitScan() {
+    if (!description.trim()) { showToast("Describe your network first", "error"); return; }
+    setLoading(true); setScanData(null);
+    try {
+      const r = await fetch(`${API}/api/network-exposure/scan`, {
+        method:"POST",
+        headers:{ "Content-Type":"application/json", Authorization:`Bearer ${token}` },
+        body: JSON.stringify({ cloud_provider:provider, environment, description })
+      });
+      const d = await r.json();
+      if (d.scan_id) {
+        showToast(`Exposure graph complete — ${d.total_paths} path(s), ${d.critical_paths} critical`, d.critical_paths > 0 ? "error" : "warning");
+        await loadScan(d.scan_id);
+        fetchHistory();
+      } else { showToast(d.error || "Scan failed", "error"); }
+    } catch(e) { showToast("Scan failed", "error"); }
+    setLoading(false);
+  }
+
+  async function loadScan(scanId) {
+    try {
+      const r = await fetch(`${API}/api/network-exposure/scans/${scanId}`, { headers:{ Authorization:`Bearer ${token}` }});
+      const d = await r.json();
+      setScanData(d); setFilterType(null); setActiveView("paths"); setTab("results");
+    } catch(e) {}
+  }
+
+  const riskColor = (s) => s >= 70 ? "#ff2d55" : s >= 45 ? "#ff6b00" : s >= 20 ? "#ffd60a" : "#00ff88";
+  const filteredPaths = scanData?.paths?.filter(p => !filterType || p.path_type===filterType) || [];
+
+  return (
+    <div style={{ padding:"24px", color:"#e0e0e0", fontFamily:"JetBrains Mono, monospace" }}>
+      <div style={{ marginBottom:"24px" }}>
+        <h2 style={{ color:"#00e5ff", fontSize:"22px", margin:0 }}>🌐 Cloud Network Exposure Graph</h2>
+        <p style={{ color:"#888", margin:"4px 0 0", fontSize:"13px" }}>Network Topology · Exposure Paths · Attack Surface — Wiz Gap Phase 1</p>
+      </div>
+
+      <div style={{ display:"flex", gap:"8px", marginBottom:"24px" }}>
+        {[["scan","🔍 Scan"],["results","🗺️ Exposure Graph"],["history","🕒 History"]].map(([id,label]) => (
+          <button key={id} onClick={() => setTab(id)} style={{ padding:"8px 18px", borderRadius:"8px", border:"none", cursor:"pointer", fontSize:"13px", background: tab===id?"#00e5ff":"#1a2236", color: tab===id?"#000":"#aaa", fontFamily:"inherit" }}>{label}</button>
+        ))}
+      </div>
+
+      {tab === "scan" && (
+        <div style={{ display:"grid", gridTemplateColumns:"280px 1fr", gap:"20px" }}>
+          <div style={{ background:"#0d1526", borderRadius:"12px", padding:"20px", border:"1px solid #1e3a5f" }}>
+            <p style={{ color:"#00e5ff", fontSize:"13px", marginTop:0 }}>Cloud Provider</p>
+            {[["aws","☁️ AWS"],["azure","🔷 Azure"],["gcp","🟡 GCP"]].map(([val,label]) => (
+              <div key={val} onClick={() => setProvider(val)} style={{ padding:"8px 12px", borderRadius:"8px", marginBottom:"6px", cursor:"pointer", border:`1px solid ${provider===val?"#00e5ff":"#1e3a5f"}`, background: provider===val?"#0a2040":"transparent", color: provider===val?"#00e5ff":"#aaa", fontSize:"13px" }}>{label}</div>
+            ))}
+            <p style={{ color:"#00e5ff", fontSize:"13px", marginTop:"16px" }}>Environment</p>
+            {[["production","🔴 Production"],["staging","🟡 Staging"],["development","🟢 Development"]].map(([val,label]) => (
+              <div key={val} onClick={() => setEnvironment(val)} style={{ padding:"7px 12px", borderRadius:"8px", marginBottom:"5px", cursor:"pointer", border:`1px solid ${environment===val?"#00e5ff":"#1e3a5f"}`, background: environment===val?"#0a2040":"transparent", color: environment===val?"#00e5ff":"#aaa", fontSize:"12px" }}>{label}</div>
+            ))}
+            <p style={{ color:"#00e5ff", fontSize:"13px", marginTop:"16px" }}>Exposure Types Detected</p>
+            {Object.entries(TYPE_ICON).map(([type,icon]) => (
+              <div key={type} style={{ fontSize:"11px", color:"#555", marginBottom:"3px" }}>{icon} {type}</div>
+            ))}
+            <button onClick={submitScan} disabled={loading} style={{ marginTop:"16px", width:"100%", padding:"12px", borderRadius:"8px", background: loading?"#333":"#00e5ff", color:"#000", border:"none", cursor:"pointer", fontSize:"14px", fontWeight:"bold", fontFamily:"inherit" }}>
+              {loading ? "⏳ Mapping..." : "🌐 Map Exposure Graph"}
+            </button>
+          </div>
+          <div style={{ background:"#0d1526", borderRadius:"12px", padding:"20px", border:"1px solid #1e3a5f" }}>
+            <p style={{ color:"#00e5ff", fontSize:"13px", marginTop:0 }}>Describe Your Network Architecture</p>
+            <textarea value={description} onChange={e=>setDescription(e.target.value)}
+              placeholder="Describe your cloud network setup. Examples: Database port 5432 exposed to internet. Web server nginx and apache running. SSH internet access on port 22. S3 bucket public with open storage. No micro segmentation flat network. Unrestricted outbound egress. Load balancer accepting HTTP. Admin console reachable from internet. Privilege escalation path from public API to admin."
+              style={{ width:"100%", height:"400px", background:"#0a1628", border:"1px solid #1e3a5f", borderRadius:"8px", padding:"12px", color:"#e0e0e0", fontSize:"13px", fontFamily:"JetBrains Mono, monospace", resize:"vertical", boxSizing:"border-box" }} />
+          </div>
+        </div>
+      )}
+
+      {tab === "results" && scanData && (
+        <div>
+          <div style={{ display:"grid", gridTemplateColumns:"repeat(5,1fr)", gap:"12px", marginBottom:"20px" }}>
+            {[["Risk Score",scanData.risk_score,riskColor(scanData.risk_score)],["Severity",scanData.severity,SEV_COLOR[scanData.severity]],["Exposure Paths",scanData.total_paths,"#a78bfa"],["Critical Paths",scanData.critical_paths,"#ff2d55"],["Assets Mapped",scanData.exposed_assets,"#00e5ff"]].map(([label,val,color]) => (
+              <div key={label} style={{ background:"#0d1526", borderRadius:"10px", padding:"16px", border:`1px solid ${color}33`, textAlign:"center" }}>
+                <div style={{ fontSize:"22px", fontWeight:"bold", color }}>{val}</div>
+                <div style={{ fontSize:"12px", color:"#888", marginTop:"4px" }}>{label}</div>
+              </div>
+            ))}
+          </div>
+
+          <div style={{ background:"#0d1526", borderRadius:"10px", padding:"14px", marginBottom:"16px", border:"1px solid #1e3a5f" }}>
+            <div style={{ display:"flex", justifyContent:"space-between", marginBottom:"8px" }}>
+              <span style={{ color:"#00e5ff", fontSize:"13px" }}>🌐 Network Exposure Score — {scanData.environment} / {scanData.cloud_provider?.toUpperCase()}</span>
+              <span style={{ color: riskColor(scanData.risk_score), fontWeight:"bold" }}>{scanData.risk_score}/100</span>
+            </div>
+            <div style={{ background:"#0a1628", borderRadius:"20px", height:"10px", overflow:"hidden", marginBottom:"8px" }}>
+              <div style={{ width:`${scanData.risk_score}%`, height:"100%", background: riskColor(scanData.risk_score), borderRadius:"20px" }} />
+            </div>
+            <div style={{ color:"#888", fontSize:"12px" }}>{scanData.summary}</div>
+          </div>
+
+          <div style={{ display:"flex", gap:"8px", marginBottom:"16px" }}>
+            {[["paths","🗺️ Exposure Paths"],["assets","📦 Asset Map"]].map(([id,label]) => (
+              <button key={id} onClick={() => setActiveView(id)} style={{ padding:"8px 18px", borderRadius:"8px", border:"none", cursor:"pointer", fontSize:"13px", background: activeView===id?"#00e5ff":"#1a2236", color: activeView===id?"#000":"#aaa", fontFamily:"inherit" }}>{label}</button>
+            ))}
+          </div>
+
+          {activeView === "paths" && (
+            <div>
+              <div style={{ display:"flex", gap:"8px", marginBottom:"12px", flexWrap:"wrap" }}>
+                <button onClick={() => setFilterType(null)} style={{ padding:"6px 14px", borderRadius:"6px", border:`1px solid ${!filterType?"#00e5ff":"#1e3a5f"}`, background: !filterType?"#0a2040":"transparent", color: !filterType?"#00e5ff":"#aaa", cursor:"pointer", fontSize:"12px", fontFamily:"inherit" }}>All</button>
+                {scanData.path_types?.map(type => (
+                  <button key={type} onClick={() => setFilterType(filterType===type?null:type)} style={{ padding:"6px 14px", borderRadius:"6px", border:`1px solid ${filterType===type?(TYPE_COLOR[type]||"#1e3a5f"):"#1e3a5f"}`, background: filterType===type?"#0a2040":"transparent", color: filterType===type?(TYPE_COLOR[type]||"#aaa"):"#aaa", cursor:"pointer", fontSize:"12px", fontFamily:"inherit" }}>{TYPE_ICON[type]} {type}</button>
+                ))}
+              </div>
+              {filteredPaths.length === 0 && <div style={{ textAlign:"center", color:"#00ff88", padding:"40px", background:"#0d1526", borderRadius:"12px" }}>✅ No exposure paths detected!</div>}
+              {filteredPaths.map((p,i) => (
+                <div key={i} style={{ background:"#0d1526", borderRadius:"10px", padding:"16px", marginBottom:"8px", border:`1px solid ${SEV_COLOR[p.severity]}33` }}>
+                  <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:"10px" }}>
+                    <div style={{ display:"flex", gap:"8px", alignItems:"center" }}>
+                      <span style={{ fontSize:"16px" }}>{TYPE_ICON[p.path_type]||"🌐"}</span>
+                      <span style={{ color: TYPE_COLOR[p.path_type]||"#888", fontSize:"11px", fontWeight:"bold", background:`${TYPE_COLOR[p.path_type]||"#888"}22`, padding:"2px 8px", borderRadius:"20px" }}>{p.path_type}</span>
+                      <span style={{ color: SEV_COLOR[p.severity], fontSize:"11px", fontWeight:"bold", background:`${SEV_COLOR[p.severity]}22`, padding:"2px 8px", borderRadius:"20px" }}>{p.severity}</span>
+                    </div>
+                    <span style={{ color:"#555", fontSize:"11px" }}>{p.protocol} : {p.port}</span>
+                  </div>
+                  {/* Exposure path visualization */}
+                  <div style={{ display:"flex", alignItems:"center", gap:"8px", marginBottom:"10px", background:"#0a1628", borderRadius:"8px", padding:"10px 14px" }}>
+                    <span style={{ background:"#ff2d5522", border:"1px solid #ff2d5544", borderRadius:"6px", padding:"4px 10px", fontSize:"12px", color:"#ff2d55", fontWeight:"600" }}>{p.source}</span>
+                    <span style={{ color:"#ff2d55", fontSize:"18px" }}>→</span>
+                    <span style={{ background:"#ff6b0022", border:"1px solid #ff6b0044", borderRadius:"6px", padding:"4px 10px", fontSize:"12px", color:"#ff6b00", fontWeight:"600" }}>{p.destination}</span>
+                  </div>
+                  <div style={{ color:"#888", fontSize:"12px", marginBottom:"6px" }}>{p.description}</div>
+                  <div style={{ color:"#00e5ff", fontSize:"12px" }}>💡 {p.remediation}</div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {activeView === "assets" && (
+            <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:"12px" }}>
+              {scanData.assets?.map((a,i) => (
+                <div key={i} style={{ background:"#0d1526", borderRadius:"10px", padding:"16px", border:`1px solid ${RISK_COLOR[a.risk_level]||"#1e3a5f"}33` }}>
+                  <div style={{ display:"flex", justifyContent:"space-between", marginBottom:"8px" }}>
+                    <span style={{ color:"#e0e0e0", fontSize:"13px", fontWeight:"bold" }}>{a.asset_type}</span>
+                    <span style={{ color: RISK_COLOR[a.risk_level], fontSize:"11px", background:`${RISK_COLOR[a.risk_level]}22`, padding:"2px 8px", borderRadius:"20px" }}>{a.risk_level}</span>
+                  </div>
+                  <div style={{ color:"#888", fontSize:"12px", marginBottom:"6px" }}>{a.asset_name}</div>
+                  <div style={{ display:"flex", justifyContent:"space-between", fontSize:"11px" }}>
+                    <span style={{ color:"#555" }}>Exposure: <span style={{ color: a.exposure_level.includes("EXPOSED")?"#ff2d55":"#00ff88" }}>{a.exposure_level}</span></span>
+                    <span style={{ color:"#555" }}>Ports: {a.open_ports}</span>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+      {tab === "results" && !scanData && <div style={{ textAlign:"center", color:"#555", padding:"60px" }}>Run a scan first or select one from History.</div>}
+
+      {tab === "history" && (
+        <div>
+          {history.length === 0 && <div style={{ textAlign:"center", color:"#555", padding:"60px" }}>No scans yet.</div>}
+          {history.map((s,i) => (
+            <div key={i} style={{ background:"#0d1526", borderRadius:"10px", padding:"16px", marginBottom:"10px", border:"1px solid #1e3a5f", display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+              <div>
+                <div style={{ color:"#e0e0e0", fontSize:"14px" }}>{s.cloud_provider?.toUpperCase()} — {s.environment}</div>
+                <div style={{ color:"#555", fontSize:"12px", marginTop:"4px" }}>{s.total_paths} path(s) · {s.critical_paths} critical · {s.exposed_assets} asset(s) · {new Date(s.created_at).toLocaleString()}</div>
+              </div>
+              <div style={{ display:"flex", gap:"16px", alignItems:"center" }}>
+                <span style={{ color: SEV_COLOR[s.severity], fontSize:"13px", fontWeight:"bold" }}>{s.severity}</span>
+                <span style={{ color: riskColor(s.risk_score), fontSize:"13px" }}>Risk: {s.risk_score}</span>
+                <button onClick={() => loadScan(s.scan_id)} style={{ padding:"6px 14px", background:"#0a2040", border:"1px solid #00e5ff", borderRadius:"6px", color:"#00e5ff", cursor:"pointer", fontSize:"12px", fontFamily:"inherit" }}>View</button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ============================================================
 // AIPET X — Kubernetes Runtime Analyzer (Wiz Gap — Phase 1)
+
 // K8s Security | Pod Analysis | RBAC | Network Policy
 // ============================================================
 function K8sAnalyzerPage({ token, showToast }) {
@@ -23788,6 +23996,9 @@ export default function App() {
           )}
           {activeTab === "k8sanalyzer" && (
             <K8sAnalyzerPage token={token} showToast={showToast} />
+          )}
+          {activeTab === "networkexposure" && (
+            <NetworkExposurePage token={token} showToast={showToast} />
           )}
 
 
