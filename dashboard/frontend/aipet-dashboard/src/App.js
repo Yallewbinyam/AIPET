@@ -5795,6 +5795,7 @@ const NAV_ITEMS = [
   { id: "drift",       label: "Identity Drift", icon: AlertTriangle, group: "enterprise" },
   { id: "timeline_enhanced", label: "Unified Timeline", icon: Activity,   group: "enterprise" },
   { id: "codesecurity",     label: "Code Security",  icon: Shield,        group: "enterprise" },
+  { id: "forensics",        label: "AI Forensics",   icon: Eye,           group: "enterprise" },
   { id: "settings",  label: "Settings",      icon: Settings,      group: "account"  },
 ];
 
@@ -7280,8 +7281,185 @@ function DriftDetectorPage({ token, showToast }) {
 
 // ─────────────────────────────────────────────────────────────
 
+
+// ============================================================
+// AIPET X — AI Forensics Engine Page (#36)
+// IOC Extraction | MITRE ATT&CK | Timeline Reconstruction
+// ============================================================
+function ForensicsPage({ token, showToast }) {
+  const [tab, setTab] = useState("investigate");
+  const [title, setTitle] = useState("");
+  const [evidence, setEvidence] = useState("");
+  const [source, setSource] = useState("manual");
+  const [loading, setLoading] = useState(false);
+  const [caseData, setCaseData] = useState(null);
+  const [history, setHistory] = useState([]);
+
+  const API = "http://localhost:5001";
+  const SEV_COLOR = { CRITICAL:"#ff2d55", HIGH:"#ff6b00", MEDIUM:"#ffd60a", LOW:"#00e5ff", INFO:"#888" };
+  const STAGE_ICON = { "Reconnaissance":"🔍", "Initial Access":"🚪", "Execution":"⚡", "Persistence":"🔒", "Privilege Escalation":"⬆️", "Defense Evasion":"🛡️", "Credential Access":"🔑", "Lateral Movement":"↔️", "Command & Control":"📡", "Exfiltration":"📤" };
+
+  useEffect(() => { fetchHistory(); }, []);
+
+  async function fetchHistory() {
+    try {
+      const r = await fetch(`${API}/api/forensics/history`, { headers:{ Authorization:`Bearer ${token}` }});
+      const d = await r.json();
+      setHistory(d.cases || []);
+    } catch(e) {}
+  }
+
+  async function submitInvestigation() {
+    if (!evidence.trim()) { showToast("Paste evidence or log data first", "error"); return; }
+    setLoading(true); setCaseData(null);
+    try {
+      const r = await fetch(`${API}/api/forensics/investigate`, {
+        method: "POST",
+        headers: { "Content-Type":"application/json", Authorization:`Bearer ${token}` },
+        body: JSON.stringify({ title: title || "Untitled Investigation", evidence, source })
+      });
+      const d = await r.json();
+      if (d.case_id) {
+        showToast(`Investigation complete — ${d.stage_count} ATT&CK stage(s) detected`, d.risk_score >= 70 ? "error" : "warning");
+        await loadCase(d.case_id);
+        fetchHistory();
+      } else { showToast(d.error || "Investigation failed", "error"); }
+    } catch(e) { showToast("Investigation failed", "error"); }
+    setLoading(false);
+  }
+
+  async function loadCase(caseId) {
+    try {
+      const r = await fetch(`${API}/api/forensics/cases/${caseId}`, { headers:{ Authorization:`Bearer ${token}` }});
+      const d = await r.json();
+      setCaseData(d); setTab("results");
+    } catch(e) {}
+  }
+
+  const riskColor = (s) => s >= 70 ? "#ff2d55" : s >= 45 ? "#ff6b00" : s >= 20 ? "#ffd60a" : "#00ff88";
+
+  return (
+    <div style={{ padding:"24px", color:"#e0e0e0", fontFamily:"JetBrains Mono, monospace" }}>
+      {/* Header */}
+      <div style={{ marginBottom:"24px" }}>
+        <h2 style={{ color:"#00e5ff", fontSize:"22px", margin:0 }}>🔬 AI Forensics Engine</h2>
+        <p style={{ color:"#888", margin:"4px 0 0", fontSize:"13px" }}>IOC Extraction · MITRE ATT&CK Mapping · Kill Chain Reconstruction — Module #36</p>
+      </div>
+
+      {/* Tabs */}
+      <div style={{ display:"flex", gap:"8px", marginBottom:"24px" }}>
+        {[["investigate","🔍 Investigate"],["results","📋 Case Report"],["history","🕒 History"]].map(([id,label]) => (
+          <button key={id} onClick={() => setTab(id)} style={{ padding:"8px 18px", borderRadius:"8px", border:"none", cursor:"pointer", fontSize:"13px", background: tab===id ? "#00e5ff" : "#1a2236", color: tab===id ? "#000" : "#aaa", fontFamily:"inherit" }}>{label}</button>
+        ))}
+      </div>
+
+      {/* INVESTIGATE TAB */}
+      {tab === "investigate" && (
+        <div style={{ display:"grid", gridTemplateColumns:"280px 1fr", gap:"20px" }}>
+          <div style={{ background:"#0d1526", borderRadius:"12px", padding:"20px", border:"1px solid #1e3a5f" }}>
+            <p style={{ color:"#00e5ff", fontSize:"13px", marginTop:0 }}>Case Title</p>
+            <input value={title} onChange={e=>setTitle(e.target.value)} placeholder="e.g. Ransomware Incident #1" style={{ width:"100%", background:"#0a1628", border:"1px solid #1e3a5f", borderRadius:"8px", padding:"8px", color:"#e0e0e0", fontSize:"13px", boxSizing:"border-box", fontFamily:"inherit" }} />
+            <p style={{ color:"#00e5ff", fontSize:"13px", marginTop:"16px" }}>Evidence Source</p>
+            {[["manual","Manual Input"],["siem","SIEM Log"],["pcap","Network Capture"],["endpoint","Endpoint Log"]].map(([val,label]) => (
+              <div key={val} onClick={() => setSource(val)} style={{ padding:"8px 12px", borderRadius:"8px", marginBottom:"6px", cursor:"pointer", border:`1px solid ${source===val?"#00e5ff":"#1e3a5f"}`, background: source===val?"#0a2040":"transparent", color: source===val?"#00e5ff":"#aaa", fontSize:"13px" }}>{label}</div>
+            ))}
+            <button onClick={submitInvestigation} disabled={loading} style={{ marginTop:"16px", width:"100%", padding:"12px", borderRadius:"8px", background: loading?"#333":"#00e5ff", color:"#000", border:"none", cursor:"pointer", fontSize:"14px", fontWeight:"bold", fontFamily:"inherit" }}>
+              {loading ? "⏳ Analysing..." : "🔬 Run Investigation"}
+            </button>
+          </div>
+          <div style={{ background:"#0d1526", borderRadius:"12px", padding:"20px", border:"1px solid #1e3a5f" }}>
+            <p style={{ color:"#00e5ff", fontSize:"13px", marginTop:0 }}>Paste Evidence / Logs</p>
+            <textarea value={evidence} onChange={e=>setEvidence(e.target.value)} placeholder={"Paste any incident data, SIEM logs, network captures, or threat reports here...\n\nExample:\n192.168.1.50 ran nmap scan against 10.0.0.1\nExploit CVE-2023-44271 used against web server\nMimikatz executed, credentials dumped from lsass\nData exfiltrated via DNS tunnel to evil.com"}
+              style={{ width:"100%", height:"380px", background:"#0a1628", border:"1px solid #1e3a5f", borderRadius:"8px", padding:"12px", color:"#e0e0e0", fontSize:"13px", fontFamily:"JetBrains Mono, monospace", resize:"vertical", boxSizing:"border-box" }} />
+          </div>
+        </div>
+      )}
+
+      {/* RESULTS TAB */}
+      {tab === "results" && caseData && (
+        <div>
+          {/* Risk summary */}
+          <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:"12px", marginBottom:"20px" }}>
+            {[["Risk Score", caseData.risk_score, riskColor(caseData.risk_score)],["Severity", caseData.severity, SEV_COLOR[caseData.severity]],["IOCs Found", Object.values(caseData.ioc_summary||{}).reduce((a,b)=>a+b,0), "#00e5ff"],["ATT&CK Stages", caseData.timeline?.length, "#a78bfa"]].map(([label,val,color]) => (
+              <div key={label} style={{ background:"#0d1526", borderRadius:"10px", padding:"16px", border:`1px solid ${color}33`, textAlign:"center" }}>
+                <div style={{ fontSize:"26px", fontWeight:"bold", color }}>{val}</div>
+                <div style={{ fontSize:"12px", color:"#888", marginTop:"4px" }}>{label}</div>
+              </div>
+            ))}
+          </div>
+
+          {/* Summary */}
+          <div style={{ background:"#0d1526", borderRadius:"10px", padding:"16px", marginBottom:"16px", border:"1px solid #1e3a5f" }}>
+            <div style={{ color:"#00e5ff", fontSize:"13px", marginBottom:"6px" }}>📋 AI Summary</div>
+            <div style={{ color:"#e0e0e0", fontSize:"13px" }}>{caseData.summary}</div>
+          </div>
+
+          {/* IOCs */}
+          {caseData.artifacts?.length > 0 && (
+            <div style={{ background:"#0d1526", borderRadius:"10px", padding:"16px", marginBottom:"16px", border:"1px solid #1e3a5f" }}>
+              <div style={{ color:"#00e5ff", fontSize:"13px", marginBottom:"12px" }}>🎯 Indicators of Compromise (IOCs)</div>
+              <div style={{ display:"flex", flexWrap:"wrap", gap:"8px" }}>
+                {caseData.artifacts.map((a,i) => (
+                  <span key={i} style={{ background:"#0a2040", border:"1px solid #1e3a5f", borderRadius:"6px", padding:"4px 10px", fontSize:"12px", color:"#e0e0e0" }}>
+                    <span style={{ color:"#00e5ff" }}>{a.type}</span> · {a.value}
+                  </span>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Kill Chain Timeline */}
+          {caseData.timeline?.length > 0 && (
+            <div style={{ background:"#0d1526", borderRadius:"10px", padding:"16px", border:"1px solid #1e3a5f" }}>
+              <div style={{ color:"#00e5ff", fontSize:"13px", marginBottom:"16px" }}>⚔️ Attack Kill Chain (MITRE ATT&CK)</div>
+              {caseData.timeline.map((t,i) => (
+                <div key={i} style={{ display:"flex", gap:"16px", marginBottom:"12px", alignItems:"flex-start" }}>
+                  <div style={{ display:"flex", flexDirection:"column", alignItems:"center" }}>
+                    <div style={{ width:"32px", height:"32px", borderRadius:"50%", background:`${SEV_COLOR[t.severity]}22`, border:`2px solid ${SEV_COLOR[t.severity]}`, display:"flex", alignItems:"center", justifyContent:"center", fontSize:"14px" }}>{STAGE_ICON[t.stage] || "⚡"}</div>
+                    {i < caseData.timeline.length-1 && <div style={{ width:"2px", height:"24px", background:"#1e3a5f", margin:"4px 0" }} />}
+                  </div>
+                  <div style={{ flex:1, background:"#0a1628", borderRadius:"8px", padding:"12px", border:`1px solid ${SEV_COLOR[t.severity]}22` }}>
+                    <div style={{ display:"flex", justifyContent:"space-between", marginBottom:"4px" }}>
+                      <span style={{ color: SEV_COLOR[t.severity], fontSize:"12px", fontWeight:"bold" }}>Step {t.step} — {t.stage}</span>
+                      <span style={{ color:"#555", fontSize:"11px" }}>{t.severity}</span>
+                    </div>
+                    <div style={{ color:"#aaa", fontSize:"12px" }}>{t.mitre_technique}</div>
+                    <div style={{ color:"#666", fontSize:"11px", marginTop:"4px" }}>{t.description}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+      {tab === "results" && !caseData && <div style={{ textAlign:"center", color:"#555", padding:"60px" }}>Run an investigation first or select one from History.</div>}
+
+      {/* HISTORY TAB */}
+      {tab === "history" && (
+        <div>
+          {history.length === 0 && <div style={{ textAlign:"center", color:"#555", padding:"60px" }}>No cases yet.</div>}
+          {history.map((c,i) => (
+            <div key={i} style={{ background:"#0d1526", borderRadius:"10px", padding:"16px", marginBottom:"10px", border:"1px solid #1e3a5f", display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+              <div>
+                <div style={{ color:"#e0e0e0", fontSize:"14px" }}>{c.title}</div>
+                <div style={{ color:"#555", fontSize:"12px", marginTop:"4px" }}>{new Date(c.created_at).toLocaleString()}</div>
+              </div>
+              <div style={{ display:"flex", gap:"16px", alignItems:"center" }}>
+                <span style={{ color: SEV_COLOR[c.severity], fontSize:"13px", fontWeight:"bold" }}>{c.severity}</span>
+                <span style={{ color: riskColor(c.risk_score), fontSize:"13px" }}>Risk: {c.risk_score}</span>
+                <button onClick={() => loadCase(c.case_id)} style={{ padding:"6px 14px", background:"#0a2040", border:"1px solid #00e5ff", borderRadius:"6px", color:"#00e5ff", cursor:"pointer", fontSize:"12px", fontFamily:"inherit" }}>View</button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ============================================================
 // AIPET X — Code Security Engine Page (#47)
+
 // SAST | SCA | Secrets | IaC | SBOM
 // ============================================================
 function CodeSecurityPage({ token, showToast }) {
@@ -21406,6 +21584,9 @@ export default function App() {
           )}
           {activeTab === "codesecurity" && (
             <CodeSecurityPage token={token} showToast={showToast} />
+          )}
+          {activeTab === "forensics" && (
+            <ForensicsPage token={token} showToast={showToast} />
           )}
           {activeTab === "terminal" && (
             <AIPETTerminal token={token} showToast={showToast} />
