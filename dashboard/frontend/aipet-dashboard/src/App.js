@@ -5814,6 +5814,7 @@ const NAV_ITEMS = [
   { id: "clouddashboard",    label: "Cloud Dashboard", icon: Activity,     group: "enterprise" },
   { id: "multicloudscale",   label: "Multi-Cloud Scale",icon: Globe,       group: "enterprise" },
   { id: "endpointagent",     label: "Endpoint Agent", icon: Shield,        group: "enterprise" },
+  { id: "itdr",              label: "Identity Threats",icon: AlertTriangle, group: "enterprise" },
   { id: "settings",  label: "Settings",      icon: Settings,      group: "account"  },
 ];
 
@@ -7317,8 +7318,184 @@ function DriftDetectorPage({ token, showToast }) {
 
 
 
+
 // ============================================================
-// AIPET X — Endpoint Agent (AIPET X )
+// AIPET X — Identity Threat Detection (ITDR)
+// Kerberos | NTLM | MFA Attacks | Privilege Escalation
+// ============================================================
+function ITDRPage({ token, showToast }) {
+  const [tab, setTab] = useState("scan");
+  const [environment, setEnvironment] = useState("production");
+  const [identityStore, setIdentityStore] = useState("active_directory");
+  const [description, setDescription] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [scanData, setScanData] = useState(null);
+  const [history, setHistory] = useState([]);
+  const [filterType, setFilterType] = useState(null);
+
+  const API = "http://localhost:5001";
+  const SEV_COLOR     = { CRITICAL:"#ff2d55", HIGH:"#ff6b00", MEDIUM:"#ffd60a", LOW:"#00e5ff" };
+  const URGENCY_COLOR = { IMMEDIATE:"#ff2d55", HIGH:"#ff6b00", MEDIUM:"#ffd60a", LOW:"#00ff88" };
+  const TYPE_ICON     = { "Kerberos Attack":"🎫", "NTLM Attack":"🔐", "MFA Attack":"📱", "Privilege Escalation":"⬆️", "Identity Reconnaissance":"🔍", "Account Manipulation":"👤" };
+  const TYPE_COLOR    = { "Kerberos Attack":"#a78bfa", "NTLM Attack":"#ff6b00", "MFA Attack":"#ff2d55", "Privilege Escalation":"#ffd60a", "Identity Reconnaissance":"#00e5ff", "Account Manipulation":"#ff6b00" };
+
+  useEffect(() => { fetchHistory(); }, []);
+
+  async function fetchHistory() {
+    try {
+      const r = await fetch(`${API}/api/itdr/history`, { headers:{ Authorization:`Bearer ${token}` }});
+      const d = await r.json();
+      setHistory(d.scans || []);
+    } catch(e) {}
+  }
+
+  async function submitScan() {
+    if (!description.trim()) { showToast("Describe the identity threats first", "error"); return; }
+    setLoading(true); setScanData(null);
+    try {
+      const r = await fetch(`${API}/api/itdr/scan`, {
+        method:"POST",
+        headers:{ "Content-Type":"application/json", Authorization:`Bearer ${token}` },
+        body: JSON.stringify({ environment, identity_store:identityStore, description })
+      });
+      const d = await r.json();
+      if (d.scan_id) {
+        showToast(`ITDR scan complete — ${d.total_findings} threat(s), ${d.immediate_count} immediate`, d.critical_count > 0 ? "error" : "warning");
+        await loadScan(d.scan_id);
+        fetchHistory();
+      } else { showToast(d.error || "Scan failed", "error"); }
+    } catch(e) { showToast("Scan failed", "error"); }
+    setLoading(false);
+  }
+
+  async function loadScan(scanId) {
+    try {
+      const r = await fetch(`${API}/api/itdr/scans/${scanId}`, { headers:{ Authorization:`Bearer ${token}` }});
+      const d = await r.json();
+      setScanData(d); setFilterType(null); setTab("results");
+    } catch(e) {}
+  }
+
+  const riskColor = (s) => s >= 70 ? "#ff2d55" : s >= 45 ? "#ff6b00" : s >= 20 ? "#ffd60a" : "#00ff88";
+  const filtered  = scanData?.findings?.filter(f => !filterType || f.attack_type===filterType) || [];
+
+  return (
+    <div style={{ padding:"24px", color:"#e0e0e0", fontFamily:"JetBrains Mono, monospace" }}>
+      <div style={{ marginBottom:"24px" }}>
+        <h2 style={{ color:"#00e5ff", fontSize:"22px", margin:0 }}>🛡️ Identity Threat Detection</h2>
+        <p style={{ color:"#888", margin:"4px 0 0", fontSize:"13px" }}>Kerberos · NTLM · MFA Attacks · Privilege Escalation · Reconnaissance</p>
+      </div>
+
+      <div style={{ display:"flex", gap:"8px", marginBottom:"24px" }}>
+        {[["scan","🔍 Scan"],["results","📋 Threats"],["history","🕒 History"]].map(([id,label]) => (
+          <button key={id} onClick={() => setTab(id)} style={{ padding:"8px 18px", borderRadius:"8px", border:"none", cursor:"pointer", fontSize:"13px", background: tab===id?"#00e5ff":"#1a2236", color: tab===id?"#000":"#aaa", fontFamily:"inherit" }}>{label}</button>
+        ))}
+      </div>
+
+      {tab === "scan" && (
+        <div style={{ display:"grid", gridTemplateColumns:"280px 1fr", gap:"20px" }}>
+          <div style={{ background:"#0d1526", borderRadius:"12px", padding:"20px", border:"1px solid #1e3a5f" }}>
+            <p style={{ color:"#00e5ff", fontSize:"13px", marginTop:0 }}>Identity Store</p>
+            {[["active_directory","🏢 Active Directory"],["azure_ad","☁️ Azure AD / Entra"],["okta","🔐 Okta"],["google_workspace","🟡 Google Workspace"]].map(([val,label]) => (
+              <div key={val} onClick={() => setIdentityStore(val)} style={{ padding:"8px 12px", borderRadius:"8px", marginBottom:"6px", cursor:"pointer", border:`1px solid ${identityStore===val?"#00e5ff":"#1e3a5f"}`, background: identityStore===val?"#0a2040":"transparent", color: identityStore===val?"#00e5ff":"#aaa", fontSize:"13px" }}>{label}</div>
+            ))}
+            <p style={{ color:"#00e5ff", fontSize:"13px", marginTop:"16px" }}>Environment</p>
+            {[["production","🔴 Production"],["staging","🟡 Staging"],["development","🟢 Development"]].map(([val,label]) => (
+              <div key={val} onClick={() => setEnvironment(val)} style={{ padding:"7px 12px", borderRadius:"8px", marginBottom:"5px", cursor:"pointer", border:`1px solid ${environment===val?"#00e5ff":"#1e3a5f"}`, background: environment===val?"#0a2040":"transparent", color: environment===val?"#00e5ff":"#aaa", fontSize:"12px" }}>{label}</div>
+            ))}
+            <p style={{ color:"#00e5ff", fontSize:"13px", marginTop:"16px" }}>Detects</p>
+            {Object.entries(TYPE_ICON).map(([type,icon]) => (
+              <div key={type} style={{ fontSize:"11px", color:"#555", marginBottom:"3px" }}>{icon} {type}</div>
+            ))}
+            <button onClick={submitScan} disabled={loading} style={{ marginTop:"12px", width:"100%", padding:"12px", borderRadius:"8px", background: loading?"#333":"#00e5ff", color:"#000", border:"none", cursor:"pointer", fontSize:"14px", fontWeight:"bold", fontFamily:"inherit" }}>
+              {loading ? "⏳ Scanning..." : "🛡️ Detect Identity Threats"}
+            </button>
+          </div>
+          <div style={{ background:"#0d1526", borderRadius:"12px", padding:"20px", border:"1px solid #1e3a5f" }}>
+            <p style={{ color:"#00e5ff", fontSize:"13px", marginTop:0 }}>Describe Identity Threat Observations</p>
+            <textarea value={description} onChange={e=>setDescription(e.target.value)}
+              placeholder="Describe identity attack indicators. Examples: Golden ticket attack krbtgt forged ticket detected. Pass the hash NTLM relay lateral movement. MFA fatigue push bombing attack. DCSync replication detected drsuapi. Kerberoasting SPN service principal name hash request. BloodHound sharphound AD enumeration. Domain admin account compromise. Unauthorized group membership change domain admins added. LDAP enumeration recon powerview. SIM swapping phone number takeover. AS-REP roasting no pre-authentication."
+              style={{ width:"100%", height:"400px", background:"#0a1628", border:"1px solid #1e3a5f", borderRadius:"8px", padding:"12px", color:"#e0e0e0", fontSize:"13px", fontFamily:"JetBrains Mono, monospace", resize:"vertical", boxSizing:"border-box" }} />
+          </div>
+        </div>
+      )}
+
+      {tab === "results" && scanData && (
+        <div>
+          <div style={{ display:"grid", gridTemplateColumns:"repeat(5,1fr)", gap:"12px", marginBottom:"20px" }}>
+            {[["Risk Score",scanData.risk_score,riskColor(scanData.risk_score)],["Severity",scanData.severity,SEV_COLOR[scanData.severity]],["Threats",scanData.total_findings,"#a78bfa"],["Critical",scanData.critical_count,"#ff2d55"],["Attack Types",scanData.identities_compromised,"#ff6b00"]].map(([label,val,color]) => (
+              <div key={label} style={{ background:"#0d1526", borderRadius:"10px", padding:"16px", border:`1px solid ${color}33`, textAlign:"center" }}>
+                <div style={{ fontSize:"22px", fontWeight:"bold", color }}>{val}</div>
+                <div style={{ fontSize:"12px", color:"#888", marginTop:"4px" }}>{label}</div>
+              </div>
+            ))}
+          </div>
+
+          <div style={{ background:"#0d1526", borderRadius:"10px", padding:"14px", marginBottom:"16px", border:"1px solid #1e3a5f" }}>
+            <div style={{ display:"flex", justifyContent:"space-between", marginBottom:"8px" }}>
+              <span style={{ color:"#00e5ff", fontSize:"13px" }}>🛡️ Identity Threat Score — {scanData.identity_store?.replace(/_/g," ").toUpperCase()}</span>
+              <span style={{ color: riskColor(scanData.risk_score), fontWeight:"bold" }}>{scanData.risk_score}/100</span>
+            </div>
+            <div style={{ background:"#0a1628", borderRadius:"20px", height:"10px", overflow:"hidden", marginBottom:"8px" }}>
+              <div style={{ width:`${scanData.risk_score}%`, height:"100%", background: riskColor(scanData.risk_score), borderRadius:"20px" }} />
+            </div>
+            <div style={{ color:"#888", fontSize:"12px" }}>{scanData.summary}</div>
+          </div>
+
+          <div style={{ display:"flex", gap:"8px", marginBottom:"12px", flexWrap:"wrap" }}>
+            <button onClick={() => setFilterType(null)} style={{ padding:"6px 14px", borderRadius:"6px", border:`1px solid ${!filterType?"#00e5ff":"#1e3a5f"}`, background: !filterType?"#0a2040":"transparent", color: !filterType?"#00e5ff":"#aaa", cursor:"pointer", fontSize:"12px", fontFamily:"inherit" }}>All ({scanData.findings?.length})</button>
+            {scanData.attack_types?.map(type => (
+              <button key={type} onClick={() => setFilterType(filterType===type?null:type)} style={{ padding:"6px 14px", borderRadius:"6px", border:`1px solid ${filterType===type?(TYPE_COLOR[type]||"#1e3a5f"):"#1e3a5f"}`, background: filterType===type?"#0a2040":"transparent", color: filterType===type?(TYPE_COLOR[type]||"#aaa"):"#aaa", cursor:"pointer", fontSize:"12px", fontFamily:"inherit" }}>{TYPE_ICON[type]} {type}</button>
+            ))}
+          </div>
+
+          {filtered.length === 0 && <div style={{ textAlign:"center", color:"#00ff88", padding:"40px", background:"#0d1526", borderRadius:"12px" }}>✅ No identity threats detected!</div>}
+          {filtered.map((f,i) => (
+            <div key={i} style={{ background:"#0d1526", borderRadius:"10px", padding:"16px", marginBottom:"8px", border:`1px solid ${SEV_COLOR[f.severity]}33` }}>
+              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:"8px" }}>
+                <div style={{ display:"flex", gap:"8px", alignItems:"center" }}>
+                  <span style={{ fontSize:"18px" }}>{TYPE_ICON[f.attack_type]||"🛡️"}</span>
+                  <span style={{ color: SEV_COLOR[f.severity], fontSize:"11px", fontWeight:"bold", background:`${SEV_COLOR[f.severity]}22`, padding:"2px 8px", borderRadius:"20px" }}>{f.severity}</span>
+                  <span style={{ color: URGENCY_COLOR[f.urgency], fontSize:"11px", fontWeight:"bold", background:`${URGENCY_COLOR[f.urgency]}22`, padding:"2px 8px", borderRadius:"20px" }}>⚡ {f.urgency}</span>
+                  <span style={{ color: TYPE_COLOR[f.attack_type]||"#888", fontSize:"11px" }}>{f.attack_type}</span>
+                </div>
+                <span style={{ color:"#a78bfa", fontSize:"11px" }}>{f.mitre_technique}</span>
+              </div>
+              <div style={{ color:"#e0e0e0", fontSize:"14px", fontWeight:"bold", marginBottom:"4px" }}>{f.title}</div>
+              <div style={{ color:"#ff6b00", fontSize:"12px", marginBottom:"4px" }}>🎯 {f.mitre_tactic} · {f.affected_identity}</div>
+              <div style={{ color:"#888", fontSize:"12px", marginBottom:"6px" }}>{f.description}</div>
+              <div style={{ color:"#00e5ff", fontSize:"12px" }}>💡 {f.remediation}</div>
+            </div>
+          ))}
+        </div>
+      )}
+      {tab === "results" && !scanData && <div style={{ textAlign:"center", color:"#555", padding:"60px" }}>Run a scan first or select one from History.</div>}
+
+      {tab === "history" && (
+        <div>
+          {history.length === 0 && <div style={{ textAlign:"center", color:"#555", padding:"60px" }}>No scans yet.</div>}
+          {history.map((s,i) => (
+            <div key={i} style={{ background:"#0d1526", borderRadius:"10px", padding:"16px", marginBottom:"10px", border:"1px solid #1e3a5f", display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+              <div>
+                <div style={{ color:"#e0e0e0", fontSize:"14px" }}>🛡️ {s.identity_store?.replace(/_/g," ").toUpperCase()} — {s.environment}</div>
+                <div style={{ color:"#555", fontSize:"12px", marginTop:"4px" }}>{s.total_findings} threat(s) · {s.critical_count} critical · {new Date(s.created_at).toLocaleString()}</div>
+              </div>
+              <div style={{ display:"flex", gap:"16px", alignItems:"center" }}>
+                <span style={{ color: SEV_COLOR[s.severity], fontSize:"13px", fontWeight:"bold" }}>{s.severity}</span>
+                <span style={{ color: riskColor(s.risk_score), fontSize:"13px" }}>Risk: {s.risk_score}</span>
+                <button onClick={() => loadScan(s.scan_id)} style={{ padding:"6px 14px", background:"#0a2040", border:"1px solid #00e5ff", borderRadius:"6px", color:"#00e5ff", cursor:"pointer", fontSize:"12px", fontFamily:"inherit" }}>View</button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ============================================================
+// AIPET X — Endpoint Agent
+ (AIPET X )
 // Device Health | EDR Simulation | Behavioural Analysis
 // ============================================================
 function EndpointAgentPage({ token, showToast }) {
@@ -24678,6 +24855,9 @@ export default function App() {
           )}
           {activeTab === "endpointagent" && (
             <EndpointAgentPage token={token} showToast={showToast} />
+          )}
+          {activeTab === "itdr" && (
+            <ITDRPage token={token} showToast={showToast} />
           )}
 
 
