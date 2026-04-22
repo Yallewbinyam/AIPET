@@ -5817,6 +5817,7 @@ const NAV_ITEMS = [
   { id: "itdr",              label: "Identity Threats",icon: AlertTriangle, group: "enterprise" },
   { id: "runtimeprotection", label: "Runtime Protect", icon: Shield,        group: "enterprise" },
   { id: "threatintelingest", label: "Threat Intel",    icon: AlertTriangle, group: "enterprise" },
+  { id: "adversaryprofiling", label: "Adversary Intel", icon: Eye,          group: "enterprise" },
   { id: "settings",  label: "Settings",      icon: Settings,      group: "account"  },
 ];
 
@@ -7323,8 +7324,239 @@ function DriftDetectorPage({ token, showToast }) {
 
 
 
+
+// ============================================================
+// AIPET X — Adversary Profiling Engine
+// Threat Actor Attribution | TTP Analysis | Campaign Tracking
+// ============================================================
+function AdversaryProfilingPage({ token, showToast }) {
+  const [tab, setTab] = useState("profile");
+  const [description, setDescription] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [result, setResult] = useState(null);
+  const [actors, setActors] = useState([]);
+  const [selectedActor, setSelectedActor] = useState(null);
+  const [history, setHistory] = useState([]);
+
+  const API = "http://localhost:5001";
+  const THREAT_COLOR = { CRITICAL:"#ff2d55", HIGH:"#ff6b00", MEDIUM:"#ffd60a", LOW:"#00e5ff" };
+  const TYPE_ICON    = { "Nation-State APT":"🎯", "Ransomware-as-a-Service":"🔒", "Ransomware / Data Extortion":"💰", "Nation-State APT + Cybercrime":"🎭" };
+  const SOPH_COLOR   = { "Very High":"#ff2d55", "High":"#ff6b00", "Medium":"#ffd60a", "Low":"#00ff88" };
+
+  useEffect(() => { fetchActors(); fetchHistory(); }, []);
+
+  async function fetchActors() {
+    try {
+      const r = await fetch(`${API}/api/adversary-profiling/actors`, { headers:{ Authorization:`Bearer ${token}` }});
+      const d = await r.json();
+      setActors(d.actors || []);
+    } catch(e) {}
+  }
+
+  async function fetchHistory() {
+    try {
+      const r = await fetch(`${API}/api/adversary-profiling/history`, { headers:{ Authorization:`Bearer ${token}` }});
+      const d = await r.json();
+      setHistory(d.profiles || []);
+    } catch(e) {}
+  }
+
+  async function submitProfile() {
+    if (!description.trim()) { showToast("Describe the attack indicators first", "error"); return; }
+    setLoading(true); setResult(null);
+    try {
+      const r = await fetch(`${API}/api/adversary-profiling/profile`, {
+        method:"POST",
+        headers:{ "Content-Type":"application/json", Authorization:`Bearer ${token}` },
+        body: JSON.stringify({ description })
+      });
+      const d = await r.json();
+      setResult(d);
+      if (d.actor_found) {
+        showToast(`Actor identified: ${d.primary_actor} (${d.confidence}% confidence)`, "success");
+        setSelectedActor(0); setTab("results");
+      } else { showToast("No known actor matched", "warning"); }
+      fetchHistory();
+    } catch(e) { showToast("Profiling failed", "error"); }
+    setLoading(false);
+  }
+
+  const confColor = (c) => c >= 70 ? "#00ff88" : c >= 40 ? "#ffd60a" : "#ff6b00";
+
+  return (
+    <div style={{ padding:"24px", color:"#e0e0e0", fontFamily:"JetBrains Mono, monospace" }}>
+      <div style={{ marginBottom:"24px" }}>
+        <h2 style={{ color:"#00e5ff", fontSize:"22px", margin:0 }}>🎯 Adversary Profiling Engine</h2>
+        <p style={{ color:"#888", margin:"4px 0 0", fontSize:"13px" }}>Threat Actor Attribution · TTP Analysis · Campaign Tracking · 8 Nation-State & Criminal Groups</p>
+      </div>
+
+      <div style={{ display:"flex", gap:"8px", marginBottom:"24px" }}>
+        {[["profile","🔍 Profile"],["results","🎯 Actor Profile"],["library","📚 Actor Library"],["history","🕒 History"]].map(([id,label]) => (
+          <button key={id} onClick={() => setTab(id)} style={{ padding:"8px 18px", borderRadius:"8px", border:"none", cursor:"pointer", fontSize:"13px", background: tab===id?"#00e5ff":"#1a2236", color: tab===id?"#000":"#aaa", fontFamily:"inherit" }}>{label}</button>
+        ))}
+      </div>
+
+      {tab === "profile" && (
+        <div style={{ display:"grid", gridTemplateColumns:"280px 1fr", gap:"20px" }}>
+          <div style={{ background:"#0d1526", borderRadius:"12px", padding:"20px", border:"1px solid #1e3a5f" }}>
+            <p style={{ color:"#00e5ff", fontSize:"13px", marginTop:0 }}>Known Actors in Database</p>
+            {actors.map((a,i) => (
+              <div key={i} style={{ padding:"8px 10px", borderRadius:"8px", marginBottom:"5px", background:"rgba(255,255,255,0.02)", border:"1px solid #1e3a5f" }}>
+                <div style={{ fontSize:"12px", color:"#e0e0e0", fontWeight:"600" }}>{TYPE_ICON[a.type]||"🎯"} {a.name.split("(")[0].trim()}</div>
+                <div style={{ fontSize:"10px", color:"#555", marginTop:"1px" }}>{a.origin.split("—")[0].trim()} · Since {a.active_since}</div>
+              </div>
+            ))}
+            <button onClick={submitProfile} disabled={loading} style={{ marginTop:"12px", width:"100%", padding:"12px", borderRadius:"8px", background: loading?"#333":"#00e5ff", color:"#000", border:"none", cursor:"pointer", fontSize:"14px", fontWeight:"bold", fontFamily:"inherit" }}>
+              {loading ? "⏳ Profiling..." : "🎯 Identify Actor"}
+            </button>
+          </div>
+          <div style={{ background:"#0d1526", borderRadius:"12px", padding:"20px", border:"1px solid #1e3a5f" }}>
+            <p style={{ color:"#00e5ff", fontSize:"13px", marginTop:0 }}>Describe Attack Indicators & Observed TTPs</p>
+            <textarea value={description} onChange={e=>setDescription(e.target.value)}
+              placeholder="Describe the attack indicators to identify the threat actor. Include malware names, TTPs, targets, and any other indicators. Examples: Nobelium solorigate supply chain attack government targeting. WannaCry ransomware North Korea bitcoin. LockBit 3 double extortion affiliate ransomware. Volt Typhoon living off the land critical infrastructure pre-positioning. APT28 fancy bear election interference spearphishing."
+              style={{ width:"100%", height:"420px", background:"#0a1628", border:"1px solid #1e3a5f", borderRadius:"8px", padding:"12px", color:"#e0e0e0", fontSize:"13px", fontFamily:"JetBrains Mono, monospace", resize:"vertical", boxSizing:"border-box" }} />
+          </div>
+        </div>
+      )}
+
+      {tab === "results" && result?.actor_found && result.profiles && (
+        <div>
+          {/* Actor selector tabs */}
+          {result.profiles.length > 1 && (
+            <div style={{ display:"flex", gap:"8px", marginBottom:"16px" }}>
+              {result.profiles.map((p,i) => (
+                <button key={i} onClick={() => setSelectedActor(i)} style={{ padding:"8px 16px", borderRadius:"8px", border:`1px solid ${selectedActor===i?"#00e5ff":"#1e3a5f"}`, background: selectedActor===i?"#0a2040":"transparent", color: selectedActor===i?"#00e5ff":"#aaa", cursor:"pointer", fontSize:"12px", fontFamily:"inherit" }}>
+                  #{i+1} Match ({p.confidence}%)
+                </button>
+              ))}
+            </div>
+          )}
+
+          {result.profiles[selectedActor||0] && (() => {
+            const p = result.profiles[selectedActor||0];
+            return (
+              <div>
+                {/* Hero card */}
+                <div style={{ background:"linear-gradient(135deg,#0a1628,#0d1f3c)", border:`1px solid ${THREAT_COLOR[p.threat_level]}44`, borderRadius:"16px", padding:"28px", marginBottom:"16px" }}>
+                  <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:"20px" }}>
+                    <div>
+                      <div style={{ fontSize:"11px", color:"#555", marginBottom:"6px" }}>{TYPE_ICON[p.actor_type]||"🎯"} {p.actor_type}</div>
+                      <h2 style={{ color:"#e0e0e0", fontSize:"20px", fontWeight:"900", margin:"0 0 6px", letterSpacing:"-0.02em" }}>{p.actor_name}</h2>
+                      <div style={{ color:"#888", fontSize:"13px" }}>{p.origin}</div>
+                    </div>
+                    <div style={{ textAlign:"right" }}>
+                      <div style={{ fontSize:"36px", fontWeight:"900", color: confColor(p.confidence), lineHeight:1 }}>{p.confidence}%</div>
+                      <div style={{ color:"#555", fontSize:"11px" }}>Attribution Confidence</div>
+                      <div style={{ marginTop:"8px" }}>
+                        <span style={{ color: THREAT_COLOR[p.threat_level], fontSize:"12px", fontWeight:"bold", background:`${THREAT_COLOR[p.threat_level]}22`, padding:"3px 12px", borderRadius:"20px" }}>{p.threat_level} THREAT</span>
+                      </div>
+                    </div>
+                  </div>
+                  <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:"12px", marginBottom:"16px" }}>
+                    {[["🎯 Motivation",p.motivation],["⚡ Sophistication",p.sophistication],["📅 Active Since",p.active_since]].map(([label,val]) => (
+                      <div key={label} style={{ background:"rgba(255,255,255,0.03)", borderRadius:"8px", padding:"12px" }}>
+                        <div style={{ fontSize:"11px", color:"#555", marginBottom:"4px" }}>{label}</div>
+                        <div style={{ fontSize:"13px", color:"#e0e0e0", fontWeight:"600" }}>{val}</div>
+                      </div>
+                    ))}
+                  </div>
+                  <p style={{ color:"#888", fontSize:"13px", lineHeight:"1.7", margin:0 }}>{p.description}</p>
+                </div>
+
+                <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"16px", marginBottom:"16px" }}>
+                  {/* TTPs */}
+                  <div style={{ background:"#0d1526", borderRadius:"12px", padding:"20px", border:"1px solid #1e3a5f" }}>
+                    <div style={{ color:"#ffd60a", fontSize:"13px", fontWeight:"bold", marginBottom:"12px" }}>⚔️ Known TTPs (MITRE ATT&CK)</div>
+                    {p.ttps?.map((ttp,i) => (
+                      <div key={i} style={{ padding:"6px 10px", borderRadius:"6px", marginBottom:"5px", background:"#ffd60a11", border:"1px solid #ffd60a22", fontSize:"12px", color:"#ffd60a" }}>{ttp}</div>
+                    ))}
+                  </div>
+                  {/* Tools & Campaigns */}
+                  <div style={{ background:"#0d1526", borderRadius:"12px", padding:"20px", border:"1px solid #1e3a5f" }}>
+                    <div style={{ color:"#ff6b00", fontSize:"13px", fontWeight:"bold", marginBottom:"12px" }}>🛠️ Known Tools</div>
+                    <div style={{ display:"flex", flexWrap:"wrap", gap:"6px", marginBottom:"16px" }}>
+                      {p.known_tools?.map((tool,i) => (
+                        <span key={i} style={{ background:"#ff6b0022", border:"1px solid #ff6b0033", borderRadius:"6px", padding:"3px 10px", fontSize:"11px", color:"#ff6b00" }}>{tool}</span>
+                      ))}
+                    </div>
+                    <div style={{ color:"#a78bfa", fontSize:"13px", fontWeight:"bold", marginBottom:"10px" }}>📋 Recent Campaigns</div>
+                    {p.recent_campaigns?.map((c,i) => (
+                      <div key={i} style={{ fontSize:"12px", color:"#888", marginBottom:"4px" }}>• {c}</div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Targets & Mitigations */}
+                <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"16px" }}>
+                  <div style={{ background:"#0d1526", borderRadius:"12px", padding:"20px", border:"1px solid #1e3a5f" }}>
+                    <div style={{ color:"#ff2d55", fontSize:"13px", fontWeight:"bold", marginBottom:"12px" }}>🎯 Primary Targets</div>
+                    <div style={{ display:"flex", flexWrap:"wrap", gap:"6px" }}>
+                      {p.targets?.map((t,i) => (
+                        <span key={i} style={{ background:"#ff2d5522", border:"1px solid #ff2d5533", borderRadius:"6px", padding:"3px 10px", fontSize:"11px", color:"#ff2d55" }}>{t}</span>
+                      ))}
+                    </div>
+                  </div>
+                  <div style={{ background:"#0d1526", borderRadius:"12px", padding:"20px", border:"1px solid #1e3a5f" }}>
+                    <div style={{ color:"#00ff88", fontSize:"13px", fontWeight:"bold", marginBottom:"12px" }}>🛡️ Recommended Mitigations</div>
+                    {p.mitigations?.map((m,i) => (
+                      <div key={i} style={{ fontSize:"12px", color:"#888", marginBottom:"4px" }}>✓ {m}</div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            );
+          })()}
+        </div>
+      )}
+      {tab === "results" && result && !result.actor_found && (
+        <div style={{ textAlign:"center", color:"#ffd60a", padding:"60px", background:"#0d1526", borderRadius:"12px" }}>
+          ⚠️ No known threat actor matched. May be a new or unknown actor. Consider submitting to threat intelligence sharing community.
+        </div>
+      )}
+      {tab === "results" && !result && <div style={{ textAlign:"center", color:"#555", padding:"60px" }}>Run a profile first.</div>}
+
+      {tab === "library" && (
+        <div style={{ display:"grid", gridTemplateColumns:"repeat(2,1fr)", gap:"16px" }}>
+          {actors.map((a,i) => (
+            <div key={i} style={{ background:"#0d1526", borderRadius:"12px", padding:"20px", border:`1px solid ${THREAT_COLOR[a.threat_level]}33` }}>
+              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:"12px" }}>
+                <div>
+                  <div style={{ fontSize:"11px", color:"#555", marginBottom:"4px" }}>{TYPE_ICON[a.type]||"🎯"} {a.type}</div>
+                  <div style={{ fontSize:"15px", fontWeight:"bold", color:"#e0e0e0" }}>{a.name}</div>
+                </div>
+                <span style={{ color: THREAT_COLOR[a.threat_level], fontSize:"11px", fontWeight:"bold", background:`${THREAT_COLOR[a.threat_level]}22`, padding:"2px 8px", borderRadius:"20px" }}>{a.threat_level}</span>
+              </div>
+              <div style={{ fontSize:"12px", color:"#888" }}>🌍 {a.origin}</div>
+              <div style={{ fontSize:"12px", color:"#555", marginTop:"4px" }}>📅 Active since {a.active_since}</div>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {tab === "history" && (
+        <div>
+          {history.length === 0 && <div style={{ textAlign:"center", color:"#555", padding:"60px" }}>No profiles yet.</div>}
+          {history.map((p,i) => (
+            <div key={i} style={{ background:"#0d1526", borderRadius:"10px", padding:"16px", marginBottom:"10px", border:"1px solid #1e3a5f", display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+              <div>
+                <div style={{ color:"#e0e0e0", fontSize:"14px" }}>🎯 {p.actor_name}</div>
+                <div style={{ color:"#555", fontSize:"12px", marginTop:"4px" }}>{p.actor_type} · {new Date(p.created_at).toLocaleString()}</div>
+              </div>
+              <div style={{ display:"flex", gap:"16px", alignItems:"center" }}>
+                <span style={{ color: THREAT_COLOR[p.threat_level], fontSize:"13px", fontWeight:"bold" }}>{p.threat_level}</span>
+                <span style={{ color:"#00ff88", fontSize:"13px" }}>{p.confidence}% confidence</span>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ============================================================
 // AIPET X — Threat Intelligence Ingestion
+
 // IOC Processing | TTP Mapping | Threat Actor Detection
 // ============================================================
 function ThreatIntelIngestPage({ token, showToast }) {
@@ -25220,6 +25452,9 @@ export default function App() {
           )}
           {activeTab === "threatintelingest" && (
             <ThreatIntelIngestPage token={token} showToast={showToast} />
+          )}
+          {activeTab === "adversaryprofiling" && (
+            <AdversaryProfilingPage token={token} showToast={showToast} />
           )}
 
 
