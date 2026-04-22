@@ -5805,7 +5805,9 @@ const NAV_ITEMS = [
   { id: "patchbrain",        label: "Patch Brain",    icon: Zap,           group: "enterprise" },
   { id: "archbuilder",       label: "Arch Builder",   icon: Cpu,           group: "enterprise" },
   { id: "digitaltwinv2",     label: "Digital Twin v2",icon: Activity,      group: "enterprise" },
+  { id: "defensemesh",       label: "Defense Mesh",   icon: Globe,         group: "enterprise" },
   { id: "digitaltwinv2",     label: "Digital Twin v2",icon: Activity,      group: "enterprise" },
+  { id: "defensemesh",       label: "Defense Mesh",   icon: Globe,         group: "enterprise" },
   { id: "settings",  label: "Settings",      icon: Settings,      group: "account"  },
 ];
 
@@ -7301,8 +7303,201 @@ function DriftDetectorPage({ token, showToast }) {
 
 
 
+
+// ============================================================
+// AIPET X — Global Defense Mesh Page (#46) — FINAL MODULE
+// Unified Defense Score | 10 Pillars | Remediation Roadmap
+// ============================================================
+function DefenseMeshPage({ token, showToast }) {
+  const [tab, setTab] = useState("assess");
+  const [organisation, setOrganisation] = useState("");
+  const [description, setDescription] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [reportData, setReportData] = useState(null);
+  const [history, setHistory] = useState([]);
+  const [activeView, setActiveView] = useState("pillars");
+
+  const API = "http://localhost:5001";
+  const STATUS_COLOR = { Strong:"#00ff88", Developing:"#00e5ff", Weak:"#ffd60a", "Critical Gap":"#ff2d55" };
+  const EFFORT_COLOR = { Low:"#00ff88", Medium:"#ffd60a", High:"#ff6b00" };
+  const IMPACT_COLOR = { Critical:"#ff2d55", High:"#ff6b00", Medium:"#ffd60a", Low:"#888" };
+  const MATURITY_COLOR = { Optimised:"#00ff88", Managed:"#00e5ff", Defined:"#ffd60a", Developing:"#ff6b00", Initial:"#ff2d55" };
+
+  useEffect(() => { fetchHistory(); }, []);
+
+  async function fetchHistory() {
+    try {
+      const r = await fetch(`${API}/api/defense-mesh/history`, { headers:{ Authorization:`Bearer ${token}` }});
+      const d = await r.json();
+      setHistory(d.reports || []);
+    } catch(e) {}
+  }
+
+  async function submitAssess() {
+    if (!description.trim()) { showToast("Describe your security posture first", "error"); return; }
+    setLoading(true); setReportData(null);
+    try {
+      const r = await fetch(`${API}/api/defense-mesh/assess`, {
+        method:"POST",
+        headers:{ "Content-Type":"application/json", Authorization:`Bearer ${token}` },
+        body: JSON.stringify({ organisation: organisation||"Your Organisation", description })
+      });
+      const d = await r.json();
+      if (d.report_id) {
+        showToast(`Defense Mesh complete — Score: ${d.defense_score}/100, Maturity: ${d.maturity_level}`, "success");
+        await loadReport(d.report_id);
+        fetchHistory();
+      } else { showToast(d.error || "Assessment failed", "error"); }
+    } catch(e) { showToast("Assessment failed", "error"); }
+    setLoading(false);
+  }
+
+  async function loadReport(reportId) {
+    try {
+      const r = await fetch(`${API}/api/defense-mesh/reports/${reportId}`, { headers:{ Authorization:`Bearer ${token}` }});
+      const d = await r.json();
+      setReportData(d); setActiveView("pillars"); setTab("mesh");
+    } catch(e) {}
+  }
+
+  const scoreColor = (s) => s >= 85 ? "#00ff88" : s >= 70 ? "#00e5ff" : s >= 50 ? "#ffd60a" : s >= 30 ? "#ff6b00" : "#ff2d55";
+
+  return (
+    <div style={{ padding:"24px", color:"#e0e0e0", fontFamily:"JetBrains Mono, monospace" }}>
+      <div style={{ marginBottom:"24px" }}>
+        <h2 style={{ color:"#00e5ff", fontSize:"22px", margin:0 }}>🌐 Global Defense Mesh</h2>
+        <p style={{ color:"#888", margin:"4px 0 0", fontSize:"13px" }}>Unified Defense Score · 10 Security Pillars · Remediation Roadmap — Module #46</p>
+      </div>
+
+      <div style={{ display:"flex", gap:"8px", marginBottom:"24px" }}>
+        {[["assess","🔍 Assess"],["mesh","🌐 Defense Mesh"],["history","🕒 History"]].map(([id,label]) => (
+          <button key={id} onClick={() => setTab(id)} style={{ padding:"8px 18px", borderRadius:"8px", border:"none", cursor:"pointer", fontSize:"13px", background: tab===id?"#00e5ff":"#1a2236", color: tab===id?"#000":"#aaa", fontFamily:"inherit" }}>{label}</button>
+        ))}
+      </div>
+
+      {tab === "assess" && (
+        <div style={{ display:"grid", gridTemplateColumns:"280px 1fr", gap:"20px" }}>
+          <div style={{ background:"#0d1526", borderRadius:"12px", padding:"20px", border:"1px solid #1e3a5f" }}>
+            <p style={{ color:"#00e5ff", fontSize:"13px", marginTop:0 }}>Organisation</p>
+            <input value={organisation} onChange={e=>setOrganisation(e.target.value)} placeholder="e.g. AIPET Ltd" style={{ width:"100%", background:"#0a1628", border:"1px solid #1e3a5f", borderRadius:"8px", padding:"8px", color:"#e0e0e0", fontSize:"13px", boxSizing:"border-box", fontFamily:"inherit" }} />
+            <p style={{ color:"#00e5ff", fontSize:"13px", marginTop:"20px" }}>10 Defense Pillars Evaluated</p>
+            {["Identity & Access","Endpoint Security","Network Security","Cloud Posture","AppSec","Threat Detection","Incident Response","Data Protection","OT/ICS Security","Compliance"].map((p,i) => (
+              <div key={i} style={{ padding:"6px 10px", borderRadius:"6px", marginBottom:"4px", background:"#0a1628", border:"1px solid #1e3a5f", fontSize:"11px", color:"#aaa" }}>🛡️ {p}</div>
+            ))}
+            <button onClick={submitAssess} disabled={loading} style={{ marginTop:"12px", width:"100%", padding:"12px", borderRadius:"8px", background: loading?"#333":"#00e5ff", color:"#000", border:"none", cursor:"pointer", fontSize:"14px", fontWeight:"bold", fontFamily:"inherit" }}>
+              {loading ? "⏳ Assessing..." : "🌐 Run Defense Mesh"}
+            </button>
+          </div>
+          <div style={{ background:"#0d1526", borderRadius:"12px", padding:"20px", border:"1px solid #1e3a5f" }}>
+            <p style={{ color:"#00e5ff", fontSize:"13px", marginTop:0 }}>Describe Your Security Posture</p>
+            <textarea value={description} onChange={e=>setDescription(e.target.value)}
+              placeholder="Describe your organisation security controls across all domains. Include: MFA and IAM controls, EDR and endpoint tools, network segmentation and firewalls, cloud security tools (CSPM, GuardDuty), SIEM and monitoring, incident response plans, data encryption and DLP, OT/ICS security, compliance frameworks (NIS2, ISO27001, GDPR), application security (SAST, SCA, WAF)."
+              style={{ width:"100%", height:"420px", background:"#0a1628", border:"1px solid #1e3a5f", borderRadius:"8px", padding:"12px", color:"#e0e0e0", fontSize:"13px", fontFamily:"JetBrains Mono, monospace", resize:"vertical", boxSizing:"border-box" }} />
+          </div>
+        </div>
+      )}
+
+      {tab === "mesh" && reportData && (
+        <div>
+          {/* Hero score */}
+          <div style={{ background:"linear-gradient(135deg, #0a1628 0%, #0d1f3c 100%)", borderRadius:"16px", padding:"24px", marginBottom:"20px", border:`2px solid ${scoreColor(reportData.defense_score)}44`, textAlign:"center" }}>
+            <div style={{ fontSize:"64px", fontWeight:"bold", color: scoreColor(reportData.defense_score), lineHeight:1 }}>{reportData.defense_score}</div>
+            <div style={{ color:"#888", fontSize:"14px", marginTop:"4px" }}>AIPET Defense Score / 100</div>
+            <div style={{ marginTop:"12px" }}>
+              <span style={{ color: MATURITY_COLOR[reportData.maturity_level], fontSize:"18px", fontWeight:"bold", background:`${MATURITY_COLOR[reportData.maturity_level]}22`, padding:"6px 20px", borderRadius:"20px" }}>{reportData.maturity_level}</span>
+            </div>
+            <div style={{ color:"#888", fontSize:"12px", marginTop:"12px" }}>{reportData.summary}</div>
+          </div>
+
+          {/* Stats */}
+          <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:"12px", marginBottom:"20px" }}>
+            {[["Defense Score",`${reportData.defense_score}/100`,scoreColor(reportData.defense_score)],["Maturity",reportData.maturity_level,MATURITY_COLOR[reportData.maturity_level]],["Critical Gaps",reportData.critical_gaps,"#ff2d55"],["Roadmap Items",reportData.roadmap?.length,"#a78bfa"]].map(([label,val,color]) => (
+              <div key={label} style={{ background:"#0d1526", borderRadius:"10px", padding:"16px", border:`1px solid ${color}33`, textAlign:"center" }}>
+                <div style={{ fontSize: label==="Maturity"?"14px":"22px", fontWeight:"bold", color }}>{val}</div>
+                <div style={{ fontSize:"12px", color:"#888", marginTop:"4px" }}>{label}</div>
+              </div>
+            ))}
+          </div>
+
+          {/* View toggle */}
+          <div style={{ display:"flex", gap:"8px", marginBottom:"16px" }}>
+            {[["pillars","🛡️ Defense Pillars"],["roadmap","🗺️ Remediation Roadmap"]].map(([id,label]) => (
+              <button key={id} onClick={() => setActiveView(id)} style={{ padding:"8px 18px", borderRadius:"8px", border:"none", cursor:"pointer", fontSize:"13px", background: activeView===id?"#00e5ff":"#1a2236", color: activeView===id?"#000":"#aaa", fontFamily:"inherit" }}>{label}</button>
+            ))}
+          </div>
+
+          {/* PILLARS VIEW */}
+          {activeView === "pillars" && (
+            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"10px" }}>
+              {reportData.pillars?.map((p,i) => (
+                <div key={i} style={{ background:"#0d1526", borderRadius:"10px", padding:"16px", border:`1px solid ${STATUS_COLOR[p.status]||"#1e3a5f"}33` }}>
+                  <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:"10px" }}>
+                    <span style={{ color:"#e0e0e0", fontSize:"13px", fontWeight:"bold" }}>{p.pillar_name}</span>
+                    <span style={{ color: STATUS_COLOR[p.status], fontSize:"11px", background:`${STATUS_COLOR[p.status]}22`, padding:"2px 8px", borderRadius:"20px" }}>{p.status}</span>
+                  </div>
+                  <div style={{ display:"flex", justifyContent:"space-between", marginBottom:"6px" }}>
+                    <span style={{ color:"#555", fontSize:"11px" }}>Score</span>
+                    <span style={{ color: scoreColor(p.score), fontSize:"13px", fontWeight:"bold" }}>{p.score}/100</span>
+                  </div>
+                  <div style={{ background:"#0a1628", borderRadius:"20px", height:"8px", overflow:"hidden", marginBottom:"8px" }}>
+                    <div style={{ width:`${p.score}%`, height:"100%", background: scoreColor(p.score), borderRadius:"20px" }} />
+                  </div>
+                  <div style={{ color:"#666", fontSize:"11px", lineHeight:"1.5" }}>{p.description}</div>
+                </div>
+              ))}
+            </div>
+          )}
+
+          {/* ROADMAP VIEW */}
+          {activeView === "roadmap" && (
+            <div>
+              {reportData.roadmap?.map((r,i) => (
+                <div key={i} style={{ background:"#0d1526", borderRadius:"10px", padding:"16px", marginBottom:"8px", border:"1px solid #1e3a5f", display:"grid", gridTemplateColumns:"40px 1fr auto", gap:"12px", alignItems:"start" }}>
+                  <div style={{ width:"32px", height:"32px", borderRadius:"50%", background:"#0a2040", border:"2px solid #00e5ff", display:"flex", alignItems:"center", justifyContent:"center", color:"#00e5ff", fontWeight:"bold", fontSize:"13px" }}>{r.priority}</div>
+                  <div>
+                    <div style={{ color:"#555", fontSize:"11px", marginBottom:"3px" }}>🛡️ {r.pillar}</div>
+                    <div style={{ color:"#e0e0e0", fontSize:"13px", fontWeight:"bold" }}>{r.title}</div>
+                    <div style={{ color:"#888", fontSize:"12px", marginTop:"4px" }}>{r.description}</div>
+                    <div style={{ display:"flex", gap:"8px", marginTop:"8px" }}>
+                      <span style={{ color: EFFORT_COLOR[r.effort], fontSize:"11px", background:`${EFFORT_COLOR[r.effort]}22`, padding:"2px 8px", borderRadius:"20px" }}>Effort: {r.effort}</span>
+                      <span style={{ color: IMPACT_COLOR[r.impact], fontSize:"11px", background:`${IMPACT_COLOR[r.impact]}22`, padding:"2px 8px", borderRadius:"20px" }}>Impact: {r.impact}</span>
+                    </div>
+                  </div>
+                  <div style={{ textAlign:"right", whiteSpace:"nowrap" }}>
+                    <div style={{ color:"#00e5ff", fontSize:"12px" }}>⏱ {r.timeframe}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
+      )}
+      {tab === "mesh" && !reportData && <div style={{ textAlign:"center", color:"#555", padding:"60px" }}>Run an assessment first or select one from History.</div>}
+
+      {tab === "history" && (
+        <div>
+          {history.length === 0 && <div style={{ textAlign:"center", color:"#555", padding:"60px" }}>No assessments yet.</div>}
+          {history.map((r,i) => (
+            <div key={i} style={{ background:"#0d1526", borderRadius:"10px", padding:"16px", marginBottom:"10px", border:"1px solid #1e3a5f", display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+              <div>
+                <div style={{ color:"#e0e0e0", fontSize:"14px" }}>{r.organisation}</div>
+                <div style={{ color:"#555", fontSize:"12px", marginTop:"4px" }}>{r.maturity_level} · {r.critical_gaps} critical gaps · {new Date(r.created_at).toLocaleString()}</div>
+              </div>
+              <div style={{ display:"flex", gap:"16px", alignItems:"center" }}>
+                <span style={{ color: scoreColor(r.defense_score), fontSize:"16px", fontWeight:"bold" }}>{r.defense_score}/100</span>
+                <button onClick={() => loadReport(r.report_id)} style={{ padding:"6px 14px", background:"#0a2040", border:"1px solid #00e5ff", borderRadius:"6px", color:"#00e5ff", cursor:"pointer", fontSize:"12px", fontFamily:"inherit" }}>View</button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ============================================================
 // AIPET X — Cognitive Digital Twin v2 Page (#45)
+
 // Device Simulation | Anomaly Detection | Attack Simulation
 // ============================================================
 function DigitalTwinV2Page({ token, showToast }) {
@@ -23236,8 +23431,14 @@ export default function App() {
           {activeTab === "digitaltwinv2" && (
             <DigitalTwinV2Page token={token} showToast={showToast} />
           )}
+          {activeTab === "defensemesh" && (
+            <DefenseMeshPage token={token} showToast={showToast} />
+          )}
           {activeTab === "digitaltwinv2" && (
             <DigitalTwinV2Page token={token} showToast={showToast} />
+          )}
+          {activeTab === "defensemesh" && (
+            <DefenseMeshPage token={token} showToast={showToast} />
           )}
           {activeTab === "terminal" && (
             <AIPETTerminal token={token} showToast={showToast} />
