@@ -7318,7 +7318,7 @@ function DriftDetectorPage({ token, showToast }) {
 
 
 // ============================================================
-// AIPET X — Endpoint Agent (AIPET X — Phase 2)
+// AIPET X — Endpoint Agent (AIPET X )
 // Device Health | EDR Simulation | Behavioural Analysis
 // ============================================================
 function EndpointAgentPage({ token, showToast }) {
@@ -7383,7 +7383,7 @@ function EndpointAgentPage({ token, showToast }) {
     <div style={{ padding:"24px", color:"#e0e0e0", fontFamily:"JetBrains Mono, monospace" }}>
       <div style={{ marginBottom:"24px" }}>
         <h2 style={{ color:"#00e5ff", fontSize:"22px", margin:0 }}>🖥️ Endpoint Agent</h2>
-        <p style={{ color:"#888", margin:"4px 0 0", fontSize:"13px" }}>Device Health · EDR Simulation · Behavioural Analysis · MITRE ATT&CK — Phase 2</p>
+        <p style={{ color:"#888", margin:"4px 0 0", fontSize:"13px" }}>Device Health · EDR Simulation · Behavioural Analysis · MITRE ATT&CK </p>
       </div>
 
       <div style={{ display:"flex", gap:"8px", marginBottom:"24px" }}>
@@ -7503,7 +7503,7 @@ function EndpointAgentPage({ token, showToast }) {
 }
 
 // ============================================================
-// AIPET X — Multi-Cloud Scale Engine (AIPET X — Phase 1)
+// AIPET X — Multi-Cloud Scale Engine (AIPET X )
 
 // Cross-Cloud Orchestration | Scale Analysis | Cost Security
 // ============================================================
@@ -7562,7 +7562,7 @@ function MultiCloudScalePage({ token, showToast }) {
     <div style={{ padding:"24px", color:"#e0e0e0", fontFamily:"JetBrains Mono, monospace" }}>
       <div style={{ marginBottom:"24px" }}>
         <h2 style={{ color:"#00e5ff", fontSize:"22px", margin:0 }}>🌐 Multi-Cloud Scale Engine</h2>
-        <p style={{ color:"#888", margin:"4px 0 0", fontSize:"13px" }}>Cross-Cloud Orchestration · Scale Analysis · Cost Security — Phase 1</p>
+        <p style={{ color:"#888", margin:"4px 0 0", fontSize:"13px" }}>Cross-Cloud Orchestration · Scale Analysis · Cost Security </p>
       </div>
 
       <div style={{ display:"flex", gap:"8px", marginBottom:"24px" }}>
@@ -7654,7 +7654,7 @@ function MultiCloudScalePage({ token, showToast }) {
 }
 
 // ============================================================
-// AIPET X — Enterprise Cloud Dashboards (AIPET X — Phase 1)
+// AIPET X — Enterprise Cloud Dashboards (AIPET X )
 
 // Unified Cloud Posture | Multi-Cloud Overview | Risk Trends
 // ============================================================
@@ -7704,7 +7704,7 @@ function CloudDashboardPage({ token, showToast }) {
       <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:"24px" }}>
         <div>
           <h2 style={{ color:"#00e5ff", fontSize:"22px", margin:0 }}>☁️ Enterprise Cloud Dashboard</h2>
-          <p style={{ color:"#888", margin:"4px 0 0", fontSize:"13px" }}>Unified Cloud Posture · Multi-Cloud Overview · Risk Trends — Phase 1</p>
+          <p style={{ color:"#888", margin:"4px 0 0", fontSize:"13px" }}>Unified Cloud Posture · Multi-Cloud Overview · Risk Trends </p>
         </div>
         <button onClick={refreshDashboard} disabled={refreshing} style={{ padding:"10px 20px", background:"#0a2040", border:"1px solid #00e5ff", borderRadius:"8px", color:"#00e5ff", cursor:"pointer", fontSize:"13px", fontFamily:"inherit", fontWeight:"bold" }}>
           {refreshing ? "⏳ Refreshing..." : "🔄 Refresh"}
@@ -7799,7 +7799,7 @@ function CloudDashboardPage({ token, showToast }) {
 }
 
 // ============================================================
-// AIPET X — IAM Exposure Analyzer (AIPET X — Phase 1)
+// AIPET X — IAM Exposure Analyzer (AIPET X )
 
 // Identity Risk | Permission Analysis | Privilege Paths
 // ============================================================
@@ -7861,7 +7861,7 @@ function IAMExposurePage({ token, showToast }) {
     <div style={{ padding:"24px", color:"#e0e0e0", fontFamily:"JetBrains Mono, monospace" }}>
       <div style={{ marginBottom:"24px" }}>
         <h2 style={{ color:"#00e5ff", fontSize:"22px", margin:0 }}>👑 IAM Exposure Analyzer</h2>
-        <p style={{ color:"#888", margin:"4px 0 0", fontSize:"13px" }}>Identity Risk · Permission Analysis · Privilege Paths · Blast Radius — Phase 1</p>
+        <p style={{ color:"#888", margin:"4px 0 0", fontSize:"13px" }}>Identity Risk · Permission Analysis · Privilege Paths · Blast Radius </p>
       </div>
 
       <div style={{ display:"flex", gap:"8px", marginBottom:"24px" }}>
@@ -7976,7 +7976,7 @@ function IAMExposurePage({ token, showToast }) {
 }
 
 // ============================================================
-// AIPET X — Cloud Network Exposure Graph (AIPET X — Phase 1)
+// AIPET X — Cloud Network Exposure Graph (AIPET X )
 
 // Network Topology | Exposure Paths | Attack Surface Mapping
 // ============================================================
@@ -8041,7 +8041,7 @@ function NetworkExposurePage({ token, showToast }) {
     <div style={{ padding:"24px", color:"#e0e0e0", fontFamily:"JetBrains Mono, monospace" }}>
       <div style={{ marginBottom:"24px" }}>
         <h2 style={{ color:"#00e5ff", fontSize:"22px", margin:0 }}>🌐 Cloud Network Exposure Graph</h2>
-        <p style={{ color:"#888", margin:"4px 0 0", fontSize:"13px" }}>Network Topology · Exposure Paths · Attack Surface — Phase 1</p>
+        <p style={{ color:"#888", margin:"4px 0 0", fontSize:"13px" }}>Network Topology · Exposure Paths · Attack Surface </p>
       </div>
 
       <div style={{ display:"flex", gap:"8px", marginBottom:"24px" }}>
@@ -8182,7 +8182,7 @@ function NetworkExposurePage({ token, showToast }) {
 }
 
 // ============================================================
-// AIPET X — Kubernetes Runtime Analyzer (AIPET X — Phase 1)
+// AIPET X — Kubernetes Runtime Analyzer (AIPET X )
 
 // K8s Security | Pod Analysis | RBAC | Network Policy
 // ============================================================
@@ -8245,7 +8245,7 @@ function K8sAnalyzerPage({ token, showToast }) {
     <div style={{ padding:"24px", color:"#e0e0e0", fontFamily:"JetBrains Mono, monospace" }}>
       <div style={{ marginBottom:"24px" }}>
         <h2 style={{ color:"#00e5ff", fontSize:"22px", margin:0 }}>⎈ Kubernetes Runtime Analyzer</h2>
-        <p style={{ color:"#888", margin:"4px 0 0", fontSize:"13px" }}>Pod Security · RBAC · Network Policy · Secrets · Control Plane — Phase 1</p>
+        <p style={{ color:"#888", margin:"4px 0 0", fontSize:"13px" }}>Pod Security · RBAC · Network Policy · Secrets · Control Plane </p>
       </div>
 
       <div style={{ display:"flex", gap:"8px", marginBottom:"24px" }}>
@@ -8353,7 +8353,7 @@ function K8sAnalyzerPage({ token, showToast }) {
 }
 
 // ============================================================
-// AIPET X — Cloud Runtime Scanner (AIPET X — Phase 1)
+// AIPET X — Cloud Runtime Scanner (AIPET X )
 
 // Runtime Threat Detection | Exposure Analysis | Zero Trust
 // ============================================================
@@ -8416,7 +8416,7 @@ function CloudRuntimePage({ token, showToast }) {
     <div style={{ padding:"24px", color:"#e0e0e0", fontFamily:"JetBrains Mono, monospace" }}>
       <div style={{ marginBottom:"24px" }}>
         <h2 style={{ color:"#00e5ff", fontSize:"22px", margin:0 }}>☁️ Cloud Runtime Scanner</h2>
-        <p style={{ color:"#888", margin:"4px 0 0", fontSize:"13px" }}>Runtime Threat Detection · Exposure Analysis · Zero Trust — Phase 1</p>
+        <p style={{ color:"#888", margin:"4px 0 0", fontSize:"13px" }}>Runtime Threat Detection · Exposure Analysis · Zero Trust </p>
       </div>
 
       <div style={{ display:"flex", gap:"8px", marginBottom:"24px" }}>
