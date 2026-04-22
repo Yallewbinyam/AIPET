@@ -5801,6 +5801,7 @@ const NAV_ITEMS = [
   { id: "soctwin",           label: "SOC Twin",       icon: Activity,      group: "enterprise" },
   { id: "policybrain",       label: "Policy Brain",   icon: FileText,      group: "enterprise" },
   { id: "threatradar",       label: "Threat Radar",   icon: Globe,         group: "enterprise" },
+  { id: "cloudhardener",     label: "Cloud Hardener", icon: Server,        group: "enterprise" },
   { id: "settings",  label: "Settings",      icon: Settings,      group: "account"  },
 ];
 
@@ -7292,8 +7293,185 @@ function DriftDetectorPage({ token, showToast }) {
 
 
 
+
+// ============================================================
+// AIPET X — Autonomous Cloud Hardener Page (#42)
+// CIS Benchmarks | Misconfiguration Detection | Auto-Remediation
+// ============================================================
+function CloudHardenerPage({ token, showToast }) {
+  const [tab, setTab] = useState("scan");
+  const [provider, setProvider] = useState("aws");
+  const [environment, setEnvironment] = useState("production");
+  const [description, setDescription] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [scanData, setScanData] = useState(null);
+  const [history, setHistory] = useState([]);
+  const [filterCat, setFilterCat] = useState(null);
+  const [filterStatus, setFilterStatus] = useState("FAIL");
+
+  const API = "http://localhost:5001";
+  const SEV_COLOR = { CRITICAL:"#ff2d55", HIGH:"#ff6b00", MEDIUM:"#ffd60a", LOW:"#00e5ff", INFO:"#555" };
+  const STATUS_COLOR = { PASS:"#00ff88", FAIL:"#ff2d55" };
+  const STATUS_ICON  = { PASS:"✅", FAIL:"❌" };
+  const PROVIDER_ICON = { aws:"☁️ AWS", azure:"🔷 Azure", gcp:"🟡 GCP" };
+
+  useEffect(() => { fetchHistory(); }, []);
+
+  async function fetchHistory() {
+    try {
+      const r = await fetch(`${API}/api/cloud-hardener/history`, { headers:{ Authorization:`Bearer ${token}` }});
+      const d = await r.json();
+      setHistory(d.scans || []);
+    } catch(e) {}
+  }
+
+  async function submitScan() {
+    if (!description.trim()) { showToast("Describe your cloud configuration first", "error"); return; }
+    setLoading(true); setScanData(null);
+    try {
+      const r = await fetch(`${API}/api/cloud-hardener/scan`, {
+        method:"POST",
+        headers:{ "Content-Type":"application/json", Authorization:`Bearer ${token}` },
+        body: JSON.stringify({ cloud_provider:provider, environment, description })
+      });
+      const d = await r.json();
+      if (d.scan_id) {
+        showToast(`Hardener complete — ${d.failed} misconfiguration(s) found`, d.failed > 0 ? "warning" : "success");
+        await loadScan(d.scan_id);
+        fetchHistory();
+      } else { showToast(d.error || "Scan failed", "error"); }
+    } catch(e) { showToast("Scan failed", "error"); }
+    setLoading(false);
+  }
+
+  async function loadScan(scanId) {
+    try {
+      const r = await fetch(`${API}/api/cloud-hardener/scans/${scanId}`, { headers:{ Authorization:`Bearer ${token}` }});
+      const d = await r.json();
+      setScanData(d); setFilterCat(null); setFilterStatus("FAIL"); setTab("report");
+    } catch(e) {}
+  }
+
+  const riskColor = (s) => s >= 70 ? "#ff2d55" : s >= 45 ? "#ff6b00" : s >= 20 ? "#ffd60a" : "#00ff88";
+  const filtered = scanData?.findings?.filter(f => (!filterCat || f.category===filterCat) && (!filterStatus || f.status===filterStatus)) || [];
+
+  return (
+    <div style={{ padding:"24px", color:"#e0e0e0", fontFamily:"JetBrains Mono, monospace" }}>
+      <div style={{ marginBottom:"24px" }}>
+        <h2 style={{ color:"#00e5ff", fontSize:"22px", margin:0 }}>☁️ Autonomous Cloud Hardener</h2>
+        <p style={{ color:"#888", margin:"4px 0 0", fontSize:"13px" }}>CIS Benchmarks · Misconfiguration Detection · Auto-Remediation — Module #42</p>
+      </div>
+
+      <div style={{ display:"flex", gap:"8px", marginBottom:"24px" }}>
+        {[["scan","🔍 Scan"],["report","📋 Report"],["history","🕒 History"]].map(([id,label]) => (
+          <button key={id} onClick={() => setTab(id)} style={{ padding:"8px 18px", borderRadius:"8px", border:"none", cursor:"pointer", fontSize:"13px", background: tab===id?"#00e5ff":"#1a2236", color: tab===id?"#000":"#aaa", fontFamily:"inherit" }}>{label}</button>
+        ))}
+      </div>
+
+      {tab === "scan" && (
+        <div style={{ display:"grid", gridTemplateColumns:"280px 1fr", gap:"20px" }}>
+          <div style={{ background:"#0d1526", borderRadius:"12px", padding:"20px", border:"1px solid #1e3a5f" }}>
+            <p style={{ color:"#00e5ff", fontSize:"13px", marginTop:0 }}>Cloud Provider</p>
+            {[["aws","☁️ Amazon Web Services"],["azure","🔷 Microsoft Azure"],["gcp","🟡 Google Cloud"]].map(([val,label]) => (
+              <div key={val} onClick={() => setProvider(val)} style={{ padding:"10px 12px", borderRadius:"8px", marginBottom:"8px", cursor:"pointer", border:`1px solid ${provider===val?"#00e5ff":"#1e3a5f"}`, background: provider===val?"#0a2040":"transparent", color: provider===val?"#00e5ff":"#aaa", fontSize:"13px" }}>{label}</div>
+            ))}
+            <p style={{ color:"#00e5ff", fontSize:"13px", marginTop:"16px" }}>Environment</p>
+            {[["production","🔴 Production"],["staging","🟡 Staging"],["development","🟢 Development"]].map(([val,label]) => (
+              <div key={val} onClick={() => setEnvironment(val)} style={{ padding:"8px 12px", borderRadius:"8px", marginBottom:"6px", cursor:"pointer", border:`1px solid ${environment===val?"#00e5ff":"#1e3a5f"}`, background: environment===val?"#0a2040":"transparent", color: environment===val?"#00e5ff":"#aaa", fontSize:"12px" }}>{label}</div>
+            ))}
+            <button onClick={submitScan} disabled={loading} style={{ marginTop:"12px", width:"100%", padding:"12px", borderRadius:"8px", background: loading?"#333":"#00e5ff", color:"#000", border:"none", cursor:"pointer", fontSize:"14px", fontWeight:"bold", fontFamily:"inherit" }}>
+              {loading ? "⏳ Scanning..." : "🔒 Run Hardener"}
+            </button>
+          </div>
+          <div style={{ background:"#0d1526", borderRadius:"12px", padding:"20px", border:"1px solid #1e3a5f" }}>
+            <p style={{ color:"#00e5ff", fontSize:"13px", marginTop:0 }}>Describe Your Cloud Configuration</p>
+            <textarea value={description} onChange={e=>setDescription(e.target.value)}
+              placeholder="Describe your cloud environment configuration. Include details about IAM, storage, networking, logging and encryption. Examples: Root account has no MFA enabled. S3 buckets have public access enabled. CloudTrail is not configured. Security groups allow 0.0.0.0/0 on port 22. EBS volumes are not encrypted. No VPC flow logs enabled."
+              style={{ width:"100%", height:"400px", background:"#0a1628", border:"1px solid #1e3a5f", borderRadius:"8px", padding:"12px", color:"#e0e0e0", fontSize:"13px", fontFamily:"JetBrains Mono, monospace", resize:"vertical", boxSizing:"border-box" }} />
+          </div>
+        </div>
+      )}
+
+      {tab === "report" && scanData && (
+        <div>
+          <div style={{ display:"grid", gridTemplateColumns:"repeat(5,1fr)", gap:"12px", marginBottom:"20px" }}>
+            {[["Risk Score",scanData.risk_score,riskColor(scanData.risk_score)],["Severity",scanData.severity,SEV_COLOR[scanData.severity]],["Provider",PROVIDER_ICON[scanData.cloud_provider],"#00e5ff"],["Failed",scanData.failed,"#ff2d55"],["Passed",scanData.passed,"#00ff88"]].map(([label,val,color]) => (
+              <div key={label} style={{ background:"#0d1526", borderRadius:"10px", padding:"16px", border:`1px solid ${color}33`, textAlign:"center" }}>
+                <div style={{ fontSize: label==="Provider"?"12px":"22px", fontWeight:"bold", color }}>{val}</div>
+                <div style={{ fontSize:"12px", color:"#888", marginTop:"4px" }}>{label}</div>
+              </div>
+            ))}
+          </div>
+
+          <div style={{ background:"#0d1526", borderRadius:"10px", padding:"16px", marginBottom:"16px", border:"1px solid #1e3a5f" }}>
+            <div style={{ display:"flex", justifyContent:"space-between", marginBottom:"8px" }}>
+              <span style={{ color:"#00e5ff", fontSize:"13px" }}>CIS Benchmark Coverage</span>
+              <span style={{ color: riskColor(scanData.risk_score), fontWeight:"bold" }}>{scanData.risk_score}/100 Risk</span>
+            </div>
+            <div style={{ background:"#0a1628", borderRadius:"20px", height:"10px", overflow:"hidden", marginBottom:"8px" }}>
+              <div style={{ width:`${scanData.risk_score}%`, height:"100%", background: riskColor(scanData.risk_score), borderRadius:"20px" }} />
+            </div>
+            <div style={{ color:"#888", fontSize:"12px" }}>{scanData.summary}</div>
+          </div>
+
+          <div style={{ display:"flex", gap:"8px", marginBottom:"12px", flexWrap:"wrap" }}>
+            <button onClick={() => setFilterStatus(null)} style={{ padding:"6px 14px", borderRadius:"6px", border:`1px solid ${!filterStatus?"#00e5ff":"#1e3a5f"}`, background: !filterStatus?"#0a2040":"transparent", color: !filterStatus?"#00e5ff":"#aaa", cursor:"pointer", fontSize:"12px", fontFamily:"inherit" }}>All ({scanData.findings?.length})</button>
+            <button onClick={() => setFilterStatus("FAIL")} style={{ padding:"6px 14px", borderRadius:"6px", border:`1px solid ${filterStatus==="FAIL"?"#ff2d55":"#1e3a5f"}`, background: filterStatus==="FAIL"?"#0a2040":"transparent", color: filterStatus==="FAIL"?"#ff2d55":"#aaa", cursor:"pointer", fontSize:"12px", fontFamily:"inherit" }}>❌ Failed ({scanData.failed})</button>
+            <button onClick={() => setFilterStatus("PASS")} style={{ padding:"6px 14px", borderRadius:"6px", border:`1px solid ${filterStatus==="PASS"?"#00ff88":"#1e3a5f"}`, background: filterStatus==="PASS"?"#0a2040":"transparent", color: filterStatus==="PASS"?"#00ff88":"#aaa", cursor:"pointer", fontSize:"12px", fontFamily:"inherit" }}>✅ Passed ({scanData.passed})</button>
+            {scanData.categories?.map(cat => (
+              <button key={cat} onClick={() => setFilterCat(filterCat===cat?null:cat)} style={{ padding:"6px 14px", borderRadius:"6px", border:`1px solid ${filterCat===cat?"#00e5ff":"#1e3a5f"}`, background: filterCat===cat?"#0a2040":"transparent", color: filterCat===cat?"#00e5ff":"#aaa", cursor:"pointer", fontSize:"12px", fontFamily:"inherit" }}>{cat}</button>
+            ))}
+          </div>
+
+          {filtered.map((f,i) => (
+            <div key={i} style={{ background:"#0d1526", borderRadius:"10px", padding:"16px", marginBottom:"8px", border:`1px solid ${STATUS_COLOR[f.status]}22` }}>
+              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:"6px" }}>
+                <div style={{ display:"flex", gap:"8px", alignItems:"center" }}>
+                  <span>{STATUS_ICON[f.status]}</span>
+                  <span style={{ color: SEV_COLOR[f.severity], fontSize:"11px", fontWeight:"bold", background:`${SEV_COLOR[f.severity]}22`, padding:"2px 8px", borderRadius:"20px" }}>{f.severity}</span>
+                  <span style={{ color:"#555", fontSize:"11px" }}>{f.check_id}</span>
+                  {f.cis_ref && <span style={{ color:"#a78bfa", fontSize:"11px" }}>{f.cis_ref}</span>}
+                </div>
+                <span style={{ color:"#555", fontSize:"11px" }}>{f.category}</span>
+              </div>
+              <div style={{ color:"#e0e0e0", fontSize:"13px", fontWeight:"bold", marginBottom:"4px" }}>{f.title}</div>
+              {f.status==="FAIL" && (
+                <>
+                  <div style={{ color:"#00e5ff", fontSize:"12px", marginTop:"6px" }}>💡 {f.remediation}</div>
+                  {f.auto_fix && <div style={{ background:"#0a1628", borderRadius:"6px", padding:"8px", marginTop:"6px", color:"#00ff88", fontSize:"11px", fontFamily:"monospace" }}>$ {f.auto_fix}</div>}
+                </>
+              )}
+            </div>
+          ))}
+        </div>
+      )}
+      {tab === "report" && !scanData && <div style={{ textAlign:"center", color:"#555", padding:"60px" }}>Run a scan first or select one from History.</div>}
+
+      {tab === "history" && (
+        <div>
+          {history.length === 0 && <div style={{ textAlign:"center", color:"#555", padding:"60px" }}>No scans yet.</div>}
+          {history.map((s,i) => (
+            <div key={i} style={{ background:"#0d1526", borderRadius:"10px", padding:"16px", marginBottom:"10px", border:"1px solid #1e3a5f", display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+              <div>
+                <div style={{ color:"#e0e0e0", fontSize:"14px" }}>{PROVIDER_ICON[s.cloud_provider]} — {s.environment}</div>
+                <div style={{ color:"#555", fontSize:"12px", marginTop:"4px" }}>{s.passed}✅ {s.failed}❌ · {new Date(s.created_at).toLocaleString()}</div>
+              </div>
+              <div style={{ display:"flex", gap:"16px", alignItems:"center" }}>
+                <span style={{ color: SEV_COLOR[s.severity], fontSize:"13px", fontWeight:"bold" }}>{s.severity}</span>
+                <span style={{ color: riskColor(s.risk_score), fontSize:"13px" }}>Risk: {s.risk_score}</span>
+                <button onClick={() => loadScan(s.scan_id)} style={{ padding:"6px 14px", background:"#0a2040", border:"1px solid #00e5ff", borderRadius:"6px", color:"#00e5ff", cursor:"pointer", fontSize:"12px", fontFamily:"inherit" }}>View</button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ============================================================
 // AIPET X — Global Threat Radar Page (#41)
+
 // Threat Actor Intel | Sector Risk | Geopolitical Mapping
 // ============================================================
 function ThreatRadarPage({ token, showToast }) {
@@ -22502,6 +22680,9 @@ export default function App() {
           )}
           {activeTab === "threatradar" && (
             <ThreatRadarPage token={token} showToast={showToast} />
+          )}
+          {activeTab === "cloudhardener" && (
+            <CloudHardenerPage token={token} showToast={showToast} />
           )}
           {activeTab === "terminal" && (
             <AIPETTerminal token={token} showToast={showToast} />
