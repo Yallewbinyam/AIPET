@@ -5800,6 +5800,7 @@ const NAV_ITEMS = [
   { id: "identityguardian",  label: "Identity Guard", icon: Shield,        group: "enterprise" },
   { id: "soctwin",           label: "SOC Twin",       icon: Activity,      group: "enterprise" },
   { id: "policybrain",       label: "Policy Brain",   icon: FileText,      group: "enterprise" },
+  { id: "threatradar",       label: "Threat Radar",   icon: Globe,         group: "enterprise" },
   { id: "settings",  label: "Settings",      icon: Settings,      group: "account"  },
 ];
 
@@ -7290,8 +7291,203 @@ function DriftDetectorPage({ token, showToast }) {
 
 
 
+
+// ============================================================
+// AIPET X — Global Threat Radar Page (#41)
+// Threat Actor Intel | Sector Risk | Geopolitical Mapping
+// ============================================================
+function ThreatRadarPage({ token, showToast }) {
+  const [tab, setTab] = useState("scan");
+  const [organisation, setOrganisation] = useState("");
+  const [region, setRegion] = useState("uk");
+  const [sector, setSector] = useState("finance");
+  const [description, setDescription] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [reportData, setReportData] = useState(null);
+  const [history, setHistory] = useState([]);
+  const [filterType, setFilterType] = useState(null);
+
+  const API = "http://localhost:5001";
+  const SEV_COLOR  = { CRITICAL:"#ff2d55", HIGH:"#ff6b00", MEDIUM:"#ffd60a", LOW:"#00e5ff" };
+  const TYPE_COLOR = { RANSOMWARE:"#ff2d55", APT:"#a78bfa", HACKTIVIST:"#ff6b00", CYBERCRIMINAL:"#ffd60a" };
+  const TYPE_ICON  = { RANSOMWARE:"🔒", APT:"🎯", HACKTIVIST:"⚡", CYBERCRIMINAL:"💰" };
+  const CONF_COLOR = { HIGH:"#00ff88", MEDIUM:"#ffd60a", LOW:"#888" };
+
+  const REGIONS = [["uk","🇬🇧 United Kingdom"],["eu","🇪🇺 European Union"],["us","🇺🇸 United States"],["asia","🌏 Asia Pacific"],["middle_east","🌍 Middle East"],["global","🌐 Global"]];
+  const SECTORS = [["finance","💰 Finance"],["healthcare","🏥 Healthcare"],["energy","⚡ Energy"],["government","🏛️ Government"],["technology","💻 Technology"],["education","🎓 Education"],["retail","🛍️ Retail"],["manufacturing","🏭 Manufacturing"],["legal","⚖️ Legal"],["other","🏢 Other"]];
+
+  useEffect(() => { fetchHistory(); }, []);
+
+  async function fetchHistory() {
+    try {
+      const r = await fetch(`${API}/api/threat-radar/history`, { headers:{ Authorization:`Bearer ${token}` }});
+      const d = await r.json();
+      setHistory(d.reports || []);
+    } catch(e) {}
+  }
+
+  async function submitScan() {
+    setLoading(true); setReportData(null);
+    try {
+      const r = await fetch(`${API}/api/threat-radar/scan`, {
+        method: "POST",
+        headers: { "Content-Type":"application/json", Authorization:`Bearer ${token}` },
+        body: JSON.stringify({ organisation: organisation || "Your Organisation", region, sector, description })
+      });
+      const d = await r.json();
+      if (d.report_id) {
+        showToast(`Threat Radar complete — ${d.threat_count} threat actor(s) identified`, d.risk_score >= 70 ? "error" : "warning");
+        await loadReport(d.report_id);
+        fetchHistory();
+      } else { showToast(d.error || "Scan failed", "error"); }
+    } catch(e) { showToast("Scan failed", "error"); }
+    setLoading(false);
+  }
+
+  async function loadReport(reportId) {
+    try {
+      const r = await fetch(`${API}/api/threat-radar/reports/${reportId}`, { headers:{ Authorization:`Bearer ${token}` }});
+      const d = await r.json();
+      setReportData(d); setFilterType(null); setTab("report");
+    } catch(e) {}
+  }
+
+  const riskColor = (s) => s >= 80 ? "#ff2d55" : s >= 60 ? "#ff6b00" : s >= 40 ? "#ffd60a" : "#00ff88";
+  const filteredThreats = reportData?.threats?.filter(t => !filterType || t.threat_type === filterType) || [];
+
+  return (
+    <div style={{ padding:"24px", color:"#e0e0e0", fontFamily:"JetBrains Mono, monospace" }}>
+      <div style={{ marginBottom:"24px" }}>
+        <h2 style={{ color:"#00e5ff", fontSize:"22px", margin:0 }}>🌐 Global Threat Radar</h2>
+        <p style={{ color:"#888", margin:"4px 0 0", fontSize:"13px" }}>Threat Actor Intelligence · Sector Risk · Geopolitical Mapping — Module #41</p>
+      </div>
+
+      {/* Tabs */}
+      <div style={{ display:"flex", gap:"8px", marginBottom:"24px" }}>
+        {[["scan","📡 Scan"],["report","📋 Threat Report"],["history","🕒 History"]].map(([id,label]) => (
+          <button key={id} onClick={() => setTab(id)} style={{ padding:"8px 18px", borderRadius:"8px", border:"none", cursor:"pointer", fontSize:"13px", background: tab===id ? "#00e5ff" : "#1a2236", color: tab===id ? "#000" : "#aaa", fontFamily:"inherit" }}>{label}</button>
+        ))}
+      </div>
+
+      {/* SCAN TAB */}
+      {tab === "scan" && (
+        <div style={{ display:"grid", gridTemplateColumns:"300px 1fr", gap:"20px" }}>
+          <div style={{ background:"#0d1526", borderRadius:"12px", padding:"20px", border:"1px solid #1e3a5f" }}>
+            <p style={{ color:"#00e5ff", fontSize:"13px", marginTop:0 }}>Organisation</p>
+            <input value={organisation} onChange={e=>setOrganisation(e.target.value)} placeholder="e.g. AIPET Ltd" style={{ width:"100%", background:"#0a1628", border:"1px solid #1e3a5f", borderRadius:"8px", padding:"8px", color:"#e0e0e0", fontSize:"13px", boxSizing:"border-box", fontFamily:"inherit" }} />
+            <p style={{ color:"#00e5ff", fontSize:"13px", marginTop:"16px" }}>Region</p>
+            {REGIONS.map(([val,label]) => (
+              <div key={val} onClick={() => setRegion(val)} style={{ padding:"7px 12px", borderRadius:"8px", marginBottom:"4px", cursor:"pointer", border:`1px solid ${region===val?"#00e5ff":"#1e3a5f"}`, background: region===val?"#0a2040":"transparent", color: region===val?"#00e5ff":"#aaa", fontSize:"12px" }}>{label}</div>
+            ))}
+            <button onClick={submitScan} disabled={loading} style={{ marginTop:"12px", width:"100%", padding:"12px", borderRadius:"8px", background: loading?"#333":"#00e5ff", color:"#000", border:"none", cursor:"pointer", fontSize:"14px", fontWeight:"bold", fontFamily:"inherit" }}>
+              {loading ? "⏳ Scanning..." : "📡 Run Threat Radar"}
+            </button>
+          </div>
+          <div style={{ background:"#0d1526", borderRadius:"12px", padding:"20px", border:"1px solid #1e3a5f" }}>
+            <p style={{ color:"#00e5ff", fontSize:"13px", marginTop:0 }}>Sector</p>
+            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"8px", marginBottom:"16px" }}>
+              {SECTORS.map(([val,label]) => (
+                <div key={val} onClick={() => setSector(val)} style={{ padding:"10px 12px", borderRadius:"8px", cursor:"pointer", border:`1px solid ${sector===val?"#00e5ff":"#1e3a5f"}`, background: sector===val?"#0a2040":"transparent", color: sector===val?"#00e5ff":"#aaa", fontSize:"12px" }}>{label}</div>
+              ))}
+            </div>
+            <p style={{ color:"#00e5ff", fontSize:"13px" }}>Additional Context (optional)</p>
+            <textarea value={description} onChange={e=>setDescription(e.target.value)}
+              placeholder="Describe your organisation or any specific threat concerns..."
+              style={{ width:"100%", height:"160px", background:"#0a1628", border:"1px solid #1e3a5f", borderRadius:"8px", padding:"12px", color:"#e0e0e0", fontSize:"13px", fontFamily:"JetBrains Mono, monospace", resize:"vertical", boxSizing:"border-box" }} />
+          </div>
+        </div>
+      )}
+
+      {/* REPORT TAB */}
+      {tab === "report" && reportData && (
+        <div>
+          {/* Score cards */}
+          <div style={{ display:"grid", gridTemplateColumns:"repeat(5,1fr)", gap:"12px", marginBottom:"20px" }}>
+            {[["Risk Score", reportData.risk_score, riskColor(reportData.risk_score)],["Severity", reportData.severity, SEV_COLOR[reportData.severity]],["Threats", reportData.threat_count, "#00e5ff"],["Sector", reportData.sector?.toUpperCase(), "#a78bfa"],["Region", reportData.region?.toUpperCase(), "#00ff88"]].map(([label,val,color]) => (
+              <div key={label} style={{ background:"#0d1526", borderRadius:"10px", padding:"16px", border:`1px solid ${color}33`, textAlign:"center" }}>
+                <div style={{ fontSize: label==="Sector"||label==="Region"?"13px":"22px", fontWeight:"bold", color }}>{val}</div>
+                <div style={{ fontSize:"12px", color:"#888", marginTop:"4px" }}>{label}</div>
+              </div>
+            ))}
+          </div>
+
+          {/* Risk bar */}
+          <div style={{ background:"#0d1526", borderRadius:"10px", padding:"16px", marginBottom:"12px", border:"1px solid #1e3a5f" }}>
+            <div style={{ display:"flex", justifyContent:"space-between", marginBottom:"8px" }}>
+              <span style={{ color:"#00e5ff", fontSize:"13px" }}>Global Threat Exposure — {reportData.organisation}</span>
+              <span style={{ color: riskColor(reportData.risk_score), fontWeight:"bold" }}>{reportData.risk_score}/100</span>
+            </div>
+            <div style={{ background:"#0a1628", borderRadius:"20px", height:"12px", overflow:"hidden" }}>
+              <div style={{ width:`${reportData.risk_score}%`, height:"100%", background: riskColor(reportData.risk_score), borderRadius:"20px" }} />
+            </div>
+            <div style={{ color:"#888", fontSize:"12px", marginTop:"8px" }}>{reportData.summary}</div>
+          </div>
+
+          {/* Context notes */}
+          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"12px", marginBottom:"16px" }}>
+            {[["🏭 Sector Intelligence", reportData.sector_note],["🌍 Regional Intelligence", reportData.region_note]].map(([label,note]) => (
+              <div key={label} style={{ background:"#0d1526", borderRadius:"10px", padding:"14px", border:"1px solid #1e3a5f" }}>
+                <div style={{ color:"#00e5ff", fontSize:"12px", marginBottom:"6px" }}>{label}</div>
+                <div style={{ color:"#aaa", fontSize:"12px", lineHeight:"1.6" }}>{note}</div>
+              </div>
+            ))}
+          </div>
+
+          {/* Type filter */}
+          <div style={{ display:"flex", gap:"8px", marginBottom:"16px" }}>
+            <button onClick={() => setFilterType(null)} style={{ padding:"6px 14px", borderRadius:"6px", border:`1px solid ${!filterType?"#00e5ff":"#1e3a5f"}`, background: !filterType?"#0a2040":"transparent", color: !filterType?"#00e5ff":"#aaa", cursor:"pointer", fontSize:"12px", fontFamily:"inherit" }}>All</button>
+            {Object.entries(reportData.by_type||{}).filter(([,count]) => count > 0).map(([type,count]) => (
+              <button key={type} onClick={() => setFilterType(type)} style={{ padding:"6px 14px", borderRadius:"6px", border:`1px solid ${filterType===type?(TYPE_COLOR[type]||"#00e5ff"):"#1e3a5f"}`, background: filterType===type?"#0a2040":"transparent", color: filterType===type?(TYPE_COLOR[type]||"#00e5ff"):"#aaa", cursor:"pointer", fontSize:"12px", fontFamily:"inherit" }}>{TYPE_ICON[type]} {type} ({count})</button>
+            ))}
+          </div>
+
+          {/* Threats */}
+          {filteredThreats.map((t,i) => (
+            <div key={i} style={{ background:"#0d1526", borderRadius:"10px", padding:"16px", marginBottom:"10px", border:`1px solid ${SEV_COLOR[t.severity]}33` }}>
+              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:"8px" }}>
+                <div style={{ display:"flex", gap:"8px", alignItems:"center" }}>
+                  <span style={{ fontSize:"18px" }}>{TYPE_ICON[t.threat_type]}</span>
+                  <span style={{ color: TYPE_COLOR[t.threat_type], fontSize:"11px", fontWeight:"bold", background:`${TYPE_COLOR[t.threat_type]}22`, padding:"2px 8px", borderRadius:"20px" }}>{t.threat_type}</span>
+                  <span style={{ color: SEV_COLOR[t.severity], fontSize:"11px", fontWeight:"bold", background:`${SEV_COLOR[t.severity]}22`, padding:"2px 8px", borderRadius:"20px" }}>{t.severity}</span>
+                  <span style={{ color: CONF_COLOR[t.confidence], fontSize:"11px" }}>Confidence: {t.confidence}</span>
+                </div>
+              </div>
+              <div style={{ color:"#e0e0e0", fontSize:"14px", fontWeight:"bold", marginBottom:"6px" }}>{t.actor}</div>
+              <div style={{ color:"#888", fontSize:"12px", marginBottom:"6px" }}>{t.description}</div>
+              <div style={{ color:"#00e5ff", fontSize:"12px", marginBottom:"4px" }}>💡 {t.mitigation}</div>
+              {t.mitre_tactic && <div style={{ color:"#a78bfa", fontSize:"11px" }}>MITRE: {t.mitre_tactic}</div>}
+            </div>
+          ))}
+        </div>
+      )}
+      {tab === "report" && !reportData && <div style={{ textAlign:"center", color:"#555", padding:"60px" }}>Run a scan first or select one from History.</div>}
+
+      {/* HISTORY TAB */}
+      {tab === "history" && (
+        <div>
+          {history.length === 0 && <div style={{ textAlign:"center", color:"#555", padding:"60px" }}>No scans yet.</div>}
+          {history.map((r,i) => (
+            <div key={i} style={{ background:"#0d1526", borderRadius:"10px", padding:"16px", marginBottom:"10px", border:"1px solid #1e3a5f", display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+              <div>
+                <div style={{ color:"#e0e0e0", fontSize:"14px" }}>{r.organisation}</div>
+                <div style={{ color:"#555", fontSize:"12px", marginTop:"4px" }}>{r.sector} · {r.region} · {r.threat_count} threats · {new Date(r.created_at).toLocaleString()}</div>
+              </div>
+              <div style={{ display:"flex", gap:"16px", alignItems:"center" }}>
+                <span style={{ color: SEV_COLOR[r.severity], fontSize:"13px", fontWeight:"bold" }}>{r.severity}</span>
+                <span style={{ color: riskColor(r.risk_score), fontSize:"13px" }}>Risk: {r.risk_score}</span>
+                <button onClick={() => loadReport(r.report_id)} style={{ padding:"6px 14px", background:"#0a2040", border:"1px solid #00e5ff", borderRadius:"6px", color:"#00e5ff", cursor:"pointer", fontSize:"12px", fontFamily:"inherit" }}>View</button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ============================================================
 // AIPET X — AI Policy Brain Page (#40)
+
 // Policy Generation | Framework Mapping | Compliance Coverage
 // ============================================================
 function PolicyBrainPage({ token, showToast }) {
@@ -22303,6 +22499,9 @@ export default function App() {
           )}
           {activeTab === "policybrain" && (
             <PolicyBrainPage token={token} showToast={showToast} />
+          )}
+          {activeTab === "threatradar" && (
+            <ThreatRadarPage token={token} showToast={showToast} />
           )}
           {activeTab === "terminal" && (
             <AIPETTerminal token={token} showToast={showToast} />
