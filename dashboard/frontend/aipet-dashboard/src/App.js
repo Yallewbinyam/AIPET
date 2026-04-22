@@ -5794,6 +5794,7 @@ const NAV_ITEMS = [
   { id: "resilience",  label: "Resilience",    icon: Shield,        group: "enterprise" },
   { id: "drift",       label: "Identity Drift", icon: AlertTriangle, group: "enterprise" },
   { id: "timeline_enhanced", label: "Unified Timeline", icon: Activity,   group: "enterprise" },
+  { id: "codesecurity",     label: "Code Security",  icon: Shield,        group: "enterprise" },
   { id: "settings",  label: "Settings",      icon: Settings,      group: "account"  },
 ];
 
@@ -7278,7 +7279,206 @@ function DriftDetectorPage({ token, showToast }) {
 }
 
 // ─────────────────────────────────────────────────────────────
+
+// ============================================================
+// AIPET X — Code Security Engine Page (#47)
+// SAST | SCA | Secrets | IaC | SBOM
+// ============================================================
+function CodeSecurityPage({ token, showToast }) {
+  const [tab, setTab] = useState("scan");
+  const [targetType, setTargetType] = useState("snippet");
+  const [targetName, setTargetName] = useState("");
+  const [content, setContent] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [results, setResults] = useState(null);
+  const [history, setHistory] = useState([]);
+  const [sbom, setSbom] = useState(null);
+  const [selectedScan, setSelectedScan] = useState(null);
+
+  const API = "http://localhost:5001";
+
+  const SEV_COLOR = { CRITICAL:"#ff2d55", HIGH:"#ff6b00", MEDIUM:"#ffd60a", LOW:"#00e5ff", INFO:"#888" };
+
+  useEffect(() => { fetchHistory(); }, []);
+
+  async function fetchHistory() {
+    try {
+      const r = await fetch(`${API}/api/code-security/history`, { headers:{ Authorization:`Bearer ${token}` }});
+      const d = await r.json();
+      setHistory(d.scans || []);
+    } catch(e) {}
+  }
+
+  async function submitScan() {
+    if (!content.trim()) { showToast("Paste code or file content first","error"); return; }
+    setLoading(true); setResults(null); setSbom(null);
+    try {
+      const r = await fetch(`${API}/api/code-security/scan`, {
+        method:"POST",
+        headers:{ "Content-Type":"application/json", Authorization:`Bearer ${token}` },
+        body: JSON.stringify({ target_type: targetType, target_name: targetName || "unnamed", content })
+      });
+      const d = await r.json();
+      if (d.scan_id) {
+        showToast(`Scan complete — ${d.total_findings} finding(s) detected`, d.total_findings > 0 ? "warning" : "success");
+        await loadResults(d.scan_id);
+        fetchHistory();
+      } else { showToast(d.error || "Scan failed","error"); }
+    } catch(e) { showToast("Scan failed","error"); }
+    setLoading(false);
+  }
+
+  async function loadResults(scanId) {
+    try {
+      const r = await fetch(`${API}/api/code-security/results/${scanId}`, { headers:{ Authorization:`Bearer ${token}` }});
+      const d = await r.json();
+      setResults(d); setSelectedScan(scanId); setTab("results");
+    } catch(e) {}
+  }
+
+  async function loadSbom(scanId) {
+    try {
+      const r = await fetch(`${API}/api/code-security/sbom/${scanId}`, { headers:{ Authorization:`Bearer ${token}` }});
+      const d = await r.json();
+      setSbom(d); setSelectedScan(scanId); setTab("sbom");
+    } catch(e) {}
+  }
+
+  const riskColor = (score) => score >= 70 ? "#ff2d55" : score >= 40 ? "#ff6b00" : score >= 15 ? "#ffd60a" : "#00ff88";
+
+  return (
+    <div style={{ padding:"24px", color:"#e0e0e0", fontFamily:"JetBrains Mono, monospace" }}>
+      {/* Header */}
+      <div style={{ marginBottom:"24px" }}>
+        <h2 style={{ color:"#00e5ff", fontSize:"22px", margin:0 }}>⚡ Code Security Engine</h2>
+        <p style={{ color:"#888", margin:"4px 0 0", fontSize:"13px" }}>SAST · SCA · Secrets Detection · IaC Scanning · SBOM — Module #47</p>
+      </div>
+
+      {/* Tabs */}
+      <div style={{ display:"flex", gap:"8px", marginBottom:"24px" }}>
+        {[["scan","🔍 Scan"],["results","📋 Results"],["sbom","📦 SBOM"],["history","🕒 History"]].map(([id,label]) => (
+          <button key={id} onClick={() => setTab(id)} style={{ padding:"8px 18px", borderRadius:"8px", border:"none", cursor:"pointer", fontSize:"13px", background: tab===id ? "#00e5ff" : "#1a2236", color: tab===id ? "#000" : "#aaa", fontFamily:"inherit" }}>{label}</button>
+        ))}
+      </div>
+
+      {/* SCAN TAB */}
+      {tab === "scan" && (
+        <div style={{ display:"grid", gridTemplateColumns:"300px 1fr", gap:"20px" }}>
+          <div style={{ background:"#0d1526", borderRadius:"12px", padding:"20px", border:"1px solid #1e3a5f" }}>
+            <p style={{ color:"#00e5ff", fontSize:"13px", marginTop:0 }}>Scan Type</p>
+            {[["snippet","Python / JS Code"],["requirements","requirements.txt"],["package_json","package.json"],["iac","Terraform / IaC"]].map(([val,label]) => (
+              <div key={val} onClick={() => setTargetType(val)} style={{ padding:"10px 12px", borderRadius:"8px", marginBottom:"8px", cursor:"pointer", border:`1px solid ${targetType===val?"#00e5ff":"#1e3a5f"}`, background: targetType===val?"#0a2040":"transparent", color: targetType===val?"#00e5ff":"#aaa", fontSize:"13px" }}>{label}</div>
+            ))}
+            <p style={{ color:"#00e5ff", fontSize:"13px", marginTop:"16px" }}>File Name (optional)</p>
+            <input value={targetName} onChange={e=>setTargetName(e.target.value)} placeholder="e.g. app.py" style={{ width:"100%", background:"#0a1628", border:"1px solid #1e3a5f", borderRadius:"8px", padding:"8px", color:"#e0e0e0", fontSize:"13px", boxSizing:"border-box", fontFamily:"inherit" }} />
+            <button onClick={submitScan} disabled={loading} style={{ marginTop:"16px", width:"100%", padding:"12px", borderRadius:"8px", background: loading?"#333":"#00e5ff", color:"#000", border:"none", cursor:"pointer", fontSize:"14px", fontWeight:"bold", fontFamily:"inherit" }}>
+              {loading ? "⏳ Scanning..." : "⚡ Run Scan"}
+            </button>
+          </div>
+          <div style={{ background:"#0d1526", borderRadius:"12px", padding:"20px", border:"1px solid #1e3a5f" }}>
+            <p style={{ color:"#00e5ff", fontSize:"13px", marginTop:0 }}>Paste Code / File Content</p>
+            <textarea value={content} onChange={e=>setContent(e.target.value)} placeholder="Paste your code, IaC, requirements.txt or package.json content here..."
+              style={{ width:"100%", height:"380px", background:"#0a1628", border:"1px solid #1e3a5f", borderRadius:"8px", padding:"12px", color:"#e0e0e0", fontSize:"13px", fontFamily:"JetBrains Mono, monospace", resize:"vertical", boxSizing:"border-box" }} />
+          </div>
+        </div>
+      )}
+
+      {/* RESULTS TAB */}
+      {tab === "results" && results && (
+        <div>
+          <div style={{ display:"grid", gridTemplateColumns:"repeat(5,1fr)", gap:"12px", marginBottom:"20px" }}>
+            {[["Risk Score", results.risk_score, riskColor(results.risk_score)],["Critical",results.summary?.CRITICAL,"#ff2d55"],["High",results.summary?.HIGH,"#ff6b00"],["Medium",results.summary?.MEDIUM,"#ffd60a"],["Low",results.summary?.LOW,"#00e5ff"]].map(([label,val,color]) => (
+              <div key={label} style={{ background:"#0d1526", borderRadius:"10px", padding:"16px", border:`1px solid ${color}33`, textAlign:"center" }}>
+                <div style={{ fontSize:"26px", fontWeight:"bold", color }}>{val}</div>
+                <div style={{ fontSize:"12px", color:"#888", marginTop:"4px" }}>{label}</div>
+              </div>
+            ))}
+          </div>
+          {results.findings?.length === 0 && <div style={{ textAlign:"center", color:"#00ff88", padding:"40px", background:"#0d1526", borderRadius:"12px" }}>✅ No findings — clean scan!</div>}
+          {results.findings?.map((f,i) => (
+            <div key={i} style={{ background:"#0d1526", borderRadius:"10px", padding:"16px", marginBottom:"10px", border:`1px solid ${SEV_COLOR[f.severity] || "#333"}44` }}>
+              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:"8px" }}>
+                <span style={{ color: SEV_COLOR[f.severity], fontSize:"12px", fontWeight:"bold", background:`${SEV_COLOR[f.severity]}22`, padding:"2px 10px", borderRadius:"20px" }}>{f.severity}</span>
+                <span style={{ color:"#555", fontSize:"11px" }}>{f.engine} · {f.cwe_id}</span>
+              </div>
+              <div style={{ color:"#e0e0e0", fontSize:"14px", fontWeight:"bold" }}>{f.title}</div>
+              <div style={{ color:"#888", fontSize:"12px", margin:"6px 0" }}>{f.description}</div>
+              {f.recommendation && <div style={{ color:"#00e5ff", fontSize:"12px", marginTop:"6px" }}>💡 {f.recommendation}</div>}
+              {f.file_path && <div style={{ color:"#555", fontSize:"11px", marginTop:"4px" }}>📄 {f.file_path}{f.line_number ? ` : line ${f.line_number}` : ""}</div>}
+            </div>
+          ))}
+        </div>
+      )}
+      {tab === "results" && !results && <div style={{ textAlign:"center", color:"#555", padding:"60px" }}>Run a scan first or select one from History.</div>}
+
+      {/* SBOM TAB */}
+      {tab === "sbom" && sbom && (
+        <div>
+          <div style={{ display:"flex", gap:"12px", marginBottom:"16px" }}>
+            <div style={{ background:"#0d1526", borderRadius:"10px", padding:"16px", border:"1px solid #1e3a5f", flex:1, textAlign:"center" }}>
+              <div style={{ fontSize:"24px", color:"#00e5ff" }}>{sbom.total}</div>
+              <div style={{ fontSize:"12px", color:"#888" }}>Total Components</div>
+            </div>
+            <div style={{ background:"#0d1526", borderRadius:"10px", padding:"16px", border:"1px solid #ff2d5544", flex:1, textAlign:"center" }}>
+              <div style={{ fontSize:"24px", color:"#ff2d55" }}>{sbom.vulnerable}</div>
+              <div style={{ fontSize:"12px", color:"#888" }}>Vulnerable</div>
+            </div>
+          </div>
+          <div style={{ background:"#0d1526", borderRadius:"12px", overflow:"hidden", border:"1px solid #1e3a5f" }}>
+            <table style={{ width:"100%", borderCollapse:"collapse", fontSize:"13px" }}>
+              <thead>
+                <tr style={{ background:"#0a1628" }}>
+                  {["Component","Version","Ecosystem","License","Status","Vulnerability"].map(h => (
+                    <th key={h} style={{ padding:"10px 14px", color:"#00e5ff", textAlign:"left", borderBottom:"1px solid #1e3a5f" }}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {sbom.components?.map((c,i) => (
+                  <tr key={i} style={{ borderBottom:"1px solid #1e3a5f11" }}>
+                    <td style={{ padding:"10px 14px", color:"#e0e0e0" }}>{c.component}</td>
+                    <td style={{ padding:"10px 14px", color:"#aaa" }}>{c.version}</td>
+                    <td style={{ padding:"10px 14px", color:"#aaa" }}>{c.ecosystem}</td>
+                    <td style={{ padding:"10px 14px", color:"#aaa" }}>{c.license}</td>
+                    <td style={{ padding:"10px 14px" }}><span style={{ color: c.is_vulnerable?"#ff2d55":"#00ff88", fontSize:"12px" }}>{c.is_vulnerable ? "⚠ VULNERABLE" : "✓ Clean"}</span></td>
+                    <td style={{ padding:"10px 14px", color:"#888", fontSize:"12px" }}>{c.vuln_summary || "—"}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+      {tab === "sbom" && !sbom && <div style={{ textAlign:"center", color:"#555", padding:"60px" }}>Run a requirements.txt or package.json scan, then click SBOM from History.</div>}
+
+      {/* HISTORY TAB */}
+      {tab === "history" && (
+        <div>
+          {history.length === 0 && <div style={{ textAlign:"center", color:"#555", padding:"60px" }}>No scans yet.</div>}
+          {history.map((s,i) => (
+            <div key={i} style={{ background:"#0d1526", borderRadius:"10px", padding:"16px", marginBottom:"10px", border:"1px solid #1e3a5f", display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+              <div>
+                <div style={{ color:"#e0e0e0", fontSize:"14px" }}>{s.target_name} <span style={{ color:"#555", fontSize:"12px" }}>({s.target_type})</span></div>
+                <div style={{ color:"#555", fontSize:"12px", marginTop:"4px" }}>{new Date(s.created_at).toLocaleString()}</div>
+              </div>
+              <div style={{ display:"flex", gap:"16px", alignItems:"center" }}>
+                <span style={{ color: riskColor(s.risk_score), fontSize:"14px", fontWeight:"bold" }}>Risk: {s.risk_score}</span>
+                <span style={{ color:"#888", fontSize:"12px" }}>{s.total_findings} finding(s)</span>
+                <button onClick={() => loadResults(s.scan_id)} style={{ padding:"6px 14px", background:"#0a2040", border:"1px solid #00e5ff", borderRadius:"6px", color:"#00e5ff", cursor:"pointer", fontSize:"12px", fontFamily:"inherit" }}>View</button>
+                {(s.target_type==="requirements"||s.target_type==="package_json") && (
+                  <button onClick={() => loadSbom(s.scan_id)} style={{ padding:"6px 14px", background:"#0a2040", border:"1px solid #00ff88", borderRadius:"6px", color:"#00ff88", cursor:"pointer", fontSize:"12px", fontFamily:"inherit" }}>SBOM</button>
+                )}
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // AIPET X — Resilience Engine Page
+
 //
 // Features:
 //   • Readiness score per asset (0-100)
@@ -21203,6 +21403,9 @@ export default function App() {
           )}
           {activeTab === "resilience" && (
             <ResiliencePage token={token} showToast={showToast} />
+          )}
+          {activeTab === "codesecurity" && (
+            <CodeSecurityPage token={token} showToast={showToast} />
           )}
           {activeTab === "terminal" && (
             <AIPETTerminal token={token} showToast={showToast} />
