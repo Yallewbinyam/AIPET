@@ -5812,6 +5812,7 @@ const NAV_ITEMS = [
   { id: "networkexposure",   label: "Network Exposure",icon: Globe,        group: "enterprise" },
   { id: "iamexposure",       label: "IAM Exposure",   icon: Shield,        group: "enterprise" },
   { id: "clouddashboard",    label: "Cloud Dashboard", icon: Activity,     group: "enterprise" },
+  { id: "multicloudscale",   label: "Multi-Cloud Scale",icon: Globe,       group: "enterprise" },
   { id: "settings",  label: "Settings",      icon: Settings,      group: "account"  },
 ];
 
@@ -7313,8 +7314,160 @@ function DriftDetectorPage({ token, showToast }) {
 
 
 
+
+// ============================================================
+// AIPET X — Multi-Cloud Scale Engine (Wiz Gap — Phase 1)
+// Cross-Cloud Orchestration | Scale Analysis | Cost Security
+// ============================================================
+function MultiCloudScalePage({ token, showToast }) {
+  const [tab, setTab] = useState("analyse");
+  const [providers, setProviders] = useState(["aws"]);
+  const [regions, setRegions] = useState(3);
+  const [workloads, setWorkloads] = useState(50);
+  const [description, setDescription] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [reportData, setReportData] = useState(null);
+  const [history, setHistory] = useState([]);
+
+  const API = "http://localhost:5001";
+  const SEV_COLOR = { CRITICAL:"#ff2d55", HIGH:"#ff6b00", MEDIUM:"#ffd60a", LOW:"#00e5ff" };
+  const CAT_COLOR = { Identity:"#a78bfa", Observability:"#00e5ff", Governance:"#ffd60a", "Cost Security":"#00ff88", Compliance:"#ff6b00", Resilience:"#00d4ff", Network:"#ff2d55", "Credential Security":"#ff6b00", Detection:"#ff2d55" };
+  const CAT_ICON  = { Identity:"👑", Observability:"📊", Governance:"⚖️", "Cost Security":"💰", Compliance:"📋", Resilience:"🔄", Network:"🌐", "Credential Security":"🔑", Detection:"🔍" };
+
+  useEffect(() => { fetchHistory(); }, []);
+
+  async function fetchHistory() {
+    try {
+      const r = await fetch(`${API}/api/multicloud-scale/history`, { headers:{ Authorization:`Bearer ${token}` }});
+      const d = await r.json();
+      setHistory(d.reports || []);
+    } catch(e) {}
+  }
+
+  function toggleProvider(p) {
+    setProviders(prev => prev.includes(p) ? prev.filter(x=>x!==p) : [...prev, p]);
+  }
+
+  async function submitAnalysis() {
+    if (!description.trim()) { showToast("Describe your multi-cloud setup first", "error"); return; }
+    if (providers.length === 0) { showToast("Select at least one provider", "error"); return; }
+    setLoading(true); setReportData(null);
+    try {
+      const r = await fetch(`${API}/api/multicloud-scale/analyse`, {
+        method:"POST",
+        headers:{ "Content-Type":"application/json", Authorization:`Bearer ${token}` },
+        body: JSON.stringify({ description, providers, regions, workloads })
+      });
+      const d = await r.json();
+      if (d.report_id) {
+        showToast(`Scale analysis complete — ${d.scale_issues} issue(s) detected`, d.scale_issues > 5 ? "error" : "warning");
+        setReportData(d); setTab("report");
+        fetchHistory();
+      } else { showToast(d.error || "Analysis failed", "error"); }
+    } catch(e) { showToast("Analysis failed", "error"); }
+    setLoading(false);
+  }
+
+  const scoreColor = (s) => s >= 75 ? "#00ff88" : s >= 50 ? "#ffd60a" : "#ff2d55";
+
+  return (
+    <div style={{ padding:"24px", color:"#e0e0e0", fontFamily:"JetBrains Mono, monospace" }}>
+      <div style={{ marginBottom:"24px" }}>
+        <h2 style={{ color:"#00e5ff", fontSize:"22px", margin:0 }}>🌐 Multi-Cloud Scale Engine</h2>
+        <p style={{ color:"#888", margin:"4px 0 0", fontSize:"13px" }}>Cross-Cloud Orchestration · Scale Analysis · Cost Security — Wiz Gap Phase 1</p>
+      </div>
+
+      <div style={{ display:"flex", gap:"8px", marginBottom:"24px" }}>
+        {[["analyse","🔍 Analyse"],["report","📋 Report"],["history","🕒 History"]].map(([id,label]) => (
+          <button key={id} onClick={() => setTab(id)} style={{ padding:"8px 18px", borderRadius:"8px", border:"none", cursor:"pointer", fontSize:"13px", background: tab===id?"#00e5ff":"#1a2236", color: tab===id?"#000":"#aaa", fontFamily:"inherit" }}>{label}</button>
+        ))}
+      </div>
+
+      {tab === "analyse" && (
+        <div style={{ display:"grid", gridTemplateColumns:"280px 1fr", gap:"20px" }}>
+          <div style={{ background:"#0d1526", borderRadius:"12px", padding:"20px", border:"1px solid #1e3a5f" }}>
+            <p style={{ color:"#00e5ff", fontSize:"13px", marginTop:0 }}>Cloud Providers (multi-select)</p>
+            {[["aws","☁️ AWS"],["azure","🔷 Azure"],["gcp","🟡 GCP"]].map(([val,label]) => (
+              <div key={val} onClick={() => toggleProvider(val)} style={{ padding:"10px 12px", borderRadius:"8px", marginBottom:"6px", cursor:"pointer", border:`1px solid ${providers.includes(val)?"#00e5ff":"#1e3a5f"}`, background: providers.includes(val)?"#0a2040":"transparent", color: providers.includes(val)?"#00e5ff":"#aaa", fontSize:"13px", display:"flex", justifyContent:"space-between" }}>
+                {label} {providers.includes(val) && <span>✓</span>}
+              </div>
+            ))}
+            <p style={{ color:"#00e5ff", fontSize:"13px", marginTop:"16px" }}>Regions: <span style={{ color:"#e0e0e0" }}>{regions}</span></p>
+            <input type="range" min="1" max="20" value={regions} onChange={e=>setRegions(parseInt(e.target.value))} style={{ width:"100%", accentColor:"#00e5ff" }} />
+            <p style={{ color:"#00e5ff", fontSize:"13px", marginTop:"12px" }}>Workloads: <span style={{ color:"#e0e0e0" }}>{workloads}</span></p>
+            <input type="range" min="1" max="500" value={workloads} onChange={e=>setWorkloads(parseInt(e.target.value))} style={{ width:"100%", accentColor:"#00e5ff" }} />
+            <button onClick={submitAnalysis} disabled={loading} style={{ marginTop:"20px", width:"100%", padding:"12px", borderRadius:"8px", background: loading?"#333":"#00e5ff", color:"#000", border:"none", cursor:"pointer", fontSize:"14px", fontWeight:"bold", fontFamily:"inherit" }}>
+              {loading ? "⏳ Analysing..." : "🌐 Analyse Scale"}
+            </button>
+          </div>
+          <div style={{ background:"#0d1526", borderRadius:"12px", padding:"20px", border:"1px solid #1e3a5f" }}>
+            <p style={{ color:"#00e5ff", fontSize:"13px", marginTop:0 }}>Describe Your Multi-Cloud Architecture</p>
+            <textarea value={description} onChange={e=>setDescription(e.target.value)}
+              placeholder="Describe your multi-cloud setup and known issues. Examples: No centralised SSO across clouds. Separate logs per cloud no unified SIEM. Inconsistent security policies across AWS and Azure. No cost control budget alerts. Data residency not enforced GDPR region. No disaster recovery across clouds. Shadow cloud usage by developers. Flat multi cloud network no segmentation. Separate secrets manager per cloud. No cross cloud threat detection."
+              style={{ width:"100%", height:"400px", background:"#0a1628", border:"1px solid #1e3a5f", borderRadius:"8px", padding:"12px", color:"#e0e0e0", fontSize:"13px", fontFamily:"JetBrains Mono, monospace", resize:"vertical", boxSizing:"border-box" }} />
+          </div>
+        </div>
+      )}
+
+      {tab === "report" && reportData && (
+        <div>
+          <div style={{ display:"grid", gridTemplateColumns:"repeat(5,1fr)", gap:"12px", marginBottom:"20px" }}>
+            {[["Security Score",reportData.security_score,scoreColor(reportData.security_score)],["Cost Risk",reportData.cost_risk_score,"#ffd60a"],["Providers",reportData.providers?.length,"#00e5ff"],["Regions",reportData.regions,"#a78bfa"],["Issues",reportData.scale_issues,"#ff2d55"]].map(([label,val,color]) => (
+              <div key={label} style={{ background:"#0d1526", borderRadius:"10px", padding:"16px", border:`1px solid ${color}33`, textAlign:"center" }}>
+                <div style={{ fontSize:"22px", fontWeight:"bold", color }}>{val}</div>
+                <div style={{ fontSize:"12px", color:"#888", marginTop:"4px" }}>{label}</div>
+              </div>
+            ))}
+          </div>
+
+          <div style={{ background:"#0d1526", borderRadius:"10px", padding:"14px", marginBottom:"16px", border:"1px solid #1e3a5f" }}>
+            <div style={{ color:"#888", fontSize:"12px" }}>{reportData.summary}</div>
+          </div>
+
+          {reportData.recommendations?.length === 0 && <div style={{ textAlign:"center", color:"#00ff88", padding:"40px", background:"#0d1526", borderRadius:"12px" }}>✅ No scale issues detected!</div>}
+          {reportData.recommendations?.map((rec,i) => (
+            <div key={i} style={{ background:"#0d1526", borderRadius:"10px", padding:"16px", marginBottom:"8px", border:`1px solid ${SEV_COLOR[rec.severity]}33` }}>
+              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:"8px" }}>
+                <div style={{ display:"flex", gap:"8px", alignItems:"center" }}>
+                  <span style={{ color:"#555", fontSize:"13px", fontWeight:"bold" }}>#{rec.priority}</span>
+                  <span style={{ fontSize:"16px" }}>{CAT_ICON[rec.category]||"🌐"}</span>
+                  <span style={{ color: CAT_COLOR[rec.category]||"#888", fontSize:"11px", fontWeight:"bold", background:`${CAT_COLOR[rec.category]||"#888"}22`, padding:"2px 8px", borderRadius:"20px" }}>{rec.category}</span>
+                  <span style={{ color: SEV_COLOR[rec.severity], fontSize:"11px", fontWeight:"bold", background:`${SEV_COLOR[rec.severity]}22`, padding:"2px 8px", borderRadius:"20px" }}>{rec.severity}</span>
+                </div>
+              </div>
+              <div style={{ color:"#e0e0e0", fontSize:"14px", fontWeight:"bold", marginBottom:"6px" }}>{rec.title}</div>
+              <div style={{ color:"#ff6b00", fontSize:"12px", marginBottom:"6px" }}>⚠️ Impact: {rec.impact}</div>
+              <div style={{ color:"#00e5ff", fontSize:"12px" }}>💡 {rec.recommendation}</div>
+            </div>
+          ))}
+        </div>
+      )}
+      {tab === "report" && !reportData && <div style={{ textAlign:"center", color:"#555", padding:"60px" }}>Run an analysis first or select one from History.</div>}
+
+      {tab === "history" && (
+        <div>
+          {history.length === 0 && <div style={{ textAlign:"center", color:"#555", padding:"60px" }}>No analyses yet.</div>}
+          {history.map((r,i) => (
+            <div key={i} style={{ background:"#0d1526", borderRadius:"10px", padding:"16px", marginBottom:"10px", border:"1px solid #1e3a5f", display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+              <div>
+                <div style={{ color:"#e0e0e0", fontSize:"14px" }}>{r.total_providers} provider(s) · {r.total_regions} region(s)</div>
+                <div style={{ color:"#555", fontSize:"12px", marginTop:"4px" }}>{r.scale_issues} issue(s) · {new Date(r.created_at).toLocaleString()}</div>
+              </div>
+              <div style={{ display:"flex", gap:"16px", alignItems:"center" }}>
+                <span style={{ color: scoreColor(r.security_score), fontSize:"13px", fontWeight:"bold" }}>Security: {r.security_score}</span>
+                <span style={{ color:"#ffd60a", fontSize:"13px" }}>Cost Risk: {r.cost_risk_score}</span>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ============================================================
 // AIPET X — Enterprise Cloud Dashboards (Wiz Gap — Phase 1)
+
 // Unified Cloud Posture | Multi-Cloud Overview | Risk Trends
 // ============================================================
 function CloudDashboardPage({ token, showToast }) {
@@ -24331,6 +24484,9 @@ export default function App() {
           )}
           {activeTab === "clouddashboard" && (
             <CloudDashboardPage token={token} showToast={showToast} />
+          )}
+          {activeTab === "multicloudscale" && (
+            <MultiCloudScalePage token={token} showToast={showToast} />
           )}
 
 
