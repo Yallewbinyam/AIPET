@@ -5796,6 +5796,7 @@ const NAV_ITEMS = [
   { id: "timeline_enhanced", label: "Unified Timeline", icon: Activity,   group: "enterprise" },
   { id: "codesecurity",     label: "Code Security",  icon: Shield,        group: "enterprise" },
   { id: "forensics",        label: "AI Forensics",   icon: Eye,           group: "enterprise" },
+  { id: "compliancefabric",  label: "Compliance AI",  icon: CheckCircle,   group: "enterprise" },
   { id: "settings",  label: "Settings",      icon: Settings,      group: "account"  },
 ];
 
@@ -7282,8 +7283,183 @@ function DriftDetectorPage({ token, showToast }) {
 // ─────────────────────────────────────────────────────────────
 
 
+
+// ============================================================
+// AIPET X — Autonomous Compliance Fabric Page (#37)
+// NIS2 | ISO 27001 | NIST CSF | SOC2 | GDPR | PCI-DSS
+// ============================================================
+function ComplianceFabricPage({ token, showToast }) {
+  const [tab, setTab] = useState("assess");
+  const [framework, setFramework] = useState("NIS2");
+  const [description, setDescription] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [report, setReport] = useState(null);
+  const [history, setHistory] = useState([]);
+  const [frameworks, setFrameworks] = useState([]);
+
+  const API = "http://localhost:5001";
+  const STATUS_COLOR = { PASS:"#00ff88", PARTIAL:"#ffd60a", FAIL:"#ff2d55" };
+  const STATUS_ICON  = { PASS:"✅", PARTIAL:"⚠️", FAIL:"❌" };
+
+  useEffect(() => { fetchFrameworks(); fetchHistory(); }, []);
+
+  async function fetchFrameworks() {
+    try {
+      const r = await fetch(`${API}/api/compliance-fabric/frameworks`, { headers:{ Authorization:`Bearer ${token}` }});
+      const d = await r.json();
+      setFrameworks(d.frameworks || []);
+    } catch(e) {}
+  }
+
+  async function fetchHistory() {
+    try {
+      const r = await fetch(`${API}/api/compliance-fabric/history`, { headers:{ Authorization:`Bearer ${token}` }});
+      const d = await r.json();
+      setHistory(d.reports || []);
+    } catch(e) {}
+  }
+
+  async function submitAssessment() {
+    if (!description.trim()) { showToast("Describe your system first", "error"); return; }
+    setLoading(true); setReport(null);
+    try {
+      const r = await fetch(`${API}/api/compliance-fabric/assess`, {
+        method: "POST",
+        headers: { "Content-Type":"application/json", Authorization:`Bearer ${token}` },
+        body: JSON.stringify({ framework, description })
+      });
+      const d = await r.json();
+      if (d.report_id) {
+        showToast(`Assessment complete — Score: ${d.score}/100`, d.score >= 70 ? "success" : "warning");
+        await loadReport(d.report_id);
+        fetchHistory();
+      } else { showToast(d.error || "Assessment failed", "error"); }
+    } catch(e) { showToast("Assessment failed", "error"); }
+    setLoading(false);
+  }
+
+  async function loadReport(reportId) {
+    try {
+      const r = await fetch(`${API}/api/compliance-fabric/reports/${reportId}`, { headers:{ Authorization:`Bearer ${token}` }});
+      const d = await r.json();
+      setReport(d); setTab("report");
+    } catch(e) {}
+  }
+
+  const scoreColor = (s) => s >= 85 ? "#00ff88" : s >= 70 ? "#00e5ff" : s >= 50 ? "#ffd60a" : "#ff2d55";
+  const scoreGrade = (s) => s >= 85 ? "Excellent" : s >= 70 ? "Good" : s >= 50 ? "Needs Improvement" : "Critical Gaps";
+
+  const FRAMEWORK_INFO = { NIS2:"EU Network & Information Security Directive", ISO27001:"Information Security Management System", NIST_CSF:"NIST Cybersecurity Framework 2.0", SOC2:"Trust Services Criteria", GDPR:"EU General Data Protection Regulation", PCI_DSS:"Payment Card Industry Data Security Standard" };
+
+  return (
+    <div style={{ padding:"24px", color:"#e0e0e0", fontFamily:"JetBrains Mono, monospace" }}>
+      <div style={{ marginBottom:"24px" }}>
+        <h2 style={{ color:"#00e5ff", fontSize:"22px", margin:0 }}>📋 Autonomous Compliance Fabric</h2>
+        <p style={{ color:"#888", margin:"4px 0 0", fontSize:"13px" }}>NIS2 · ISO 27001 · NIST CSF · SOC2 · GDPR · PCI-DSS — Module #37</p>
+      </div>
+
+      {/* Tabs */}
+      <div style={{ display:"flex", gap:"8px", marginBottom:"24px" }}>
+        {[["assess","🔍 Assess"],["report","📊 Report"],["history","🕒 History"]].map(([id,label]) => (
+          <button key={id} onClick={() => setTab(id)} style={{ padding:"8px 18px", borderRadius:"8px", border:"none", cursor:"pointer", fontSize:"13px", background: tab===id ? "#00e5ff" : "#1a2236", color: tab===id ? "#000" : "#aaa", fontFamily:"inherit" }}>{label}</button>
+        ))}
+      </div>
+
+      {/* ASSESS TAB */}
+      {tab === "assess" && (
+        <div style={{ display:"grid", gridTemplateColumns:"280px 1fr", gap:"20px" }}>
+          <div style={{ background:"#0d1526", borderRadius:"12px", padding:"20px", border:"1px solid #1e3a5f" }}>
+            <p style={{ color:"#00e5ff", fontSize:"13px", marginTop:0 }}>Framework</p>
+            {["NIS2","ISO27001","NIST_CSF","SOC2","GDPR","PCI_DSS"].map(fw => (
+              <div key={fw} onClick={() => setFramework(fw)} style={{ padding:"10px 12px", borderRadius:"8px", marginBottom:"8px", cursor:"pointer", border:`1px solid ${framework===fw?"#00e5ff":"#1e3a5f"}`, background: framework===fw?"#0a2040":"transparent" }}>
+                <div style={{ color: framework===fw?"#00e5ff":"#e0e0e0", fontSize:"13px", fontWeight:"bold" }}>{fw.replace("_"," ")}</div>
+                <div style={{ color:"#555", fontSize:"11px", marginTop:"2px" }}>{FRAMEWORK_INFO[fw]}</div>
+              </div>
+            ))}
+            <button onClick={submitAssessment} disabled={loading} style={{ marginTop:"8px", width:"100%", padding:"12px", borderRadius:"8px", background: loading?"#333":"#00e5ff", color:"#000", border:"none", cursor:"pointer", fontSize:"14px", fontWeight:"bold", fontFamily:"inherit" }}>
+              {loading ? "⏳ Assessing..." : "📋 Run Assessment"}
+            </button>
+          </div>
+          <div style={{ background:"#0d1526", borderRadius:"12px", padding:"20px", border:"1px solid #1e3a5f" }}>
+            <p style={{ color:"#00e5ff", fontSize:"13px", marginTop:0 }}>Describe Your System & Security Controls</p>
+            <textarea value={description} onChange={e=>setDescription(e.target.value)}
+              placeholder={"Describe your organisation and security controls. Include:\n\n- Risk management policies and procedures\n- MFA and access control implementation\n- Encryption standards (AES-256, TLS 1.3)\n- SIEM and monitoring tools\n- Incident response procedures\n- Backup and disaster recovery\n- Employee security training\n- Vulnerability scanning and patch management\n- Supply chain security measures\n- Network segmentation and firewalls"}
+              style={{ width:"100%", height:"400px", background:"#0a1628", border:"1px solid #1e3a5f", borderRadius:"8px", padding:"12px", color:"#e0e0e0", fontSize:"13px", fontFamily:"JetBrains Mono, monospace", resize:"vertical", boxSizing:"border-box" }} />
+          </div>
+        </div>
+      )}
+
+      {/* REPORT TAB */}
+      {tab === "report" && report && (
+        <div>
+          {/* Score cards */}
+          <div style={{ display:"grid", gridTemplateColumns:"repeat(5,1fr)", gap:"12px", marginBottom:"20px" }}>
+            {[["Score", `${report.score}%`, scoreColor(report.score)],["Grade", scoreGrade(report.score), scoreColor(report.score)],["Passed", report.passed, "#00ff88"],["Partial", report.partial, "#ffd60a"],["Failed", report.failed, "#ff2d55"]].map(([label,val,color]) => (
+              <div key={label} style={{ background:"#0d1526", borderRadius:"10px", padding:"16px", border:`1px solid ${color}33`, textAlign:"center" }}>
+                <div style={{ fontSize:"22px", fontWeight:"bold", color }}>{val}</div>
+                <div style={{ fontSize:"12px", color:"#888", marginTop:"4px" }}>{label}</div>
+              </div>
+            ))}
+          </div>
+
+          {/* Score bar */}
+          <div style={{ background:"#0d1526", borderRadius:"10px", padding:"16px", marginBottom:"16px", border:"1px solid #1e3a5f" }}>
+            <div style={{ display:"flex", justifyContent:"space-between", marginBottom:"8px" }}>
+              <span style={{ color:"#00e5ff", fontSize:"13px" }}>{report.framework.replace("_"," ")} Compliance Score</span>
+              <span style={{ color: scoreColor(report.score), fontSize:"13px", fontWeight:"bold" }}>{report.score}%</span>
+            </div>
+            <div style={{ background:"#0a1628", borderRadius:"20px", height:"12px", overflow:"hidden" }}>
+              <div style={{ width:`${report.score}%`, height:"100%", background: scoreColor(report.score), borderRadius:"20px", transition:"width 1s ease" }} />
+            </div>
+            <div style={{ color:"#888", fontSize:"12px", marginTop:"8px" }}>{report.summary}</div>
+          </div>
+
+          {/* Controls */}
+          <div style={{ display:"grid", gap:"8px" }}>
+            {report.controls?.map((c,i) => (
+              <div key={i} style={{ background:"#0d1526", borderRadius:"10px", padding:"14px", border:`1px solid ${STATUS_COLOR[c.status]}33`, display:"grid", gridTemplateColumns:"40px 1fr auto", gap:"12px", alignItems:"start" }}>
+                <div style={{ fontSize:"20px", textAlign:"center", marginTop:"2px" }}>{STATUS_ICON[c.status]}</div>
+                <div>
+                  <div style={{ color:"#e0e0e0", fontSize:"13px", fontWeight:"bold" }}>{c.control_id} — {c.title}</div>
+                  <div style={{ color:"#666", fontSize:"12px", marginTop:"4px" }}>{c.description}</div>
+                  {c.status !== "PASS" && <div style={{ color:"#00e5ff", fontSize:"12px", marginTop:"6px" }}>💡 {c.remediation}</div>}
+                </div>
+                <div style={{ textAlign:"right" }}>
+                  <span style={{ color: STATUS_COLOR[c.status], fontSize:"12px", fontWeight:"bold", background:`${STATUS_COLOR[c.status]}22`, padding:"2px 10px", borderRadius:"20px" }}>{c.status}</span>
+                  <div style={{ color:"#555", fontSize:"11px", marginTop:"4px" }}>{c.severity}</div>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+      {tab === "report" && !report && <div style={{ textAlign:"center", color:"#555", padding:"60px" }}>Run an assessment first or select one from History.</div>}
+
+      {/* HISTORY TAB */}
+      {tab === "history" && (
+        <div>
+          {history.length === 0 && <div style={{ textAlign:"center", color:"#555", padding:"60px" }}>No assessments yet.</div>}
+          {history.map((r,i) => (
+            <div key={i} style={{ background:"#0d1526", borderRadius:"10px", padding:"16px", marginBottom:"10px", border:"1px solid #1e3a5f", display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+              <div>
+                <div style={{ color:"#e0e0e0", fontSize:"14px", fontWeight:"bold" }}>{r.framework.replace("_"," ")}</div>
+                <div style={{ color:"#555", fontSize:"12px", marginTop:"4px" }}>{new Date(r.created_at).toLocaleString()} · {r.passed}✅ {r.partial}⚠️ {r.failed}❌</div>
+              </div>
+              <div style={{ display:"flex", gap:"16px", alignItems:"center" }}>
+                <span style={{ color: scoreColor(r.score), fontSize:"16px", fontWeight:"bold" }}>{r.score}%</span>
+                <button onClick={() => loadReport(r.report_id)} style={{ padding:"6px 14px", background:"#0a2040", border:"1px solid #00e5ff", borderRadius:"6px", color:"#00e5ff", cursor:"pointer", fontSize:"12px", fontFamily:"inherit" }}>View</button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ============================================================
 // AIPET X — AI Forensics Engine Page (#36)
+
 // IOC Extraction | MITRE ATT&CK | Timeline Reconstruction
 // ============================================================
 function ForensicsPage({ token, showToast }) {
@@ -21587,6 +21763,9 @@ export default function App() {
           )}
           {activeTab === "forensics" && (
             <ForensicsPage token={token} showToast={showToast} />
+          )}
+          {activeTab === "compliancefabric" && (
+            <ComplianceFabricPage token={token} showToast={showToast} />
           )}
           {activeTab === "terminal" && (
             <AIPETTerminal token={token} showToast={showToast} />
