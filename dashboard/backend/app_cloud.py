@@ -98,6 +98,13 @@ from dashboard.backend.patch_brain.routes import patch_brain_bp
 from dashboard.backend.arch_builder.routes import arch_builder_bp
 from dashboard.backend.digital_twin_v2.routes import digital_twin_v2_bp
 from dashboard.backend.defense_mesh.routes import defense_mesh_bp
+from dashboard.backend.cloud_runtime.routes import cloud_runtime_bp
+from dashboard.backend.k8s_analyzer.routes import k8s_analyzer_bp
+from dashboard.backend.network_exposure.routes import network_exposure_bp
+from dashboard.backend.iam_exposure.routes import iam_exposure_bp
+from dashboard.backend.cloud_dashboard.routes import cloud_dashboard_bp
+from dashboard.backend.multicloud_scale.routes import multicloud_scale_bp
+from dashboard.backend.endpoint_agent.routes import endpoint_agent_bp
 from dashboard.backend.timeline_enhanced.models import TeEvent, TeCluster
 from dashboard.backend.incidents.models import IrIncident, IrTask
 from dashboard.backend.monitoring.logger import setup_logging, get_logger
@@ -235,6 +242,13 @@ def create_app(config_name="development"):
     app.register_blueprint(arch_builder_bp)
     app.register_blueprint(digital_twin_v2_bp)
     app.register_blueprint(defense_mesh_bp)
+    app.register_blueprint(cloud_runtime_bp)
+    app.register_blueprint(k8s_analyzer_bp)
+    app.register_blueprint(network_exposure_bp)
+    app.register_blueprint(iam_exposure_bp)
+    app.register_blueprint(cloud_dashboard_bp)
+    app.register_blueprint(multicloud_scale_bp)
+    app.register_blueprint(endpoint_agent_bp)
     app.register_blueprint(api_keys_bp, url_prefix='/api/keys')
 
     # Setup logging
