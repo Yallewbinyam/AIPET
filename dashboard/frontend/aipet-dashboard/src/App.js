@@ -5822,6 +5822,7 @@ const NAV_ITEMS = [
   { id: "apmengine",         label: "APM Engine",     icon: Activity,      group: "observability" },
   { id: "loganalytics",      label: "Log Analytics",  icon: FileText,      group: "observability" },
   { id: "metricstraces",     label: "Metrics+Traces", icon: Activity,      group: "observability" },
+  { id: "cloudsiem",         label: "Cloud SIEM",     icon: AlertTriangle, group: "observability" },
   { id: "settings",  label: "Settings",      icon: Settings,      group: "account"  },
 ];
 
@@ -7333,8 +7334,171 @@ function DriftDetectorPage({ token, showToast }) {
 
 
 
+
+// ============================================================
+// AIPET X — Cloud SIEM Correlation Engine
+// Event Correlation | Alert Triage | Incident Detection
+// ============================================================
+function CloudSIEMPage({ token, showToast }) {
+  const [tab, setTab] = useState("correlate");
+  const [eventSource, setEventSource] = useState("multi-source");
+  const [totalEvents, setTotalEvents] = useState(1000);
+  const [description, setDescription] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [reportData, setReportData] = useState(null);
+  const [history, setHistory] = useState([]);
+  const [filterCat, setFilterCat] = useState(null);
+
+  const API = "http://localhost:5001";
+  const SEV_COLOR  = { CRITICAL:"#ff2d55", HIGH:"#ff6b00", MEDIUM:"#ffd60a", LOW:"#00e5ff" };
+  const CONF_COLOR = { HIGH:"#00ff88", MEDIUM:"#ffd60a", LOW:"#888" };
+  const CAT_ICON   = { "Credential Attack":"🔑","Lateral Movement":"↔️","Exfiltration":"📤","Privilege Escalation":"⬆️","Account Compromise":"👤","Ransomware":"💀","Insider Threat":"🕵️","Cloud Attack":"☁️","Exploitation":"💥","Command & Control":"📡","Supply Chain":"📦","Availability":"🌊" };
+  const riskColor  = (s) => s >= 70 ? "#ff2d55" : s >= 45 ? "#ff6b00" : s >= 20 ? "#ffd60a" : "#00ff88";
+
+  useEffect(() => { fetchHistory(); }, []);
+
+  async function fetchHistory() {
+    try {
+      const r = await fetch(`${API}/api/cloud-siem/history`, { headers:{ Authorization:`Bearer ${token}` }});
+      const d = await r.json();
+      setHistory(d.reports || []);
+    } catch(e) {}
+  }
+
+  async function submitCorrelation() {
+    if (!description.trim()) { showToast("Describe security events first", "error"); return; }
+    setLoading(true); setReportData(null);
+    try {
+      const r = await fetch(`${API}/api/cloud-siem/correlate`, {
+        method:"POST",
+        headers:{ "Content-Type":"application/json", Authorization:`Bearer ${token}` },
+        body: JSON.stringify({ event_source:eventSource, total_events:totalEvents, description })
+      });
+      const d = await r.json();
+      if (d.report_id) {
+        showToast(`SIEM correlation complete — ${d.critical_alerts} critical, ${d.incidents} incident(s)`, d.critical_alerts > 0 ? "error" : "warning");
+        setReportData(d); setFilterCat(null); setTab("results");
+        fetchHistory();
+      } else { showToast(d.error || "Correlation failed", "error"); }
+    } catch(e) { showToast("Correlation failed", "error"); }
+    setLoading(false);
+  }
+
+  const cats     = reportData ? [...new Set(reportData.alerts?.map(a => a.category))] : [];
+  const filtered = reportData?.alerts?.filter(a => !filterCat || a.category===filterCat) || [];
+
+  return (
+    <div style={{ padding:"24px", color:"#e0e0e0", fontFamily:"JetBrains Mono, monospace" }}>
+      <div style={{ marginBottom:"24px" }}>
+        <h2 style={{ color:"#00e5ff", fontSize:"22px", margin:0 }}>🔭 Cloud SIEM Correlation Engine</h2>
+        <p style={{ color:"#888", margin:"4px 0 0", fontSize:"13px" }}>Event Correlation · Alert Triage · Incident Detection · MITRE ATT&CK Mapping</p>
+      </div>
+
+      <div style={{ display:"flex", gap:"8px", marginBottom:"24px" }}>
+        {[["correlate","🔍 Correlate"],["results","🚨 Alerts"],["history","🕒 History"]].map(([id,label]) => (
+          <button key={id} onClick={() => setTab(id)} style={{ padding:"8px 18px", borderRadius:"8px", border:"none", cursor:"pointer", fontSize:"13px", background: tab===id?"#00e5ff":"#1a2236", color: tab===id?"#000":"#aaa", fontFamily:"inherit" }}>{label}</button>
+        ))}
+      </div>
+
+      {tab === "correlate" && (
+        <div style={{ display:"grid", gridTemplateColumns:"260px 1fr", gap:"20px" }}>
+          <div style={{ background:"#0d1526", borderRadius:"12px", padding:"20px", border:"1px solid #1e3a5f" }}>
+            <p style={{ color:"#00e5ff", fontSize:"13px", marginTop:0 }}>Event Source</p>
+            {[["multi-source","🌐 Multi-Source"],["cloudtrail","☁️ AWS CloudTrail"],["azure_monitor","🔷 Azure Monitor"],["gcp_audit","🟡 GCP Audit"],["on_premise","🖥️ On-Premise SIEM"],["endpoint","💻 Endpoint Events"]].map(([val,label]) => (
+              <div key={val} onClick={() => setEventSource(val)} style={{ padding:"7px 10px", borderRadius:"8px", marginBottom:"5px", cursor:"pointer", border:`1px solid ${eventSource===val?"#00e5ff":"#1e3a5f"}`, background: eventSource===val?"#0a2040":"transparent", color: eventSource===val?"#00e5ff":"#aaa", fontSize:"12px" }}>{label}</div>
+            ))}
+            <p style={{ color:"#00e5ff", fontSize:"13px", marginTop:"12px" }}>Total Events: <span style={{ color:"#e0e0e0" }}>{totalEvents.toLocaleString()}</span></p>
+            <input type="range" min="100" max="100000" step="100" value={totalEvents} onChange={e=>setTotalEvents(parseInt(e.target.value))} style={{ width:"100%", accentColor:"#00e5ff" }} />
+            <button onClick={submitCorrelation} disabled={loading} style={{ marginTop:"16px", width:"100%", padding:"12px", borderRadius:"8px", background: loading?"#333":"#00e5ff", color:"#000", border:"none", cursor:"pointer", fontSize:"14px", fontWeight:"bold", fontFamily:"inherit" }}>
+              {loading ? "⏳ Correlating..." : "🔭 Correlate Events"}
+            </button>
+          </div>
+          <div style={{ background:"#0d1526", borderRadius:"12px", padding:"20px", border:"1px solid #1e3a5f" }}>
+            <p style={{ color:"#00e5ff", fontSize:"13px", marginTop:0 }}>Describe Security Events</p>
+            <textarea value={description} onChange={e=>setDescription(e.target.value)}
+              placeholder="Describe the security events to correlate. Examples: Multiple failed login authentication failure brute force. Lateral movement psexec WMI remote execution. Large data upload exfiltration bulk transfer external. Privilege escalation sudo root gained admin access. Impossible travel geo anomaly multiple countries. Ransomware file encryption shadow delete vssadmin. C2 beacon cobalt strike periodic callback. Cloud API abuse IAM compromise root account login. DDoS traffic spike syn flood. Insider threat bulk download sensitive files after hours."
+              style={{ width:"100%", height:"420px", background:"#0a1628", border:"1px solid #1e3a5f", borderRadius:"8px", padding:"12px", color:"#e0e0e0", fontSize:"13px", fontFamily:"JetBrains Mono, monospace", resize:"vertical", boxSizing:"border-box" }} />
+          </div>
+        </div>
+      )}
+
+      {tab === "results" && reportData && (
+        <div>
+          <div style={{ display:"grid", gridTemplateColumns:"repeat(5,1fr)", gap:"12px", marginBottom:"20px" }}>
+            {[["Risk Score",reportData.risk_score,riskColor(reportData.risk_score)],["Events",reportData.total_events.toLocaleString(),"#00e5ff"],["Correlated",reportData.correlated,"#a78bfa"],["Critical",reportData.critical_alerts,"#ff2d55"],["Incidents",reportData.incidents,"#ff2d55"]].map(([label,val,color]) => (
+              <div key={label} style={{ background:"#0d1526", borderRadius:"10px", padding:"16px", border:`1px solid ${color}33`, textAlign:"center" }}>
+                <div style={{ fontSize:"22px", fontWeight:"bold", color }}>{val}</div>
+                <div style={{ fontSize:"12px", color:"#888", marginTop:"4px" }}>{label}</div>
+              </div>
+            ))}
+          </div>
+
+          <div style={{ background:"#0d1526", borderRadius:"10px", padding:"14px", marginBottom:"16px", border:"1px solid #1e3a5f" }}>
+            <div style={{ display:"flex", justifyContent:"space-between", marginBottom:"8px" }}>
+              <span style={{ color:"#00e5ff", fontSize:"13px" }}>🔭 {reportData.event_source} Correlation</span>
+              <span style={{ color: riskColor(reportData.risk_score), fontWeight:"bold" }}>{reportData.risk_score}/100</span>
+            </div>
+            <div style={{ background:"#0a1628", borderRadius:"20px", height:"8px", overflow:"hidden", marginBottom:"8px" }}>
+              <div style={{ width:`${reportData.risk_score}%`, height:"100%", background: riskColor(reportData.risk_score), borderRadius:"20px" }} />
+            </div>
+            <div style={{ color:"#888", fontSize:"12px" }}>{reportData.summary}</div>
+          </div>
+
+          <div style={{ display:"flex", gap:"8px", marginBottom:"12px", flexWrap:"wrap" }}>
+            <button onClick={() => setFilterCat(null)} style={{ padding:"6px 14px", borderRadius:"6px", border:`1px solid ${!filterCat?"#00e5ff":"#1e3a5f"}`, background: !filterCat?"#0a2040":"transparent", color: !filterCat?"#00e5ff":"#aaa", cursor:"pointer", fontSize:"12px", fontFamily:"inherit" }}>All ({reportData.alerts?.length})</button>
+            {cats.map(cat => (
+              <button key={cat} onClick={() => setFilterCat(filterCat===cat?null:cat)} style={{ padding:"6px 14px", borderRadius:"6px", border:`1px solid ${filterCat===cat?"#00e5ff":"#1e3a5f"}`, background: filterCat===cat?"#0a2040":"transparent", color: filterCat===cat?"#00e5ff":"#aaa", cursor:"pointer", fontSize:"12px", fontFamily:"inherit" }}>{CAT_ICON[cat]||"🔭"} {cat}</button>
+            ))}
+          </div>
+
+          {filtered.length === 0 && <div style={{ textAlign:"center", color:"#00ff88", padding:"32px", background:"#0d1526", borderRadius:"12px" }}>✅ No security incidents correlated!</div>}
+          {filtered.map((a,i) => (
+            <div key={i} style={{ background:"#0d1526", borderRadius:"10px", padding:"16px", marginBottom:"8px", border:`1px solid ${SEV_COLOR[a.severity]}44` }}>
+              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:"10px" }}>
+                <div style={{ display:"flex", gap:"8px", alignItems:"center" }}>
+                  <span style={{ fontSize:"18px" }}>{CAT_ICON[a.category]||"🔭"}</span>
+                  <span style={{ color: SEV_COLOR[a.severity], fontSize:"11px", fontWeight:"bold", background:`${SEV_COLOR[a.severity]}22`, padding:"2px 8px", borderRadius:"20px" }}>{a.severity}</span>
+                  <span style={{ color: CONF_COLOR[a.confidence], fontSize:"11px", background:`${CONF_COLOR[a.confidence]}22`, padding:"2px 8px", borderRadius:"20px" }}>Confidence: {a.confidence}</span>
+                  <span style={{ color:"#555", fontSize:"11px" }}>{a.category}</span>
+                </div>
+                <div style={{ display:"flex", gap:"8px" }}>
+                  <span style={{ color:"#a78bfa", fontSize:"11px" }}>{a.mitre}</span>
+                  <span style={{ color:"#555", fontSize:"11px" }}>{a.rule_id}</span>
+                </div>
+              </div>
+              <div style={{ color:"#e0e0e0", fontSize:"14px", fontWeight:"bold", marginBottom:"6px" }}>{a.title}</div>
+              <div style={{ color:"#888", fontSize:"12px", marginBottom:"8px" }}>{a.description}</div>
+              <div style={{ background:"#ff2d5511", border:"1px solid #ff2d5533", borderRadius:"8px", padding:"10px 14px" }}>
+                <div style={{ color:"#ff2d55", fontSize:"11px", fontWeight:"bold", marginBottom:"3px" }}>🚨 RESPONSE REQUIRED</div>
+                <div style={{ color:"#e0e0e0", fontSize:"12px" }}>{a.response}</div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+      {tab === "results" && !reportData && <div style={{ textAlign:"center", color:"#555", padding:"60px" }}>Run correlation first.</div>}
+
+      {tab === "history" && (
+        <div>
+          {history.length === 0 && <div style={{ textAlign:"center", color:"#555", padding:"60px" }}>No correlations yet.</div>}
+          {history.map((r,i) => (
+            <div key={i} style={{ background:"#0d1526", borderRadius:"10px", padding:"14px", marginBottom:"8px", border:"1px solid #1e3a5f", display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+              <div>
+                <div style={{ color:"#e0e0e0", fontSize:"14px" }}>🔭 {r.event_source} — {r.total_events?.toLocaleString()} events</div>
+                <div style={{ color:"#555", fontSize:"12px", marginTop:"3px" }}>{r.correlated} alert(s) · {r.critical_alerts} critical · {r.incidents} incident(s) · {new Date(r.created_at).toLocaleString()}</div>
+              </div>
+              <span style={{ color: riskColor(r.risk_score), fontSize:"13px", fontWeight:"bold" }}>Risk: {r.risk_score}</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ============================================================
 // AIPET X — Metrics + Traces Pipeline
+
 // Custom Metrics | Distributed Tracing | Span Analysis
 // ============================================================
 function MetricsTracesPage({ token, showToast }) {
@@ -26110,6 +26274,9 @@ export default function App() {
           )}
           {activeTab === "metricstraces" && (
             <MetricsTracesPage token={token} showToast={showToast} />
+          )}
+          {activeTab === "cloudsiem" && (
+            <CloudSIEMPage token={token} showToast={showToast} />
           )}
 
 
