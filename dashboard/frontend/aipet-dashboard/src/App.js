@@ -5820,6 +5820,7 @@ const NAV_ITEMS = [
   { id: "adversaryprofiling", label: "Adversary Intel", icon: Eye,          group: "enterprise" },
   { id: "malwaresandbox",    label: "Malware Sandbox",icon: AlertTriangle, group: "enterprise" },
   { id: "apmengine",         label: "APM Engine",     icon: Activity,      group: "observability" },
+  { id: "loganalytics",      label: "Log Analytics",  icon: FileText,      group: "observability" },
   { id: "settings",  label: "Settings",      icon: Settings,      group: "account"  },
 ];
 
@@ -7329,8 +7330,148 @@ function DriftDetectorPage({ token, showToast }) {
 
 
 
+
+// ============================================================
+// AIPET X — Log Ingestion + Analytics
+// Log Parsing | Anomaly Detection | Pattern Analysis
+// ============================================================
+function LogAnalyticsPage({ token, showToast }) {
+  const [tab, setTab] = useState("ingest");
+  const [logSource, setLogSource] = useState("application");
+  const [rawLogs, setRawLogs] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [reportData, setReportData] = useState(null);
+  const [history, setHistory] = useState([]);
+  const [filterCat, setFilterCat] = useState(null);
+
+  const API = "http://localhost:5001";
+  const SEV_COLOR = { CRITICAL:"#ff2d55", HIGH:"#ff6b00", MEDIUM:"#ffd60a", LOW:"#00e5ff" };
+  const CAT_COLOR = { Security:"#ff2d55", Performance:"#ffd60a", Infrastructure:"#00e5ff" };
+  const CAT_ICON  = { Security:"🔒", Performance:"⚡", Infrastructure:"🖥️" };
+  const riskColor = (s) => s >= 70 ? "#ff2d55" : s >= 40 ? "#ffd60a" : "#00ff88";
+
+  useEffect(() => { fetchHistory(); }, []);
+
+  async function fetchHistory() {
+    try {
+      const r = await fetch(`${API}/api/log-analytics/history`, { headers:{ Authorization:`Bearer ${token}` }});
+      const d = await r.json();
+      setHistory(d.reports || []);
+    } catch(e) {}
+  }
+
+  async function submitAnalysis() {
+    if (!rawLogs.trim()) { showToast("Paste logs first", "error"); return; }
+    setLoading(true); setReportData(null);
+    try {
+      const r = await fetch(`${API}/api/log-analytics/analyse`, {
+        method:"POST",
+        headers:{ "Content-Type":"application/json", Authorization:`Bearer ${token}` },
+        body: JSON.stringify({ log_source:logSource, raw_logs:rawLogs })
+      });
+      const d = await r.json();
+      if (d.report_id) {
+        showToast(`Log analysis complete — ${d.findings?.length} finding(s), Risk: ${d.risk_score}`, d.risk_score > 50 ? "error" : "success");
+        setReportData(d); setTab("results");
+        fetchHistory();
+      } else { showToast(d.error || "Analysis failed", "error"); }
+    } catch(e) { showToast("Analysis failed", "error"); }
+    setLoading(false);
+  }
+
+  const cats     = reportData ? [...new Set(reportData.findings?.map(f => f.category))] : [];
+  const filtered = reportData?.findings?.filter(f => !filterCat || f.category===filterCat) || [];
+
+  return (
+    <div style={{ padding:"24px", color:"#e0e0e0", fontFamily:"JetBrains Mono, monospace" }}>
+      <div style={{ marginBottom:"24px" }}>
+        <h2 style={{ color:"#00e5ff", fontSize:"22px", margin:0 }}>📜 Log Ingestion + Analytics</h2>
+        <p style={{ color:"#888", margin:"4px 0 0", fontSize:"13px" }}>Log Parsing · Anomaly Detection · Security Events · Pattern Analysis</p>
+      </div>
+
+      <div style={{ display:"flex", gap:"8px", marginBottom:"24px" }}>
+        {[["ingest","📥 Ingest"],["results","📋 Analysis"],["history","🕒 History"]].map(([id,label]) => (
+          <button key={id} onClick={() => setTab(id)} style={{ padding:"8px 18px", borderRadius:"8px", border:"none", cursor:"pointer", fontSize:"13px", background: tab===id?"#00e5ff":"#1a2236", color: tab===id?"#000":"#aaa", fontFamily:"inherit" }}>{label}</button>
+        ))}
+      </div>
+
+      {tab === "ingest" && (
+        <div style={{ display:"grid", gridTemplateColumns:"240px 1fr", gap:"20px" }}>
+          <div style={{ background:"#0d1526", borderRadius:"12px", padding:"20px", border:"1px solid #1e3a5f" }}>
+            <p style={{ color:"#00e5ff", fontSize:"13px", marginTop:0 }}>Log Source</p>
+            {[["application","📱 Application"],["nginx","🌐 Nginx/Apache"],["system","🖥️ System/Syslog"],["database","🗄️ Database"],["security","🔒 Security/Audit"],["cloud","☁️ Cloud Trail"]].map(([val,label]) => (
+              <div key={val} onClick={() => setLogSource(val)} style={{ padding:"7px 10px", borderRadius:"8px", marginBottom:"5px", cursor:"pointer", border:`1px solid ${logSource===val?"#00e5ff":"#1e3a5f"}`, background: logSource===val?"#0a2040":"transparent", color: logSource===val?"#00e5ff":"#aaa", fontSize:"12px" }}>{label}</div>
+            ))}
+            <button onClick={submitAnalysis} disabled={loading} style={{ marginTop:"12px", width:"100%", padding:"12px", borderRadius:"8px", background: loading?"#333":"#00e5ff", color:"#000", border:"none", cursor:"pointer", fontSize:"14px", fontWeight:"bold", fontFamily:"inherit" }}>
+              {loading ? "⏳ Analysing..." : "📜 Analyse Logs"}
+            </button>
+          </div>
+          <div style={{ background:"#0d1526", borderRadius:"12px", padding:"20px", border:"1px solid #1e3a5f" }}>
+            <p style={{ color:"#00e5ff", fontSize:"13px", marginTop:0 }}>Paste Raw Logs</p>
+            <textarea value={rawLogs} onChange={e=>setRawLogs(e.target.value)}
+              placeholder="Paste your raw logs here. AIPET will automatically detect security events, anomalies and performance issues."
+              style={{ width:"100%", height:"420px", background:"#0a1628", border:"1px solid #1e3a5f", borderRadius:"8px", padding:"12px", color:"#e0e0e0", fontSize:"12px", fontFamily:"JetBrains Mono, monospace", resize:"vertical", boxSizing:"border-box" }} />
+          </div>
+        </div>
+      )}
+
+      {tab === "results" && reportData && (
+        <div>
+          <div style={{ display:"grid", gridTemplateColumns:"repeat(6,1fr)", gap:"10px", marginBottom:"20px" }}>
+            {[["Risk",reportData.risk_score,riskColor(reportData.risk_score)],["Lines",reportData.total_lines,"#00e5ff"],["Errors",reportData.error_count,"#ff2d55"],["Warnings",reportData.warning_count,"#ffd60a"],["Security",reportData.security_events,"#ff2d55"],["Anomalies",reportData.anomaly_count,"#ff6b00"]].map(([label,val,color]) => (
+              <div key={label} style={{ background:"#0d1526", borderRadius:"10px", padding:"12px", border:`1px solid ${color}33`, textAlign:"center" }}>
+                <div style={{ fontSize:"20px", fontWeight:"bold", color }}>{val}</div>
+                <div style={{ fontSize:"11px", color:"#888", marginTop:"3px" }}>{label}</div>
+              </div>
+            ))}
+          </div>
+
+          <div style={{ display:"flex", gap:"8px", marginBottom:"12px", flexWrap:"wrap" }}>
+            <button onClick={() => setFilterCat(null)} style={{ padding:"6px 14px", borderRadius:"6px", border:`1px solid ${!filterCat?"#00e5ff":"#1e3a5f"}`, background: !filterCat?"#0a2040":"transparent", color: !filterCat?"#00e5ff":"#aaa", cursor:"pointer", fontSize:"12px", fontFamily:"inherit" }}>All ({reportData.findings?.length})</button>
+            {cats.map(cat => (
+              <button key={cat} onClick={() => setFilterCat(filterCat===cat?null:cat)} style={{ padding:"6px 14px", borderRadius:"6px", border:`1px solid ${filterCat===cat?(CAT_COLOR[cat]||"#1e3a5f"):"#1e3a5f"}`, background: filterCat===cat?"#0a2040":"transparent", color: filterCat===cat?(CAT_COLOR[cat]||"#aaa"):"#aaa", cursor:"pointer", fontSize:"12px", fontFamily:"inherit" }}>{CAT_ICON[cat]} {cat}</button>
+            ))}
+          </div>
+
+          {filtered.length === 0 && <div style={{ textAlign:"center", color:"#00ff88", padding:"32px", background:"#0d1526", borderRadius:"12px" }}>✅ No anomalies detected in logs!</div>}
+          {filtered.map((f,i) => (
+            <div key={i} style={{ background:"#0d1526", borderRadius:"10px", padding:"16px", marginBottom:"8px", border:`1px solid ${SEV_COLOR[f.severity]}33` }}>
+              <div style={{ display:"flex", gap:"8px", alignItems:"center", marginBottom:"8px" }}>
+                <span>{CAT_ICON[f.category]||"📜"}</span>
+                <span style={{ color: SEV_COLOR[f.severity], fontSize:"11px", fontWeight:"bold", background:`${SEV_COLOR[f.severity]}22`, padding:"2px 8px", borderRadius:"20px" }}>{f.severity}</span>
+                <span style={{ color: CAT_COLOR[f.category]||"#888", fontSize:"11px" }}>{f.category}</span>
+                <span style={{ color:"#555", fontSize:"11px", marginLeft:"auto" }}>Occurrences: {f.count}</span>
+              </div>
+              <div style={{ color:"#e0e0e0", fontSize:"14px", fontWeight:"bold", marginBottom:"4px" }}>{f.title}</div>
+              <div style={{ color:"#ff6b00", fontSize:"12px", marginBottom:"6px" }}>🔍 Pattern: {f.pattern}</div>
+              <div style={{ color:"#00e5ff", fontSize:"12px" }}>💡 {f.remediation}</div>
+            </div>
+          ))}
+        </div>
+      )}
+      {tab === "results" && !reportData && <div style={{ textAlign:"center", color:"#555", padding:"60px" }}>Ingest logs first.</div>}
+
+      {tab === "history" && (
+        <div>
+          {history.length === 0 && <div style={{ textAlign:"center", color:"#555", padding:"60px" }}>No analyses yet.</div>}
+          {history.map((r,i) => (
+            <div key={i} style={{ background:"#0d1526", borderRadius:"10px", padding:"14px", marginBottom:"8px", border:"1px solid #1e3a5f", display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+              <div>
+                <div style={{ color:"#e0e0e0", fontSize:"14px" }}>📜 {r.log_source} — {r.total_lines} lines</div>
+                <div style={{ color:"#555", fontSize:"12px", marginTop:"3px" }}>{r.error_count} error(s) · {r.security_events} security event(s) · {new Date(r.created_at).toLocaleString()}</div>
+              </div>
+              <span style={{ color: riskColor(r.risk_score), fontSize:"13px", fontWeight:"bold" }}>Risk: {r.risk_score}</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
 // ============================================================
 // AIPET X — APM Engine
+
 // Latency | Throughput | Error Rates | Service Health
 // ============================================================
 function APMEnginePage({ token, showToast }) {
@@ -25801,6 +25942,9 @@ export default function App() {
           )}
           {activeTab === "apmengine" && (
             <APMEnginePage token={token} showToast={showToast} />
+          )}
+          {activeTab === "loganalytics" && (
+            <LogAnalyticsPage token={token} showToast={showToast} />
           )}
 
 
