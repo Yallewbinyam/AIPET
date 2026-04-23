@@ -231,6 +231,7 @@ def run(token: str):
 # ── Entry point ───────────────────────────────────────────
 
 def main():
+    global API_BASE, INTERVAL_SEC
     parser = argparse.ArgumentParser(description="AIPET X Device Agent")
     parser.add_argument("--api",      default=API_BASE,    help="AIPET API base URL")
     parser.add_argument("--token",    default=AUTH_TOKEN,  help="JWT token (or use --email/--password)")
@@ -240,7 +241,6 @@ def main():
     parser.add_argument("--daemon",   action="store_true", help="Daemonize the process")
     args = parser.parse_args()
 
-    global API_BASE, INTERVAL_SEC
     API_BASE     = args.api
     INTERVAL_SEC = args.interval
 
