@@ -5826,6 +5826,7 @@ const NAV_ITEMS = [
   { id: "enterprisereporting", label: "Enterprise Reports", icon: FileText, group: "enterprise" },
   { id: "calendar",            label: "Calendar",           icon: Activity, group: "enterprise" },
   { id: "realscanner",         label: "Real Scanner",       icon: Activity,  group: "enterprise" },
+  { id: "agentmonitor",        label: "Agent Monitor",      icon: Activity,  group: "enterprise" },
   { id: "issuetracking",     label: "Issue Tracking",     icon: AlertTriangle, group: "enterprise" },
   { id: "prdgenerator",      label: "AI PRD Generator",   icon: FileText,      group: "enterprise" },
   { id: "sprintplanner",     label: "AI Sprint Planner",  icon: Zap,           group: "enterprise" },
@@ -28140,6 +28141,356 @@ function RealScannerPage({ token, showToast }) {
 }
 
 
+// ============================================================
+// AGENT MONITOR PAGE — Live device telemetry
+// ============================================================
+function AgentMonitorPage({ token, showToast }) {
+  const API = "http://localhost:5001";
+  const [devices, setDevices]     = useState([]);
+  const [selected, setSelected]   = useState(null);   // device object
+  const [latest, setLatest]       = useState(null);   // latest telemetry
+  const [history, setHistory]     = useState([]);     // sparkline data
+  const [procFilter, setProcFilter] = useState("");
+  const [tab, setTab]             = useState("overview");
+  const pollRef = useRef(null);
+
+  const STATUS_COLOR = { online:"#00ff88", offline:"#ff2d55", stale:"#ffd60a" };
+  const barColor = v => v >= 85 ? "#ff2d55" : v >= 65 ? "#ffd60a" : "#00e5ff";
+
+  // Refresh device list every 5s
+  useEffect(() => {
+    fetchDevices();
+    const iv = setInterval(fetchDevices, 5000);
+    return () => clearInterval(iv);
+  }, []);
+
+  // Poll selected device every 3s
+  useEffect(() => {
+    if (pollRef.current) clearInterval(pollRef.current);
+    if (!selected) return;
+    fetchLatest(selected.id);
+    fetchHistory(selected.id);
+    pollRef.current = setInterval(() => {
+      fetchLatest(selected.id);
+      fetchHistory(selected.id);
+    }, 3000);
+    return () => clearInterval(pollRef.current);
+  }, [selected?.id]);
+
+  async function fetchDevices() {
+    try {
+      const r = await fetch(`${API}/api/agent/devices`, { headers:{ Authorization:`Bearer ${token}` } });
+      const d = await r.json();
+      setDevices(d.devices || []);
+    } catch {}
+  }
+
+  async function fetchLatest(id) {
+    try {
+      const r = await fetch(`${API}/api/agent/devices/${id}/latest`, { headers:{ Authorization:`Bearer ${token}` } });
+      const d = await r.json();
+      if (!d.error) setLatest(d);
+    } catch {}
+  }
+
+  async function fetchHistory(id) {
+    try {
+      const r = await fetch(`${API}/api/agent/devices/${id}/history?limit=60`, { headers:{ Authorization:`Bearer ${token}` } });
+      const d = await r.json();
+      setHistory(d.history || []);
+    } catch {}
+  }
+
+  function Sparkline({ data, key, color, height = 36 }) {
+    if (!data?.length) return <div style={{ height, background:"#0a1628", borderRadius:"4px" }} />;
+    const vals = data.map(d => d[key] || 0);
+    const max  = Math.max(...vals, 1);
+    const w    = 200; const h = height;
+    const pts  = vals.map((v, i) => `${(i / (vals.length - 1)) * w},${h - (v / max) * (h - 4) - 2}`).join(" ");
+    return (
+      <svg width="100%" height={h} viewBox={`0 0 ${w} ${h}`} preserveAspectRatio="none">
+        <polyline points={pts} fill="none" stroke={color} strokeWidth="1.5" />
+      </svg>
+    );
+  }
+
+  function GaugeBar({ value, label, color }) {
+    const c = barColor(value);
+    return (
+      <div style={{ marginBottom:"10px" }}>
+        <div style={{ display:"flex", justifyContent:"space-between", marginBottom:"4px" }}>
+          <span style={{ color:"#888", fontSize:"11px" }}>{label}</span>
+          <span style={{ color: c, fontSize:"12px", fontWeight:"700" }}>{value?.toFixed(1)}%</span>
+        </div>
+        <div style={{ background:"#0a1628", borderRadius:"4px", height:"6px" }}>
+          <div style={{ background: c, borderRadius:"4px", height:"100%", width:`${Math.min(value,100)}%`, transition:"width 0.4s ease" }} />
+        </div>
+      </div>
+    );
+  }
+
+  const filteredProcs = (latest?.processes || []).filter(p =>
+    !procFilter || p.name?.toLowerCase().includes(procFilter.toLowerCase()) ||
+    p.cmd?.toLowerCase().includes(procFilter.toLowerCase())
+  );
+
+  return (
+    <div style={{ padding:"24px", color:"#e0e0e0", fontFamily:"JetBrains Mono, monospace" }}>
+      <div style={{ marginBottom:"20px" }}>
+        <h2 style={{ color:"#00e5ff", fontSize:"22px", margin:0 }}>📡 Agent Monitor</h2>
+        <p style={{ color:"#445", margin:"4px 0 0", fontSize:"13px" }}>Live telemetry · {devices.length} device{devices.length!==1?"s":""} · updates every 3s</p>
+      </div>
+
+      <div style={{ display:"grid", gridTemplateColumns:"260px 1fr", gap:"20px" }}>
+
+        {/* ── Device list ── */}
+        <div>
+          <div style={{ color:"#00e5ff", fontSize:"11px", fontWeight:"700", letterSpacing:"0.08em", marginBottom:"10px" }}>DEVICES</div>
+          {devices.length === 0 && (
+            <div style={{ background:"#0d1526", border:"1px dashed #1e3a5f", borderRadius:"10px", padding:"20px", textAlign:"center" }}>
+              <div style={{ fontSize:"24px", marginBottom:"8px" }}>📡</div>
+              <div style={{ color:"#445", fontSize:"12px" }}>No agents connected</div>
+              <div style={{ color:"#333", fontSize:"11px", marginTop:"6px" }}>Run aipet_agent.py on target devices</div>
+            </div>
+          )}
+          {devices.map((d, i) => (
+            <div key={i} onClick={() => { setSelected(d); setTab("overview"); }}
+              style={{ background:"#0d1526", border:`1px solid ${selected?.id===d.id?"#00e5ff":STATUS_COLOR[d.status]+"33"}`, borderRadius:"10px", padding:"12px 14px", marginBottom:"8px", cursor:"pointer" }}>
+              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+                <div style={{ color:"#e0e0e0", fontWeight:"700", fontSize:"13px", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", maxWidth:"150px" }}>{d.hostname || d.id}</div>
+                <span style={{ width:"8px", height:"8px", borderRadius:"50%", background:STATUS_COLOR[d.status], display:"inline-block", flexShrink:0 }} />
+              </div>
+              <div style={{ color:"#445", fontSize:"10px", marginTop:"3px" }}>{d.platform}</div>
+              <div style={{ color:"#445", fontSize:"10px" }}>{d.ip_address}</div>
+              <div style={{ color:STATUS_COLOR[d.status], fontSize:"10px", marginTop:"2px" }}>{d.status}</div>
+            </div>
+          ))}
+
+          <div style={{ marginTop:"20px", background:"#0d1526", border:"1px solid #1e3a5f", borderRadius:"10px", padding:"14px" }}>
+            <div style={{ color:"#00e5ff", fontSize:"11px", fontWeight:"700", marginBottom:"10px" }}>INSTALL AGENT</div>
+            <div style={{ color:"#445", fontSize:"10px", lineHeight:"1.6" }}>
+              1. Copy <code style={{ color:"#a78bfa" }}>agent/aipet_agent.py</code><br/>
+              2. <code style={{ color:"#a78bfa" }}>pip install psutil requests</code><br/>
+              3. Run:
+            </div>
+            <pre style={{ background:"#030712", borderRadius:"6px", padding:"8px", fontSize:"9px", color:"#00ff88", margin:"8px 0 0", overflowX:"auto" }}>
+{`python3 aipet_agent.py \\
+  --api http://YOUR_SERVER:5001 \\
+  --email you@example.com \\
+  --password yourpass \\
+  --interval 30`}
+            </pre>
+          </div>
+        </div>
+
+        {/* ── Main panel ── */}
+        <div>
+          {!selected && (
+            <div style={{ background:"#0d1526", border:"1px dashed #1e3a5f", borderRadius:"12px", padding:"80px", textAlign:"center" }}>
+              <div style={{ fontSize:"48px", marginBottom:"14px" }}>📡</div>
+              <div style={{ color:"#00e5ff", fontSize:"15px", fontWeight:"700", marginBottom:"6px" }}>Select a device</div>
+              <div style={{ color:"#445", fontSize:"13px" }}>Install aipet_agent.py on target machines to see live telemetry</div>
+            </div>
+          )}
+
+          {selected && (
+            <div>
+              {/* Device header */}
+              <div style={{ background:"#0d1526", border:"1px solid #1e3a5f", borderRadius:"12px", padding:"16px 20px", marginBottom:"16px", display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+                <div>
+                  <div style={{ color:"#00e5ff", fontWeight:"700", fontSize:"16px" }}>{selected.hostname}</div>
+                  <div style={{ color:"#445", fontSize:"11px" }}>{selected.platform} · {selected.ip_address} · agent v{selected.agent_version}</div>
+                </div>
+                <div style={{ display:"flex", gap:"8px", alignItems:"center" }}>
+                  <span style={{ color:STATUS_COLOR[selected.status], fontSize:"12px", fontWeight:"700" }}>● {selected.status}</span>
+                  {latest && <span style={{ color:"#445", fontSize:"11px" }}>{latest.collected_at?.slice(11,19)} UTC</span>}
+                </div>
+              </div>
+
+              {/* Tabs */}
+              <div style={{ display:"flex", gap:"8px", marginBottom:"16px" }}>
+                {[["overview","Overview"],["processes","Processes"],["network","Network"],["disks","Disks"],["history","History"]].map(([id,label]) => (
+                  <button key={id} onClick={() => setTab(id)} style={{ padding:"7px 16px", borderRadius:"7px", border:"none", cursor:"pointer", fontSize:"12px", background: tab===id?"#00e5ff":"#1a2236", color: tab===id?"#000":"#888", fontFamily:"inherit", fontWeight: tab===id?"700":"400" }}>{label}</button>
+                ))}
+              </div>
+
+              {/* ── Overview ── */}
+              {tab === "overview" && latest && (
+                <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:"14px" }}>
+                  {/* CPU card */}
+                  <div style={{ background:"#0d1526", border:"1px solid #1e3a5f", borderRadius:"12px", padding:"18px" }}>
+                    <div style={{ color:"#00e5ff", fontSize:"11px", fontWeight:"700", letterSpacing:"0.08em", marginBottom:"12px" }}>CPU</div>
+                    <div style={{ color:barColor(latest.cpu_percent), fontSize:"36px", fontWeight:"900", lineHeight:1, marginBottom:"8px" }}>{latest.cpu_percent?.toFixed(1)}<span style={{ fontSize:"14px" }}>%</span></div>
+                    <div style={{ color:"#445", fontSize:"11px", marginBottom:"12px" }}>{latest.cpu_count} logical cores</div>
+                    <div style={{ background:"#0a1628", borderRadius:"4px", height:"6px" }}>
+                      <div style={{ background:barColor(latest.cpu_percent), borderRadius:"4px", height:"100%", width:`${latest.cpu_percent}%`, transition:"width 0.4s" }} />
+                    </div>
+                    <div style={{ marginTop:"10px", height:"36px" }}>
+                      <Sparkline data={history} key="cpu_percent" color="#00e5ff" />
+                    </div>
+                  </div>
+
+                  {/* Memory card */}
+                  <div style={{ background:"#0d1526", border:"1px solid #1e3a5f", borderRadius:"12px", padding:"18px" }}>
+                    <div style={{ color:"#a78bfa", fontSize:"11px", fontWeight:"700", letterSpacing:"0.08em", marginBottom:"12px" }}>MEMORY</div>
+                    <div style={{ color:barColor(latest.mem_percent), fontSize:"36px", fontWeight:"900", lineHeight:1, marginBottom:"8px" }}>{latest.mem_percent?.toFixed(1)}<span style={{ fontSize:"14px" }}>%</span></div>
+                    <div style={{ color:"#445", fontSize:"11px", marginBottom:"12px" }}>{latest.mem_used_gb?.toFixed(1)} GB / {latest.mem_total_gb?.toFixed(1)} GB</div>
+                    <div style={{ background:"#0a1628", borderRadius:"4px", height:"6px" }}>
+                      <div style={{ background:barColor(latest.mem_percent), borderRadius:"4px", height:"100%", width:`${latest.mem_percent}%`, transition:"width 0.4s" }} />
+                    </div>
+                    <div style={{ marginTop:"10px", height:"36px" }}>
+                      <Sparkline data={history} key="mem_percent" color="#a78bfa" />
+                    </div>
+                  </div>
+
+                  {/* Disk card */}
+                  <div style={{ background:"#0d1526", border:"1px solid #1e3a5f", borderRadius:"12px", padding:"18px" }}>
+                    <div style={{ color:"#ffd60a", fontSize:"11px", fontWeight:"700", letterSpacing:"0.08em", marginBottom:"12px" }}>DISK</div>
+                    <div style={{ color:barColor(latest.disk_percent), fontSize:"36px", fontWeight:"900", lineHeight:1, marginBottom:"8px" }}>{latest.disk_percent?.toFixed(1)}<span style={{ fontSize:"14px" }}>%</span></div>
+                    <div style={{ color:"#445", fontSize:"11px", marginBottom:"12px" }}>{latest.disk_used_gb?.toFixed(1)} GB / {latest.disk_total_gb?.toFixed(1)} GB</div>
+                    <div style={{ background:"#0a1628", borderRadius:"4px", height:"6px" }}>
+                      <div style={{ background:barColor(latest.disk_percent), borderRadius:"4px", height:"100%", width:`${latest.disk_percent}%`, transition:"width 0.4s" }} />
+                    </div>
+                    <div style={{ marginTop:"10px", height:"36px" }}>
+                      <Sparkline data={history} key="disk_percent" color="#ffd60a" />
+                    </div>
+                  </div>
+
+                  {/* Top processes preview */}
+                  <div style={{ gridColumn:"1/-1", background:"#0d1526", border:"1px solid #1e3a5f", borderRadius:"12px", padding:"18px" }}>
+                    <div style={{ color:"#00e5ff", fontSize:"11px", fontWeight:"700", letterSpacing:"0.08em", marginBottom:"12px" }}>TOP PROCESSES BY CPU</div>
+                    <div style={{ display:"grid", gridTemplateColumns:"repeat(5,1fr)", gap:"8px" }}>
+                      {(latest.processes || []).slice(0,5).map((p, i) => (
+                        <div key={i} style={{ background:"#0a1628", borderRadius:"8px", padding:"10px" }}>
+                          <div style={{ color:"#e0e0e0", fontSize:"12px", fontWeight:"700", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{p.name}</div>
+                          <div style={{ color:barColor(p.cpu), fontSize:"13px", fontWeight:"700", marginTop:"4px" }}>{p.cpu}%<span style={{ color:"#445", fontSize:"10px" }}> cpu</span></div>
+                          <div style={{ color:"#555", fontSize:"10px" }}>{p.mem}% mem</div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* ── Processes tab ── */}
+              {tab === "processes" && latest && (
+                <div style={{ background:"#0d1526", border:"1px solid #1e3a5f", borderRadius:"12px", overflow:"hidden" }}>
+                  <div style={{ padding:"12px 16px", borderBottom:"1px solid #1e3a5f", display:"flex", gap:"10px", alignItems:"center" }}>
+                    <input value={procFilter} onChange={e => setProcFilter(e.target.value)} placeholder="Filter by name or command…"
+                      style={{ flex:1, background:"#0a1628", border:"1px solid #1e3a5f", borderRadius:"6px", padding:"7px 12px", color:"#e0e0e0", fontSize:"12px", fontFamily:"inherit" }} />
+                    <span style={{ color:"#445", fontSize:"11px" }}>{filteredProcs.length} / {(latest.processes||[]).length}</span>
+                  </div>
+                  <div style={{ display:"grid", gridTemplateColumns:"60px 1fr 80px 80px 80px 80px", padding:"8px 16px", background:"#0a1628", borderBottom:"1px solid #1e3a5f" }}>
+                    {["PID","Name / Command","CPU%","MEM%","Status","User"].map(h => <div key={h} style={{ color:"#445", fontSize:"10px", fontWeight:"700" }}>{h}</div>)}
+                  </div>
+                  <div style={{ maxHeight:"400px", overflowY:"auto" }}>
+                    {filteredProcs.map((p, i) => (
+                      <div key={i} style={{ display:"grid", gridTemplateColumns:"60px 1fr 80px 80px 80px 80px", padding:"8px 16px", borderBottom:"1px solid #0a1628", alignItems:"center" }}>
+                        <span style={{ color:"#555", fontSize:"11px" }}>{p.pid}</span>
+                        <div>
+                          <div style={{ color:"#e0e0e0", fontSize:"12px", fontWeight:"600" }}>{p.name}</div>
+                          {p.cmd && <div style={{ color:"#445", fontSize:"10px", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap" }}>{p.cmd}</div>}
+                        </div>
+                        <span style={{ color:barColor(p.cpu), fontSize:"12px", fontWeight:"700" }}>{p.cpu}%</span>
+                        <span style={{ color:"#888", fontSize:"12px" }}>{p.mem}%</span>
+                        <span style={{ color:p.status==="running"?"#00ff88":"#555", fontSize:"11px" }}>{p.status}</span>
+                        <span style={{ color:"#555", fontSize:"11px" }}>{p.user}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* ── Network tab ── */}
+              {tab === "network" && latest && (
+                <div style={{ background:"#0d1526", border:"1px solid #1e3a5f", borderRadius:"12px", overflow:"hidden" }}>
+                  <div style={{ display:"grid", gridTemplateColumns:"60px 1fr 1fr 100px 60px", padding:"8px 16px", background:"#0a1628", borderBottom:"1px solid #1e3a5f" }}>
+                    {["Type","Local","Remote","Status","PID"].map(h => <div key={h} style={{ color:"#445", fontSize:"10px", fontWeight:"700" }}>{h}</div>)}
+                  </div>
+                  <div style={{ maxHeight:"440px", overflowY:"auto" }}>
+                    {(latest.connections || []).length === 0 && <div style={{ color:"#445", textAlign:"center", padding:"40px" }}>No connections data</div>}
+                    {(latest.connections || []).map((c, i) => (
+                      <div key={i} style={{ display:"grid", gridTemplateColumns:"60px 1fr 1fr 100px 60px", padding:"8px 16px", borderBottom:"1px solid #0a1628", alignItems:"center" }}>
+                        <span style={{ background: c.type==="TCP"?"#00e5ff22":"#a78bfa22", color: c.type==="TCP"?"#00e5ff":"#a78bfa", padding:"1px 6px", borderRadius:"3px", fontSize:"10px", fontWeight:"700", width:"fit-content" }}>{c.type}</span>
+                        <span style={{ color:"#e0e0e0", fontSize:"11px", fontFamily:"monospace" }}>{c.laddr || "—"}</span>
+                        <span style={{ color: c.raddr?"#00e5ff":"#445", fontSize:"11px", fontFamily:"monospace" }}>{c.raddr || "—"}</span>
+                        <span style={{ color: c.status==="ESTABLISHED"?"#00ff88":c.status==="LISTEN"?"#ffd60a":"#555", fontSize:"10px" }}>{c.status}</span>
+                        <span style={{ color:"#555", fontSize:"11px" }}>{c.pid || "—"}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* ── Disks tab ── */}
+              {tab === "disks" && latest && (
+                <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(280px,1fr))", gap:"14px" }}>
+                  {(latest.disks || []).map((d, i) => (
+                    <div key={i} style={{ background:"#0d1526", border:"1px solid #1e3a5f", borderRadius:"12px", padding:"18px" }}>
+                      <div style={{ display:"flex", justifyContent:"space-between", marginBottom:"10px" }}>
+                        <div>
+                          <div style={{ color:"#e0e0e0", fontWeight:"700", fontSize:"13px" }}>{d.mountpoint}</div>
+                          <div style={{ color:"#445", fontSize:"11px" }}>{d.device} · {d.fstype}</div>
+                        </div>
+                        <div style={{ color:barColor(d.percent), fontWeight:"700", fontSize:"20px" }}>{d.percent}%</div>
+                      </div>
+                      <div style={{ background:"#0a1628", borderRadius:"4px", height:"6px", marginBottom:"8px" }}>
+                        <div style={{ background:barColor(d.percent), borderRadius:"4px", height:"100%", width:`${d.percent}%` }} />
+                      </div>
+                      <div style={{ color:"#555", fontSize:"11px" }}>{d.used_gb?.toFixed(1)} GB used of {d.total_gb?.toFixed(1)} GB</div>
+                    </div>
+                  ))}
+                  {(latest.disks || []).length === 0 && <div style={{ color:"#445", textAlign:"center", padding:"40px", gridColumn:"1/-1" }}>No disk data</div>}
+                </div>
+              )}
+
+              {/* ── History tab ── */}
+              {tab === "history" && (
+                <div style={{ background:"#0d1526", border:"1px solid #1e3a5f", borderRadius:"12px", padding:"20px" }}>
+                  <div style={{ color:"#00e5ff", fontSize:"11px", fontWeight:"700", letterSpacing:"0.08em", marginBottom:"16px" }}>LAST {history.length} READINGS</div>
+                  {[["CPU %","cpu_percent","#00e5ff"],["Memory %","mem_percent","#a78bfa"],["Disk %","disk_percent","#ffd60a"]].map(([label,key,color]) => (
+                    <div key={key} style={{ marginBottom:"20px" }}>
+                      <div style={{ display:"flex", justifyContent:"space-between", marginBottom:"4px" }}>
+                        <span style={{ color, fontSize:"12px", fontWeight:"700" }}>{label}</span>
+                        <span style={{ color:"#445", fontSize:"11px" }}>
+                          min {Math.min(...history.map(h=>h[key]||0)).toFixed(1)}% · max {Math.max(...history.map(h=>h[key]||0)).toFixed(1)}% · avg {(history.reduce((a,h)=>a+(h[key]||0),0)/Math.max(history.length,1)).toFixed(1)}%
+                        </span>
+                      </div>
+                      <div style={{ background:"#0a1628", borderRadius:"6px", padding:"8px", height:"50px" }}>
+                        <Sparkline data={history} key={key} color={color} height={34} />
+                      </div>
+                    </div>
+                  ))}
+                  <div style={{ maxHeight:"280px", overflowY:"auto", marginTop:"16px" }}>
+                    <div style={{ display:"grid", gridTemplateColumns:"140px 80px 80px 80px", padding:"6px 0", borderBottom:"1px solid #1e3a5f" }}>
+                      {["Time","CPU%","Mem%","Disk%"].map(h => <div key={h} style={{ color:"#445", fontSize:"10px", fontWeight:"700" }}>{h}</div>)}
+                    </div>
+                    {[...history].reverse().slice(0,30).map((h, i) => (
+                      <div key={i} style={{ display:"grid", gridTemplateColumns:"140px 80px 80px 80px", padding:"5px 0", borderBottom:"1px solid #0a1628" }}>
+                        <span style={{ color:"#445", fontSize:"10px" }}>{h.collected_at?.slice(11,19)}</span>
+                        <span style={{ color:barColor(h.cpu_percent), fontSize:"11px", fontWeight:"600" }}>{h.cpu_percent?.toFixed(1)}</span>
+                        <span style={{ color:barColor(h.mem_percent), fontSize:"11px", fontWeight:"600" }}>{h.mem_percent?.toFixed(1)}</span>
+                        <span style={{ color:barColor(h.disk_percent), fontSize:"11px", fontWeight:"600" }}>{h.disk_percent?.toFixed(1)}</span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {!latest && (
+                <div style={{ background:"#0d1526", border:"1px dashed #1e3a5f", borderRadius:"12px", padding:"60px", textAlign:"center" }}>
+                  <div style={{ color:"#445", fontSize:"13px" }}>Waiting for first telemetry snapshot from {selected.hostname}…</div>
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+
 export default function App() {
   // PWA install prompt
   const [installPrompt, setInstallPrompt] = useState(null);
@@ -29228,6 +29579,9 @@ export default function App() {
           )}
           {activeTab === "realscanner" && (
             <RealScannerPage token={token} showToast={showToast} />
+          )}
+          {activeTab === "agentmonitor" && (
+            <AgentMonitorPage token={token} showToast={showToast} />
           )}
           {activeTab === "issuetracking" && (
             <IssueTrackingPage token={token} showToast={showToast} />

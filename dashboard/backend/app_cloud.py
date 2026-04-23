@@ -124,6 +124,7 @@ from dashboard.backend.calendar.routes import calendar_bp
 from dashboard.backend.real_scanner.routes import real_scanner_bp
 from dashboard.backend.live_cves.routes import live_cves_bp
 from dashboard.backend.live_cves.models import LiveCve, CveSyncLog
+from dashboard.backend.agent_monitor.routes import agent_monitor_bp
 from dashboard.backend.timeline_enhanced.models import TeEvent, TeCluster
 from dashboard.backend.incidents.models import IrIncident, IrTask
 from dashboard.backend.monitoring.logger import setup_logging, get_logger
@@ -286,6 +287,7 @@ def create_app(config_name="development"):
     app.register_blueprint(calendar_bp)
     app.register_blueprint(real_scanner_bp)
     app.register_blueprint(live_cves_bp)
+    app.register_blueprint(agent_monitor_bp)
     app.register_blueprint(api_keys_bp, url_prefix='/api/keys')
 
     # Setup logging
