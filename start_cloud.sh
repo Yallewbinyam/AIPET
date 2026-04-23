@@ -14,6 +14,7 @@
 # =============================================================
 
 set -e
+export DATABASE_URL="postgresql://aipet_user:aipet_password@localhost:5433/aipet_db"
 
 PROJECT_DIR="/home/binyam/AIPET"
 VENV="$PROJECT_DIR/venv/bin"

@@ -164,7 +164,7 @@ def create_app(config_name="development"):
     # In development this is skipped automatically
     @app.before_request
     def force_https():
-        if not app.debug and not request.is_secure:
+        if not app.debug and not request.is_secure and request.host not in ["localhost:5001", "127.0.0.1:5001"]:
             url = request.url.replace("http://", "https://", 1)
             return redirect(url, code=301)
 
