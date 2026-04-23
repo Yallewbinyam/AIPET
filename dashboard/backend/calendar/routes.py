@@ -6,6 +6,7 @@
 import uuid, datetime
 from flask import Blueprint, request, jsonify
 from flask_jwt_extended import jwt_required, get_jwt_identity
+from dashboard.backend.validation import validate_body, CALENDAR_EVENT_SCHEMA
 from dashboard.backend.models import db
 from sqlalchemy import Column, String, Integer, Text, DateTime, Boolean
 
@@ -80,6 +81,7 @@ def list_events():
 
 @calendar_bp.route("/api/calendar/events", methods=["POST"])
 @jwt_required()
+@validate_body(CALENDAR_EVENT_SCHEMA)
 def create_event():
     uid  = get_jwt_identity()
     data = request.get_json(silent=True) or {}

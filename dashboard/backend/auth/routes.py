@@ -17,6 +17,7 @@ _base = '/app' if _os.path.exists('/app') else '/home/binyam/AIPET'
 sys.path.insert(0, _base)
 
 from dashboard.backend.models import db, User
+from dashboard.backend.validation import validate_body, LOGIN_SCHEMA, REGISTER_SCHEMA, CHANGE_PASSWORD_SCHEMA
 
 auth_bp = Blueprint("auth", __name__)
 
@@ -26,6 +27,7 @@ _login_attempts = {}
 
 
 @auth_bp.route("/api/auth/register", methods=["POST"])
+@validate_body(REGISTER_SCHEMA)
 def register():
     data     = request.json or {}
     email    = data.get("email", "").strip().lower()
@@ -65,6 +67,7 @@ def register():
 
 
 @auth_bp.route("/api/auth/login", methods=["POST"])
+@validate_body(LOGIN_SCHEMA)
 def login():
     data     = request.json or {}
     email    = data.get("email", "").strip().lower()
@@ -143,6 +146,7 @@ def get_me():
 
 @auth_bp.route("/api/auth/change-password", methods=["POST"])
 @jwt_required()
+@validate_body(CHANGE_PASSWORD_SCHEMA)
 def change_password():
     user_id  = get_jwt_identity()
     user     = User.query.get(int(user_id))

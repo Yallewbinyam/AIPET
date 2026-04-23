@@ -6,6 +6,7 @@
 import uuid, datetime, json, threading, time, requests
 from flask import Blueprint, request, jsonify
 from flask_jwt_extended import jwt_required, get_jwt_identity
+from dashboard.backend.validation import validate_body, SCAN_TARGET_SCHEMA
 from dashboard.backend.models import db
 from sqlalchemy import Column, String, Integer, Text, DateTime, Float
 
@@ -235,6 +236,7 @@ def _calc_risk(ports: list, cves: list) -> int:
 
 @real_scanner_bp.route("/api/real-scan/discover", methods=["POST"])
 @jwt_required()
+@validate_body(SCAN_TARGET_SCHEMA)
 def start_discovery():
     from flask import current_app
     uid  = get_jwt_identity()

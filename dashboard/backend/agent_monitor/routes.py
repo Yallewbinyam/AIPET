@@ -5,6 +5,7 @@
 
 import uuid, datetime, json
 from flask import Blueprint, request, jsonify
+from dashboard.backend.validation import validate_body, TELEMETRY_SCHEMA
 from flask_jwt_extended import jwt_required, get_jwt_identity, decode_token
 from dashboard.backend.models import db
 from sqlalchemy import Column, String, Integer, Float, Text, DateTime, Index
@@ -88,6 +89,7 @@ class AgentTelemetry(db.Model):
 
 @agent_monitor_bp.route("/api/agent/telemetry", methods=["POST"])
 @jwt_required()
+@validate_body(TELEMETRY_SCHEMA)
 def receive_telemetry():
     uid  = get_jwt_identity()
     data = request.get_json(silent=True) or {}

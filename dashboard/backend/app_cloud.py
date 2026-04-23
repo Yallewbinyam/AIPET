@@ -17,6 +17,11 @@ from flask_jwt_extended import (
 from flask_migrate import Migrate
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
+from dashboard.backend.validation import (
+    validate_body, optional,
+    LOGIN_SCHEMA, REGISTER_SCHEMA, SCAN_TARGET_SCHEMA,
+    CHANGE_PASSWORD_SCHEMA, TELEMETRY_SCHEMA,
+)
 
 sys.path.insert(0, '/home/binyam/AIPET')
 
@@ -191,26 +196,34 @@ def create_app(config_name="development"):
         }
     })
 
-    # Rate limiter
+    # ── Rate limiter ──────────────────────────────────────
+    # Key: JWT user ID when available, else remote IP.
+    def _rate_limit_key():
+        from flask_jwt_extended import verify_jwt_in_request, get_jwt_identity
+        try:
+            verify_jwt_in_request(optional=True)
+            uid = get_jwt_identity()
+            if uid:
+                return f"user:{uid}"
+        except Exception:
+            pass
+        return get_remote_address()
+
     limiter = Limiter(
-        get_remote_address,
+        key_func=_rate_limit_key,
         app=app,
-        default_limits=["200 per day", "50 per hour"],
-        storage_uri="memory://"
+        default_limits=["100 per minute", "2000 per day"],
+        storage_uri="memory://",
+        headers_enabled=True,           # expose X-RateLimit-* headers
     )
 
-    # Strict rate limits on authentication endpoints
-    # This adds an extra layer on top of brute force protection
-    @app.before_request
-    def apply_auth_rate_limits():
-        pass
     # Register blueprints
     app.register_blueprint(iam_bp)
     app.register_blueprint(auth_bp)
     init_google_oauth(app)
-    # Apply strict rate limiting to auth endpoints
-    limiter.limit("10 per minute")(app.view_functions.get('auth.login', lambda: None))
-    limiter.limit("5 per minute")(app.view_functions.get('auth.register', lambda: None))
+    # Auth endpoints: strict brute-force limits (keyed by IP regardless of JWT)
+    limiter.limit("5 per minute",  key_func=get_remote_address)(app.view_functions.get("auth.login",    lambda: None))
+    limiter.limit("5 per minute",  key_func=get_remote_address)(app.view_functions.get("auth.register", lambda: None))
     from dashboard.backend.payments.routes import payments_bp
     app.register_blueprint(payments_bp, url_prefix='/payments')
     from dashboard.backend.api_keys.routes import api_keys_bp
