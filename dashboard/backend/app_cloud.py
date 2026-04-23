@@ -108,6 +108,18 @@ from dashboard.backend.endpoint_agent.routes import endpoint_agent_bp
 from dashboard.backend.itdr.routes import itdr_bp
 from dashboard.backend.runtime_protection.routes import runtime_protection_bp
 from dashboard.backend.threat_intel_ingest.routes import threat_intel_ingest_bp
+from dashboard.backend.adversary_profiling.routes import adversary_profiling_bp
+from dashboard.backend.malware_sandbox.routes import malware_sandbox_bp
+from dashboard.backend.apm_engine.routes import apm_engine_bp
+from dashboard.backend.log_analytics.routes import log_analytics_bp
+from dashboard.backend.metrics_traces.routes import metrics_traces_bp
+from dashboard.backend.cloud_siem.routes import cloud_siem_bp
+from dashboard.backend.realtime_dashboards.routes import realtime_dashboards_bp
+from dashboard.backend.synthetic_monitoring.routes import synthetic_monitoring_bp
+from dashboard.backend.compliance_automation.routes import compliance_automation_bp
+from dashboard.backend.enterprise_rbac.routes import enterprise_rbac_bp
+from dashboard.backend.multi_tenant.routes import multi_tenant_bp
+from dashboard.backend.enterprise_reporting.routes import enterprise_reporting_bp
 from dashboard.backend.timeline_enhanced.models import TeEvent, TeCluster
 from dashboard.backend.incidents.models import IrIncident, IrTask
 from dashboard.backend.monitoring.logger import setup_logging, get_logger
@@ -255,6 +267,18 @@ def create_app(config_name="development"):
     app.register_blueprint(itdr_bp)
     app.register_blueprint(runtime_protection_bp)
     app.register_blueprint(threat_intel_ingest_bp)
+    app.register_blueprint(adversary_profiling_bp)
+    app.register_blueprint(malware_sandbox_bp)
+    app.register_blueprint(apm_engine_bp)
+    app.register_blueprint(log_analytics_bp)
+    app.register_blueprint(metrics_traces_bp)
+    app.register_blueprint(cloud_siem_bp)
+    app.register_blueprint(realtime_dashboards_bp)
+    app.register_blueprint(synthetic_monitoring_bp)
+    app.register_blueprint(compliance_automation_bp)
+    app.register_blueprint(enterprise_rbac_bp)
+    app.register_blueprint(multi_tenant_bp)
+    app.register_blueprint(enterprise_reporting_bp)
     app.register_blueprint(api_keys_bp, url_prefix='/api/keys')
 
     # Setup logging

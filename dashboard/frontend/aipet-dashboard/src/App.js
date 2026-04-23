@@ -5823,6 +5823,7 @@ const NAV_ITEMS = [
   { id: "complianceautomation", label: "Compliance Auto", icon: CheckCircle, group: "enterprise" },
   { id: "enterpriserbac",    label: "RBAC + SSO",     icon: Users,         group: "enterprise" },
   { id: "multitenant",       label: "Multi-Tenant",   icon: Server,        group: "enterprise" },
+  { id: "enterprisereporting", label: "Enterprise Reports", icon: FileText, group: "enterprise" },
   { id: "apmengine",         label: "APM Engine",     icon: Activity,      group: "enterprise" },
   { id: "loganalytics",      label: "Log Analytics",  icon: FileText,      group: "enterprise" },
   { id: "metricstraces",     label: "Metrics+Traces", icon: Activity,      group: "enterprise" },
@@ -8276,6 +8277,451 @@ function MalwareSandboxPage({ token, showToast }) {
                 <span style={{ color: VERDICT_COLOR[s.verdict], fontSize:"13px", fontWeight:"bold" }}>{s.verdict}</span>
                 <span style={{ color: scoreColor(s.threat_score), fontSize:"13px" }}>Score: {s.threat_score}</span>
                 <button onClick={() => loadAnalysis(s.analysis_id)} style={{ padding:"6px 14px", background:"#0a2040", border:"1px solid #00e5ff", borderRadius:"6px", color:"#00e5ff", cursor:"pointer", fontSize:"12px", fontFamily:"inherit" }}>View</button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ============================================================
+// AIPET X — Synthetic Monitoring
+// ============================================================
+function SyntheticMonitoringPage({ token, showToast }) {
+  const [tab, setTab] = useState("check");
+  const [checkType, setCheckType] = useState("http");
+  const [checkName, setCheckName] = useState("");
+  const [targetUrl, setTargetUrl] = useState("");
+  const [description, setDescription] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [checkData, setCheckData] = useState(null);
+  const [history, setHistory] = useState([]);
+  const API = "http://localhost:5001";
+  const STATUS_COLOR = { UP:"#00ff88", DEGRADED:"#ffd60a", DOWN:"#ff2d55", UNKNOWN:"#888" };
+  const STATUS_ICON  = { UP:"✅", DEGRADED:"⚠️", DOWN:"❌", UNKNOWN:"❓" };
+
+  useEffect(() => { fetchHistory(); }, []);
+  async function fetchHistory() {
+    try { const r = await fetch(`${API}/api/synthetic/history`, { headers:{ Authorization:`Bearer ${token}` }}); const d = await r.json(); setHistory(d.checks || []); } catch(e) {}
+  }
+  async function submitCheck() {
+    if (!description.trim()) { showToast("Describe the service first", "error"); return; }
+    setLoading(true); setCheckData(null);
+    try {
+      const r = await fetch(`${API}/api/synthetic/check`, { method:"POST", headers:{ "Content-Type":"application/json", Authorization:`Bearer ${token}` }, body: JSON.stringify({ check_name:checkName||"My Service", check_type:checkType, target_url:targetUrl||"https://example.com", description }) });
+      const d = await r.json();
+      if (d.check_id) { showToast(`Check complete — ${d.overall_status}, Uptime: ${d.uptime_pct}%`, d.overall_status==="DOWN"?"error":"success"); setCheckData(d); setTab("results"); fetchHistory(); }
+      else { showToast(d.error || "Failed", "error"); }
+    } catch(e) { showToast("Failed", "error"); }
+    setLoading(false);
+  }
+  return (
+    <div style={{ padding:"24px", color:"#e0e0e0", fontFamily:"JetBrains Mono, monospace" }}>
+      <h2 style={{ color:"#00e5ff", fontSize:"22px", margin:"0 0 8px" }}>🔬 Synthetic Monitoring</h2>
+      <p style={{ color:"#888", margin:"0 0 20px", fontSize:"13px" }}>Uptime Checks · API Testing · SLA Monitoring</p>
+      <div style={{ display:"flex", gap:"8px", marginBottom:"24px" }}>
+        {[["check","🔍 Check"],["results","📋 Results"],["history","🕒 History"]].map(([id,label]) => (
+          <button key={id} onClick={() => setTab(id)} style={{ padding:"8px 18px", borderRadius:"8px", border:"none", cursor:"pointer", fontSize:"13px", background: tab===id?"#00e5ff":"#1a2236", color: tab===id?"#000":"#aaa", fontFamily:"inherit" }}>{label}</button>
+        ))}
+      </div>
+      {tab === "check" && (
+        <div style={{ display:"grid", gridTemplateColumns:"260px 1fr", gap:"20px" }}>
+          <div style={{ background:"#0d1526", borderRadius:"12px", padding:"20px", border:"1px solid #1e3a5f" }}>
+            <p style={{ color:"#00e5ff", fontSize:"13px", marginTop:0 }}>Check Name</p>
+            <input value={checkName} onChange={e=>setCheckName(e.target.value)} placeholder="e.g. Production API" style={{ width:"100%", background:"#0a1628", border:"1px solid #1e3a5f", borderRadius:"8px", padding:"8px", color:"#e0e0e0", fontSize:"13px", boxSizing:"border-box", fontFamily:"inherit" }} />
+            <p style={{ color:"#00e5ff", fontSize:"13px", marginTop:"12px" }}>Target URL</p>
+            <input value={targetUrl} onChange={e=>setTargetUrl(e.target.value)} placeholder="https://api.example.com" style={{ width:"100%", background:"#0a1628", border:"1px solid #1e3a5f", borderRadius:"8px", padding:"8px", color:"#e0e0e0", fontSize:"13px", boxSizing:"border-box", fontFamily:"inherit" }} />
+            <p style={{ color:"#00e5ff", fontSize:"13px", marginTop:"12px" }}>Check Type</p>
+            {[["http","🌐 HTTP"],["api","📡 API"],["dns","🔗 DNS"],["ssl","🔒 SSL"]].map(([val,label]) => (
+              <div key={val} onClick={() => setCheckType(val)} style={{ padding:"7px 10px", borderRadius:"8px", marginBottom:"5px", cursor:"pointer", border:`1px solid ${checkType===val?"#00e5ff":"#1e3a5f"}`, background: checkType===val?"#0a2040":"transparent", color: checkType===val?"#00e5ff":"#aaa", fontSize:"12px" }}>{label}</div>
+            ))}
+            <button onClick={submitCheck} disabled={loading} style={{ marginTop:"12px", width:"100%", padding:"12px", borderRadius:"8px", background: loading?"#333":"#00e5ff", color:"#000", border:"none", cursor:"pointer", fontSize:"14px", fontWeight:"bold", fontFamily:"inherit" }}>{loading?"⏳ Checking...":"🔬 Run Check"}</button>
+          </div>
+          <div style={{ background:"#0d1526", borderRadius:"12px", padding:"20px", border:"1px solid #1e3a5f" }}>
+            <p style={{ color:"#00e5ff", fontSize:"13px", marginTop:0 }}>Describe Service Observations</p>
+            <textarea value={description} onChange={e=>setDescription(e.target.value)} placeholder="Describe what you observe. Examples: SSL certificate expiring. Response time SLA breach slow API. HTTP 500 error rate high. DNS resolution failure. Uptime below SLA target service down." style={{ width:"100%", height:"380px", background:"#0a1628", border:"1px solid #1e3a5f", borderRadius:"8px", padding:"12px", color:"#e0e0e0", fontSize:"13px", fontFamily:"JetBrains Mono, monospace", resize:"vertical", boxSizing:"border-box" }} />
+          </div>
+        </div>
+      )}
+      {tab === "results" && checkData && (
+        <div>
+          <div style={{ background:`${STATUS_COLOR[checkData.overall_status]}11`, border:`2px solid ${STATUS_COLOR[checkData.overall_status]}44`, borderRadius:"16px", padding:"24px", marginBottom:"20px", display:"flex", alignItems:"center", gap:"24px" }}>
+            <div style={{ fontSize:"56px" }}>{STATUS_ICON[checkData.overall_status]}</div>
+            <div style={{ flex:1 }}>
+              <div style={{ fontSize:"26px", fontWeight:"900", color: STATUS_COLOR[checkData.overall_status] }}>{checkData.overall_status}</div>
+              <div style={{ color:"#888", fontSize:"14px" }}>{checkData.check_name} · {checkData.target_url}</div>
+            </div>
+            <div style={{ textAlign:"center" }}>
+              <div style={{ fontSize:"36px", fontWeight:"900", color: checkData.sla_met?"#00ff88":"#ff2d55" }}>{checkData.uptime_pct}%</div>
+              <div style={{ color: checkData.sla_met?"#00ff88":"#ff2d55", fontSize:"12px", fontWeight:"bold" }}>SLA {checkData.sla_met?"MET":"BREACHED"}</div>
+            </div>
+          </div>
+          <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:"12px" }}>
+            {[["Avg Latency",`${checkData.avg_latency_ms}ms`,"#00e5ff"],["Total Checks",checkData.total_checks,"#a78bfa"],["Failed",checkData.failed_checks,"#ff2d55"],["Issues",checkData.issues,"#ff6b00"]].map(([label,val,color]) => (
+              <div key={label} style={{ background:"#0d1526", borderRadius:"10px", padding:"14px", border:`1px solid ${color}33`, textAlign:"center" }}>
+                <div style={{ fontSize:"20px", fontWeight:"bold", color }}>{val}</div>
+                <div style={{ fontSize:"11px", color:"#888", marginTop:"4px" }}>{label}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+      {tab === "results" && !checkData && <div style={{ textAlign:"center", color:"#555", padding:"60px" }}>Run a check first.</div>}
+      {tab === "history" && (
+        <div>
+          {history.length === 0 && <div style={{ textAlign:"center", color:"#555", padding:"60px" }}>No checks yet.</div>}
+          {history.map((s,i) => (
+            <div key={i} style={{ background:"#0d1526", borderRadius:"10px", padding:"14px", marginBottom:"8px", border:"1px solid #1e3a5f", display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+              <div>
+                <div style={{ color:"#e0e0e0", fontSize:"14px" }}>{STATUS_ICON[s.overall_status]} {s.check_name}</div>
+                <div style={{ color:"#555", fontSize:"12px", marginTop:"3px" }}>{s.uptime_pct}% uptime · {new Date(s.created_at).toLocaleString()}</div>
+              </div>
+              <span style={{ color: STATUS_COLOR[s.overall_status], fontSize:"13px", fontWeight:"bold" }}>{s.overall_status}</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ============================================================
+// AIPET X — Compliance Automation Engine
+// ============================================================
+function ComplianceAutomationPage({ token, showToast }) {
+  const [tab, setTab] = useState("assess");
+  const [framework, setFramework] = useState("nis2");
+  const [organisation, setOrganisation] = useState("");
+  const [description, setDescription] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [assessData, setAssessData] = useState(null);
+  const [frameworks, setFrameworks] = useState([]);
+  const [history, setHistory] = useState([]);
+  const [filterStatus, setFilterStatus] = useState(null);
+  const API = "http://localhost:5001";
+  const STATUS_COLOR = { COMPLIANT:"#00ff88", SUBSTANTIALLY_COMPLIANT:"#ffd60a", PARTIALLY_COMPLIANT:"#ff6b00", NON_COMPLIANT:"#ff2d55" };
+  const CTRL_COLOR   = { PASS:"#00ff88", PARTIAL:"#ffd60a", FAIL:"#ff2d55" };
+  const CTRL_ICON    = { PASS:"✅", PARTIAL:"⚠️", FAIL:"❌" };
+  const scoreColor   = (s) => s >= 90 ? "#00ff88" : s >= 70 ? "#ffd60a" : s >= 50 ? "#ff6b00" : "#ff2d55";
+
+  useEffect(() => { fetchFrameworks(); fetchHistory(); }, []);
+  async function fetchFrameworks() {
+    try { const r = await fetch(`${API}/api/compliance-automation/frameworks`); const d = await r.json(); setFrameworks(d.frameworks || []); } catch(e) {}
+  }
+  async function fetchHistory() {
+    try { const r = await fetch(`${API}/api/compliance-automation/history`, { headers:{ Authorization:`Bearer ${token}` }}); const d = await r.json(); setHistory(d.assessments || []); } catch(e) {}
+  }
+  async function submitAssessment() {
+    if (!description.trim()) { showToast("Describe your security posture first", "error"); return; }
+    setLoading(true); setAssessData(null);
+    try {
+      const r = await fetch(`${API}/api/compliance-automation/assess`, { method:"POST", headers:{ "Content-Type":"application/json", Authorization:`Bearer ${token}` }, body: JSON.stringify({ framework, organisation:organisation||"My Organisation", description }) });
+      const d = await r.json();
+      if (d.assessment_id) { showToast(`Score: ${d.overall_score}%, ${d.critical_gaps} gap(s)`, d.overall_score < 70 ? "error" : "success"); setAssessData(d); setTab("results"); fetchHistory(); }
+      else { showToast(d.error || "Failed", "error"); }
+    } catch(e) { showToast("Failed", "error"); }
+    setLoading(false);
+  }
+  const filtered = assessData?.controls?.filter(c => !filterStatus || c.status===filterStatus) || [];
+  const selectedFW = frameworks.find(f => f.key===framework);
+  return (
+    <div style={{ padding:"24px", color:"#e0e0e0", fontFamily:"JetBrains Mono, monospace" }}>
+      <h2 style={{ color:"#00e5ff", fontSize:"22px", margin:"0 0 8px" }}>📋 Compliance Automation Engine</h2>
+      <p style={{ color:"#888", margin:"0 0 20px", fontSize:"13px" }}>NIS2 · ISO 27001 · NIST CSF 2.0 · SOC2 · GDPR · PCI-DSS</p>
+      <div style={{ display:"flex", gap:"8px", marginBottom:"24px" }}>
+        {[["assess","🔍 Assess"],["results","📊 Report"],["history","🕒 History"]].map(([id,label]) => (
+          <button key={id} onClick={() => setTab(id)} style={{ padding:"8px 18px", borderRadius:"8px", border:"none", cursor:"pointer", fontSize:"13px", background: tab===id?"#00e5ff":"#1a2236", color: tab===id?"#000":"#aaa", fontFamily:"inherit" }}>{label}</button>
+        ))}
+      </div>
+      {tab === "assess" && (
+        <div style={{ display:"grid", gridTemplateColumns:"280px 1fr", gap:"20px" }}>
+          <div style={{ background:"#0d1526", borderRadius:"12px", padding:"20px", border:"1px solid #1e3a5f" }}>
+            <p style={{ color:"#00e5ff", fontSize:"13px", marginTop:0 }}>Framework</p>
+            {frameworks.map(fw => (
+              <div key={fw.key} onClick={() => setFramework(fw.key)} style={{ padding:"10px 12px", borderRadius:"8px", marginBottom:"6px", cursor:"pointer", border:`1px solid ${framework===fw.key?"#00e5ff":"#1e3a5f"}`, background: framework===fw.key?"#0a2040":"transparent" }}>
+                <div style={{ fontSize:"13px", fontWeight:"bold", color: framework===fw.key?"#00e5ff":"#e0e0e0" }}>{fw.name}</div>
+                <div style={{ fontSize:"10px", color:"#555", marginTop:"2px" }}>{fw.total_controls} controls</div>
+              </div>
+            ))}
+            <p style={{ color:"#00e5ff", fontSize:"13px", marginTop:"12px" }}>Organisation</p>
+            <input value={organisation} onChange={e=>setOrganisation(e.target.value)} placeholder="e.g. NHS Trust" style={{ width:"100%", background:"#0a1628", border:"1px solid #1e3a5f", borderRadius:"8px", padding:"8px", color:"#e0e0e0", fontSize:"13px", boxSizing:"border-box", fontFamily:"inherit" }} />
+            <button onClick={submitAssessment} disabled={loading} style={{ marginTop:"14px", width:"100%", padding:"12px", borderRadius:"8px", background: loading?"#333":"#00e5ff", color:"#000", border:"none", cursor:"pointer", fontSize:"14px", fontWeight:"bold", fontFamily:"inherit" }}>{loading?"⏳ Assessing...":"📋 Run Assessment"}</button>
+          </div>
+          <div style={{ background:"#0d1526", borderRadius:"12px", padding:"20px", border:"1px solid #1e3a5f" }}>
+            <p style={{ color:"#00e5ff", fontSize:"13px", marginTop:0 }}>Describe Your Security Posture</p>
+            {selectedFW && <p style={{ color:"#555", fontSize:"12px", marginTop:"-8px", marginBottom:"12px" }}>Assessing {selectedFW.name} — {selectedFW.total_controls} controls</p>}
+            <textarea value={description} onChange={e=>setDescription(e.target.value)} placeholder="Describe your security posture. Include all implemented controls. Examples: Risk management policy and risk assessment process. Incident response plan with 72 hour breach notification. MFA enforced on all accounts RBAC least privilege. Encryption TLS data in transit AES at rest. Vulnerability management monthly patching quarterly pentest. Security awareness training all staff. Asset inventory CMDB. SIEM monitoring anomaly detection. Privacy by design DPIA process. DPO appointed." style={{ width:"100%", height:"380px", background:"#0a1628", border:"1px solid #1e3a5f", borderRadius:"8px", padding:"12px", color:"#e0e0e0", fontSize:"13px", fontFamily:"JetBrains Mono, monospace", resize:"vertical", boxSizing:"border-box" }} />
+          </div>
+        </div>
+      )}
+      {tab === "results" && assessData && (
+        <div>
+          <div style={{ background:"linear-gradient(135deg,#0a1628,#0d1f3c)", border:`2px solid ${scoreColor(assessData.overall_score)}44`, borderRadius:"16px", padding:"28px", marginBottom:"20px", display:"grid", gridTemplateColumns:"auto 1fr auto", gap:"28px", alignItems:"center" }}>
+            <div style={{ textAlign:"center" }}>
+              <div style={{ fontSize:"72px", fontWeight:"900", color: scoreColor(assessData.overall_score), lineHeight:1 }}>{assessData.overall_score}%</div>
+              <div style={{ color:"#888", fontSize:"13px", marginTop:"6px" }}>Compliance Score</div>
+            </div>
+            <div>
+              <div style={{ fontSize:"11px", color:"#555", marginBottom:"6px", textTransform:"uppercase" }}>{assessData.framework_name}</div>
+              <div style={{ fontSize:"22px", fontWeight:"900", color: STATUS_COLOR[assessData.status], marginBottom:"8px" }}>{assessData.status?.replace(/_/g," ")}</div>
+              <div style={{ color:"#888", fontSize:"13px" }}>{assessData.organisation}</div>
+              <div style={{ background:"#0a1628", borderRadius:"20px", height:"10px", overflow:"hidden", marginTop:"12px" }}>
+                <div style={{ width:`${assessData.overall_score}%`, height:"100%", background: scoreColor(assessData.overall_score), borderRadius:"20px" }} />
+              </div>
+            </div>
+            <div style={{ display:"flex", flexDirection:"column", gap:"10px" }}>
+              {[["✅ Passed",assessData.passed,"#00ff88"],["⚠️ Partial",assessData.partial,"#ffd60a"],["❌ Failed",assessData.failed,"#ff2d55"],["🚨 Gaps",assessData.critical_gaps,"#ff2d55"]].map(([label,val,color]) => (
+                <div key={label} style={{ background:"rgba(255,255,255,0.03)", borderRadius:"8px", padding:"8px 14px", display:"flex", justifyContent:"space-between", minWidth:"140px" }}>
+                  <span style={{ fontSize:"12px", color:"#888" }}>{label}</span>
+                  <span style={{ fontSize:"16px", fontWeight:"bold", color }}>{val}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+          <div style={{ display:"flex", gap:"8px", marginBottom:"12px" }}>
+            <button onClick={() => setFilterStatus(null)} style={{ padding:"6px 14px", borderRadius:"6px", border:`1px solid ${!filterStatus?"#00e5ff":"#1e3a5f"}`, background: !filterStatus?"#0a2040":"transparent", color: !filterStatus?"#00e5ff":"#aaa", cursor:"pointer", fontSize:"12px", fontFamily:"inherit" }}>All</button>
+            {["PASS","PARTIAL","FAIL"].map(s => (
+              <button key={s} onClick={() => setFilterStatus(filterStatus===s?null:s)} style={{ padding:"6px 14px", borderRadius:"6px", border:`1px solid ${filterStatus===s?(CTRL_COLOR[s]):"#1e3a5f"}`, background: filterStatus===s?"#0a2040":"transparent", color: filterStatus===s?(CTRL_COLOR[s]):"#aaa", cursor:"pointer", fontSize:"12px", fontFamily:"inherit" }}>{CTRL_ICON[s]} {s}</button>
+            ))}
+          </div>
+          {filtered.map((ctrl,i) => (
+            <div key={i} style={{ background:"#0d1526", borderRadius:"10px", padding:"14px 16px", marginBottom:"6px", border:`1px solid ${CTRL_COLOR[ctrl.status]}33`, display:"grid", gridTemplateColumns:"auto 1fr auto", gap:"12px", alignItems:"center" }}>
+              <span style={{ fontSize:"20px" }}>{CTRL_ICON[ctrl.status]}</span>
+              <div>
+                <div style={{ fontSize:"11px", color:"#555", marginBottom:"2px" }}>{ctrl.id} · {ctrl.domain}</div>
+                <div style={{ fontSize:"13px", fontWeight:"bold", color:"#e0e0e0", marginBottom: ctrl.remediation?"3px":"0" }}>{ctrl.title}</div>
+                {ctrl.remediation && <div style={{ fontSize:"11px", color:"#00e5ff" }}>💡 {ctrl.remediation}</div>}
+              </div>
+              <div style={{ textAlign:"right" }}>
+                <div style={{ fontSize:"16px", fontWeight:"bold", color: CTRL_COLOR[ctrl.status] }}>{ctrl.score}/{ctrl.max_score}</div>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+      {tab === "results" && !assessData && <div style={{ textAlign:"center", color:"#555", padding:"60px" }}>Run an assessment first.</div>}
+      {tab === "history" && (
+        <div>
+          {history.length === 0 && <div style={{ textAlign:"center", color:"#555", padding:"60px" }}>No assessments yet.</div>}
+          {history.map((a,i) => (
+            <div key={i} style={{ background:"#0d1526", borderRadius:"10px", padding:"14px", marginBottom:"8px", border:"1px solid #1e3a5f", display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+              <div>
+                <div style={{ color:"#e0e0e0", fontSize:"14px" }}>📋 {a.framework?.toUpperCase()} — {a.organisation}</div>
+                <div style={{ color:"#555", fontSize:"12px", marginTop:"3px" }}>{a.passed} passed · {a.failed} failed · {new Date(a.created_at).toLocaleString()}</div>
+              </div>
+              <span style={{ color: scoreColor(a.overall_score), fontSize:"16px", fontWeight:"bold" }}>{a.overall_score}%</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ============================================================
+// AIPET X — Enterprise RBAC + SSO
+// ============================================================
+function EnterpriseRBACPage({ token, showToast }) {
+  const [tab, setTab] = useState("assess");
+  const [organisation, setOrganisation] = useState("");
+  const [description, setDescription] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [assessData, setAssessData] = useState(null);
+  const [history, setHistory] = useState([]);
+  const API = "http://localhost:5001";
+  const SEV_COLOR = { CRITICAL:"#ff2d55", HIGH:"#ff6b00", MEDIUM:"#ffd60a", LOW:"#00e5ff" };
+  const riskColor = (s) => s >= 70 ? "#ff2d55" : s >= 45 ? "#ff6b00" : s >= 20 ? "#ffd60a" : "#00ff88";
+
+  useEffect(() => { fetchHistory(); }, []);
+  async function fetchHistory() {
+    try { const r = await fetch(`${API}/api/enterprise-rbac/history`, { headers:{ Authorization:`Bearer ${token}` }}); const d = await r.json(); setHistory(d.assessments || []); } catch(e) {}
+  }
+  async function submitAssessment() {
+    if (!description.trim()) { showToast("Describe your IAM posture first", "error"); return; }
+    setLoading(true); setAssessData(null);
+    try {
+      const r = await fetch(`${API}/api/enterprise-rbac/assess`, { method:"POST", headers:{ "Content-Type":"application/json", Authorization:`Bearer ${token}` }, body: JSON.stringify({ organisation:organisation||"My Organisation", description }) });
+      const d = await r.json();
+      if (d.assessment_id) { showToast(`Risk: ${d.risk_score}, ${d.issues} issue(s)`, d.risk_score > 50?"error":"success"); setAssessData(d); setTab("results"); fetchHistory(); }
+      else { showToast(d.error || "Failed", "error"); }
+    } catch(e) { showToast("Failed", "error"); }
+    setLoading(false);
+  }
+  return (
+    <div style={{ padding:"24px", color:"#e0e0e0", fontFamily:"JetBrains Mono, monospace" }}>
+      <h2 style={{ color:"#00e5ff", fontSize:"22px", margin:"0 0 8px" }}>👥 Enterprise RBAC + SSO</h2>
+      <p style={{ color:"#888", margin:"0 0 20px", fontSize:"13px" }}>Role Management · Permission Control · SSO Integration · MFA Enforcement</p>
+      <div style={{ display:"flex", gap:"8px", marginBottom:"24px" }}>
+        {[["assess","🔍 Assess"],["results","📋 Report"],["history","🕒 History"]].map(([id,label]) => (
+          <button key={id} onClick={() => setTab(id)} style={{ padding:"8px 18px", borderRadius:"8px", border:"none", cursor:"pointer", fontSize:"13px", background: tab===id?"#00e5ff":"#1a2236", color: tab===id?"#000":"#aaa", fontFamily:"inherit" }}>{label}</button>
+        ))}
+      </div>
+      {tab === "assess" && (
+        <div style={{ display:"grid", gridTemplateColumns:"260px 1fr", gap:"20px" }}>
+          <div style={{ background:"#0d1526", borderRadius:"12px", padding:"20px", border:"1px solid #1e3a5f" }}>
+            <p style={{ color:"#00e5ff", fontSize:"13px", marginTop:0 }}>Organisation</p>
+            <input value={organisation} onChange={e=>setOrganisation(e.target.value)} placeholder="e.g. NHS Trust" style={{ width:"100%", background:"#0a1628", border:"1px solid #1e3a5f", borderRadius:"8px", padding:"8px", color:"#e0e0e0", fontSize:"13px", boxSizing:"border-box", fontFamily:"inherit" }} />
+            <p style={{ color:"#00e5ff", fontSize:"13px", marginTop:"14px" }}>Assesses</p>
+            {["RBAC Implementation","Admin Over-assignment","MFA Enforcement","SSO Configuration","PAM Controls","Account Lifecycle","Access Reviews","Password Policy"].map(item => (
+              <div key={item} style={{ fontSize:"11px", color:"#555", marginBottom:"3px" }}>✓ {item}</div>
+            ))}
+            <button onClick={submitAssessment} disabled={loading} style={{ marginTop:"12px", width:"100%", padding:"12px", borderRadius:"8px", background: loading?"#333":"#00e5ff", color:"#000", border:"none", cursor:"pointer", fontSize:"14px", fontWeight:"bold", fontFamily:"inherit" }}>{loading?"⏳ Assessing...":"👥 Assess RBAC + SSO"}</button>
+          </div>
+          <div style={{ background:"#0d1526", borderRadius:"12px", padding:"20px", border:"1px solid #1e3a5f" }}>
+            <p style={{ color:"#00e5ff", fontSize:"13px", marginTop:0 }}>Describe Your IAM & Access Control Posture</p>
+            <textarea value={description} onChange={e=>setDescription(e.target.value)} placeholder="Describe your identity and access management. Examples: No RBAC everyone has admin access. Too many admins admin sprawl. No MFA enforced two factor disabled. No SSO local accounts only. No PAM shared root password. Stale inactive accounts not removed. No access review. Service accounts with human login. No session timeout. Weak password policy." style={{ width:"100%", height:"380px", background:"#0a1628", border:"1px solid #1e3a5f", borderRadius:"8px", padding:"12px", color:"#e0e0e0", fontSize:"13px", fontFamily:"JetBrains Mono, monospace", resize:"vertical", boxSizing:"border-box" }} />
+          </div>
+        </div>
+      )}
+      {tab === "results" && assessData && (
+        <div>
+          <div style={{ display:"grid", gridTemplateColumns:"repeat(5,1fr)", gap:"12px", marginBottom:"20px" }}>
+            {[["Risk Score",assessData.risk_score,riskColor(assessData.risk_score)],["Issues",assessData.issues,"#ff2d55"],["SSO",assessData.sso_configured?"Yes":"No",assessData.sso_configured?"#00ff88":"#ff2d55"],["MFA",assessData.mfa_enforced?"Yes":"No",assessData.mfa_enforced?"#00ff88":"#ff2d55"],["Priv Issues",assessData.over_privileged,"#ff6b00"]].map(([label,val,color]) => (
+              <div key={label} style={{ background:"#0d1526", borderRadius:"10px", padding:"16px", border:`1px solid ${color}33`, textAlign:"center" }}>
+                <div style={{ fontSize:"22px", fontWeight:"bold", color }}>{val}</div>
+                <div style={{ fontSize:"12px", color:"#888", marginTop:"4px" }}>{label}</div>
+              </div>
+            ))}
+          </div>
+          {assessData.findings?.length === 0 && <div style={{ textAlign:"center", color:"#00ff88", padding:"32px", background:"#0d1526", borderRadius:"12px" }}>✅ No RBAC issues detected!</div>}
+          {assessData.findings?.map((f,i) => (
+            <div key={i} style={{ background:"#0d1526", borderRadius:"10px", padding:"14px", marginBottom:"8px", border:`1px solid ${SEV_COLOR[f.severity]}33` }}>
+              <div style={{ display:"flex", gap:"8px", alignItems:"center", marginBottom:"6px" }}>
+                <span style={{ color: SEV_COLOR[f.severity], fontSize:"11px", fontWeight:"bold", background:`${SEV_COLOR[f.severity]}22`, padding:"2px 8px", borderRadius:"20px" }}>{f.severity}</span>
+                <span style={{ color:"#e0e0e0", fontSize:"13px", fontWeight:"bold" }}>{f.title}</span>
+              </div>
+              <div style={{ color:"#00e5ff", fontSize:"12px" }}>💡 {f.fix}</div>
+            </div>
+          ))}
+        </div>
+      )}
+      {tab === "results" && !assessData && <div style={{ textAlign:"center", color:"#555", padding:"60px" }}>Run an assessment first.</div>}
+      {tab === "history" && (
+        <div>
+          {history.length === 0 && <div style={{ textAlign:"center", color:"#555", padding:"60px" }}>No assessments yet.</div>}
+          {history.map((a,i) => (
+            <div key={i} style={{ background:"#0d1526", borderRadius:"10px", padding:"14px", marginBottom:"8px", border:"1px solid #1e3a5f", display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+              <div>
+                <div style={{ color:"#e0e0e0", fontSize:"14px" }}>👥 {a.organisation}</div>
+                <div style={{ color:"#555", fontSize:"12px", marginTop:"3px" }}>{a.issues} issue(s) · SSO:{a.sso_configured?"✓":"✗"} MFA:{a.mfa_enforced?"✓":"✗"} · {new Date(a.created_at).toLocaleString()}</div>
+              </div>
+              <span style={{ color: riskColor(a.risk_score), fontSize:"16px", fontWeight:"bold" }}>Risk: {a.risk_score}</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ============================================================
+// AIPET X — Multi-Tenant Architecture
+// ============================================================
+function MultiTenantPage({ token, showToast }) {
+  const [tab, setTab] = useState("assess");
+  const [tenantName, setTenantName] = useState("");
+  const [tenantType, setTenantType] = useState("saas");
+  const [description, setDescription] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [assessData, setAssessData] = useState(null);
+  const [history, setHistory] = useState([]);
+  const API = "http://localhost:5001";
+  const SEV_COLOR    = { CRITICAL:"#ff2d55", HIGH:"#ff6b00", MEDIUM:"#ffd60a", LOW:"#00e5ff" };
+  const STATUS_COLOR = { HEALTHY:"#00ff88", WARNING:"#ffd60a", AT_RISK:"#ff2d55" };
+  const riskColor    = (s) => s >= 70 ? "#ff2d55" : s >= 45 ? "#ff6b00" : s >= 20 ? "#ffd60a" : "#00ff88";
+  const isoColor     = (s) => s >= 80 ? "#00ff88" : s >= 60 ? "#ffd60a" : "#ff2d55";
+
+  useEffect(() => { fetchHistory(); }, []);
+  async function fetchHistory() {
+    try { const r = await fetch(`${API}/api/multi-tenant/history`, { headers:{ Authorization:`Bearer ${token}` }}); const d = await r.json(); setHistory(d.assessments || []); } catch(e) {}
+  }
+  async function submitAssessment() {
+    if (!description.trim()) { showToast("Describe your architecture first", "error"); return; }
+    setLoading(true); setAssessData(null);
+    try {
+      const r = await fetch(`${API}/api/multi-tenant/assess`, { method:"POST", headers:{ "Content-Type":"application/json", Authorization:`Bearer ${token}` }, body: JSON.stringify({ tenant_name:tenantName||"My Platform", tenant_type:tenantType, description }) });
+      const d = await r.json();
+      if (d.assessment_id) { showToast(`Isolation: ${d.isolation_score}%, ${d.issues} issue(s)`, d.risk_score > 50?"error":"success"); setAssessData(d); setTab("results"); fetchHistory(); }
+      else { showToast(d.error || "Failed", "error"); }
+    } catch(e) { showToast("Failed", "error"); }
+    setLoading(false);
+  }
+  return (
+    <div style={{ padding:"24px", color:"#e0e0e0", fontFamily:"JetBrains Mono, monospace" }}>
+      <h2 style={{ color:"#00e5ff", fontSize:"22px", margin:"0 0 8px" }}>🏢 Multi-Tenant Architecture</h2>
+      <p style={{ color:"#888", margin:"0 0 20px", fontSize:"13px" }}>Tenant Management · Data Isolation · Resource Quotas · Security Boundaries</p>
+      <div style={{ display:"flex", gap:"8px", marginBottom:"24px" }}>
+        {[["assess","🔍 Assess"],["results","📋 Report"],["history","🕒 History"]].map(([id,label]) => (
+          <button key={id} onClick={() => setTab(id)} style={{ padding:"8px 18px", borderRadius:"8px", border:"none", cursor:"pointer", fontSize:"13px", background: tab===id?"#00e5ff":"#1a2236", color: tab===id?"#000":"#aaa", fontFamily:"inherit" }}>{label}</button>
+        ))}
+      </div>
+      {tab === "assess" && (
+        <div style={{ display:"grid", gridTemplateColumns:"260px 1fr", gap:"20px" }}>
+          <div style={{ background:"#0d1526", borderRadius:"12px", padding:"20px", border:"1px solid #1e3a5f" }}>
+            <p style={{ color:"#00e5ff", fontSize:"13px", marginTop:0 }}>Platform Name</p>
+            <input value={tenantName} onChange={e=>setTenantName(e.target.value)} placeholder="e.g. AIPET X" style={{ width:"100%", background:"#0a1628", border:"1px solid #1e3a5f", borderRadius:"8px", padding:"8px", color:"#e0e0e0", fontSize:"13px", boxSizing:"border-box", fontFamily:"inherit" }} />
+            <p style={{ color:"#00e5ff", fontSize:"13px", marginTop:"14px" }}>Architecture Type</p>
+            {[["saas","☁️ SaaS Platform"],["msp","🤝 MSP / Multi-Client"],["enterprise","🏢 Enterprise"],["marketplace","🛍️ Marketplace"]].map(([val,label]) => (
+              <div key={val} onClick={() => setTenantType(val)} style={{ padding:"7px 10px", borderRadius:"8px", marginBottom:"5px", cursor:"pointer", border:`1px solid ${tenantType===val?"#00e5ff":"#1e3a5f"}`, background: tenantType===val?"#0a2040":"transparent", color: tenantType===val?"#00e5ff":"#aaa", fontSize:"12px" }}>{label}</div>
+            ))}
+            <button onClick={submitAssessment} disabled={loading} style={{ marginTop:"12px", width:"100%", padding:"12px", borderRadius:"8px", background: loading?"#333":"#00e5ff", color:"#000", border:"none", cursor:"pointer", fontSize:"14px", fontWeight:"bold", fontFamily:"inherit" }}>{loading?"⏳ Assessing...":"🏢 Assess Architecture"}</button>
+          </div>
+          <div style={{ background:"#0d1526", borderRadius:"12px", padding:"20px", border:"1px solid #1e3a5f" }}>
+            <p style={{ color:"#00e5ff", fontSize:"13px", marginTop:0 }}>Describe Your Multi-Tenant Architecture</p>
+            <textarea value={description} onChange={e=>setDescription(e.target.value)} placeholder="Describe your multi-tenant architecture. Examples: No data isolation shared database all tenants. No resource quota noisy neighbour. No tenant authentication separation. Cross tenant access risk. No audit logging. Shared encryption keys. No onboarding automation manual setup. No offboarding data retention." style={{ width:"100%", height:"380px", background:"#0a1628", border:"1px solid #1e3a5f", borderRadius:"8px", padding:"12px", color:"#e0e0e0", fontSize:"13px", fontFamily:"JetBrains Mono, monospace", resize:"vertical", boxSizing:"border-box" }} />
+          </div>
+        </div>
+      )}
+      {tab === "results" && assessData && (
+        <div>
+          <div style={{ display:"grid", gridTemplateColumns:"repeat(5,1fr)", gap:"12px", marginBottom:"20px" }}>
+            {[["Isolation",`${assessData.isolation_score}%`,isoColor(assessData.isolation_score)],["Risk",assessData.risk_score,riskColor(assessData.risk_score)],["Tenants",assessData.total_tenants,"#00e5ff"],["Issues",assessData.issues,"#ff2d55"],["Type",assessData.tenant_type,"#a78bfa"]].map(([label,val,color]) => (
+              <div key={label} style={{ background:"#0d1526", borderRadius:"10px", padding:"16px", border:`1px solid ${color}33`, textAlign:"center" }}>
+                <div style={{ fontSize: label==="Type"?"13px":"22px", fontWeight:"bold", color }}>{val}</div>
+                <div style={{ fontSize:"12px", color:"#888", marginTop:"4px" }}>{label}</div>
+              </div>
+            ))}
+          </div>
+          <div style={{ background:"#0d1526", borderRadius:"12px", padding:"20px", marginBottom:"16px", border:"1px solid #1e3a5f" }}>
+            <div style={{ color:"#00e5ff", fontSize:"13px", fontWeight:"bold", marginBottom:"14px" }}>🗺️ Tenant Overview</div>
+            <div style={{ display:"grid", gridTemplateColumns:"repeat(5,1fr)", gap:"10px" }}>
+              {assessData.tenants?.map((t,i) => (
+                <div key={i} style={{ background:"rgba(255,255,255,0.03)", borderRadius:"10px", padding:"14px", border:`1px solid ${STATUS_COLOR[t.status]}33`, textAlign:"center" }}>
+                  <div style={{ fontSize:"10px", color:STATUS_COLOR[t.status], fontWeight:"bold", marginBottom:"4px" }}>● {t.status}</div>
+                  <div style={{ fontSize:"11px", color:"#e0e0e0", fontWeight:"bold", marginBottom:"4px" }}>{t.name.split(" ").slice(0,2).join(" ")}</div>
+                  <div style={{ fontSize:"10px", color:"#555" }}>{t.plan} · {t.data_region}</div>
+                  <div style={{ fontSize:"10px", color:STATUS_COLOR[t.status], marginTop:"6px" }}>{t.health}%</div>
+                </div>
+              ))}
+            </div>
+          </div>
+          {assessData.findings?.length === 0 && <div style={{ textAlign:"center", color:"#00ff88", padding:"32px", background:"#0d1526", borderRadius:"12px" }}>✅ Architecture is secure!</div>}
+          {assessData.findings?.map((f,i) => (
+            <div key={i} style={{ background:"#0d1526", borderRadius:"10px", padding:"14px", marginBottom:"8px", border:`1px solid ${SEV_COLOR[f.severity]}33` }}>
+              <div style={{ display:"flex", gap:"8px", alignItems:"center", marginBottom:"6px" }}>
+                <span style={{ color: SEV_COLOR[f.severity], fontSize:"11px", fontWeight:"bold", background:`${SEV_COLOR[f.severity]}22`, padding:"2px 8px", borderRadius:"20px" }}>{f.severity}</span>
+                <span style={{ color:"#e0e0e0", fontSize:"13px", fontWeight:"bold" }}>{f.title}</span>
+              </div>
+              <div style={{ color:"#00e5ff", fontSize:"12px" }}>💡 {f.fix}</div>
+            </div>
+          ))}
+        </div>
+      )}
+      {tab === "results" && !assessData && <div style={{ textAlign:"center", color:"#555", padding:"60px" }}>Run an assessment first.</div>}
+      {tab === "history" && (
+        <div>
+          {history.length === 0 && <div style={{ textAlign:"center", color:"#555", padding:"60px" }}>No assessments yet.</div>}
+          {history.map((a,i) => (
+            <div key={i} style={{ background:"#0d1526", borderRadius:"10px", padding:"14px", marginBottom:"8px", border:"1px solid #1e3a5f", display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+              <div>
+                <div style={{ color:"#e0e0e0", fontSize:"14px" }}>🏢 {a.tenant_name} · {a.tenant_type}</div>
+                <div style={{ color:"#555", fontSize:"12px", marginTop:"3px" }}>{a.total_tenants} tenant(s) · {a.issues} issue(s) · {new Date(a.created_at).toLocaleString()}</div>
+              </div>
+              <div style={{ display:"flex", gap:"12px" }}>
+                <span style={{ color: isoColor(a.isolation_score), fontSize:"13px", fontWeight:"bold" }}>Isolation: {a.isolation_score}%</span>
+                <span style={{ color: riskColor(a.risk_score), fontSize:"13px" }}>Risk: {a.risk_score}</span>
               </div>
             </div>
           ))}
@@ -26469,6 +26915,9 @@ export default function App() {
           )}
           {activeTab === "multitenant" && (
             <MultiTenantPage token={token} showToast={showToast} />
+          )}
+          {activeTab === "enterprisereporting" && (
+            <EnterpriseReportingPage token={token} showToast={showToast} />
           )}
           {activeTab === "behavioral" && (
             <BehavioralAIPage token={token} showToast={showToast} />
