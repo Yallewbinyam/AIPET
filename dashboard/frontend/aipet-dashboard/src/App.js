@@ -8732,6 +8732,221 @@ function MultiTenantPage({ token, showToast }) {
 }
 
 // ============================================================
+// AIPET X — Enterprise Reporting
+// ============================================================
+function EnterpriseReportingPage({ token, showToast }) {
+  const [tab, setTab] = useState("generate");
+  const [reportType, setReportType] = useState("executive");
+  const [organisation, setOrganisation] = useState("");
+  const [period, setPeriod] = useState("Q1 2026");
+  const [loading, setLoading] = useState(false);
+  const [reportData, setReportData] = useState(null);
+  const [history, setHistory] = useState([]);
+  const API = "http://localhost:5001";
+  const REPORT_TYPES = [
+    { id:"executive", icon:"📊", label:"Executive Summary", desc:"Board level — risk score, top threats, business impact" },
+    { id:"ciso",      icon:"🛡️", label:"CISO Report",       desc:"Security leadership — full technical posture" },
+    { id:"compliance",icon:"📋", label:"Compliance Report", desc:"Auditors — NIS2, ISO 27001, GDPR gap analysis" },
+    { id:"incident",  icon:"🚨", label:"Incident Report",   desc:"Legal & insurance — timeline, impact, response" },
+    { id:"trend",     icon:"📈", label:"Trend Report",      desc:"Management — week-on-week security improvement" },
+  ];
+  const TYPE_COLOR = { executive:"#00e5ff", ciso:"#a78bfa", compliance:"#00ff88", incident:"#ff2d55", trend:"#ffd60a" };
+  const scoreColor = (s) => s >= 70 ? "#00ff88" : s >= 45 ? "#ffd60a" : "#ff2d55";
+  const C = TYPE_COLOR[reportType] || "#00e5ff";
+  const selectedType = REPORT_TYPES.find(t => t.id === reportType);
+
+  useEffect(() => { fetchHistory(); }, []);
+  async function fetchHistory() {
+    try { const r = await fetch(`${API}/api/enterprise-reporting/history`, { headers:{ Authorization:`Bearer ${token}` }}); const d = await r.json(); setHistory(d.reports || []); } catch(e) {}
+  }
+  async function generateReport() {
+    setLoading(true); setReportData(null);
+    try {
+      const r = await fetch(`${API}/api/enterprise-reporting/generate`, { method:"POST", headers:{ "Content-Type":"application/json", Authorization:`Bearer ${token}` }, body: JSON.stringify({ report_type:reportType, organisation:organisation||"My Organisation", period }) });
+      const d = await r.json();
+      if (d.report_id) { showToast(`${selectedType.label} generated!`, "success"); setReportData(d); setTab("report"); fetchHistory(); }
+      else { showToast(d.error || "Failed", "error"); }
+    } catch(e) { showToast("Failed", "error"); }
+    setLoading(false);
+  }
+  async function loadReport(reportId) {
+    try { const r = await fetch(`${API}/api/enterprise-reporting/reports/${reportId}`, { headers:{ Authorization:`Bearer ${token}` }}); const d = await r.json(); setReportData(d); setTab("report"); } catch(e) {}
+  }
+
+  return (
+    <div style={{ padding:"24px", color:"#e0e0e0", fontFamily:"JetBrains Mono, monospace" }}>
+      <h2 style={{ color:"#00e5ff", fontSize:"22px", margin:"0 0 8px" }}>📑 Enterprise Reporting</h2>
+      <p style={{ color:"#888", margin:"0 0 20px", fontSize:"13px" }}>Executive · CISO · Compliance · Incident · Trend — One-Click Board Reports</p>
+      <div style={{ display:"flex", gap:"8px", marginBottom:"24px" }}>
+        {[["generate","⚙️ Generate"],["report","📄 Report"],["history","🕒 History"]].map(([id,label]) => (
+          <button key={id} onClick={() => setTab(id)} style={{ padding:"8px 18px", borderRadius:"8px", border:"none", cursor:"pointer", fontSize:"13px", background: tab===id?"#00e5ff":"#1a2236", color: tab===id?"#000":"#aaa", fontFamily:"inherit" }}>{label}</button>
+        ))}
+      </div>
+
+      {tab === "generate" && (
+        <div style={{ display:"grid", gridTemplateColumns:"300px 1fr", gap:"20px" }}>
+          <div style={{ display:"flex", flexDirection:"column", gap:"10px" }}>
+            {REPORT_TYPES.map(rt => (
+              <div key={rt.id} onClick={() => setReportType(rt.id)} style={{ background: reportType===rt.id?"#0a2040":"#0d1526", borderRadius:"12px", padding:"16px", cursor:"pointer", border:`1px solid ${reportType===rt.id?TYPE_COLOR[rt.id]:"#1e3a5f"}` }}>
+                <div style={{ display:"flex", alignItems:"center", gap:"10px", marginBottom:"4px" }}>
+                  <span style={{ fontSize:"18px" }}>{rt.icon}</span>
+                  <span style={{ fontSize:"14px", fontWeight:"bold", color: reportType===rt.id?TYPE_COLOR[rt.id]:"#e0e0e0" }}>{rt.label}</span>
+                </div>
+                <div style={{ fontSize:"11px", color:"#555" }}>{rt.desc}</div>
+              </div>
+            ))}
+          </div>
+          <div style={{ background:"#0d1526", borderRadius:"12px", padding:"24px", border:"1px solid #1e3a5f" }}>
+            <div style={{ display:"flex", alignItems:"center", gap:"12px", marginBottom:"24px" }}>
+              <span style={{ fontSize:"32px" }}>{selectedType?.icon}</span>
+              <div>
+                <div style={{ fontSize:"20px", fontWeight:"bold", color:C }}>{selectedType?.label}</div>
+                <div style={{ fontSize:"13px", color:"#555" }}>{selectedType?.desc}</div>
+              </div>
+            </div>
+            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"16px", marginBottom:"20px" }}>
+              <div>
+                <p style={{ color:"#00e5ff", fontSize:"13px", marginTop:0 }}>Organisation</p>
+                <input value={organisation} onChange={e=>setOrganisation(e.target.value)} placeholder="e.g. NHS Trust London" style={{ width:"100%", background:"#0a1628", border:"1px solid #1e3a5f", borderRadius:"8px", padding:"10px", color:"#e0e0e0", fontSize:"13px", boxSizing:"border-box", fontFamily:"inherit" }} />
+              </div>
+              <div>
+                <p style={{ color:"#00e5ff", fontSize:"13px", marginTop:0 }}>Period</p>
+                <select value={period} onChange={e=>setPeriod(e.target.value)} style={{ width:"100%", background:"#0a1628", border:"1px solid #1e3a5f", borderRadius:"8px", padding:"10px", color:"#e0e0e0", fontSize:"13px", fontFamily:"inherit" }}>
+                  {["Q1 2026","Q4 2025","Q3 2025","Q2 2025","Annual 2025","January 2026","February 2026","March 2026"].map(p => <option key={p} value={p}>{p}</option>)}
+                </select>
+              </div>
+            </div>
+            <button onClick={generateReport} disabled={loading} style={{ width:"100%", padding:"14px", borderRadius:"10px", background: loading?"#333":C, color: loading?"#aaa":"#000", border:"none", cursor:"pointer", fontSize:"15px", fontWeight:"bold", fontFamily:"inherit" }}>
+              {loading ? "⏳ Generating..." : `${selectedType?.icon} Generate ${selectedType?.label}`}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {tab === "report" && reportData && (
+        <div>
+          <div style={{ background:"linear-gradient(135deg,#0a1628,#0d1f3c)", border:`1px solid ${TYPE_COLOR[reportData.report_type]}33`, borderRadius:"16px", padding:"28px", marginBottom:"20px", display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+            <div>
+              <div style={{ fontSize:"11px", color:"#555", letterSpacing:"0.08em", textTransform:"uppercase", marginBottom:"8px" }}>{reportData.content?.classification} · {reportData.period}</div>
+              <h2 style={{ color:"#e0e0e0", fontSize:"22px", fontWeight:"900", margin:"0 0 6px" }}>{reportData.content?.title}</h2>
+              <div style={{ color:"#555", fontSize:"12px" }}>Generated: {new Date(reportData.created_at).toLocaleString()}</div>
+            </div>
+            <div style={{ textAlign:"center" }}>
+              <div style={{ fontSize:"48px", fontWeight:"900", color: scoreColor(reportData.risk_score), lineHeight:1 }}>{reportData.risk_score}</div>
+              <div style={{ color:"#555", fontSize:"12px", marginTop:"4px" }}>Risk Score</div>
+            </div>
+          </div>
+          {reportData.content?.sections?.map((section, i) => (
+            <div key={i} style={{ background:"#0d1526", borderRadius:"12px", padding:"20px", marginBottom:"10px", border:"1px solid #1e3a5f" }}>
+              <h3 style={{ color: TYPE_COLOR[reportData.report_type]||"#00e5ff", fontSize:"15px", fontWeight:"800", margin:"0 0 14px" }}>{i+1}. {section.title}</h3>
+              {section.content && <p style={{ color:"#888", fontSize:"13px", lineHeight:"1.7", margin:0 }}>{section.content}</p>}
+              {section.score !== undefined && (
+                <div style={{ display:"flex", alignItems:"center", gap:"12px" }}>
+                  <div style={{ fontSize:"32px", fontWeight:"900", color: scoreColor(section.score) }}>{section.score}/100</div>
+                  <div style={{ color:"#555", fontSize:"13px" }}>Trend: {section.trend}</div>
+                </div>
+              )}
+              {section.items && Array.isArray(section.items) && section.items.map((item,j) => (
+                <div key={j} style={{ background:"rgba(255,255,255,0.02)", borderRadius:"8px", padding:"10px 14px", marginBottom:"6px", fontSize:"13px" }}>
+                  {typeof item === "string" ? <div style={{ color:"#888" }}>✓ {item}</div>
+                  : item.risk ? <div style={{ display:"flex", justifyContent:"space-between" }}><span style={{ color:"#e0e0e0" }}>{item.risk}</span><div style={{ display:"flex", gap:"8px" }}><span style={{ color: item.impact==="CRITICAL"?"#ff2d55":"#ff6b00", fontSize:"11px", fontWeight:"bold" }}>{item.impact}</span><span style={{ color: item.status==="Remediated"?"#00ff88":"#ffd60a", fontSize:"11px" }}>{item.status}</span></div></div>
+                  : item.framework || item.name ? <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}><span style={{ color:"#e0e0e0", fontWeight:"bold" }}>{item.framework||item.name}</span><div style={{ display:"flex", gap:"12px" }}>{item.score&&<span style={{ color: scoreColor(item.score), fontWeight:"bold" }}>{item.score}%</span>}{item.status&&<span style={{ fontSize:"11px", color: item.status==="COMPLIANT"?"#00ff88":"#ffd60a" }}>{item.status?.replace(/_/g," ")}</span>}{item.findings!==undefined&&<span style={{ color:"#ff6b00", fontSize:"11px" }}>F:{item.findings} C:{item.critical}</span>}</div></div>
+                  : item.gap ? <div><div style={{ display:"flex", justifyContent:"space-between" }}><span style={{ color:"#e0e0e0" }}>{item.gap}</span><span style={{ color:"#ff2d55", fontSize:"11px", fontWeight:"bold" }}>{item.priority}</span></div><div style={{ color:"#555", fontSize:"11px" }}>{item.framework}</div></div>
+                  : item.action ? <div style={{ display:"flex", justifyContent:"space-between" }}><span style={{ color:"#e0e0e0" }}>{item.action}</span><div style={{ display:"flex", gap:"8px" }}><span style={{ color:"#ffd60a", fontSize:"11px" }}>{item.deadline}</span><span style={{ color:"#555", fontSize:"11px" }}>{item.owner}</span></div></div>
+                  : item.metric ? <div style={{ display:"flex", justifyContent:"space-between" }}><span style={{ color:"#e0e0e0" }}>{item.metric}</span><div style={{ display:"flex", gap:"8px" }}><span style={{ color:"#555", fontSize:"11px" }}>{item.start} → {item.end}</span><span style={{ color:"#00ff88", fontSize:"11px", fontWeight:"bold" }}>+{item.improvement}</span></div></div>
+                  : item.week ? <div style={{ display:"flex", justifyContent:"space-between" }}><span style={{ color:"#e0e0e0" }}>{item.week}</span><div style={{ display:"flex", gap:"12px" }}><span style={{ color: scoreColor(item.score), fontWeight:"bold" }}>{item.score}/100</span><span style={{ color:"#ff6b00", fontSize:"11px" }}>T:{item.threats}</span><span style={{ color:"#00ff88", fontSize:"11px" }}>R:{item.resolved}</span></div></div>
+                  : item.id ? <div><div style={{ display:"flex", justifyContent:"space-between", marginBottom:"3px" }}><span style={{ color:"#e0e0e0", fontWeight:"bold" }}>{item.id}: {item.title}</span><span style={{ color:"#ff2d55", fontSize:"11px" }}>{item.severity}</span></div><div style={{ color:"#555", fontSize:"11px" }}>{item.impact}</div></div>
+                  : <div style={{ color:"#888" }}>{JSON.stringify(item)}</div>}
+                </div>
+              ))}
+              {section.critical !== undefined && !section.items && !section.total && (
+                <div style={{ display:"grid", gridTemplateColumns:"repeat(4,1fr)", gap:"12px" }}>
+                  {[["Critical",section.critical,"#ff2d55"],["High",section.high,"#ff6b00"],["Medium",section.medium,"#ffd60a"],["MTTR",`${section.mean_time_to_remediate_days}d`,"#00e5ff"]].map(([label,val,color]) => (
+                    <div key={label} style={{ background:"rgba(255,255,255,0.03)", borderRadius:"8px", padding:"12px", textAlign:"center" }}>
+                      <div style={{ fontSize:"22px", fontWeight:"bold", color }}>{val}</div>
+                      <div style={{ fontSize:"11px", color:"#555", marginTop:"3px" }}>{label}</div>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {section.total !== undefined && (
+                <div style={{ display:"grid", gridTemplateColumns:"repeat(5,1fr)", gap:"12px" }}>
+                  {[["Total",section.total,"#e0e0e0"],["Critical",section.critical,"#ff2d55"],["High",section.high,"#ff6b00"],["Resolved",section.resolved,"#00ff88"],["Open",section.open,"#ffd60a"]].map(([label,val,color]) => (
+                    <div key={label} style={{ background:"rgba(255,255,255,0.03)", borderRadius:"8px", padding:"12px", textAlign:"center" }}>
+                      <div style={{ fontSize:"22px", fontWeight:"bold", color }}>{val}</div>
+                      <div style={{ fontSize:"11px", color:"#555", marginTop:"3px" }}>{label}</div>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {section.coverage !== undefined && (
+                <div>
+                  <div style={{ display:"flex", justifyContent:"space-between", marginBottom:"8px" }}>
+                    <span style={{ color:"#888", fontSize:"13px" }}>MITRE ATT&CK Coverage</span>
+                    <span style={{ color: scoreColor(section.coverage), fontWeight:"bold" }}>{section.coverage}%</span>
+                  </div>
+                  <div style={{ background:"#0a1628", borderRadius:"20px", height:"8px", overflow:"hidden", marginBottom:"12px" }}>
+                    <div style={{ width:`${section.coverage}%`, height:"100%", background: scoreColor(section.coverage), borderRadius:"20px" }} />
+                  </div>
+                  <div style={{ display:"flex", flexWrap:"wrap", gap:"6px" }}>
+                    {section.tactics?.map((t,j) => <span key={j} style={{ background:"rgba(0,229,255,0.07)", border:"1px solid rgba(0,229,255,0.15)", borderRadius:"6px", padding:"3px 10px", fontSize:"11px", color:"#00e5ff" }}>{t}</span>)}
+                  </div>
+                </div>
+              )}
+              {section.total_threats !== undefined && (
+                <div style={{ display:"grid", gridTemplateColumns:"repeat(3,1fr)", gap:"12px" }}>
+                  {[["Total Threats",section.total_threats,"#ff6b00"],["Resolved",section.total_resolved,"#00ff88"],["Resolution Rate",`${section.resolution_rate}%`,scoreColor(section.resolution_rate)]].map(([label,val,color]) => (
+                    <div key={label} style={{ background:"rgba(255,255,255,0.03)", borderRadius:"8px", padding:"12px", textAlign:"center" }}>
+                      <div style={{ fontSize:"22px", fontWeight:"bold", color }}>{val}</div>
+                      <div style={{ fontSize:"11px", color:"#555", marginTop:"3px" }}>{label}</div>
+                    </div>
+                  ))}
+                </div>
+              )}
+              {section.overall_improvement !== undefined && (
+                <div style={{ display:"flex", alignItems:"center", gap:"16px", marginTop:"8px" }}>
+                  <div style={{ fontSize:"32px", fontWeight:"900", color: section.overall_improvement > 0?"#00ff88":"#ff2d55" }}>{section.overall_improvement > 0?"+":""}{section.overall_improvement}</div>
+                  <div style={{ color:"#888", fontSize:"13px" }}>Overall security score improvement this period</div>
+                </div>
+              )}
+              {section.count !== undefined && (
+                <div style={{ display:"flex", gap:"20px" }}>
+                  <div style={{ textAlign:"center" }}><div style={{ fontSize:"28px", fontWeight:"900", color:"#00e5ff" }}>{section.count}</div><div style={{ color:"#555", fontSize:"12px" }}>Evidence Items</div></div>
+                  <div style={{ textAlign:"center" }}><div style={{ fontSize:"16px", fontWeight:"bold", color:"#e0e0e0", marginTop:"8px" }}>{section.last_assessment}</div><div style={{ color:"#555", fontSize:"12px" }}>Last Assessment</div></div>
+                </div>
+              )}
+            </div>
+          ))}
+          <div style={{ textAlign:"center", padding:"16px", color:"#555", fontSize:"12px" }}>Generated by AIPET X Enterprise Reporting · {new Date(reportData.created_at).toLocaleString()}</div>
+        </div>
+      )}
+      {tab === "report" && !reportData && <div style={{ textAlign:"center", color:"#555", padding:"60px" }}>Generate a report first.</div>}
+
+      {tab === "history" && (
+        <div>
+          {history.length === 0 && <div style={{ textAlign:"center", color:"#555", padding:"60px" }}>No reports yet.</div>}
+          {history.map((r,i) => (
+            <div key={i} style={{ background:"#0d1526", borderRadius:"10px", padding:"14px", marginBottom:"8px", border:"1px solid #1e3a5f", display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+              <div>
+                <div style={{ display:"flex", alignItems:"center", gap:"8px", marginBottom:"3px" }}>
+                  <span style={{ fontSize:"16px" }}>{REPORT_TYPES.find(t=>t.id===r.report_type)?.icon||"📑"}</span>
+                  <span style={{ color:"#e0e0e0", fontSize:"14px", fontWeight:"bold" }}>{REPORT_TYPES.find(t=>t.id===r.report_type)?.label||r.report_type}</span>
+                </div>
+                <div style={{ color:"#555", fontSize:"12px" }}>{r.organisation} · {r.period} · {new Date(r.created_at).toLocaleString()}</div>
+              </div>
+              <div style={{ display:"flex", gap:"12px", alignItems:"center" }}>
+                <span style={{ color: scoreColor(r.risk_score), fontSize:"16px", fontWeight:"bold" }}>{r.risk_score}</span>
+                <button onClick={() => loadReport(r.report_id)} style={{ padding:"6px 14px", background:"#0a2040", border:"1px solid #00e5ff", borderRadius:"6px", color:"#00e5ff", cursor:"pointer", fontSize:"12px", fontFamily:"inherit" }}>View</button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ============================================================
 // AIPET X — Adversary Profiling Engine
 
 // Threat Actor Attribution | TTP Analysis | Campaign Tracking
