@@ -266,6 +266,14 @@ def start_discovery():
     return jsonify({"scan_id": scan.id, "status": "pending", "target": target}), 202
 
 
+@real_scanner_bp.route("/api/real-scan/history", methods=["GET"])
+@jwt_required()
+def scan_history():
+    uid   = get_jwt_identity()
+    scans = RealScanResult.query.filter_by(user_id=uid).order_by(RealScanResult.started_at.desc()).limit(20).all()
+    return jsonify({"scans": [s.to_dict() for s in scans]}), 200
+
+
 @real_scanner_bp.route("/api/real-scan/<scan_id>", methods=["GET"])
 @jwt_required()
 def get_scan(scan_id):
@@ -274,14 +282,6 @@ def get_scan(scan_id):
     if not scan:
         return jsonify({"error": "Not found"}), 404
     return jsonify(scan.to_dict()), 200
-
-
-@real_scanner_bp.route("/api/real-scan/history", methods=["GET"])
-@jwt_required()
-def scan_history():
-    uid   = get_jwt_identity()
-    scans = RealScanResult.query.filter_by(user_id=uid).order_by(RealScanResult.started_at.desc()).limit(20).all()
-    return jsonify({"scans": [s.to_dict() for s in scans]}), 200
 
 
 @real_scanner_bp.route("/api/real-scan/<scan_id>", methods=["DELETE"])
