@@ -5824,6 +5824,7 @@ const NAV_ITEMS = [
   { id: "enterpriserbac",    label: "RBAC + SSO",     icon: Users,         group: "enterprise" },
   { id: "multitenant",       label: "Multi-Tenant",   icon: Server,        group: "enterprise" },
   { id: "enterprisereporting", label: "Enterprise Reports", icon: FileText, group: "enterprise" },
+  { id: "calendar",            label: "Calendar",           icon: Activity, group: "enterprise" },
   { id: "apmengine",         label: "APM Engine",     icon: Activity,      group: "enterprise" },
   { id: "loganalytics",      label: "Log Analytics",  icon: FileText,      group: "enterprise" },
   { id: "metricstraces",     label: "Metrics+Traces", icon: Activity,      group: "enterprise" },
@@ -8742,6 +8743,12 @@ function EnterpriseReportingPage({ token, showToast }) {
   const [loading, setLoading] = useState(false);
   const [reportData, setReportData] = useState(null);
   const [history, setHistory] = useState([]);
+  const [sigName, setSigName] = useState("");
+  const [sigTitle, setSigTitle] = useState("");
+  const [sigDate, setSigDate] = useState("");
+  const [exporting, setExporting] = useState(false);
+  const [emailRecipient, setEmailRecipient] = useState("");
+  const [sending, setSending] = useState(false);
   const API = "http://localhost:5001";
   const REPORT_TYPES = [
     { id:"executive", icon:"📊", label:"Executive Summary", desc:"Board level — risk score, top threats, business impact" },
@@ -8771,6 +8778,37 @@ function EnterpriseReportingPage({ token, showToast }) {
   }
   async function loadReport(reportId) {
     try { const r = await fetch(`${API}/api/enterprise-reporting/reports/${reportId}`, { headers:{ Authorization:`Bearer ${token}` }}); const d = await r.json(); setReportData(d); setTab("report"); } catch(e) {}
+  }
+  async function exportPdf() {
+    if (!reportData?.report_id) return;
+    setExporting(true);
+    try {
+      const params = new URLSearchParams({ sig_name: sigName, sig_title: sigTitle, sig_date: sigDate }).toString();
+      const res = await fetch(`${API}/api/enterprise-reporting/export-pdf/${reportData.report_id}?${params}`, { headers: { Authorization: `Bearer ${token}` } });
+      if (!res.ok) { showToast("PDF export failed", "error"); setExporting(false); return; }
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url; a.download = `AIPET_X_Report_${reportData.period || "report"}.pdf`; a.click();
+      URL.revokeObjectURL(url);
+      showToast("PDF exported successfully", "success");
+    } catch(e) { showToast("PDF export failed", "error"); }
+    setExporting(false);
+  }
+  async function sendEmail() {
+    if (!reportData?.report_id || !emailRecipient) return;
+    setSending(true);
+    try {
+      const res = await fetch(`${API}/api/enterprise-reporting/email-pdf/${reportData.report_id}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ recipient: emailRecipient, sig_name: sigName, sig_title: sigTitle, sig_date: sigDate }),
+      });
+      const d = await res.json();
+      if (d.sent) { showToast(`Report sent to ${emailRecipient}`, "success"); setEmailRecipient(""); }
+      else { showToast(d.error || "Failed to send", "error"); }
+    } catch(e) { showToast("Failed to send email", "error"); }
+    setSending(false);
   }
 
   return (
@@ -8917,6 +8955,38 @@ function EnterpriseReportingPage({ token, showToast }) {
               )}
             </div>
           ))}
+          {/* Signature block + PDF export */}
+          <div style={{ background:"#0d1526", border:"1px solid #1e3a5f", borderRadius:"12px", padding:"24px", marginTop:"8px" }}>
+            <h3 style={{ color:"#00e5ff", fontSize:"14px", fontWeight:"700", margin:"0 0 16px", letterSpacing:"0.06em" }}>AUTHORISATION &amp; EXPORT</h3>
+            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr 1fr", gap:"14px", marginBottom:"20px" }}>
+              <div>
+                <div style={{ color:"#555", fontSize:"11px", letterSpacing:"0.08em", textTransform:"uppercase", marginBottom:"6px" }}>Authorised By (Name)</div>
+                <input value={sigName} onChange={e => setSigName(e.target.value)} placeholder="e.g. Jane Smith" style={{ width:"100%", background:"#0a1628", border:"1px solid #1e3a5f", borderRadius:"8px", padding:"9px 12px", color:"#e0e0e0", fontSize:"13px", boxSizing:"border-box", fontFamily:"inherit" }} />
+              </div>
+              <div>
+                <div style={{ color:"#555", fontSize:"11px", letterSpacing:"0.08em", textTransform:"uppercase", marginBottom:"6px" }}>Title / Role</div>
+                <input value={sigTitle} onChange={e => setSigTitle(e.target.value)} placeholder="e.g. Chief Information Security Officer" style={{ width:"100%", background:"#0a1628", border:"1px solid #1e3a5f", borderRadius:"8px", padding:"9px 12px", color:"#e0e0e0", fontSize:"13px", boxSizing:"border-box", fontFamily:"inherit" }} />
+              </div>
+              <div>
+                <div style={{ color:"#555", fontSize:"11px", letterSpacing:"0.08em", textTransform:"uppercase", marginBottom:"6px" }}>Date</div>
+                <input type="date" value={sigDate} onChange={e => setSigDate(e.target.value)} style={{ width:"100%", background:"#0a1628", border:"1px solid #1e3a5f", borderRadius:"8px", padding:"9px 12px", color:"#e0e0e0", fontSize:"13px", boxSizing:"border-box", fontFamily:"inherit" }} />
+              </div>
+            </div>
+            <div style={{ display:"flex", gap:"12px", flexWrap:"wrap" }}>
+              <button onClick={exportPdf} disabled={exporting} style={{ padding:"12px 28px", borderRadius:"8px", background: exporting?"#1a2236":"#00e5ff", color: exporting?"#555":"#000", border:"none", cursor: exporting?"not-allowed":"pointer", fontSize:"14px", fontWeight:"700", fontFamily:"inherit" }}>
+                {exporting ? "⏳ Generating PDF..." : "⬇ Export PDF — CONFIDENTIAL"}
+              </button>
+            </div>
+            <div style={{ marginTop:"16px", borderTop:"1px solid #1e3a5f", paddingTop:"16px" }}>
+              <div style={{ color:"#555", fontSize:"11px", letterSpacing:"0.08em", textTransform:"uppercase", marginBottom:"8px" }}>Email PDF Report</div>
+              <div style={{ display:"flex", gap:"10px" }}>
+                <input value={emailRecipient} onChange={e => setEmailRecipient(e.target.value)} placeholder="recipient@example.com" style={{ flex:1, background:"#0a1628", border:"1px solid #1e3a5f", borderRadius:"8px", padding:"9px 12px", color:"#e0e0e0", fontSize:"13px", fontFamily:"inherit" }} />
+                <button onClick={sendEmail} disabled={sending || !emailRecipient} style={{ padding:"9px 22px", borderRadius:"8px", background: sending?"#1a2236":"#1e3a5f", color: sending?"#555":"#00e5ff", border:"1px solid #00e5ff", cursor: (sending||!emailRecipient)?"not-allowed":"pointer", fontSize:"13px", fontWeight:"600", fontFamily:"inherit", whiteSpace:"nowrap" }}>
+                  {sending ? "Sending..." : "✉ Send PDF"}
+                </button>
+              </div>
+            </div>
+          </div>
           <div style={{ textAlign:"center", padding:"16px", color:"#555", fontSize:"12px" }}>Generated by AIPET X Enterprise Reporting · {new Date(reportData.created_at).toLocaleString()}</div>
         </div>
       )}
@@ -8942,6 +9012,193 @@ function EnterpriseReportingPage({ token, showToast }) {
           ))}
         </div>
       )}
+    </div>
+  );
+}
+
+// ============================================================
+// AIPET X — Calendar Module
+// Scheduled Scans · Compliance Deadlines · Incidents
+// ============================================================
+function CalendarPage({ token, showToast }) {
+  const [events, setEvents] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [showForm, setShowForm] = useState(false);
+  const [form, setForm] = useState({ title:"", description:"", event_type:"general", start_date:"", priority:"medium" });
+  const [saving, setSaving] = useState(false);
+  const [filter, setFilter] = useState("all");
+  const now = new Date();
+  const [viewMonth, setViewMonth] = useState(now.getMonth());
+  const [viewYear, setViewYear] = useState(now.getFullYear());
+  const API = "http://localhost:5001";
+
+  const TYPE_COLOR  = { scan:"#00e5ff", compliance:"#a78bfa", incident:"#ff2d55", general:"#00ff88" };
+  const TYPE_ICON   = { scan:"🔍", compliance:"📋", incident:"🚨", general:"📅" };
+  const PRIO_COLOR  = { critical:"#ff2d55", high:"#ff6b00", medium:"#ffd60a", low:"#00ff88" };
+
+  useEffect(() => { fetchEvents(); }, [viewMonth, viewYear]);
+
+  async function fetchEvents() {
+    setLoading(true);
+    try {
+      const res = await fetch(`${API}/api/calendar/events?month=${viewMonth + 1}&year=${viewYear}`, { headers: { Authorization: `Bearer ${token}` } });
+      const d   = await res.json();
+      setEvents(d.events || []);
+    } catch(e) {}
+    setLoading(false);
+  }
+
+  async function saveEvent() {
+    if (!form.title || !form.start_date) { showToast("Title and date required", "error"); return; }
+    setSaving(true);
+    try {
+      const res = await fetch(`${API}/api/calendar/events`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify(form),
+      });
+      const d = await res.json();
+      if (d.id) { showToast("Event created", "success"); setShowForm(false); setForm({ title:"", description:"", event_type:"general", start_date:"", priority:"medium" }); fetchEvents(); }
+      else { showToast(d.error || "Failed", "error"); }
+    } catch(e) { showToast("Failed", "error"); }
+    setSaving(false);
+  }
+
+  async function deleteEvent(id) {
+    await fetch(`${API}/api/calendar/events/${id}`, { method: "DELETE", headers: { Authorization: `Bearer ${token}` } });
+    fetchEvents();
+  }
+
+  const MONTHS = ["January","February","March","April","May","June","July","August","September","October","November","December"];
+
+  const filtered = events.filter(e => filter === "all" || e.event_type === filter);
+
+  const byDay = {};
+  filtered.forEach(e => {
+    const d = new Date(e.start_date);
+    const key = `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+    if (!byDay[key]) byDay[key] = [];
+    byDay[key].push(e);
+  });
+
+  const firstDay = new Date(viewYear, viewMonth, 1).getDay();
+  const daysInMonth = new Date(viewYear, viewMonth + 1, 0).getDate();
+  const calCells = [];
+  for (let i = 0; i < firstDay; i++) calCells.push(null);
+  for (let d = 1; d <= daysInMonth; d++) calCells.push(d);
+
+  return (
+    <div style={{ padding:"24px", color:"#e0e0e0", fontFamily:"JetBrains Mono, monospace" }}>
+      <div style={{ display:"flex", justifyContent:"space-between", alignItems:"flex-start", marginBottom:"20px" }}>
+        <div>
+          <h2 style={{ color:"#00e5ff", fontSize:"22px", margin:"0 0 4px" }}>📅 Security Calendar</h2>
+          <p style={{ color:"#555", margin:0, fontSize:"13px" }}>Scheduled Scans · Compliance Deadlines · Incident Reviews</p>
+        </div>
+        <button onClick={() => setShowForm(!showForm)} style={{ padding:"10px 20px", borderRadius:"8px", background:"#00e5ff", color:"#000", border:"none", cursor:"pointer", fontFamily:"inherit", fontSize:"13px", fontWeight:"700" }}>
+          {showForm ? "✕ Cancel" : "+ Add Event"}
+        </button>
+      </div>
+
+      {showForm && (
+        <div style={{ background:"#0d1526", border:"1px solid #1e3a5f", borderRadius:"12px", padding:"20px", marginBottom:"20px" }}>
+          <h3 style={{ color:"#00e5ff", fontSize:"14px", margin:"0 0 16px" }}>New Calendar Event</h3>
+          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"12px" }}>
+            <div>
+              <div style={{ color:"#555", fontSize:"11px", marginBottom:"5px" }}>TITLE</div>
+              <input value={form.title} onChange={e => setForm(f => ({...f, title:e.target.value}))} placeholder="Event title" style={{ width:"100%", background:"#0a1628", border:"1px solid #1e3a5f", borderRadius:"8px", padding:"9px 12px", color:"#e0e0e0", fontSize:"13px", fontFamily:"inherit", boxSizing:"border-box" }} />
+            </div>
+            <div>
+              <div style={{ color:"#555", fontSize:"11px", marginBottom:"5px" }}>DATE</div>
+              <input type="date" value={form.start_date} onChange={e => setForm(f => ({...f, start_date:e.target.value}))} style={{ width:"100%", background:"#0a1628", border:"1px solid #1e3a5f", borderRadius:"8px", padding:"9px 12px", color:"#e0e0e0", fontSize:"13px", fontFamily:"inherit", boxSizing:"border-box" }} />
+            </div>
+            <div>
+              <div style={{ color:"#555", fontSize:"11px", marginBottom:"5px" }}>TYPE</div>
+              <select value={form.event_type} onChange={e => setForm(f => ({...f, event_type:e.target.value}))} style={{ width:"100%", background:"#0a1628", border:"1px solid #1e3a5f", borderRadius:"8px", padding:"9px 12px", color:"#e0e0e0", fontSize:"13px", fontFamily:"inherit" }}>
+                <option value="scan">Scan</option>
+                <option value="compliance">Compliance</option>
+                <option value="incident">Incident</option>
+                <option value="general">General</option>
+              </select>
+            </div>
+            <div>
+              <div style={{ color:"#555", fontSize:"11px", marginBottom:"5px" }}>PRIORITY</div>
+              <select value={form.priority} onChange={e => setForm(f => ({...f, priority:e.target.value}))} style={{ width:"100%", background:"#0a1628", border:"1px solid #1e3a5f", borderRadius:"8px", padding:"9px 12px", color:"#e0e0e0", fontSize:"13px", fontFamily:"inherit" }}>
+                <option value="low">Low</option>
+                <option value="medium">Medium</option>
+                <option value="high">High</option>
+                <option value="critical">Critical</option>
+              </select>
+            </div>
+            <div style={{ gridColumn:"1/-1" }}>
+              <div style={{ color:"#555", fontSize:"11px", marginBottom:"5px" }}>DESCRIPTION</div>
+              <input value={form.description} onChange={e => setForm(f => ({...f, description:e.target.value}))} placeholder="Optional description" style={{ width:"100%", background:"#0a1628", border:"1px solid #1e3a5f", borderRadius:"8px", padding:"9px 12px", color:"#e0e0e0", fontSize:"13px", fontFamily:"inherit", boxSizing:"border-box" }} />
+            </div>
+          </div>
+          <button onClick={saveEvent} disabled={saving} style={{ marginTop:"14px", padding:"10px 24px", borderRadius:"8px", background: saving?"#1a2236":"#00e5ff", color: saving?"#555":"#000", border:"none", cursor:"pointer", fontFamily:"inherit", fontSize:"13px", fontWeight:"700" }}>
+            {saving ? "Saving..." : "Save Event"}
+          </button>
+        </div>
+      )}
+
+      {/* Filter tabs */}
+      <div style={{ display:"flex", gap:"8px", marginBottom:"20px" }}>
+        {[["all","All"],["scan","Scans"],["compliance","Compliance"],["incident","Incidents"],["general","General"]].map(([id,label]) => (
+          <button key={id} onClick={() => setFilter(id)} style={{ padding:"6px 14px", borderRadius:"6px", border:"none", cursor:"pointer", fontSize:"12px", background: filter===id?"#00e5ff":"#1a2236", color: filter===id?"#000":"#888", fontFamily:"inherit" }}>{label}</button>
+        ))}
+      </div>
+
+      {/* Calendar grid */}
+      <div style={{ background:"#0d1526", border:"1px solid #1e3a5f", borderRadius:"12px", overflow:"hidden", marginBottom:"24px" }}>
+        <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", padding:"16px 20px", borderBottom:"1px solid #1e3a5f" }}>
+          <button onClick={() => { const d = new Date(viewYear, viewMonth-1,1); setViewMonth(d.getMonth()); setViewYear(d.getFullYear()); }} style={{ background:"none", border:"none", color:"#00e5ff", cursor:"pointer", fontSize:"18px" }}>‹</button>
+          <span style={{ color:"#e0e0e0", fontWeight:"700", fontSize:"15px" }}>{MONTHS[viewMonth]} {viewYear}</span>
+          <button onClick={() => { const d = new Date(viewYear, viewMonth+1,1); setViewMonth(d.getMonth()); setViewYear(d.getFullYear()); }} style={{ background:"none", border:"none", color:"#00e5ff", cursor:"pointer", fontSize:"18px" }}>›</button>
+        </div>
+        <div style={{ display:"grid", gridTemplateColumns:"repeat(7,1fr)", borderBottom:"1px solid #1e3a5f" }}>
+          {["Sun","Mon","Tue","Wed","Thu","Fri","Sat"].map(d => (
+            <div key={d} style={{ padding:"8px", textAlign:"center", color:"#555", fontSize:"11px", fontWeight:"700", letterSpacing:"0.08em" }}>{d}</div>
+          ))}
+        </div>
+        <div style={{ display:"grid", gridTemplateColumns:"repeat(7,1fr)" }}>
+          {calCells.map((day, i) => {
+            const key = day ? `${viewYear}-${viewMonth}-${day}` : null;
+            const dayEvents = (key && byDay[key]) || [];
+            const isToday = day && now.getDate() === day && now.getMonth() === viewMonth && now.getFullYear() === viewYear;
+            return (
+              <div key={i} style={{ minHeight:"72px", padding:"6px", borderRight:"1px solid #0a1628", borderBottom:"1px solid #0a1628", background: isToday?"rgba(0,229,255,0.05)":"transparent" }}>
+                {day && <div style={{ fontSize:"12px", color: isToday?"#00e5ff":"#64748b", fontWeight: isToday?"700":"400", marginBottom:"4px" }}>{day}</div>}
+                {dayEvents.slice(0,2).map((ev, j) => (
+                  <div key={j} title={ev.title} style={{ fontSize:"10px", padding:"2px 5px", borderRadius:"3px", marginBottom:"2px", background:`${TYPE_COLOR[ev.event_type]}22`, color:TYPE_COLOR[ev.event_type], whiteSpace:"nowrap", overflow:"hidden", textOverflow:"ellipsis", cursor:"pointer" }}>
+                    {TYPE_ICON[ev.event_type]} {ev.title}
+                  </div>
+                ))}
+                {dayEvents.length > 2 && <div style={{ fontSize:"10px", color:"#555" }}>+{dayEvents.length-2}</div>}
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Event list */}
+      <h3 style={{ color:"#00e5ff", fontSize:"14px", margin:"0 0 12px" }}>Events — {MONTHS[viewMonth]} {viewYear}</h3>
+      {loading && <div style={{ color:"#555", textAlign:"center", padding:"40px" }}>Loading...</div>}
+      {!loading && filtered.length === 0 && <div style={{ color:"#555", textAlign:"center", padding:"40px" }}>No events this month.</div>}
+      {filtered.map((ev, i) => {
+        const d = new Date(ev.start_date);
+        return (
+          <div key={i} style={{ background:"#0d1526", borderRadius:"10px", padding:"14px 16px", marginBottom:"8px", border:`1px solid ${TYPE_COLOR[ev.event_type]}33`, display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+            <div style={{ display:"flex", gap:"12px", alignItems:"center" }}>
+              <span style={{ fontSize:"20px" }}>{TYPE_ICON[ev.event_type]}</span>
+              <div>
+                <div style={{ color:"#e0e0e0", fontWeight:"700", fontSize:"14px", marginBottom:"3px" }}>{ev.title}</div>
+                <div style={{ color:"#555", fontSize:"11px" }}>{d.toLocaleDateString()} · <span style={{ color:PRIO_COLOR[ev.priority], fontWeight:"700" }}>{ev.priority?.toUpperCase()}</span> · <span style={{ color:TYPE_COLOR[ev.event_type] }}>{ev.event_type}</span></div>
+                {ev.description && <div style={{ color:"#444", fontSize:"11px", marginTop:"2px" }}>{ev.description}</div>}
+              </div>
+            </div>
+            <button onClick={() => deleteEvent(ev.id)} style={{ background:"none", border:"1px solid #ff2d5533", borderRadius:"6px", color:"#ff2d55", cursor:"pointer", padding:"4px 10px", fontSize:"11px", fontFamily:"inherit" }}>Delete</button>
+          </div>
+        );
+      })}
     </div>
   );
 }
@@ -26148,6 +26405,7 @@ export default function App() {
   const [data,       setData]       = useState({});
   const [activeTab,  setActiveTab]  = useState("dashboard");
   const [collapsedGroups, setCollapsedGroups] = useState({});
+  const [navSearch, setNavSearch] = useState("");
   const [showScan,   setShowScan]   = useState(false);
   const [loading,    setLoading]    = useState(true);
   const [scanning,   setScanning]   = useState(false);
@@ -26446,9 +26704,77 @@ export default function App() {
           </div>
         )}
 
+        {/* Nav Search */}
+        <div style={{ padding: "10px 12px 0" }}>
+          <div style={{
+            display: "flex", alignItems: "center", gap: "8px",
+            backgroundColor: "rgba(0,229,255,0.05)",
+            border: "1px solid rgba(0,229,255,0.2)",
+            borderRadius: "8px",
+            padding: "6px 10px",
+          }}>
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="#00e5ff" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0, opacity: 0.7 }}>
+              <circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/>
+            </svg>
+            <input
+              type="text"
+              value={navSearch}
+              onChange={e => setNavSearch(e.target.value)}
+              placeholder="Search modules..."
+              style={{
+                flex: 1,
+                background: "none",
+                border: "none",
+                outline: "none",
+                color: "#00e5ff",
+                fontSize: "12px",
+                fontFamily: "'JetBrains Mono', monospace",
+              }}
+            />
+            {navSearch && (
+              <button onClick={() => setNavSearch("")} style={{
+                background: "none", border: "none", cursor: "pointer",
+                color: "rgba(0,229,255,0.5)", padding: 0, lineHeight: 1,
+                fontSize: "14px",
+              }}>×</button>
+            )}
+          </div>
+        </div>
+
         {/* Navigation */}
         <nav style={{ flex: 1, padding: "16px 12px", overflowY: "scroll", maxHeight: "calc(100vh - 120px)" }}>
-          {NAV_GROUPS.map(group => {
+          {navSearch.trim() ? (
+            /* Flat filtered results */
+            (() => {
+              const q = navSearch.trim().toLowerCase();
+              const matched = NAV_ITEMS.filter(item => item.label.toLowerCase().includes(q) || item.id.toLowerCase().includes(q));
+              return matched.length === 0 ? (
+                <div style={{ color: "rgba(0,229,255,0.4)", fontSize: "11px", fontFamily: "'JetBrains Mono', monospace", padding: "8px 10px" }}>No modules found</div>
+              ) : matched.map(({ id, label, icon: Icon }) => {
+                const active = activeTab === id;
+                return (
+                  <button key={id} onClick={() => { setActiveTab(id); setNavSearch(""); }}
+                    style={{
+                      width: "100%", display: "flex", alignItems: "center", gap: "10px",
+                      padding: "8px 10px", borderRadius: "8px", border: "none", cursor: "pointer",
+                      marginBottom: "2px",
+                      backgroundColor: active ? "rgba(0,229,255,0.1)" : "transparent",
+                      borderLeft: active ? "2px solid #00e5ff" : "2px solid transparent",
+                      color: active ? "#00e5ff" : "#94a3b8",
+                      fontSize: "13px", fontWeight: active ? 600 : 400,
+                      transition: "all 0.15s", textAlign: "left",
+                    }}
+                    onMouseEnter={e => { if (!active) { e.currentTarget.style.backgroundColor = "rgba(255,255,255,0.04)"; e.currentTarget.style.color = "#94a3b8"; }}}
+                    onMouseLeave={e => { if (!active) { e.currentTarget.style.backgroundColor = "transparent"; e.currentTarget.style.color = "#94a3b8"; }}}
+                  >
+                    <Icon size={15} />
+                    <span style={{ flex: 1 }}>{label}</span>
+                  </button>
+                );
+              });
+            })()
+          ) : (
+          NAV_GROUPS.map(group => {
             const groupItems = NAV_ITEMS.filter(item => item.group === group.id);
             const isCollapsed = collapsedGroups[group.id] || false;
             return (
@@ -26536,7 +26862,8 @@ export default function App() {
                 })}
               </div>
             );
-          })}
+          })
+          )}
         </nav>
 
         {/* Sign out */}
@@ -27133,6 +27460,9 @@ export default function App() {
           )}
           {activeTab === "enterprisereporting" && (
             <EnterpriseReportingPage token={token} showToast={showToast} />
+          )}
+          {activeTab === "calendar" && (
+            <CalendarPage token={token} showToast={showToast} />
           )}
           {activeTab === "behavioral" && (
             <BehavioralAIPage token={token} showToast={showToast} />

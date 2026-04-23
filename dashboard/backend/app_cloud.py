@@ -120,6 +120,7 @@ from dashboard.backend.compliance_automation.routes import compliance_automation
 from dashboard.backend.enterprise_rbac.routes import enterprise_rbac_bp
 from dashboard.backend.multi_tenant.routes import multi_tenant_bp
 from dashboard.backend.enterprise_reporting.routes import enterprise_reporting_bp
+from dashboard.backend.calendar.routes import calendar_bp
 from dashboard.backend.timeline_enhanced.models import TeEvent, TeCluster
 from dashboard.backend.incidents.models import IrIncident, IrTask
 from dashboard.backend.monitoring.logger import setup_logging, get_logger
@@ -279,6 +280,7 @@ def create_app(config_name="development"):
     app.register_blueprint(enterprise_rbac_bp)
     app.register_blueprint(multi_tenant_bp)
     app.register_blueprint(enterprise_reporting_bp)
+    app.register_blueprint(calendar_bp)
     app.register_blueprint(api_keys_bp, url_prefix='/api/keys')
 
     # Setup logging

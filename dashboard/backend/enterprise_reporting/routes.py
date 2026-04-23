@@ -3,8 +3,12 @@
 # Executive | CISO | Compliance | Incident | Trend Reports
 # ============================================================
 
-import json, uuid, datetime, random
-from flask import Blueprint, request, jsonify
+import json, uuid, datetime, random, io, os, smtplib
+from email.mime.multipart import MIMEMultipart
+from email.mime.base import MIMEBase
+from email.mime.text import MIMEText
+from email import encoders
+from flask import Blueprint, request, jsonify, send_file
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from dashboard.backend.models import db
 from sqlalchemy import Column, String, Integer, Text, DateTime, Float
@@ -148,6 +152,275 @@ def get_report(report_id):
 def history():
     reports = EnterpriseReport.query.filter_by(user_id=get_jwt_identity()).order_by(EnterpriseReport.created_at.desc()).limit(50).all()
     return jsonify({"reports":[{"report_id":r.id,"report_type":r.report_type,"organisation":r.organisation,"period":r.period,"risk_score":r.risk_score,"status":r.status,"created_at":r.created_at.isoformat()} for r in reports]}), 200
+
+def _build_pdf_html(report, sig_name="", sig_title="", sig_date=""):
+    content = report["content"] if isinstance(report["content"], dict) else json.loads(report["content"])
+    title = content.get("title", "Enterprise Security Report")
+    period = content.get("period", "")
+    classification = content.get("classification", "CONFIDENTIAL")
+    org = report.get("organisation", "")
+    risk = report.get("risk_score", 0)
+    now = datetime.datetime.utcnow().strftime("%Y-%m-%d %H:%M UTC")
+
+    sections_html = ""
+    for sec in content.get("sections", []):
+        sec_title = sec.get("title", "")
+        sections_html += f"<div class='section'><h2>{sec_title}</h2>"
+        if "content" in sec:
+            sections_html += f"<p>{sec['content']}</p>"
+        if "items" in sec:
+            items = sec["items"]
+            if items and isinstance(items[0], dict):
+                for it in items:
+                    vals = " &nbsp;|&nbsp; ".join(f"<strong>{k.replace('_',' ').title()}</strong>: {v}" for k, v in it.items())
+                    sections_html += f"<div class='item-row'>{vals}</div>"
+            else:
+                sections_html += "<ul>" + "".join(f"<li>{i}</li>" for i in items) + "</ul>"
+        if "modules" in sec:
+            rows = "".join(f"<tr><td>{m['name']}</td><td>{m['scans']}</td><td>{m['findings']}</td><td class='crit'>{m['critical']}</td></tr>" for m in sec["modules"])
+            sections_html += f"<table><thead><tr><th>Module</th><th>Scans</th><th>Findings</th><th>Critical</th></tr></thead><tbody>{rows}</tbody></table>"
+        if "frameworks" in sec:
+            for fw in sec["frameworks"]:
+                name = fw.get("name", ""); score = fw.get("score", 0); status = fw.get("status", "")
+                sections_html += f"<div class='item-row'><strong>{name}</strong> &nbsp;Score: <strong>{score}</strong> &nbsp;Status: <strong>{status}</strong></div>"
+        if "data" in sec:
+            for d in sec["data"]:
+                sections_html += f"<div class='item-row'>{d.get('week','')} — Score: <strong>{d.get('score','')}</strong> &nbsp;Threats: {d.get('threats','')} &nbsp;Resolved: {d.get('resolved','')}</div>"
+        if "incidents" in sec:
+            for inc in sec["incidents"]:
+                sections_html += f"<div class='item-row'><strong>{inc.get('id','')}</strong>: {inc.get('title','')} — Severity: <strong>{inc.get('severity','')}</strong> — Duration: {inc.get('duration_hours','')}h — Impact: {inc.get('impact','')}</div>"
+        sections_html += "</div>"
+
+    sig_date_val = sig_date or now[:10]
+    return f"""<!DOCTYPE html>
+<html><head><meta charset="UTF-8"/>
+<style>
+  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
+  * {{ box-sizing: border-box; margin: 0; padding: 0; }}
+  body {{ font-family: 'Inter', Arial, sans-serif; font-size: 11pt; color: #1a1a2e; background: #fff; }}
+  .watermark {{
+    position: fixed; top: 50%; left: 50%;
+    transform: translate(-50%, -50%) rotate(-40deg);
+    font-size: 80pt; font-weight: 900; opacity: 0.045;
+    color: #cc0000; letter-spacing: 0.05em; white-space: nowrap;
+    pointer-events: none; z-index: 0;
+  }}
+  .header {{
+    background: #0a0f1a; color: #fff; padding: 28px 36px 22px;
+    border-bottom: 4px solid #00e5ff;
+    display: flex; justify-content: space-between; align-items: flex-start;
+  }}
+  .header-left h1 {{ font-size: 20pt; font-weight: 700; letter-spacing: -0.02em; }}
+  .header-left .sub {{ font-size: 9pt; color: #00e5ff; margin-top: 4px; letter-spacing: 0.08em; }}
+  .header-right {{ text-align: right; font-size: 9pt; color: #94a3b8; }}
+  .header-right .classification {{
+    display: inline-block; padding: 4px 12px; border-radius: 4px;
+    background: #cc0000; color: #fff; font-weight: 700; font-size: 8pt;
+    letter-spacing: 0.12em; margin-bottom: 6px;
+  }}
+  .meta-bar {{
+    background: #f8fafc; border-bottom: 1px solid #e2e8f0;
+    padding: 10px 36px; display: flex; gap: 40px; font-size: 9pt; color: #475569;
+  }}
+  .meta-bar span strong {{ color: #1a1a2e; }}
+  .body {{ padding: 28px 36px; }}
+  .section {{ margin-bottom: 28px; page-break-inside: avoid; }}
+  .section h2 {{
+    font-size: 12pt; font-weight: 700; color: #0a0f1a;
+    border-left: 4px solid #00e5ff; padding-left: 10px;
+    margin-bottom: 12px;
+  }}
+  .section p {{ color: #374151; line-height: 1.65; }}
+  .section ul {{ margin-left: 20px; }}
+  .section ul li {{ margin-bottom: 4px; color: #374151; }}
+  .item-row {{
+    background: #f8fafc; border: 1px solid #e2e8f0;
+    border-radius: 6px; padding: 8px 12px; margin-bottom: 6px;
+    font-size: 10pt; color: #374151;
+  }}
+  table {{ width: 100%; border-collapse: collapse; font-size: 10pt; margin-top: 8px; }}
+  th {{ background: #0a0f1a; color: #00e5ff; padding: 8px 12px; text-align: left; font-weight: 600; font-size: 9pt; }}
+  td {{ padding: 8px 12px; border-bottom: 1px solid #e2e8f0; }}
+  td.crit {{ color: #dc2626; font-weight: 700; }}
+  tr:nth-child(even) td {{ background: #f8fafc; }}
+  .signature-block {{
+    margin-top: 40px; border-top: 2px solid #0a0f1a;
+    padding-top: 24px; page-break-inside: avoid;
+  }}
+  .signature-block h3 {{
+    font-size: 11pt; font-weight: 700; color: #0a0f1a; margin-bottom: 20px;
+    letter-spacing: 0.04em;
+  }}
+  .sig-grid {{ display: flex; gap: 40px; }}
+  .sig-field {{ flex: 1; }}
+  .sig-field .label {{ font-size: 8pt; color: #64748b; letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 4px; }}
+  .sig-field .value {{
+    border-bottom: 1px solid #1a1a2e; padding-bottom: 4px;
+    font-size: 11pt; color: #1a1a2e; min-height: 22px;
+  }}
+  .footer {{
+    position: fixed; bottom: 0; left: 0; right: 0;
+    border-top: 1px solid #e2e8f0; padding: 8px 36px;
+    background: #fff; display: flex; justify-content: space-between;
+    font-size: 8pt; color: #94a3b8;
+  }}
+</style>
+</head><body>
+<div class="watermark">{classification}</div>
+<div class="header">
+  <div class="header-left">
+    <div class="sub">AIPET X &nbsp;|&nbsp; AUTONOMOUS CYBERSECURITY PLATFORM</div>
+    <h1>{title}</h1>
+  </div>
+  <div class="header-right">
+    <div class="classification">{classification}</div><br/>
+    Generated: {now}<br/>
+    Period: {period}
+  </div>
+</div>
+<div class="meta-bar">
+  <span><strong>Organisation:</strong> {org}</span>
+  <span><strong>Period:</strong> {period}</span>
+  <span><strong>Risk Score:</strong> {risk}/100</span>
+  <span><strong>Classification:</strong> {classification}</span>
+</div>
+<div class="body">
+{sections_html}
+<div class="signature-block">
+  <h3>AUTHORISATION &amp; SIGNATURE</h3>
+  <div class="sig-grid">
+    <div class="sig-field">
+      <div class="label">Authorised By (Name)</div>
+      <div class="value">{sig_name}</div>
+    </div>
+    <div class="sig-field">
+      <div class="label">Title / Role</div>
+      <div class="value">{sig_title}</div>
+    </div>
+    <div class="sig-field">
+      <div class="label">Date</div>
+      <div class="value">{sig_date_val}</div>
+    </div>
+    <div class="sig-field">
+      <div class="label">Signature</div>
+      <div class="value">&nbsp;</div>
+    </div>
+  </div>
+</div>
+</div>
+<div class="footer">
+  <span>AIPET X — Autonomous Cybersecurity Platform &nbsp;|&nbsp; {classification}</span>
+  <span>Generated: {now}</span>
+</div>
+</body></html>"""
+
+
+@enterprise_reporting_bp.route("/api/enterprise-reporting/export-pdf/<report_id>", methods=["GET"])
+@jwt_required()
+def export_pdf(report_id):
+    try:
+        from weasyprint import HTML
+    except ImportError:
+        return jsonify({"error": "WeasyPrint not installed"}), 500
+
+    r = EnterpriseReport.query.filter_by(id=report_id, user_id=get_jwt_identity()).first()
+    if not r:
+        return jsonify({"error": "Not found"}), 404
+
+    sig_name  = request.args.get("sig_name", "")
+    sig_title = request.args.get("sig_title", "")
+    sig_date  = request.args.get("sig_date", "")
+
+    report_dict = {
+        "content": r.content,
+        "organisation": r.organisation,
+        "period": r.period,
+        "risk_score": r.risk_score,
+    }
+    html_str = _build_pdf_html(report_dict, sig_name, sig_title, sig_date)
+    pdf_bytes = HTML(string=html_str).write_pdf()
+
+    safe_org  = "".join(c if c.isalnum() else "_" for c in (r.organisation or "report"))
+    filename  = f"AIPET_X_{r.report_type}_{safe_org}_{r.period}.pdf".replace(" ", "_")
+
+    return send_file(
+        io.BytesIO(pdf_bytes),
+        mimetype="application/pdf",
+        as_attachment=True,
+        download_name=filename,
+    )
+
+
+@enterprise_reporting_bp.route("/api/enterprise-reporting/email-pdf/<report_id>", methods=["POST"])
+@jwt_required()
+def email_pdf(report_id):
+    try:
+        from weasyprint import HTML
+    except ImportError:
+        return jsonify({"error": "WeasyPrint not installed"}), 500
+
+    r = EnterpriseReport.query.filter_by(id=report_id, user_id=get_jwt_identity()).first()
+    if not r:
+        return jsonify({"error": "Not found"}), 404
+
+    data      = request.get_json(silent=True) or {}
+    recipient = data.get("recipient", "").strip()
+    sig_name  = data.get("sig_name", "")
+    sig_title = data.get("sig_title", "")
+    sig_date  = data.get("sig_date", "")
+
+    if not recipient or "@" not in recipient:
+        return jsonify({"error": "Valid recipient email required"}), 400
+
+    smtp_host = os.environ.get("SMTP_HOST", "smtp.gmail.com")
+    smtp_port = int(os.environ.get("SMTP_PORT", 587))
+    smtp_user = os.environ.get("SMTP_USER", "")
+    smtp_pass = os.environ.get("SMTP_PASSWORD", "")
+
+    report_dict = {"content": r.content, "organisation": r.organisation, "period": r.period, "risk_score": r.risk_score}
+    html_str  = _build_pdf_html(report_dict, sig_name, sig_title, sig_date)
+    pdf_bytes = HTML(string=html_str).write_pdf()
+
+    safe_org  = "".join(c if c.isalnum() else "_" for c in (r.organisation or "report"))
+    filename  = f"AIPET_X_{r.report_type}_{safe_org}_{r.period}.pdf".replace(" ", "_")
+    content_json = json.loads(r.content) if isinstance(r.content, str) else r.content
+    report_title = content_json.get("title", "Enterprise Security Report")
+    classification = content_json.get("classification", "CONFIDENTIAL")
+    now_str = datetime.datetime.utcnow().strftime("%Y-%m-%d %H:%M UTC")
+
+    msg = MIMEMultipart()
+    msg["From"]    = smtp_user
+    msg["To"]      = recipient
+    msg["Subject"] = f"[{classification}] {report_title} — AIPET X"
+
+    body = (
+        f"Please find attached the {report_title}.\n\n"
+        f"Organisation: {r.organisation}\n"
+        f"Period: {r.period}\n"
+        f"Risk Score: {r.risk_score}/100\n"
+        f"Classification: {classification}\n"
+        f"Generated: {now_str}\n\n"
+        "This report was generated by AIPET X — Autonomous Cybersecurity Platform.\n"
+        "Handle in accordance with your information security policy."
+    )
+    msg.attach(MIMEText(body, "plain"))
+
+    part = MIMEBase("application", "octet-stream")
+    part.set_payload(pdf_bytes)
+    encoders.encode_base64(part)
+    part.add_header("Content-Disposition", f'attachment; filename="{filename}"')
+    msg.attach(part)
+
+    try:
+        with smtplib.SMTP(smtp_host, smtp_port, timeout=15) as s:
+            s.starttls()
+            s.login(smtp_user, smtp_pass)
+            s.sendmail(smtp_user, recipient, msg.as_string())
+    except Exception as e:
+        return jsonify({"error": f"SMTP error: {str(e)}"}), 500
+
+    return jsonify({"sent": True, "recipient": recipient, "filename": filename}), 200
+
 
 @enterprise_reporting_bp.route("/api/enterprise-reporting/health", methods=["GET"])
 def health():
