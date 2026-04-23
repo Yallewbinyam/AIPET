@@ -58,8 +58,16 @@ celery.conf.update(
 
     # Task routing
     task_routes = {
-        "dashboard.backend.tasks.run_scan_task": {
-            "queue": "scans"
+        "dashboard.backend.tasks.run_scan_task": {"queue": "scans"},
+        "dashboard.backend.tasks.sync_nvd_cves": {"queue": "celery"},
+    },
+
+    # Celery Beat — periodic tasks
+    beat_schedule = {
+        "sync-nvd-cves-hourly": {
+            "task":     "dashboard.backend.tasks.sync_nvd_cves",
+            "schedule": 3600,          # every 1 hour
+            "kwargs":   {"days_back": 1},
         },
     },
 

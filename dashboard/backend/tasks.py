@@ -20,8 +20,10 @@
 import os
 import sys
 import json
+import time
 import subprocess
-from datetime import datetime, timezone
+import requests as http_requests
+from datetime import datetime, timezone, timedelta
 from celery import shared_task
 from celery.utils.log import get_task_logger
 
@@ -236,3 +238,228 @@ def health_check():
         "time":   datetime.now(timezone.utc).isoformat(),
         "worker": "aipet-worker"
     }
+
+
+# ── NVD CVE Sync ──────────────────────────────────────────
+
+NVD_CVE_URL = "https://services.nvd.nist.gov/rest/json/cves/2.0"
+NVD_PAGE_SIZE = 100
+
+
+def _parse_cve_item(item: dict) -> dict | None:
+    """Extract fields from a NVD CVE item."""
+    cve = item.get("cve", {})
+    cve_id = cve.get("id", "")
+    if not cve_id:
+        return None
+
+    descs = cve.get("descriptions", [])
+    desc = next((d["value"] for d in descs if d.get("lang") == "en"), "")
+
+    metrics = cve.get("metrics", {})
+    cvss_score = None
+    severity = "UNKNOWN"
+    for key in ("cvssMetricV31", "cvssMetricV30", "cvssMetricV2"):
+        if key in metrics and metrics[key]:
+            m = metrics[key][0]
+            if key.startswith("cvssMetricV3"):
+                cvss_score = m.get("cvssData", {}).get("baseScore")
+                severity   = m.get("cvssData", {}).get("baseSeverity", "UNKNOWN")
+            else:
+                cvss_score = m.get("cvssData", {}).get("baseScore")
+                severity   = m.get("baseSeverity", "UNKNOWN")
+            break
+
+    published = cve.get("published", "")
+    last_mod  = cve.get("lastModified", "")
+
+    # Extract CPE names and product keywords
+    cpe_list = []
+    keywords = set()
+    for cfg in cve.get("configurations", []):
+        for node in cfg.get("nodes", []):
+            for match in node.get("cpeMatch", []):
+                uri = match.get("criteria", "")
+                if uri:
+                    cpe_list.append(uri)
+                    parts = uri.split(":")
+                    if len(parts) >= 5:
+                        vendor  = parts[3].replace("_", " ")
+                        product = parts[4].replace("_", " ")
+                        version = parts[5] if len(parts) > 5 and parts[5] not in ("*", "-") else ""
+                        kw = product
+                        if version:
+                            kw += f" {version.split('.')[0]}"
+                        keywords.add(kw.lower().strip())
+                        keywords.add(vendor.lower().strip())
+
+    try:
+        pub_dt = datetime.fromisoformat(published.replace("Z", "+00:00")) if published else None
+        mod_dt = datetime.fromisoformat(last_mod.replace("Z", "+00:00")) if last_mod else None
+    except Exception:
+        pub_dt = mod_dt = None
+
+    return {
+        "cve_id":        cve_id,
+        "description":   desc[:1000],
+        "cvss_score":    cvss_score,
+        "severity":      severity.upper(),
+        "published":     pub_dt,
+        "last_modified": mod_dt,
+        "cpe_list":      json.dumps(cpe_list[:30]),
+        "keywords":      json.dumps(sorted(keywords)[:40]),
+        "url":           f"https://nvd.nist.gov/vuln/detail/{cve_id}",
+    }
+
+
+@shared_task(
+    bind=True,
+    name="dashboard.backend.tasks.sync_nvd_cves",
+    max_retries=2,
+    default_retry_delay=60,
+)
+def sync_nvd_cves(self, days_back: int = 1):
+    """
+    Fetch recent CVEs from NVD API and upsert into live_cves table.
+    Then re-match all real_scan_results that are within the last 7 days.
+    Scheduled every hour via Celery Beat.
+    """
+    import os
+    os.environ.setdefault(
+        "DATABASE_URL",
+        "postgresql://aipet_user:aipet_password@localhost:5433/aipet_db"
+    )
+    from dashboard.backend.app_cloud import create_app
+    from dashboard.backend.models import db
+    from dashboard.backend.live_cves.models import LiveCve, CveSyncLog
+
+    app = create_app()
+    with app.app_context():
+        sync_log = CveSyncLog(status="running")
+        db.session.add(sync_log)
+        db.session.commit()
+
+        added = updated = 0
+        try:
+            now    = datetime.utcnow()
+            start  = (now - timedelta(days=days_back)).strftime("%Y-%m-%dT00:00:00.000")
+            end    = now.strftime("%Y-%m-%dT%H:%M:%S.000")
+            offset = 0
+
+            while True:
+                params = {
+                    "pubStartDate":   start,
+                    "pubEndDate":     end,
+                    "resultsPerPage": NVD_PAGE_SIZE,
+                    "startIndex":     offset,
+                }
+                try:
+                    resp = http_requests.get(NVD_CVE_URL, params=params, timeout=15)
+                    resp.raise_for_status()
+                    data = resp.json()
+                except Exception as e:
+                    logger.warning(f"NVD fetch error at offset {offset}: {e}")
+                    break
+
+                vulns     = data.get("vulnerabilities", [])
+                total_res = data.get("totalResults", 0)
+
+                for item in vulns:
+                    parsed = _parse_cve_item(item)
+                    if not parsed:
+                        continue
+                    existing = LiveCve.query.get(parsed["cve_id"])
+                    if existing:
+                        for k, v in parsed.items():
+                            setattr(existing, k, v)
+                        existing.synced_at = datetime.utcnow()
+                        updated += 1
+                    else:
+                        db.session.add(LiveCve(**parsed))
+                        added += 1
+
+                db.session.commit()
+                offset += NVD_PAGE_SIZE
+                if offset >= total_res:
+                    break
+                time.sleep(0.7)  # NVD rate limit: 5 req/30s unauthenticated
+
+            # Re-match recent real_scan_results against live CVEs
+            _rematch_scan_results(db, days_back=7)
+
+            sync_log.status      = "complete"
+            sync_log.finished_at = datetime.utcnow()
+            sync_log.cves_added  = added
+            sync_log.cves_updated= updated
+            db.session.commit()
+
+            logger.info(f"CVE sync complete: +{added} new, ~{updated} updated")
+            return {"added": added, "updated": updated}
+
+        except Exception as exc:
+            sync_log.status      = "error"
+            sync_log.error       = str(exc)
+            sync_log.finished_at = datetime.utcnow()
+            db.session.commit()
+            raise self.retry(exc=exc)
+
+
+def _rematch_scan_results(db, days_back: int = 7):
+    """
+    For each recent real_scan_result, match open ports/services against live_cves
+    and append any new CVE IDs not already in the result's CVE list.
+    """
+    from dashboard.backend.real_scanner.routes import RealScanResult
+    from dashboard.backend.live_cves.models import LiveCve
+
+    cutoff = datetime.utcnow() - timedelta(days=days_back)
+    recent_scans = RealScanResult.query.filter(
+        RealScanResult.finished_at >= cutoff,
+        RealScanResult.status == "complete",
+    ).all()
+
+    for scan in recent_scans:
+        try:
+            hosts = json.loads(scan.results_json or "[]")
+            changed = False
+            for host in hosts:
+                existing_ids = {c["cve_id"] for c in host.get("cves", [])}
+                keywords = set()
+                for p in host.get("open_ports", []):
+                    if p.get("product"):
+                        kw = p["product"].lower()
+                        if p.get("version"):
+                            kw += " " + p["version"].split(" ")[0].lower()
+                        keywords.add(kw)
+                    elif p.get("service") and p["service"] not in ("tcpwrapped", "unknown"):
+                        keywords.add(p["service"].lower())
+
+                for kw in keywords:
+                    matches = LiveCve.query.filter(
+                        LiveCve.keywords.ilike(f"%{kw}%")
+                    ).order_by(LiveCve.cvss_score.desc()).limit(5).all()
+                    for cve in matches:
+                        if cve.cve_id not in existing_ids:
+                            host["cves"].append({
+                                "cve_id":          cve.cve_id,
+                                "description":     cve.description[:300],
+                                "cvss_score":      cve.cvss_score,
+                                "severity":        cve.severity,
+                                "published":       cve.published.strftime("%Y-%m-%d") if cve.published else "",
+                                "url":             cve.url,
+                                "matched_keyword": kw,
+                                "source":          "live_feed",
+                            })
+                            existing_ids.add(cve.cve_id)
+                            changed = True
+
+                host["cve_count"] = len(host.get("cves", []))
+
+            if changed:
+                scan.results_json = json.dumps(hosts)
+                scan.cve_count    = sum(h.get("cve_count", 0) for h in hosts)
+                db.session.add(scan)
+        except Exception as e:
+            logger.warning(f"rematch error for scan {scan.id}: {e}")
+
+    db.session.commit()
