@@ -9972,181 +9972,298 @@ function ITDRPage({ token, showToast }) {
 }
 
 // ============================================================
-// AIPET X — Endpoint Agent
-// Device Health | EDR Simulation | Behavioural Analysis
+// AIPET X — Real Network Scanner
+// Nmap Discovery · CVE Matching · Live Results
 // ============================================================
 function EndpointAgentPage({ token, showToast }) {
+  const API = "http://localhost:5001";
   const [tab, setTab] = useState("scan");
-  const [hostname, setHostname] = useState("");
-  const [osType, setOsType] = useState("Windows");
-  const [osVersion, setOsVersion] = useState("Windows 11");
-  const [description, setDescription] = useState("");
-  const [loading, setLoading] = useState(false);
+  const [target, setTarget] = useState("");
+  const [scanId, setScanId] = useState(null);
+  const [scanning, setScanning] = useState(false);
+  const [pollInterval, setPollInterval] = useState(null);
   const [scanData, setScanData] = useState(null);
   const [history, setHistory] = useState([]);
-  const [filterCat, setFilterCat] = useState(null);
+  const [selectedHost, setSelectedHost] = useState(null);
 
-  const API = "http://localhost:5001";
-  const SEV_COLOR = { CRITICAL:"#ff2d55", HIGH:"#ff6b00", MEDIUM:"#ffd60a", LOW:"#00e5ff" };
-  const CAT_ICON  = { "Patch Management":"🔧", "Malware Detection":"🦠", "Persistence":"🔒", "Credential Theft":"🔑", "Lateral Movement":"↔️", "Defence Evasion":"🛡️", "Security Posture":"🏥" };
-  const CAT_COLOR = { "Patch Management":"#00e5ff", "Malware Detection":"#ff2d55", "Persistence":"#ff6b00", "Credential Theft":"#a78bfa", "Lateral Movement":"#ffd60a", "Defence Evasion":"#ff6b00", "Security Posture":"#00ff88" };
-  const OS_VERSIONS = { Windows:["Windows 11","Windows 10","Windows Server 2022","Windows Server 2019"], Linux:["Ubuntu 22.04","Ubuntu 20.04","RHEL 9","CentOS 7"], macOS:["macOS Ventura","macOS Monterey","macOS Big Sur"] };
+  const SEV_COLOR = { CRITICAL:"#ff2d55", HIGH:"#ff6b00", MEDIUM:"#ffd60a", LOW:"#00e5ff", UNKNOWN:"#555" };
+  const RISK_COLOR = (s) => s >= 70 ? "#ff2d55" : s >= 40 ? "#ff6b00" : s >= 20 ? "#ffd60a" : "#00ff88";
 
   useEffect(() => { fetchHistory(); }, []);
+  useEffect(() => { return () => { if (pollInterval) clearInterval(pollInterval); }; }, [pollInterval]);
 
   async function fetchHistory() {
     try {
-      const r = await fetch(`${API}/api/endpoint-agent/history`, { headers:{ Authorization:`Bearer ${token}` }});
+      const r = await fetch(`${API}/api/real-scan/history`, { headers: { Authorization: `Bearer ${token}` } });
       const d = await r.json();
       setHistory(d.scans || []);
-    } catch(e) {}
+    } catch {}
   }
 
-  async function submitScan() {
-    if (!description.trim()) { showToast("Describe the endpoint first", "error"); return; }
-    setLoading(true); setScanData(null);
+  async function startScan() {
+    if (!target.trim()) { showToast("Enter an IP, range, or CIDR (e.g. 192.168.1.0/24)", "error"); return; }
+    setScanning(true); setScanData(null); setSelectedHost(null);
     try {
-      const r = await fetch(`${API}/api/endpoint-agent/scan`, {
-        method:"POST",
-        headers:{ "Content-Type":"application/json", Authorization:`Bearer ${token}` },
-        body: JSON.stringify({ hostname: hostname||"WORKSTATION-01", os_type:osType, os_version:osVersion, description })
+      const r = await fetch(`${API}/api/real-scan/discover`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ target }),
       });
       const d = await r.json();
       if (d.scan_id) {
-        showToast(`Endpoint scan complete — Health: ${d.health_score}%, ${d.critical_count} critical`, d.critical_count > 0 ? "error" : "success");
-        await loadScan(d.scan_id);
-        fetchHistory();
-      } else { showToast(d.error || "Scan failed", "error"); }
-    } catch(e) { showToast("Scan failed", "error"); }
-    setLoading(false);
+        setScanId(d.scan_id);
+        showToast(`Scan started — target: ${target}`, "success");
+        setTab("results");
+        const iv = setInterval(() => pollScan(d.scan_id, iv), 3000);
+        setPollInterval(iv);
+      } else {
+        showToast(d.error || "Failed to start scan", "error");
+        setScanning(false);
+      }
+    } catch { showToast("Failed to start scan", "error"); setScanning(false); }
   }
 
-  async function loadScan(scanId) {
+  async function pollScan(id, iv) {
     try {
-      const r = await fetch(`${API}/api/endpoint-agent/scans/${scanId}`, { headers:{ Authorization:`Bearer ${token}` }});
+      const r = await fetch(`${API}/api/real-scan/${id}`, { headers: { Authorization: `Bearer ${token}` } });
       const d = await r.json();
-      setScanData(d); setFilterCat(null); setTab("results");
-    } catch(e) {}
+      setScanData(d);
+      if (d.status === "complete" || d.status === "error") {
+        clearInterval(iv);
+        setPollInterval(null);
+        setScanning(false);
+        fetchHistory();
+        if (d.status === "complete") showToast(`Scan complete — ${d.hosts_found} hosts, ${d.cve_count} CVEs`, d.cve_count > 0 ? "error" : "success");
+        else showToast("Scan error: " + (d.error || "unknown"), "error");
+      }
+    } catch {}
   }
 
-  const riskColor  = (s) => s >= 70 ? "#ff2d55" : s >= 45 ? "#ff6b00" : s >= 20 ? "#ffd60a" : "#00ff88";
-  const healthColor= (s) => s >= 80 ? "#00ff88" : s >= 50 ? "#ffd60a" : "#ff2d55";
-  const filtered   = scanData?.findings?.filter(f => !filterCat || f.category===filterCat) || [];
+  async function loadHistoryScan(id) {
+    try {
+      const r = await fetch(`${API}/api/real-scan/${id}`, { headers: { Authorization: `Bearer ${token}` } });
+      const d = await r.json();
+      setScanData(d); setSelectedHost(null); setTab("results");
+    } catch {}
+  }
+
+  const SCAN_PRESETS = [
+    { label: "Localhost", value: "127.0.0.1" },
+    { label: "Local /24", value: "192.168.1.0/24" },
+    { label: "Top 100 ports", value: "192.168.1.1" },
+    { label: "Single host", value: "10.0.0.1" },
+  ];
+
+  const hosts = scanData?.results || [];
+  const displayHost = selectedHost !== null ? hosts[selectedHost] : null;
 
   return (
-    <div style={{ padding:"24px", color:"#e0e0e0", fontFamily:"JetBrains Mono, monospace" }}>
-      <div style={{ marginBottom:"24px" }}>
-        <h2 style={{ color:"#00e5ff", fontSize:"22px", margin:0 }}>🖥️ Endpoint Agent</h2>
-        <p style={{ color:"#888", margin:"4px 0 0", fontSize:"13px" }}>Device Health · EDR Simulation · Behavioural Analysis · MITRE ATT&CK </p>
+    <div style={{ padding: "24px", color: "#e0e0e0", fontFamily: "JetBrains Mono, monospace" }}>
+      <div style={{ marginBottom: "20px" }}>
+        <h2 style={{ color: "#00e5ff", fontSize: "22px", margin: 0 }}>🔭 Real Network Scanner</h2>
+        <p style={{ color: "#555", margin: "4px 0 0", fontSize: "13px" }}>Nmap discovery · OS fingerprinting · Service versions · NVD CVE matching</p>
       </div>
 
-      <div style={{ display:"flex", gap:"8px", marginBottom:"24px" }}>
-        {[["scan","🔍 Scan"],["results","📋 Findings"],["history","🕒 History"]].map(([id,label]) => (
-          <button key={id} onClick={() => setTab(id)} style={{ padding:"8px 18px", borderRadius:"8px", border:"none", cursor:"pointer", fontSize:"13px", background: tab===id?"#00e5ff":"#1a2236", color: tab===id?"#000":"#aaa", fontFamily:"inherit" }}>{label}</button>
+      <div style={{ display: "flex", gap: "8px", marginBottom: "20px" }}>
+        {[["scan", "🔍 Scan"], ["results", "📋 Results"], ["history", "🕒 History"]].map(([id, label]) => (
+          <button key={id} onClick={() => setTab(id)} style={{ padding: "8px 18px", borderRadius: "8px", border: "none", cursor: "pointer", fontSize: "13px", background: tab === id ? "#00e5ff" : "#1a2236", color: tab === id ? "#000" : "#aaa", fontFamily: "inherit" }}>{label}</button>
         ))}
       </div>
 
+      {/* ── SCAN TAB ── */}
       {tab === "scan" && (
-        <div style={{ display:"grid", gridTemplateColumns:"280px 1fr", gap:"20px" }}>
-          <div style={{ background:"#0d1526", borderRadius:"12px", padding:"20px", border:"1px solid #1e3a5f" }}>
-            <p style={{ color:"#00e5ff", fontSize:"13px", marginTop:0 }}>Hostname</p>
-            <input value={hostname} onChange={e=>setHostname(e.target.value)} placeholder="e.g. WORKSTATION-01" style={{ width:"100%", background:"#0a1628", border:"1px solid #1e3a5f", borderRadius:"8px", padding:"8px", color:"#e0e0e0", fontSize:"13px", boxSizing:"border-box", fontFamily:"inherit" }} />
-            <p style={{ color:"#00e5ff", fontSize:"13px", marginTop:"16px" }}>OS Type</p>
-            {["Windows","Linux","macOS"].map(os => (
-              <div key={os} onClick={() => { setOsType(os); setOsVersion(OS_VERSIONS[os][0]); }} style={{ padding:"8px 12px", borderRadius:"8px", marginBottom:"6px", cursor:"pointer", border:`1px solid ${osType===os?"#00e5ff":"#1e3a5f"}`, background: osType===os?"#0a2040":"transparent", color: osType===os?"#00e5ff":"#aaa", fontSize:"13px" }}>
-                {os==="Windows"?"🪟":os==="Linux"?"🐧":"🍎"} {os}
+        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "20px" }}>
+          <div style={{ background: "#0d1526", border: "1px solid #1e3a5f", borderRadius: "12px", padding: "24px" }}>
+            <h3 style={{ color: "#00e5ff", fontSize: "14px", margin: "0 0 16px" }}>Target</h3>
+            <div style={{ marginBottom: "16px" }}>
+              <div style={{ color: "#555", fontSize: "11px", marginBottom: "6px" }}>IP / RANGE / CIDR</div>
+              <input
+                value={target}
+                onChange={e => setTarget(e.target.value)}
+                onKeyDown={e => e.key === "Enter" && startScan()}
+                placeholder="e.g. 192.168.1.0/24 or 10.0.0.1"
+                style={{ width: "100%", background: "#0a1628", border: "1px solid #1e3a5f", borderRadius: "8px", padding: "10px 14px", color: "#e0e0e0", fontSize: "14px", fontFamily: "JetBrains Mono, monospace", boxSizing: "border-box" }}
+              />
+            </div>
+            <div style={{ marginBottom: "16px" }}>
+              <div style={{ color: "#555", fontSize: "11px", marginBottom: "8px" }}>QUICK PRESETS</div>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: "6px" }}>
+                {SCAN_PRESETS.map(p => (
+                  <button key={p.value} onClick={() => setTarget(p.value)} style={{ padding: "5px 12px", borderRadius: "6px", border: "1px solid #1e3a5f", background: target === p.value ? "#0a2040" : "transparent", color: target === p.value ? "#00e5ff" : "#555", fontSize: "12px", cursor: "pointer", fontFamily: "inherit" }}>{p.label}</button>
+                ))}
               </div>
-            ))}
-            <p style={{ color:"#00e5ff", fontSize:"13px", marginTop:"12px" }}>OS Version</p>
-            {OS_VERSIONS[osType]?.map(v => (
-              <div key={v} onClick={() => setOsVersion(v)} style={{ padding:"7px 12px", borderRadius:"8px", marginBottom:"4px", cursor:"pointer", border:`1px solid ${osVersion===v?"#00e5ff":"#1e3a5f"}`, background: osVersion===v?"#0a2040":"transparent", color: osVersion===v?"#00e5ff":"#aaa", fontSize:"12px" }}>{v}</div>
-            ))}
-            <button onClick={submitScan} disabled={loading} style={{ marginTop:"16px", width:"100%", padding:"12px", borderRadius:"8px", background: loading?"#333":"#00e5ff", color:"#000", border:"none", cursor:"pointer", fontSize:"14px", fontWeight:"bold", fontFamily:"inherit" }}>
-              {loading ? "⏳ Scanning..." : "🖥️ Scan Endpoint"}
+            </div>
+            <button onClick={startScan} disabled={scanning} style={{ width: "100%", padding: "14px", borderRadius: "8px", background: scanning ? "#1a2236" : "linear-gradient(135deg,#00e5ff,#0099ff)", color: scanning ? "#555" : "#000", border: "none", cursor: scanning ? "default" : "pointer", fontSize: "14px", fontWeight: "700", fontFamily: "inherit" }}>
+              {scanning ? "⏳ Scanning…" : "🚀 Start Scan"}
             </button>
           </div>
-          <div style={{ background:"#0d1526", borderRadius:"12px", padding:"20px", border:"1px solid #1e3a5f" }}>
-            <p style={{ color:"#00e5ff", fontSize:"13px", marginTop:0 }}>Describe Endpoint Observations</p>
-            <textarea value={description} onChange={e=>setDescription(e.target.value)}
-              placeholder="Describe what you observe on this endpoint. Examples: Critical OS patches missing unpatched system. Suspicious powershell encoded command running. Ransomware file encryption detected shadow copy delete. LSASS process dump mimikatz detected. No EDR agent installed. Antivirus disabled tamper protection off. Registry autorun suspicious entry. Pass the hash lateral movement attempt. Scheduled task created malware. New admin account created backdoor. Disk not encrypted no bitlocker. USB unrestricted removable media allowed."
-              style={{ width:"100%", height:"400px", background:"#0a1628", border:"1px solid #1e3a5f", borderRadius:"8px", padding:"12px", color:"#e0e0e0", fontSize:"13px", fontFamily:"JetBrains Mono, monospace", resize:"vertical", boxSizing:"border-box" }} />
+
+          <div style={{ background: "#0d1526", border: "1px solid #1e3a5f", borderRadius: "12px", padding: "24px" }}>
+            <h3 style={{ color: "#00e5ff", fontSize: "14px", margin: "0 0 16px" }}>Scan Capabilities</h3>
+            {[
+              ["🔍 Host Discovery", "Ping sweep + TCP probe to find live hosts on the network"],
+              ["🔌 Port Scanning", "Top 1000 ports with state detection (open/filtered/closed)"],
+              ["🏷 Service Versions", "Banner grabbing and service fingerprinting (-sV)"],
+              ["💻 OS Detection", "TCP/IP stack fingerprinting to identify OS and version (-O)"],
+              ["🛡 CVE Matching", "NVD API lookup for every discovered product + version"],
+              ["📊 Risk Scoring", "Weighted risk score per host based on open ports + CVSS"],
+            ].map(([title, desc]) => (
+              <div key={title} style={{ padding: "8px 0", borderBottom: "1px solid #0a1628" }}>
+                <div style={{ color: "#e0e0e0", fontSize: "12px", fontWeight: "700" }}>{title}</div>
+                <div style={{ color: "#555", fontSize: "11px", marginTop: "2px" }}>{desc}</div>
+              </div>
+            ))}
           </div>
         </div>
       )}
 
-      {tab === "results" && scanData && (
+      {/* ── RESULTS TAB ── */}
+      {tab === "results" && (
         <div>
-          {/* Health + Risk hero */}
-          <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"16px", marginBottom:"20px" }}>
-            <div style={{ background:"#0d1526", borderRadius:"12px", padding:"20px", border:`1px solid ${healthColor(scanData.health_score)}33`, textAlign:"center" }}>
-              <div style={{ fontSize:"56px", fontWeight:"900", color: healthColor(scanData.health_score), lineHeight:1, letterSpacing:"-0.04em" }}>{scanData.health_score}%</div>
-              <div style={{ color:"#888", fontSize:"13px", marginTop:"6px" }}>Endpoint Health Score</div>
-              <div style={{ background:"#0a1628", borderRadius:"20px", height:"8px", overflow:"hidden", marginTop:"12px" }}>
-                <div style={{ width:`${scanData.health_score}%`, height:"100%", background: healthColor(scanData.health_score), borderRadius:"20px" }} />
+          {/* Status bar */}
+          {scanData && (
+            <div style={{ background: "#0d1526", border: `1px solid ${scanData.status === "complete" ? "#00ff8833" : scanData.status === "error" ? "#ff2d5533" : "#00e5ff33"}`, borderRadius: "10px", padding: "14px 18px", marginBottom: "16px", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+              <div>
+                <span style={{ color: "#e0e0e0", fontWeight: "700" }}>{scanData.target}</span>
+                <span style={{ color: "#555", fontSize: "12px", marginLeft: "12px" }}>{scanData.started_at?.slice(0, 19).replace("T", " ")}</span>
+              </div>
+              <div style={{ display: "flex", gap: "16px", alignItems: "center" }}>
+                {[["Hosts", scanData.hosts_found, "#00e5ff"], ["CVEs", scanData.cve_count, "#ff2d55"]].map(([label, val, color]) => (
+                  <div key={label} style={{ textAlign: "center" }}>
+                    <div style={{ color, fontWeight: "700", fontSize: "18px" }}>{val}</div>
+                    <div style={{ color: "#555", fontSize: "10px" }}>{label}</div>
+                  </div>
+                ))}
+                <span style={{ background: scanData.status === "complete" ? "#00ff8822" : scanData.status === "error" ? "#ff2d5522" : "#00e5ff22", color: scanData.status === "complete" ? "#00ff88" : scanData.status === "error" ? "#ff2d55" : "#00e5ff", padding: "4px 12px", borderRadius: "6px", fontSize: "12px", fontWeight: "700" }}>
+                  {scanning ? "⟳ " : ""}{scanData.status}
+                </span>
               </div>
             </div>
-            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"12px" }}>
-              {[["Risk Score",scanData.risk_score,riskColor(scanData.risk_score)],["Severity",scanData.severity,SEV_COLOR[scanData.severity]],["Findings",scanData.total_findings,"#a78bfa"],["Critical",scanData.critical_count,"#ff2d55"]].map(([label,val,color]) => (
-                <div key={label} style={{ background:"#0d1526", borderRadius:"10px", padding:"14px", border:`1px solid ${color}33`, textAlign:"center" }}>
-                  <div style={{ fontSize:"22px", fontWeight:"bold", color }}>{val}</div>
-                  <div style={{ fontSize:"12px", color:"#888", marginTop:"4px" }}>{label}</div>
+          )}
+
+          {scanning && !scanData && (
+            <div style={{ background: "#0d1526", border: "1px solid #00e5ff33", borderRadius: "12px", padding: "60px", textAlign: "center" }}>
+              <div style={{ fontSize: "40px", marginBottom: "16px", animation: "spin 2s linear infinite", display: "inline-block" }}>⟳</div>
+              <div style={{ color: "#00e5ff", fontSize: "16px", fontWeight: "700" }}>Scanning {target}…</div>
+              <div style={{ color: "#555", fontSize: "13px", marginTop: "8px" }}>Running nmap -sV -O -T4 --top-ports 1000 --script=banner</div>
+            </div>
+          )}
+
+          {scanData && hosts.length === 0 && scanData.status === "complete" && (
+            <div style={{ background: "#0d1526", border: "1px solid #1e3a5f", borderRadius: "12px", padding: "60px", textAlign: "center", color: "#555" }}>No live hosts found on {scanData.target}</div>
+          )}
+
+          {/* Host grid */}
+          {hosts.length > 0 && !displayHost && (
+            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill,minmax(280px,1fr))", gap: "14px" }}>
+              {hosts.map((host, i) => (
+                <div key={i} onClick={() => setSelectedHost(i)} style={{ background: "#0d1526", border: `1px solid ${RISK_COLOR(host.risk_score)}33`, borderRadius: "12px", padding: "16px", cursor: "pointer", transition: "border-color 0.2s" }}>
+                  <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "10px" }}>
+                    <div>
+                      <div style={{ color: "#e0e0e0", fontWeight: "700", fontSize: "14px" }}>{host.ip}</div>
+                      {host.hostnames?.length > 0 && <div style={{ color: "#555", fontSize: "11px" }}>{host.hostnames[0]}</div>}
+                    </div>
+                    <div style={{ textAlign: "center" }}>
+                      <div style={{ color: RISK_COLOR(host.risk_score), fontSize: "20px", fontWeight: "700" }}>{host.risk_score}</div>
+                      <div style={{ color: "#555", fontSize: "9px" }}>RISK</div>
+                    </div>
+                  </div>
+                  <div style={{ color: "#aaa", fontSize: "11px", marginBottom: "8px" }}>💻 {host.os || "Unknown OS"}{host.os_accuracy > 0 ? ` (${host.os_accuracy}%)` : ""}</div>
+                  <div style={{ display: "flex", flexWrap: "wrap", gap: "4px", marginBottom: "8px" }}>
+                    {host.open_ports?.slice(0, 8).map((p, j) => (
+                      <span key={j} style={{ background: "#1a2236", color: "#a78bfa", padding: "2px 6px", borderRadius: "3px", fontSize: "10px" }}>{p.port}/{p.proto}</span>
+                    ))}
+                    {(host.open_ports?.length || 0) > 8 && <span style={{ color: "#555", fontSize: "10px" }}>+{host.open_ports.length - 8}</span>}
+                  </div>
+                  {host.cve_count > 0 && (
+                    <div style={{ background: "#ff2d5511", border: "1px solid #ff2d5533", borderRadius: "6px", padding: "4px 8px", fontSize: "11px", color: "#ff2d55" }}>
+                      ⚠ {host.cve_count} CVE{host.cve_count > 1 ? "s" : ""} matched
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
-          </div>
+          )}
 
-          {/* Endpoint info */}
-          <div style={{ background:"#0d1526", borderRadius:"10px", padding:"14px", marginBottom:"16px", border:"1px solid #1e3a5f", display:"flex", justifyContent:"space-between" }}>
+          {/* Host detail drill-down */}
+          {displayHost && (
             <div>
-              <span style={{ color:"#00e5ff", fontSize:"14px", fontWeight:"bold" }}>🖥️ {scanData.hostname}</span>
-              <span style={{ color:"#555", fontSize:"12px", marginLeft:"12px" }}>{scanData.os_type} — {scanData.os_version}</span>
-            </div>
-            <div style={{ color:"#888", fontSize:"12px" }}>{scanData.summary}</div>
-          </div>
+              <button onClick={() => setSelectedHost(null)} style={{ background: "none", border: "none", color: "#00e5ff", cursor: "pointer", fontSize: "13px", fontFamily: "inherit", padding: "0 0 16px" }}>← Back to all hosts</button>
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "20px" }}>
+                <div>
+                  <div style={{ background: "#0d1526", border: "1px solid #1e3a5f", borderRadius: "12px", padding: "20px", marginBottom: "14px" }}>
+                    <h3 style={{ color: "#00e5ff", fontSize: "14px", margin: "0 0 12px" }}>{displayHost.ip}</h3>
+                    {[["OS", displayHost.os + (displayHost.os_accuracy > 0 ? ` (${displayHost.os_accuracy}% accuracy)` : "")], ["Hostnames", displayHost.hostnames?.join(", ") || "—"], ["Open Ports", displayHost.port_count], ["CVEs Found", displayHost.cve_count], ["Risk Score", displayHost.risk_score]].map(([k, v]) => (
+                      <div key={k} style={{ display: "flex", justifyContent: "space-between", padding: "7px 0", borderBottom: "1px solid #0a1628" }}>
+                        <span style={{ color: "#555", fontSize: "12px" }}>{k}</span>
+                        <span style={{ color: "#e0e0e0", fontSize: "12px", fontWeight: "600" }}>{v}</span>
+                      </div>
+                    ))}
+                  </div>
 
-          {/* Category filters */}
-          <div style={{ display:"flex", gap:"8px", marginBottom:"12px", flexWrap:"wrap" }}>
-            <button onClick={() => setFilterCat(null)} style={{ padding:"6px 14px", borderRadius:"6px", border:`1px solid ${!filterCat?"#00e5ff":"#1e3a5f"}`, background: !filterCat?"#0a2040":"transparent", color: !filterCat?"#00e5ff":"#aaa", cursor:"pointer", fontSize:"12px", fontFamily:"inherit" }}>All ({scanData.findings?.length})</button>
-            {scanData.categories?.map(cat => (
-              <button key={cat} onClick={() => setFilterCat(filterCat===cat?null:cat)} style={{ padding:"6px 14px", borderRadius:"6px", border:`1px solid ${filterCat===cat?(CAT_COLOR[cat]||"#1e3a5f"):"#1e3a5f"}`, background: filterCat===cat?"#0a2040":"transparent", color: filterCat===cat?(CAT_COLOR[cat]||"#aaa"):"#aaa", cursor:"pointer", fontSize:"12px", fontFamily:"inherit" }}>{CAT_ICON[cat]} {cat}</button>
-            ))}
-          </div>
-
-          {filtered.length === 0 && <div style={{ textAlign:"center", color:"#00ff88", padding:"40px", background:"#0d1526", borderRadius:"12px" }}>✅ Endpoint is clean — no threats detected!</div>}
-          {filtered.map((f,i) => (
-            <div key={i} style={{ background:"#0d1526", borderRadius:"10px", padding:"16px", marginBottom:"8px", border:`1px solid ${SEV_COLOR[f.severity]}33` }}>
-              <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:"8px" }}>
-                <div style={{ display:"flex", gap:"8px", alignItems:"center" }}>
-                  <span>{CAT_ICON[f.category]||"🖥️"}</span>
-                  <span style={{ color: SEV_COLOR[f.severity], fontSize:"11px", fontWeight:"bold", background:`${SEV_COLOR[f.severity]}22`, padding:"2px 8px", borderRadius:"20px" }}>{f.severity}</span>
-                  <span style={{ color: CAT_COLOR[f.category]||"#888", fontSize:"11px", background:`${CAT_COLOR[f.category]||"#888"}22`, padding:"2px 8px", borderRadius:"20px" }}>{f.category}</span>
+                  <div style={{ background: "#0d1526", border: "1px solid #1e3a5f", borderRadius: "12px", padding: "20px" }}>
+                    <h3 style={{ color: "#00e5ff", fontSize: "13px", margin: "0 0 12px" }}>Open Ports ({displayHost.port_count})</h3>
+                    <div style={{ maxHeight: "320px", overflowY: "auto" }}>
+                      {displayHost.open_ports?.map((p, i) => (
+                        <div key={i} style={{ padding: "8px 0", borderBottom: "1px solid #0a1628" }}>
+                          <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "2px" }}>
+                            <span style={{ color: "#a78bfa", fontSize: "12px", fontWeight: "700" }}>{p.port}/{p.proto}</span>
+                            <span style={{ color: "#00e5ff", fontSize: "12px" }}>{p.service}</span>
+                          </div>
+                          {(p.product || p.version) && <div style={{ color: "#888", fontSize: "11px" }}>{[p.product, p.version, p.extrainfo].filter(Boolean).join(" ")}</div>}
+                          {p.banner && <div style={{ color: "#555", fontSize: "10px", marginTop: "2px", fontFamily: "monospace", wordBreak: "break-all" }}>{p.banner.slice(0, 120)}</div>}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
                 </div>
-                <span style={{ color:"#a78bfa", fontSize:"11px" }}>{f.technique}</span>
+
+                <div style={{ background: "#0d1526", border: "1px solid #1e3a5f", borderRadius: "12px", padding: "20px" }}>
+                  <h3 style={{ color: "#ff2d55", fontSize: "13px", margin: "0 0 12px" }}>⚠ Matched CVEs ({displayHost.cve_count})</h3>
+                  {displayHost.cves?.length === 0 && <div style={{ color: "#555", fontSize: "12px", padding: "20px 0", textAlign: "center" }}>No CVEs matched for discovered services.</div>}
+                  <div style={{ maxHeight: "500px", overflowY: "auto" }}>
+                    {displayHost.cves?.map((cve, i) => (
+                      <div key={i} style={{ background: "#0a1628", border: `1px solid ${SEV_COLOR[cve.severity]}33`, borderRadius: "8px", padding: "12px", marginBottom: "8px" }}>
+                        <div style={{ display: "flex", justifyContent: "space-between", marginBottom: "6px" }}>
+                          <a href={cve.url} target="_blank" rel="noreferrer" style={{ color: "#00e5ff", fontSize: "12px", fontWeight: "700", textDecoration: "none" }}>{cve.cve_id}</a>
+                          <div style={{ display: "flex", gap: "6px" }}>
+                            {cve.cvss_score !== null && <span style={{ color: SEV_COLOR[cve.severity], fontSize: "12px", fontWeight: "700" }}>{cve.cvss_score}</span>}
+                            <span style={{ background: `${SEV_COLOR[cve.severity]}22`, color: SEV_COLOR[cve.severity], padding: "1px 7px", borderRadius: "4px", fontSize: "10px", fontWeight: "700" }}>{cve.severity}</span>
+                          </div>
+                        </div>
+                        <div style={{ color: "#888", fontSize: "11px", lineHeight: "1.5", marginBottom: "4px" }}>{cve.description}</div>
+                        <div style={{ color: "#555", fontSize: "10px" }}>Matched: <span style={{ color: "#a78bfa" }}>{cve.matched_keyword}</span> · Published: {cve.published}</div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
               </div>
-              <div style={{ color:"#e0e0e0", fontSize:"14px", fontWeight:"bold", marginBottom:"4px" }}>{f.title}</div>
-              <div style={{ color:"#ff6b00", fontSize:"12px", marginBottom:"4px" }}>🎯 Tactic: {f.tactic}</div>
-              {f.ioc && <div style={{ color:"#555", fontSize:"11px", marginBottom:"4px" }}>IOC: {f.ioc}</div>}
-              <div style={{ color:"#888", fontSize:"12px", marginBottom:"6px" }}>{f.description}</div>
-              <div style={{ color:"#00e5ff", fontSize:"12px" }}>💡 {f.remediation}</div>
             </div>
-          ))}
+          )}
+
+          {!scanData && !scanning && (
+            <div style={{ background: "#0d1526", border: "1px dashed #1e3a5f", borderRadius: "12px", padding: "60px", textAlign: "center" }}>
+              <div style={{ fontSize: "40px", marginBottom: "12px" }}>🔭</div>
+              <div style={{ color: "#555", fontSize: "13px" }}>No scan running. Go to the Scan tab to start.</div>
+            </div>
+          )}
         </div>
       )}
-      {tab === "results" && !scanData && <div style={{ textAlign:"center", color:"#555", padding:"60px" }}>Run a scan first or select one from History.</div>}
 
+      {/* ── HISTORY TAB ── */}
       {tab === "history" && (
         <div>
-          {history.length === 0 && <div style={{ textAlign:"center", color:"#555", padding:"60px" }}>No scans yet.</div>}
-          {history.map((s,i) => (
-            <div key={i} style={{ background:"#0d1526", borderRadius:"10px", padding:"16px", marginBottom:"10px", border:"1px solid #1e3a5f", display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+          {history.length === 0 && <div style={{ color: "#555", textAlign: "center", padding: "60px" }}>No scans yet.</div>}
+          {history.map((s, i) => (
+            <div key={i} onClick={() => loadHistoryScan(s.id)} style={{ background: "#0d1526", border: "1px solid #1e3a5f", borderRadius: "10px", padding: "14px 18px", marginBottom: "8px", cursor: "pointer", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
               <div>
-                <div style={{ color:"#e0e0e0", fontSize:"14px" }}>🖥️ {s.hostname} — {s.os_type}</div>
-                <div style={{ color:"#555", fontSize:"12px", marginTop:"4px" }}>{s.total_findings} finding(s) · {s.critical_count} critical · {new Date(s.created_at).toLocaleString()}</div>
+                <div style={{ color: "#e0e0e0", fontWeight: "700", fontSize: "13px" }}>{s.target}</div>
+                <div style={{ color: "#555", fontSize: "11px", marginTop: "2px" }}>{s.started_at?.slice(0, 19).replace("T", " ")}</div>
               </div>
-              <div style={{ display:"flex", gap:"16px", alignItems:"center" }}>
-                <span style={{ color: healthColor(s.health_score), fontSize:"13px", fontWeight:"bold" }}>Health: {s.health_score}%</span>
-                <span style={{ color: riskColor(s.risk_score), fontSize:"13px" }}>Risk: {s.risk_score}</span>
-                <button onClick={() => loadScan(s.scan_id)} style={{ padding:"6px 14px", background:"#0a2040", border:"1px solid #00e5ff", borderRadius:"6px", color:"#00e5ff", cursor:"pointer", fontSize:"12px", fontFamily:"inherit" }}>View</button>
+              <div style={{ display: "flex", gap: "12px", alignItems: "center" }}>
+                <span style={{ color: "#00e5ff", fontSize: "12px" }}>{s.hosts_found} hosts</span>
+                {s.cve_count > 0 && <span style={{ color: "#ff2d55", fontSize: "12px" }}>{s.cve_count} CVEs</span>}
+                <span style={{ background: s.status === "complete" ? "#00ff8822" : s.status === "error" ? "#ff2d5522" : "#00e5ff22", color: s.status === "complete" ? "#00ff88" : s.status === "error" ? "#ff2d55" : "#00e5ff", padding: "2px 8px", borderRadius: "4px", fontSize: "11px" }}>{s.status}</span>
               </div>
             </div>
           ))}
