@@ -7,12 +7,15 @@
 # =============================================================
 import os
 
-os.environ.setdefault("JWT_SECRET_KEY",         "test-jwt-secret-key-for-aipet-x-pytest-testing-only")
-os.environ.setdefault("SECRET_KEY",             "test-flask-secret-key-for-aipet-x-pytest")
-os.environ.setdefault("DATABASE_URL",           "sqlite:///:memory:")
-os.environ.setdefault("SENTRY_DSN",             "")
-os.environ.setdefault("STRIPE_SECRET_KEY",      "sk_test_placeholder")
-os.environ.setdefault("STRIPE_WEBHOOK_SECRET",  "whsec_placeholder")
+os.environ.setdefault("JWT_SECRET_KEY",              "test-jwt-secret-key-for-aipet-x-pytest-testing-only")
+os.environ.setdefault("SECRET_KEY",                  "test-flask-secret-key-for-aipet-x-pytest")
+os.environ.setdefault("DATABASE_URL",                "sqlite:///:memory:")
+os.environ.setdefault("SENTRY_DSN",                  "")
+os.environ.setdefault("STRIPE_SECRET_KEY",           "sk_test_placeholder")
+os.environ.setdefault("STRIPE_WEBHOOK_SECRET",       "whsec_placeholder")
+# Use in-process memory storage for rate limits in tests — prevents the test
+# Flask-Limiter from sharing Redis counters with the running production server.
+os.environ.setdefault("FLASK_LIMITER_STORAGE_URI",   "memory://")
 os.environ.setdefault("GOOGLE_CLIENT_ID",       "placeholder")
 os.environ.setdefault("GOOGLE_CLIENT_SECRET",   "placeholder")
 os.environ.setdefault("MAIL_USERNAME",          "")

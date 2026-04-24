@@ -249,9 +249,23 @@ def create_app(config_name="development"):
     app.register_blueprint(iam_bp)
     app.register_blueprint(auth_bp)
     init_google_oauth(app)
-    # Auth endpoints: strict brute-force limits (keyed by IP regardless of JWT)
-    limiter.limit("5 per minute",  key_func=get_remote_address)(app.view_functions.get("auth.login",    lambda: None))
-    limiter.limit("5 per minute",  key_func=get_remote_address)(app.view_functions.get("auth.register", lambda: None))
+    # Auth endpoints: strict brute-force limits (keyed by IP regardless of JWT).
+    # Flask-Limiter 4.x requires the decorated function to be re-assigned back
+    # into view_functions — discarding the return value is a silent no-op.
+    _login_fn = app.view_functions.get("auth.login")
+    if _login_fn:
+        _login_fn = limiter.limit("5 per minute",   key_func=get_remote_address)(_login_fn)
+        app.view_functions["auth.login"] = _login_fn
+
+    _register_fn = app.view_functions.get("auth.register")
+    if _register_fn:
+        _register_fn = limiter.limit("3 per minute", key_func=get_remote_address)(_register_fn)
+        app.view_functions["auth.register"] = _register_fn
+
+    _forgot_fn = app.view_functions.get("auth.forgot_password")
+    if _forgot_fn:
+        _forgot_fn = limiter.limit("3 per hour",    key_func=get_remote_address)(_forgot_fn)
+        app.view_functions["auth.forgot_password"] = _forgot_fn
     from dashboard.backend.payments.routes import payments_bp
     app.register_blueprint(payments_bp, url_prefix='/payments')
     from dashboard.backend.api_keys.routes import api_keys_bp
