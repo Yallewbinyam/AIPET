@@ -2,11 +2,15 @@
 AIPET X — ML Anomaly Detection Routes
 
 Endpoints:
-  GET  /api/ml/anomaly/features    — feature order for the 12-vector
-  POST /api/ml/anomaly/train       — train Isolation Forest on synthetic data
-  POST /api/ml/anomaly/predict     — score a single IoT telemetry sample
-  GET  /api/ml/anomaly/models      — last 20 model versions
-  GET  /api/ml/anomaly/detections  — last N detections (cap 200)
+  GET  /api/ml/anomaly/features                    — feature order for the 12-vector
+  POST /api/ml/anomaly/train                        — train Isolation Forest on synthetic data
+  POST /api/ml/anomaly/predict                      — score a single IoT telemetry sample
+  POST /api/ml/anomaly/predict_real                 — score a host from real scan data
+  GET  /api/ml/anomaly/models                       — last 20 model versions
+  GET  /api/ml/anomaly/detections                   — last N detections (cap 200)
+  GET  /api/ml/anomaly/detections/<id>/explain      — full SHAP breakdown for one detection
+  POST /api/ml/anomaly/retrain_now                  — queue retrain task via Celery
+  GET  /api/ml/anomaly/retrain_status/<task_id>     — poll Celery task state
 """
 import json
 import math
@@ -21,6 +25,7 @@ from flask_jwt_extended import get_jwt_identity, jwt_required
 from sklearn.metrics import f1_score, precision_score, recall_score
 
 from dashboard.backend.ml_anomaly.detector import LATEST_PATH, AnomalyDetector
+from dashboard.backend.ml_anomaly.explainer import clear_cache, get_explainer
 from dashboard.backend.ml_anomaly.features import FEATURE_ORDER, to_vector
 from dashboard.backend.ml_anomaly.models import AnomalyDetection, AnomalyModelVersion
 from dashboard.backend.ml_anomaly.training_data import generate_synthetic
@@ -128,6 +133,9 @@ def train():
 
     AnomalyModelVersion.query.filter_by(is_active=True).update({"is_active": False})
 
+    # Clear the SHAP explainer cache — the new model version invalidates old explainers.
+    clear_cache()
+
     mv = AnomalyModelVersion(
         version_tag      = version_tag,
         algorithm        = "isolation_forest",
@@ -185,14 +193,10 @@ def predict():
     is_anomaly    = bool(labels[0] == 1)
     severity      = _severity(sigmoid_score, is_anomaly)
 
-    # Top 3 contributors by absolute z-score (placeholder for SHAP on Day 4)
-    X_scaled = detector.scaler.transform(X)
-    z_scores = X_scaled[0]
-    top_idx  = np.argsort(np.abs(z_scores))[::-1][:3]
-    top_contributors = [
-        {"feature": FEATURE_ORDER[int(i)], "z_score": round(float(z_scores[i]), 4)}
-        for i in top_idx
-    ]
+    # SHAP explainability (replaces z-score placeholder from Day 2)
+    explainer = get_explainer(version.id, detector)
+    all_contributors = explainer.explain(vec)          # full 12-feature breakdown
+    top_contributors = all_contributors[:5]            # top 5 by |shap_value|
 
     detection = AnomalyDetection(
         model_version_id = version.id,
@@ -203,20 +207,25 @@ def predict():
         anomaly_score    = round(sigmoid_score, 6),
         severity         = severity,
         feature_vector   = json.dumps(dict(zip(FEATURE_ORDER, vec.tolist()))),
-        top_contributors = json.dumps(top_contributors),
+        top_contributors = json.dumps(all_contributors),   # store full 12 for /explain
+        node_meta        = json.dumps({
+            "contributors_format": "shap_v1",
+            "explainer_type":      explainer.explainer_type,
+        }),
     )
     db.session.add(detection)
     db.session.commit()
 
     return jsonify({
-        "detection_id":    detection.id,
-        "target_ip":       target_ip,
-        "target_device":   target_device,
-        "is_anomaly":      is_anomaly,
-        "anomaly_score":   round(sigmoid_score, 6),
-        "severity":        severity,
+        "detection_id":     detection.id,
+        "target_ip":        target_ip,
+        "target_device":    target_device,
+        "is_anomaly":       is_anomaly,
+        "anomaly_score":    round(sigmoid_score, 6),
+        "severity":         severity,
         "top_contributors": top_contributors,
-        "model_version":   version.version_tag,
+        "explainer_type":   explainer.explainer_type,
+        "model_version":    version.version_tag,
     }), 200
 
 
@@ -282,6 +291,63 @@ def list_detections():
 
 
 # ---------------------------------------------------------------------------
+# GET /detections/<detection_id>/explain
+# ---------------------------------------------------------------------------
+
+@ml_anomaly_bp.route("/detections/<int:detection_id>/explain", methods=["GET"])
+@jwt_required()
+def explain_detection(detection_id):
+    """Return the full SHAP breakdown (all 12 features) for one stored detection.
+
+    - Verifies the detection belongs to the requesting user (403 otherwise).
+    - New-format detections (shap_v1) return all 12 SHAP contributors and the
+      placeholder_values map showing which features were not real-data-driven.
+    - Legacy detections (z-score format) return the stored data with
+      format="zscore_legacy" — SHAP is NOT recomputed for legacy rows.
+    """
+    current_user_id = int(get_jwt_identity())
+
+    detection = db.session.get(AnomalyDetection, detection_id)
+    if not detection:
+        return jsonify({"error": "Detection not found"}), 404
+    if detection.user_id != current_user_id:
+        return jsonify({"error": "Forbidden"}), 403
+
+    node_meta = json.loads(detection.node_meta or "{}")
+    contributors_format = node_meta.get("contributors_format", "zscore_legacy")
+    explainer_type = node_meta.get("explainer_type")
+
+    raw_contributors = json.loads(detection.top_contributors or "[]")
+    feature_vector   = json.loads(detection.feature_vector or "{}")
+
+    # Detect legacy rows by structure if node_meta doesn't have the format key
+    if contributors_format != "shap_v1" and raw_contributors:
+        first = raw_contributors[0] if isinstance(raw_contributors, list) else {}
+        if "z_score" in first:
+            contributors_format = "zscore_legacy"
+
+    placeholder_values = node_meta.get("placeholder_values")
+
+    mv = db.session.get(AnomalyModelVersion, detection.model_version_id)
+    model_version_tag = mv.version_tag if mv else None
+
+    return jsonify({
+        "detection_id":  detection_id,
+        "model_version": model_version_tag,
+        "is_anomaly":    detection.is_anomaly,
+        "anomaly_score": detection.anomaly_score,
+        "severity":      detection.severity,
+        "explanation": {
+            "format":              contributors_format,
+            "explainer_type":      explainer_type,
+            "all_contributors":    raw_contributors,
+            "feature_vector_used": feature_vector,
+            "placeholder_values":  placeholder_values,
+        },
+    }), 200
+
+
+# ---------------------------------------------------------------------------
 # POST /extract  — return real feature vector for a scanned host
 # ---------------------------------------------------------------------------
 
@@ -332,15 +398,14 @@ def predict_real():
     is_anomaly    = bool(labels[0] == 1)
     severity      = _severity(sigmoid_score, is_anomaly)
 
-    X_scaled = detector.scaler.transform(X)
-    z_scores = X_scaled[0]
-    top_idx  = np.argsort(np.abs(z_scores))[::-1][:3]
-    top_contributors = [
-        {"feature": FEATURE_ORDER[int(i)], "z_score": round(float(z_scores[i]), 4)}
-        for i in top_idx
-    ]
+    # SHAP explainability
+    explainer = get_explainer(version.id, detector)
+    all_contributors = explainer.explain(vec)          # full 12-feature breakdown
+    top_contributors = all_contributors[:5]            # top 5 by |shap_value|
 
-    synthetic_fields = features.get("_synthetic_fields", [])
+    synthetic_fields    = features.get("_synthetic_fields", [])
+    placeholder_values  = features.get("_placeholder_values", {})
+    placeholder_strategy = features.get("_placeholder_strategy", "")
 
     detection = AnomalyDetection(
         model_version_id = version.id,
@@ -351,24 +416,29 @@ def predict_real():
         anomaly_score    = round(sigmoid_score, 6),
         severity         = severity,
         feature_vector   = json.dumps(dict(zip(FEATURE_ORDER, vec.tolist()))),
-        top_contributors = json.dumps(top_contributors),
+        top_contributors = json.dumps(all_contributors),   # store full 12 for /explain
         node_meta        = json.dumps({
-            "source":          "real_scan_data",
-            "synthetic_fields": synthetic_fields,
-            "source_scan_id":  features.get("_source_scan_id"),
+            "contributors_format":   "shap_v1",
+            "explainer_type":        explainer.explainer_type,
+            "source":                "real_scan_data",
+            "synthetic_fields":      synthetic_fields,
+            "placeholder_values":    placeholder_values,
+            "placeholder_strategy":  placeholder_strategy,
+            "source_scan_id":        features.get("_source_scan_id"),
         }),
     )
     db.session.add(detection)
     db.session.commit()
 
     return jsonify({
-        "detection_id":    detection.id,
-        "target_ip":       host_ip,
-        "target_device":   target_device,
-        "is_anomaly":      is_anomaly,
-        "anomaly_score":   round(sigmoid_score, 6),
-        "severity":        severity,
+        "detection_id":     detection.id,
+        "target_ip":        host_ip,
+        "target_device":    target_device,
+        "is_anomaly":       is_anomaly,
+        "anomaly_score":    round(sigmoid_score, 6),
+        "severity":         severity,
         "top_contributors": top_contributors,
-        "model_version":   version.version_tag,
+        "explainer_type":   explainer.explainer_type,
+        "model_version":    version.version_tag,
         "synthetic_fields": synthetic_fields,
     }), 200

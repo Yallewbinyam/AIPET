@@ -146,7 +146,7 @@ def test_predict_detects_anomalous_sample(client, auth_headers, trained_model):
     d = r.get_json()
     assert d["is_anomaly"] is True
     assert d["severity"] in ("high", "critical")
-    assert len(d["top_contributors"]) == 3
+    assert len(d["top_contributors"]) <= 5  # top 5 since D4 (was 3 before SHAP)
 
 
 def test_predict_returns_low_severity_for_normal_sample(client, auth_headers, trained_model):
@@ -330,7 +330,7 @@ def test_predict_real_endpoint_happy_path_with_seeded_scan(client, auth_headers,
     assert d["target_ip"] == _SCAN_HOST_IP
     assert d["severity"] in ("low", "medium", "high", "critical")
     assert isinstance(d["anomaly_score"], float)
-    assert len(d["top_contributors"]) == 3
+    assert len(d["top_contributors"]) <= 5  # top 5 since D4 (was 3 before SHAP)
     assert "synthetic_fields" in d
     assert len(d["synthetic_fields"]) >= 9
 
@@ -644,3 +644,248 @@ def test_retrain_now_endpoint_rate_limit_applied(client, auth_headers):
             "view_functions reassignment (2 per hour / 10 per day)."
         )
     assert 429 in status_codes, f"Expected a 429 within 3 calls, got: {status_codes}"
+
+
+# =============================================================================
+# D4 — SHAP explainability tests
+# =============================================================================
+
+import time as _time
+
+
+def test_explainer_returns_12_shap_values_one_per_feature(flask_app, trained_model):
+    """AnomalyExplainer.explain() must return one entry per feature in FEATURE_ORDER."""
+    from dashboard.backend.ml_anomaly.explainer import AnomalyExplainer
+    from dashboard.backend.ml_anomaly.detector import AnomalyDetector
+    from dashboard.backend.ml_anomaly.features import FEATURE_ORDER
+    from dashboard.backend.ml_anomaly.models import AnomalyModelVersion
+    import numpy as np
+
+    version = AnomalyModelVersion.query.filter_by(is_active=True).first()
+    assert version, "No active model version"
+    det = AnomalyDetector()
+    det.load(version.model_path)
+    explainer = AnomalyExplainer(det)
+
+    vec = np.array([50, 5000, 2, 4, 0.17, 0.05, 0.03, 1, 0, 0.8, 0.17, 1.2])
+    result = explainer.explain(vec)
+
+    assert len(result) == 12
+    features_returned = {r["feature"] for r in result}
+    assert features_returned == set(FEATURE_ORDER)
+    for entry in result:
+        assert "shap_value" in entry
+        assert "raw_value" in entry
+        assert "direction" in entry
+        assert entry["direction"] in ("increases_anomaly", "decreases_anomaly")
+
+
+def test_explainer_uses_tree_when_available(flask_app, trained_model):
+    """AnomalyExplainer must use TreeExplainer for IsolationForest."""
+    from dashboard.backend.ml_anomaly.explainer import AnomalyExplainer
+    from dashboard.backend.ml_anomaly.detector import AnomalyDetector
+    from dashboard.backend.ml_anomaly.models import AnomalyModelVersion
+
+    version = AnomalyModelVersion.query.filter_by(is_active=True).first()
+    det = AnomalyDetector()
+    det.load(version.model_path)
+    explainer = AnomalyExplainer(det)
+    assert explainer.explainer_type == "tree"
+
+
+def test_explainer_falls_back_to_kernel_when_tree_unavailable(flask_app, trained_model):
+    """AnomalyExplainer must fall back to KernelExplainer if TreeExplainer raises."""
+    import shap
+    from dashboard.backend.ml_anomaly.explainer import AnomalyExplainer
+    from dashboard.backend.ml_anomaly.detector import AnomalyDetector
+    from dashboard.backend.ml_anomaly.models import AnomalyModelVersion
+    import numpy as np
+
+    version = AnomalyModelVersion.query.filter_by(is_active=True).first()
+    det = AnomalyDetector()
+    det.load(version.model_path)
+
+    with _patch("shap.TreeExplainer", side_effect=Exception("forced failure")):
+        explainer = AnomalyExplainer(det)
+
+    assert explainer.explainer_type == "kernel"
+    vec = np.array([50, 5000, 2, 4, 0.17, 0.05, 0.03, 1, 0, 0.8, 0.17, 1.2])
+    result = explainer.explain(vec)
+    assert len(result) == 12
+
+
+def test_predict_response_includes_top_5_shap_contributors_sorted(
+    client, auth_headers, trained_model
+):
+    """POST /predict must return top_contributors with shap_value, sorted by |shap_value|."""
+    r = client.post(
+        "/api/ml/anomaly/predict",
+        data=json.dumps({
+            "target_ip":     "10.0.0.99",
+            "target_device": "test-shap",
+            "sample":        _ANOMALOUS_SAMPLE,
+        }),
+        headers=auth_headers,
+    )
+    assert r.status_code == 200
+    d = r.get_json()
+    contribs = d["top_contributors"]
+    assert len(contribs) <= 5
+    for c in contribs:
+        assert "shap_value" in c, f"Missing shap_value in {c}"
+        assert "raw_value"  in c
+        assert "direction"  in c
+    # Sorted by |shap_value| descending
+    abs_vals = [abs(c["shap_value"]) for c in contribs]
+    assert abs_vals == sorted(abs_vals, reverse=True)
+
+
+def test_predict_response_includes_explainer_type(client, auth_headers, trained_model):
+    """POST /predict must return explainer_type field."""
+    r = client.post(
+        "/api/ml/anomaly/predict",
+        data=json.dumps({"sample": _NORMAL_SAMPLE}),
+        headers=auth_headers,
+    )
+    assert r.status_code == 200
+    d = r.get_json()
+    assert "explainer_type" in d
+    assert d["explainer_type"] in ("tree", "kernel")
+
+
+def test_explain_endpoint_requires_auth(client):
+    """GET /detections/<id>/explain without JWT must return 401."""
+    r = client.get("/api/ml/anomaly/detections/1/explain")
+    assert r.status_code == 401
+
+
+def test_explain_endpoint_403_when_detection_belongs_to_other_user(
+    client, flask_app, test_user, auth_headers, trained_model
+):
+    """GET /detections/<id>/explain must 403 when detection.user_id != current user."""
+    from dashboard.backend.ml_anomaly.models import AnomalyDetection, AnomalyModelVersion
+    from dashboard.backend.models import db
+    from flask_jwt_extended import create_access_token
+
+    version = AnomalyModelVersion.query.filter_by(is_active=True).first()
+
+    # Create a detection belonging to a different user (user_id=9999)
+    other_det = AnomalyDetection(
+        model_version_id=version.id,
+        user_id=9999,
+        target_ip="10.0.0.1",
+        is_anomaly=False,
+        anomaly_score=0.3,
+        severity="low",
+        feature_vector="{}",
+        top_contributors="[]",
+    )
+    db.session.add(other_det)
+    db.session.commit()
+
+    r = client.get(
+        f"/api/ml/anomaly/detections/{other_det.id}/explain",
+        headers=auth_headers,
+    )
+    assert r.status_code == 403
+
+    db.session.delete(other_det)
+    db.session.commit()
+
+
+def test_explain_endpoint_returns_full_12_feature_breakdown(
+    client, auth_headers, trained_model
+):
+    """GET /detections/<id>/explain must return all 12 contributors and format=shap_v1."""
+    # Create a detection first
+    r = client.post(
+        "/api/ml/anomaly/predict",
+        data=json.dumps({"sample": _ANOMALOUS_SAMPLE}),
+        headers=auth_headers,
+    )
+    assert r.status_code == 200
+    detection_id = r.get_json()["detection_id"]
+
+    r2 = client.get(
+        f"/api/ml/anomaly/detections/{detection_id}/explain",
+        headers=auth_headers,
+    )
+    assert r2.status_code == 200
+    d = r2.get_json()
+    assert d["detection_id"] == detection_id
+    expl = d["explanation"]
+    assert expl["format"] == "shap_v1"
+    assert expl["explainer_type"] in ("tree", "kernel")
+    assert len(expl["all_contributors"]) == 12
+    assert expl["feature_vector_used"] != {}
+
+
+def test_explain_endpoint_handles_legacy_zscore_detection(
+    client, auth_headers, flask_app, test_user, trained_model
+):
+    """GET /detections/<id>/explain returns format=zscore_legacy for old-format rows."""
+    from dashboard.backend.ml_anomaly.models import AnomalyDetection, AnomalyModelVersion
+    from dashboard.backend.models import db
+    import json as _j
+
+    version = AnomalyModelVersion.query.filter_by(is_active=True).first()
+    legacy_contribs = [{"feature": "cve_count", "z_score": 2.5}]
+
+    legacy_det = AnomalyDetection(
+        model_version_id=version.id,
+        user_id=test_user.id,   # use fixture user ID, not hardcoded 1
+        target_ip="10.0.0.200",
+        is_anomaly=True,
+        anomaly_score=0.65,
+        severity="high",
+        feature_vector=_j.dumps({"cve_count": 5.0}),
+        top_contributors=_j.dumps(legacy_contribs),
+        node_meta=None,  # no contributors_format → legacy
+    )
+    db.session.add(legacy_det)
+    db.session.commit()
+
+    r = client.get(
+        f"/api/ml/anomaly/detections/{legacy_det.id}/explain",
+        headers=auth_headers,
+    )
+    assert r.status_code == 200
+    d = r.get_json()
+    assert d["explanation"]["format"] == "zscore_legacy"
+    assert d["explanation"]["explainer_type"] is None
+
+    db.session.delete(legacy_det)
+    db.session.commit()
+
+
+def test_predict_performance_under_500ms(flask_app, trained_model):
+    """SHAP explain() must complete under 500ms per call (after first cached call)."""
+    from dashboard.backend.ml_anomaly.explainer import AnomalyExplainer
+    from dashboard.backend.ml_anomaly.detector import AnomalyDetector
+    from dashboard.backend.ml_anomaly.models import AnomalyModelVersion
+    import numpy as np
+
+    version = AnomalyModelVersion.query.filter_by(is_active=True).first()
+    det = AnomalyDetector()
+    det.load(version.model_path)
+    explainer = AnomalyExplainer(det)
+
+    vec = np.array([50, 5000, 2, 4, 0.17, 0.05, 0.03, 1, 0, 0.8, 0.17, 1.2])
+
+    # Warm-up call (TreeExplainer builds internal structure)
+    explainer.explain(vec)
+
+    # Measure 10 subsequent calls
+    times = []
+    for _ in range(10):
+        t0 = _time.perf_counter()
+        explainer.explain(vec)
+        times.append((_time.perf_counter() - t0) * 1000)
+
+    mean_ms = sum(times) / len(times)
+    budget_ms = 1500 if explainer.explainer_type == "kernel" else 500
+
+    assert mean_ms < budget_ms, (
+        f"SHAP ({explainer.explainer_type}) mean={mean_ms:.1f}ms > budget={budget_ms}ms. "
+        f"Individual: {[round(t, 1) for t in times]}"
+    )

@@ -530,6 +530,10 @@ def retrain_anomaly_model():
             # ── Update DB ──────────────────────────────────────────────────
             AnomalyModelVersion.query.filter_by(is_active=True).update({"is_active": False})
 
+            # Clear SHAP explainer cache — new model invalidates old explainers.
+            from dashboard.backend.ml_anomaly.explainer import clear_cache as _clear_shap
+            _clear_shap()
+
             mv = AnomalyModelVersion(
                 version_tag      = version_tag,
                 algorithm        = "isolation_forest",

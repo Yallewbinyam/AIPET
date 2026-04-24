@@ -134,20 +134,32 @@ export default function MLAnomalyCard({ token }) {
                 {scanResult.severity.toUpperCase()}
               </span>
             </div>
+            {scanResult.explainer_type && (
+              <div style={styles.resultRow}>
+                <span style={styles.label}>Explainer</span>
+                <span style={styles.badge}>SHAP-{scanResult.explainer_type}</span>
+              </div>
+            )}
             {scanResult.top_contributors && scanResult.top_contributors.length > 0 && (
               <div style={styles.contributors}>
-                <div style={styles.contribLabel}>Top contributors</div>
-                {scanResult.top_contributors.map((c) => (
-                  <div key={c.feature} style={styles.contribRow}>
-                    <span style={styles.contribFeature}>{c.feature}</span>
-                    <span style={styles.contribScore}>{c.z_score > 0 ? '+' : ''}{c.z_score.toFixed(3)}</span>
-                  </div>
-                ))}
+                <div style={styles.contribLabel}>Top SHAP contributors</div>
+                {scanResult.top_contributors.map((c) => {
+                  const isAnomaly = c.direction === 'increases_anomaly';
+                  const valStr = (c.shap_value >= 0 ? '+' : '') + c.shap_value.toFixed(4);
+                  return (
+                    <div key={c.feature} style={styles.contribRow}>
+                      <span style={styles.contribFeature}>{c.feature}</span>
+                      <span style={{ ...styles.contribScore, color: isAnomaly ? '#ff6b00' : '#4ade80' }}>
+                        {valStr}
+                      </span>
+                    </div>
+                  );
+                })}
               </div>
             )}
             {scanResult.synthetic_fields && scanResult.synthetic_fields.length > 0 && (
               <div style={styles.syntheticNote}>
-                Partial result — {scanResult.synthetic_fields.length} features are placeholder zeros
+                Partial result — {scanResult.synthetic_fields.length} features use imputed values
                 (watch agent telemetry not yet collected): {scanResult.synthetic_fields.slice(0, 4).join(', ')}
                 {scanResult.synthetic_fields.length > 4 ? ', …' : ''}
               </div>
@@ -182,6 +194,7 @@ const styles = {
   contribLabel: { color: '#64748b', fontSize: 11, fontWeight: 600, textTransform: 'uppercase', marginBottom: 4 },
   contribRow: { display: 'flex', justifyContent: 'space-between', fontSize: 12, padding: '2px 0' },
   contribFeature: { color: '#94a3b8' },
-  contribScore: { color: '#e2e8f0', fontWeight: 600 },
+  contribScore: { fontWeight: 600 },
+  badge: { background: '#1e3a5f', color: '#93c5fd', border: '1px solid #1d4ed8', borderRadius: 4, fontSize: 11, padding: '1px 6px', fontWeight: 600 },
   syntheticNote: { marginTop: 8, background: '#1c1f26', border: '1px solid #334155', borderRadius: 4, color: '#64748b', fontSize: 11, padding: '6px 8px', lineHeight: 1.5 },
 };

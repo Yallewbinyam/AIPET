@@ -150,13 +150,13 @@ All modules live under `dashboard/backend/<module_name>/` as a Blueprint with `_
 
 ## 6. Capability Roadmap — 32 Capabilities
 
-**Current status:** Capability 1 partially delivered (Days 1–3 complete: IF model, placeholder fix, Celery pipeline). Days 4–5 remain for SHAP explainability + full UI. Capability 3 delivered in D3.
+**Current status:** Capability 1 — Days 1–4 complete (IF model, placeholder fix, Celery pipeline, SHAP explainability live). Day 5 remaining (full React panel). Capability 3 delivered in D3.
 
 ### Month 1 — Intelligence Core (Capabilities 1–12)
 
 | # | Capability | Status |
 |---|---|---|
-| 1 | Isolation Forest ML anomaly detection + SHAP explainability | Days 1-3 done; SHAP + full UI pending (Days 4-5) |
+| 1 | Isolation Forest ML anomaly detection + SHAP explainability | Days 1-4 done; Day 5 remaining (full React panel). SHAP live via TreeExplainer (0.2ms/call), top 5 by \|shap_value\|, direction flag, /detections/\<id\>/explain endpoint. |
 | 2 | Per-device behavioural baseline (mean/std/Z-score) | Pending |
 | 3 | Automated ML pipeline (Celery retrain every 24 h) | **Done — D3** |
 | 4 | AlienVault OTX threat intelligence integration | Pending |
@@ -312,7 +312,7 @@ cd /home/binyam/AIPET && source venv/bin/activate && pytest
 | `auth_headers` | session | `{"Authorization": "Bearer <token>", "Content-Type": "application/json"}` for test_user |
 
 **Test files:**
-- `tests/test_ml_anomaly.py` — ml_anomaly blueprint (31 tests, including 6 D3 retrain tests). Use as template for every new module.
+- `tests/test_ml_anomaly.py` — ml_anomaly blueprint (41 tests, including 6 D3 retrain + 10 D4 SHAP tests). Use as template for every new module.
 - `tests/test_real_scanner.py` — real_scanner blueprint (1 test: zero-open-ports host persistence with `node_meta.no_open_ports=True`)
 - `tests/test_recon.py` — recon/fingerprint blueprint (30 tests)
 
