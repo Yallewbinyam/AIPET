@@ -14,16 +14,11 @@ Run (headless, 100 users, 10/s ramp, 2-min soak):
 """
 
 import random
-import time
+import uuid
 
 from locust import HttpUser, TaskSet, between, events, task
 
-# ---------------------------------------------------------------------------
-# Shared test credentials (register once, reused by all virtual users)
-# ---------------------------------------------------------------------------
-TEST_EMAIL    = "loadtest@aipet.local"
 TEST_PASSWORD = "LoadTest123!"
-TEST_NAME     = "Load Tester"
 
 REPORT_TYPES  = ["executive", "ciso", "compliance", "incident", "trend"]
 ORGS          = ["AIPET Corp", "Test Org", "Acme Security", "NHS Trust London"]
@@ -34,19 +29,20 @@ def _auth(token: str) -> dict:
     return {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
 
 
-def _ensure_registered(client):
-    """Idempotent — 409 if already exists is fine."""
+def _unique_email() -> str:
+    """One unique email per virtual user — no duplicate-registration failures."""
+    return f"lt_{uuid.uuid4().hex[:12]}@aipet.local"
+
+
+def _register_and_login(client, email: str) -> str | None:
     client.post(
         "/api/auth/register",
-        json={"email": TEST_EMAIL, "password": TEST_PASSWORD, "name": TEST_NAME},
+        json={"email": email, "password": TEST_PASSWORD, "name": "Load Tester"},
         name="/api/auth/register [setup]",
     )
-
-
-def _login(client):
     res = client.post(
         "/api/auth/login",
-        json={"email": TEST_EMAIL, "password": TEST_PASSWORD},
+        json={"email": email, "password": TEST_PASSWORD},
         name="/api/auth/login [setup]",
     )
     return res.json().get("token") if res.status_code == 200 else None
@@ -59,14 +55,17 @@ def _login(client):
 class LoginTasks(TaskSet):
     """LoginUser — repeatedly exercises POST /api/auth/login."""
 
+    email = None
+
     def on_start(self):
-        _ensure_registered(self.client)
+        self.email = _unique_email()
+        _register_and_login(self.client, self.email)
 
     @task
     def login(self):
         self.client.post(
             "/api/auth/login",
-            json={"email": TEST_EMAIL, "password": TEST_PASSWORD},
+            json={"email": self.email, "password": TEST_PASSWORD},
             name="/api/auth/login",
         )
 
@@ -77,13 +76,12 @@ class DashboardTasks(TaskSet):
     token = None
 
     def on_start(self):
-        _ensure_registered(self.client)
-        self.token = _login(self.client)
+        self.token = _register_and_login(self.client, _unique_email())
 
     def _get(self, path, name=None):
         if not self.token:
-            self.token = _login(self.client)
-        self.client.get(path, headers=_auth(self.token) if self.token else {}, name=name or path)
+            return
+        self.client.get(path, headers=_auth(self.token), name=name or path)
 
     @task(8)
     def health(self):
@@ -113,15 +111,12 @@ class ScanTasks(TaskSet):
     token = None
 
     def on_start(self):
-        _ensure_registered(self.client)
-        self.token = _login(self.client)
+        self.token = _register_and_login(self.client, _unique_email())
 
     @task
     def discover(self):
         if not self.token:
-            self.token = _login(self.client)
-            if not self.token:
-                return
+            return
         self.client.post(
             "/api/real-scan/discover",
             json={
@@ -140,14 +135,11 @@ class ReportTasks(TaskSet):
     token = None
 
     def on_start(self):
-        _ensure_registered(self.client)
-        self.token = _login(self.client)
+        self.token = _register_and_login(self.client, _unique_email())
 
     def _post(self, path, payload, name):
         if not self.token:
-            self.token = _login(self.client)
-            if not self.token:
-                return
+            return
         self.client.post(path, json=payload, headers=_auth(self.token), name=name)
 
     @task(4)
@@ -166,13 +158,12 @@ class ReportTasks(TaskSet):
     @task(1)
     def history(self):
         if not self.token:
-            self.token = _login(self.client)
-        if self.token:
-            self.client.get(
-                "/api/enterprise-reporting/history",
-                headers=_auth(self.token),
-                name="/api/enterprise-reporting/history",
-            )
+            return
+        self.client.get(
+            "/api/enterprise-reporting/history",
+            headers=_auth(self.token),
+            name="/api/enterprise-reporting/history",
+        )
 
 
 # ---------------------------------------------------------------------------
