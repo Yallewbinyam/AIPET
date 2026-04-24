@@ -206,3 +206,6 @@ marimo/_static/
 marimo/_lsp/
 __marimo__/
 packages.microsoft.gpg
+
+# ML model artifacts
+dashboard/backend/ml_anomaly/models_store/*.joblib

@@ -143,6 +143,8 @@ from dashboard.backend.real_scanner.routes import real_scanner_bp
 from dashboard.backend.live_cves.routes import live_cves_bp
 from dashboard.backend.live_cves.models import LiveCve, CveSyncLog
 from dashboard.backend.agent_monitor.routes import agent_monitor_bp
+from dashboard.backend.ml_anomaly.routes import ml_anomaly_bp
+from dashboard.backend.ml_anomaly.models import AnomalyModelVersion, AnomalyDetection
 from dashboard.backend.timeline_enhanced.models import TeEvent, TeCluster
 from dashboard.backend.incidents.models import IrIncident, IrTask
 from dashboard.backend.monitoring.logger import setup_logging, get_logger
@@ -903,6 +905,7 @@ app = create_app(
 
 from dashboard.backend.public_scan.routes import public_scan_bp
 app.register_blueprint(public_scan_bp)
+app.register_blueprint(ml_anomaly_bp)
 
 
 

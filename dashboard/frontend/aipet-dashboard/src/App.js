@@ -3,6 +3,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import "./i18n";
 import axios from "axios";
+import MLAnomalyCard from "./components/MLAnomalyCard";
 import * as d3 from "d3";
 // Load JetBrains Mono font for technical aesthetic
 const fontLink = document.createElement("link");
@@ -5906,6 +5907,7 @@ const NAV_ITEMS = [
   { id: "attackpath", label: "Attack Paths",  icon: GitBranch,     group: "enterprise" },
   { id: "identitygraph",label: "Identity Graph", icon: Users,        group: "enterprise" },
   { id: "behavioral",  label: "Behavioral AI",  icon: Activity,      group: "enterprise" },
+  { id: "mlanomaly",  label: "ML Anomaly",     icon: Activity,      group: "enterprise" },
 
   { id: "dspm",        label: "Data Security",  icon: Lock,          group: "enterprise" },
   { id: "costsecurity",label: "Cost Security",  icon: TrendingUp,    group: "enterprise" },
@@ -29793,6 +29795,14 @@ export default function App() {
           )}
           {activeTab === "behavioral" && (
             <BehavioralAIPage token={token} showToast={showToast} />
+          )}
+          {activeTab === "mlanomaly" && (
+            <div style={{ padding: "24px" }}>
+              <h2 style={{ color: "#00e5ff", fontSize: "22px", margin: "0 0 20px 0" }}>
+                ML Anomaly Detection
+              </h2>
+              <MLAnomalyCard token={token} />
+            </div>
           )}
           {activeTab === "identitygraph" && (
             <IdentityGraphPage token={token} showToast={showToast} />
