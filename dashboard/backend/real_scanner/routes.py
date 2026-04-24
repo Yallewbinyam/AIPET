@@ -110,7 +110,7 @@ def _run_nmap_scan(scan_id: str, target: str, user_id: int, app):
             # -T4: aggressive timing, --script=banner: grab banners
             nm.scan(
                 hosts=target,
-                arguments="-sV -O -T4 --top-ports 1000 --script=banner --open",
+                arguments="-sV -O -T4 --top-ports 1000 --script=banner",
                 timeout=SCAN_TIMEOUT,
             )
 
@@ -191,7 +191,7 @@ def _run_nmap_scan(scan_id: str, target: str, user_id: int, app):
 
                 risk_score = _calc_risk(open_ports, unique_cves)
 
-                hosts_data.append({
+                host_entry = {
                     "ip":           host,
                     "hostnames":    hostnames,
                     "status":       status,
@@ -202,7 +202,10 @@ def _run_nmap_scan(scan_id: str, target: str, user_id: int, app):
                     "cves":         unique_cves,
                     "cve_count":    len(unique_cves),
                     "risk_score":   risk_score,
-                })
+                }
+                if not open_ports:
+                    host_entry["node_meta"] = {"no_open_ports": True}
+                hosts_data.append(host_entry)
 
             hosts_data.sort(key=lambda h: h["risk_score"], reverse=True)
 

@@ -243,6 +243,11 @@ cd /home/binyam/AIPET && source venv/bin/activate && pytest
 | `test_user` | session | User row: `test-pytest@aipet.io`, plan=enterprise |
 | `auth_headers` | session | `{"Authorization": "Bearer <token>", "Content-Type": "application/json"}` for test_user |
 
+**Test files:**
+- `tests/test_ml_anomaly.py` — ml_anomaly blueprint (21 tests). Use as template for every new module.
+- `tests/test_real_scanner.py` — real_scanner blueprint (1 test: zero-open-ports host persistence with `node_meta.no_open_ports=True`)
+- `tests/test_recon.py` — recon/fingerprint blueprint (30 tests)
+
 **Pattern established by:** `tests/test_ml_anomaly.py` — use this as the template for every new module's test file.
 
 Key patterns to copy:
@@ -261,15 +266,24 @@ The following VMs are used for real-data scanning and anomaly detection testing.
 |---|---|---|
 | Kali (AIPET host) | 10.0.3.4 or 10.0.3.8 | Host running the AIPET backend; also has NAT (eth0 / 10.0.2.15) for internet |
 | Metasploitable2 | 10.0.3.11 | Deliberately vulnerable target — used as the anomaly **positive case** for ml_anomaly training. Must be powered on before scanning. |
-| xubuntu | 10.0.3.9 | Normal-profile Linux device — intended anomaly **negative case**. Has no open ports by default; nmap `--open` filter will exclude it from results unless services are running. |
+| xubuntu | 10.0.3.9 | Normal-profile Linux device — intended anomaly **negative case**. Has no open ports by default. After Day 2.5 fix (removed `--open` nmap flag), it appears in scan results with `port_count=0` and `node_meta.no_open_ports=True`. |
 | Windows 11 | 10.0.3.10 | Mixed-profile Windows device. Confirmed reachable and scannable. |
 
 Network: Host-Only adapter uses `10.0.3.0/24` subnet. All VMs must have their Host-Only adapter enabled and the VirtualBox Host-Only network active for cross-VM connectivity.
 
-**ml_anomaly scan data status (as of Month 1 W1 D2):**
-- Windows11 (10.0.3.10): 1 open port (TCP 7070 realserver), 5 CVEs — real data available, correctly flagged as anomaly (high severity, score 0.63)
-- Metasploitable2 (10.0.3.11): offline during D2 scans — no data yet
-- xubuntu (10.0.3.9): all ports closed, excluded by `--open` filter — no data yet
+**ml_anomaly scan data status (as of Month 1 W1 D2.5 — 2026-04-24):**
+
+Day 2.5 rescan corrected the Day 2 data-quality issue. Metasploitable2 was suspended during the first scan attempt (D2); all 3 VMs were confirmed pingable and rescanned sequentially.
+
+| VM | IP | Ports | CVEs | risk_score | predict_real result |
+|---|---|---|---|---|---|
+| Metasploitable2 | 10.0.3.11 | **23** (FTP, SSH, Telnet, SMTP, HTTP, MySQL, PostgreSQL, VNC, X11, etc.) | 14 | 100 | `is_anomaly=True`, `severity=high`, score=0.65 ✓ |
+| xubuntu | 10.0.3.9 | 0 (all ports closed; `no_open_ports=True` in node_meta) | 0 | 0 | `is_anomaly=True`, `severity=high` ✗ (false positive — see note below) |
+| Windows 11 | 10.0.3.10 | 1 (TCP 7070 realserver) | 5 | 100 | `is_anomaly=True`, `severity=high` |
+
+**Known ML limitation (Day 2.5):** xubuntu is incorrectly classified as anomalous. Root cause: 9 of 12 features are placeholder zeros for all hosts (watch agent does not yet collect packet-level telemetry). The all-zeros feature vector for xubuntu is statistically anomalous relative to the synthetic training distribution — the isolation forest cannot distinguish "no data" from "suspicious silence". This will resolve when `training_mode=real_scans` activates (requires 20+ completed scans) and when the watch agent is instrumented for the full 12-feature set.
+
+**Sanity check (D2.5):** Metasploitable2 open_port_count (23) > xubuntu (0) ✓ | Metasploitable2 ≥5 ports ✓ | Metasploitable2 cve_count=14 > 0 ✓ — all three infrastructure checks pass.
 
 ---
 
@@ -284,3 +298,4 @@ These must be done before the first production deploy to `aipet.io`. Do NOT star
 | **Set Sentry DSN** | `sentry_sdk.init()` is guarded by `if _sentry_dsn`. Set `SENTRY_DSN` in production `.env`. No code change needed. |
 | **Create UptimeRobot monitor** | `/api/ping` endpoint is live. Create monitor pointing at `https://aipet.io/api/ping` in the UptimeRobot dashboard. |
 | **Instrument watch agent for full 12-feature ml_anomaly training** | The endpoint agent currently collects CPU/mem/disk/process/network telemetry but does NOT collect TCP flag counts (SYN, RST), directional byte counts (inbound/outbound split), per-protocol packet counts, or unique destination IP/port counts. These are prerequisites for training ml_anomaly on all 12 FEATURE_ORDER features from real data. The current implementation uses placeholder zeros for 9 of 12 features. This must be completed before `training_mode=real_scans` produces a meaningful model. |
+| **Fix xubuntu false-positive ML classification** | xubuntu (10.0.3.9) is mis-classified as anomalous (`is_anomaly=True`) because its all-zeros feature vector is an outlier in the synthetic training space. Fix at Day 3+ by: (1) accumulating ≥20 real scans to enable `training_mode=real_scans`, and (2) instrumenting the watch agent for the missing 9 features. Alternatively, consider using 0.5 as the placeholder for features without real data (the synthetic distribution median) instead of 0.0, which would make placeholder-only hosts appear "normal" rather than "extreme outlier". |
