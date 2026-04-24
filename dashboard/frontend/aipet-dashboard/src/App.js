@@ -8982,7 +8982,7 @@ function EnterpriseReportingPage({ token, showToast }) {
               </div>
               <div>
                 <div style={{ color:"#555", fontSize:"11px", letterSpacing:"0.08em", textTransform:"uppercase", marginBottom:"6px" }}>Date</div>
-                <input type="date" value={sigDate} onChange={e => setSigDate(e.target.value)} style={{ width:"100%", background:"#0a1628", border:"1px solid #1e3a5f", borderRadius:"8px", padding:"9px 12px", color:"#e0e0e0", fontSize:"13px", boxSizing:"border-box", fontFamily:"inherit" }} />
+                <input type="date" value={sigDate} onChange={e => setSigDate(e.target.value)} style={{ width:"100%", background:"#0a1628", border:"1px solid #1e3a5f", borderRadius:"8px", padding:"9px 12px", color:"#e0e0e0", fontSize:"13px", boxSizing:"border-box", fontFamily:"inherit", colorScheme:"dark", cursor:"pointer" }} />
               </div>
             </div>
             <div style={{ display:"flex", gap:"12px", flexWrap:"wrap" }}>

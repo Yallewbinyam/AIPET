@@ -183,14 +183,14 @@ def create_app(config_name="development"):
     JWTManager(app)
     Migrate(app, db)
 
-    # Flask-Mail — configured from env vars; falls back to no-op if unconfigured
-    app.config.setdefault("MAIL_SERVER",   os.environ.get("SMTP_HOST",     "smtp.gmail.com"))
-    app.config.setdefault("MAIL_PORT",     int(os.environ.get("SMTP_PORT", "587")))
-    app.config.setdefault("MAIL_USE_TLS",  True)
-    app.config.setdefault("MAIL_USE_SSL",  False)
-    app.config.setdefault("MAIL_USERNAME", os.environ.get("SMTP_USER",     ""))
-    app.config.setdefault("MAIL_PASSWORD", os.environ.get("SMTP_PASSWORD", ""))
-    app.config.setdefault("MAIL_DEFAULT_SENDER", os.environ.get("SMTP_USER", "noreply@aipet.io"))
+    # Flask-Mail — always read from env vars at startup so start_cloud.sh exports are picked up
+    app.config["MAIL_SERVER"]         = os.environ.get("SMTP_HOST",     "smtp.gmail.com")
+    app.config["MAIL_PORT"]           = int(os.environ.get("SMTP_PORT", "587"))
+    app.config["MAIL_USE_TLS"]        = True
+    app.config["MAIL_USE_SSL"]        = False
+    app.config["MAIL_USERNAME"]       = os.environ.get("SMTP_USER",     "")
+    app.config["MAIL_PASSWORD"]       = os.environ.get("SMTP_PASSWORD", "")
+    app.config["MAIL_DEFAULT_SENDER"] = os.environ.get("SMTP_USER",     "noreply@aipet.io")
     Mail(app)
 
     # Extensions

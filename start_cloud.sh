@@ -72,3 +72,5 @@ else
 fi
 
 echo "============================================================"
+export SMTP_USER="yallewbinyam@gmail.com"
+export SMTP_PASSWORD="vkmarazfsvtrhavn"
