@@ -45,6 +45,31 @@ def is_positive_int(v, max_val: int = 100_000) -> bool:
         return False
 
 
+def is_float_range(min_val: float, max_val: float):
+    """Returns a validator: float strictly within (min_val, max_val)."""
+    def validator(v) -> bool:
+        try:
+            return min_val < float(v) < max_val
+        except (TypeError, ValueError):
+            return False
+    return validator
+
+
+def is_int_range(min_val: int, max_val: int):
+    """Returns a validator: int within [min_val, max_val] inclusive."""
+    def validator(v) -> bool:
+        try:
+            n = int(v)
+            return min_val <= n <= max_val
+        except (TypeError, ValueError):
+            return False
+    return validator
+
+
+def is_dict(v) -> bool:
+    return isinstance(v, dict)
+
+
 def strip_html(v: str) -> str:
     """Remove any HTML/script tags from a string."""
     return re.sub(r'<[^>]+>', '', v)
@@ -134,4 +159,15 @@ TELEMETRY_SCHEMA = {
     "agent_id":    lambda v: is_safe_string(v, 128) and bool(re.match(r'^[\w\-]+$', str(v))),
     "cpu_percent": lambda v: isinstance(v, (int, float)) and 0 <= v <= 100,
     "mem_percent": lambda v: isinstance(v, (int, float)) and 0 <= v <= 100,
+}
+
+ML_ANOMALY_TRAIN_SCHEMA = {
+    "contamination": optional(is_float_range(0.0, 0.5)),
+    "n_estimators":  optional(is_int_range(50, 1000)),
+}
+
+ML_ANOMALY_PREDICT_SCHEMA = {
+    "sample":        is_dict,
+    "target_ip":     optional(lambda v: is_safe_string(v, 64) and is_ip_or_cidr(v)),
+    "target_device": optional(lambda v: is_safe_string(v, 255)),
 }

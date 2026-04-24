@@ -11,6 +11,7 @@ Endpoints:
 import json
 import math
 import os
+import uuid
 from datetime import datetime, timezone
 
 import numpy as np
@@ -23,12 +24,16 @@ from dashboard.backend.ml_anomaly.features import FEATURE_ORDER, to_vector
 from dashboard.backend.ml_anomaly.models import AnomalyDetection, AnomalyModelVersion
 from dashboard.backend.ml_anomaly.training_data import generate_synthetic
 from dashboard.backend.models import db
+from dashboard.backend.validation import (
+    ML_ANOMALY_PREDICT_SCHEMA,
+    ML_ANOMALY_TRAIN_SCHEMA,
+    validate_body,
+)
 
 ml_anomaly_bp = Blueprint("ml_anomaly", __name__, url_prefix="/api/ml/anomaly")
 
-CONTAMINATION  = 0.05
-N_ESTIMATORS   = 100
-RANDOM_STATE   = 42
+N_ESTIMATORS = 100
+RANDOM_STATE = 42
 
 
 def _sigmoid(x: float, k: float = 5.0) -> float:
@@ -72,37 +77,47 @@ def get_features():
 
 @ml_anomaly_bp.route("/train", methods=["POST"])
 @jwt_required()
+@validate_body(ML_ANOMALY_TRAIN_SCHEMA)
 def train():
+    body = request.get_json(silent=True) or {}
+
+    # Use caller-supplied overrides when provided; fall back to data-driven defaults
+    n_estimators_override  = body.get("n_estimators")
+    contamination_override = body.get("contamination")
+
     X, y = generate_synthetic(n_normal=5000, n_anomalous=250, seed=RANDOM_STATE)
 
-    contamination = 250 / len(X)
+    # Derive contamination from actual label counts so the value stays correct
+    # even when generate_synthetic is monkeypatched with a smaller dataset.
+    default_contamination = max(0.01, min(0.45, float(int(y.sum())) / len(X)))
+    contamination = float(contamination_override) if contamination_override is not None \
+                    else default_contamination
+    n_estimators  = int(n_estimators_override) if n_estimators_override is not None \
+                    else N_ESTIMATORS
+
     detector = AnomalyDetector()
     detector.fit(X, FEATURE_ORDER, contamination=contamination,
-                 n_estimators=N_ESTIMATORS, random_state=RANDOM_STATE)
+                 n_estimators=n_estimators, random_state=RANDOM_STATE)
 
-    # Evaluate on the full labeled synthetic set
     labels, _ = detector.predict(X)
-    prec  = float(precision_score(y, labels, zero_division=0))
-    rec   = float(recall_score(y, labels, zero_division=0))
-    f1    = float(f1_score(y, labels, zero_division=0))
+    prec = float(precision_score(y, labels, zero_division=0))
+    rec  = float(recall_score(y, labels,  zero_division=0))
+    f1   = float(f1_score(y, labels,      zero_division=0))
 
-    # Version tag: timestamp-based
-    version_tag = datetime.now(timezone.utc).strftime("v%Y%m%d_%H%M%S")
+    version_tag = datetime.now(timezone.utc).strftime("v%Y%m%d_%H%M%S") + "_" + uuid.uuid4().hex[:6]
     model_path  = os.path.join(
         os.path.dirname(__file__), "models_store", f"iforest_{version_tag}.joblib"
     )
     detector.save(model_path)
-    # Also overwrite the LATEST pointer
     detector.save(LATEST_PATH)
 
-    # Deactivate all prior versions
     AnomalyModelVersion.query.filter_by(is_active=True).update({"is_active": False})
 
     mv = AnomalyModelVersion(
         version_tag      = version_tag,
         algorithm        = "isolation_forest",
         contamination    = contamination,
-        n_estimators     = N_ESTIMATORS,
+        n_estimators     = n_estimators,
         feature_names    = json.dumps(FEATURE_ORDER),
         training_samples = len(X),
         precision_score  = prec,
@@ -132,6 +147,7 @@ def train():
 
 @ml_anomaly_bp.route("/predict", methods=["POST"])
 @jwt_required()
+@validate_body(ML_ANOMALY_PREDICT_SCHEMA)
 def predict():
     current_user_id = int(get_jwt_identity())
     body = request.get_json() or {}
@@ -154,9 +170,9 @@ def predict():
     severity      = _severity(sigmoid_score, is_anomaly)
 
     # Top 3 contributors by absolute z-score (placeholder for SHAP on Day 4)
-    X_scaled  = detector.scaler.transform(X)
-    z_scores  = X_scaled[0]
-    top_idx   = np.argsort(np.abs(z_scores))[::-1][:3]
+    X_scaled = detector.scaler.transform(X)
+    z_scores = X_scaled[0]
+    top_idx  = np.argsort(np.abs(z_scores))[::-1][:3]
     top_contributors = [
         {"feature": FEATURE_ORDER[int(i)], "z_score": round(float(z_scores[i]), 4)}
         for i in top_idx

@@ -218,3 +218,48 @@ All three require adding real values to the production `.env` — no code change
 | Load test | `locustfile.py` |
 | Security audit | `scripts/security_audit.sh` |
 | Launch checklist | `LAUNCH_CHECKLIST.md` |
+| Test suite | `tests/` |
+| Pytest config | `pytest.ini` |
+
+---
+
+## Testing
+
+**Framework:** pytest 9.0.2 + pytest-flask 1.3.0
+
+**Location:** `tests/`
+
+**How to run:**
+```bash
+cd /home/binyam/AIPET && source venv/bin/activate && pytest
+```
+
+**Fixtures (defined in `tests/conftest.py`):**
+
+| Fixture | Scope | Description |
+|---|---|---|
+| `flask_app` | session | App instance with in-memory SQLite, DEBUG=True (bypasses force_https), RATELIMIT_ENABLED=False, JWT tokens never expire |
+| `client` | session | Flask test client reused for the whole session |
+| `test_user` | session | User row: `test-pytest@aipet.io`, plan=enterprise |
+| `auth_headers` | session | `{"Authorization": "Bearer <token>", "Content-Type": "application/json"}` for test_user |
+
+**Pattern established by:** `tests/test_ml_anomaly.py` — use this as the template for every new module's test file.
+
+Key patterns to copy:
+- Declare tests that need NO model first, tests that need a trained model last
+- Use a session-scoped `trained_model` fixture with `unittest.mock.patch` on `generate_synthetic` for speed
+- Use `db.session.get(Model, id)` not the deprecated `Model.query.get(id)`
+- Set env vars in `conftest.py` before any project import (not in pytest.ini)
+
+---
+
+## Deferred Production Tasks
+
+These must be done before the first production deploy to `aipet.io`. Do NOT start these until explicitly tasked.
+
+| Task | Notes |
+|---|---|
+| **Initialise Alembic and stamp baseline migration** | Flask-Migrate 4.1.0 is installed but `flask db init` has never been run. All 100+ existing tables were created via `db.create_all()`. A baseline migration must be generated and stamped before any future `flask db upgrade` can run in production. |
+| **Set Gmail SMTP credentials** | Flask-Mail is wired. Set `SMTP_USER` and `SMTP_PASSWORD` in production `.env`. No code change needed. |
+| **Set Sentry DSN** | `sentry_sdk.init()` is guarded by `if _sentry_dsn`. Set `SENTRY_DSN` in production `.env`. No code change needed. |
+| **Create UptimeRobot monitor** | `/api/ping` endpoint is live. Create monitor pointing at `https://aipet.io/api/ping` in the UptimeRobot dashboard. |

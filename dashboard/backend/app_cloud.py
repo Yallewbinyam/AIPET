@@ -327,6 +327,16 @@ def create_app(config_name="development"):
     app.register_blueprint(live_cves_bp)
     app.register_blueprint(agent_monitor_bp)
     app.register_blueprint(api_keys_bp, url_prefix='/api/keys')
+    app.register_blueprint(ml_anomaly_bp)
+    # /train is expensive — cap it well below the global 100/min default.
+    # Flask-Limiter 4.x: must re-assign the return value of limiter.limit()(fn)
+    # back into view_functions; discarding the return value has no effect.
+    # Must run AFTER app.register_blueprint(ml_anomaly_bp) so the view exists.
+    _train_fn = app.view_functions.get("ml_anomaly.train")
+    if _train_fn:
+        _train_fn = limiter.limit("5 per hour")(_train_fn)
+        _train_fn = limiter.limit("20 per day")(_train_fn)
+        app.view_functions["ml_anomaly.train"] = _train_fn
 
     # Setup logging
     setup_logging(
@@ -905,7 +915,6 @@ app = create_app(
 
 from dashboard.backend.public_scan.routes import public_scan_bp
 app.register_blueprint(public_scan_bp)
-app.register_blueprint(ml_anomaly_bp)
 
 
 
