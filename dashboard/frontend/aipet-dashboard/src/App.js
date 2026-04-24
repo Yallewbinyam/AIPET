@@ -4724,12 +4724,186 @@ function LandingPage({ onGetStarted, onLogin, setLegalPage, setActivePage }) {
   );
 }
 
+// ============================================================
+// Onboarding Wizard — shown once after first login
+// ============================================================
+function OnboardingWizard({ token, onComplete }) {
+  const [step,     setStep]     = useState(1);
+  const [org,      setOrg]      = useState("");
+  const [industry, setIndustry] = useState("Technology");
+  const [ipRange,  setIpRange]  = useState("192.168.1.0/24");
+  const [saving,   setSaving]   = useState(false);
+  const API = "http://localhost:5001";
+  const INDUSTRIES = ["Technology","Healthcare","Finance","Government","Education","Energy & Utilities","Manufacturing","Retail","Legal","Other"];
+
+  async function finish() {
+    setSaving(true);
+    try {
+      await fetch(`${API}/api/auth/complete-onboarding`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ organisation: org, industry }),
+      });
+    } catch(e) {}
+    setSaving(false);
+    onComplete();
+  }
+
+  const inputStyle = { width:"100%", background:"#0a1628", border:"1px solid #1e3a5f", borderRadius:"8px", padding:"10px 14px", color:"#e0e0e0", fontSize:"14px", boxSizing:"border-box", fontFamily:"inherit", outline:"none" };
+  const labelStyle = { color:"#00e5ff", fontSize:"11px", fontWeight:"700", letterSpacing:"0.08em", textTransform:"uppercase", display:"block", marginBottom:"6px" };
+
+  return (
+    <div style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.85)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:9999 }}>
+      <div style={{ background:"#0d1526", border:"1px solid #1e3a5f", borderRadius:"16px", padding:"40px", width:"100%", maxWidth:"520px", boxShadow:"0 0 60px rgba(0,229,255,0.1)", fontFamily:"JetBrains Mono, monospace" }}>
+        {/* Progress */}
+        <div style={{ display:"flex", gap:"8px", marginBottom:"32px" }}>
+          {[1,2,3].map(n => (
+            <div key={n} style={{ flex:1, height:"4px", borderRadius:"2px", background: n <= step ? "#00e5ff" : "#1e3a5f", transition:"background 0.3s" }} />
+          ))}
+        </div>
+
+        {step === 1 && (
+          <div>
+            <div style={{ color:"#00e5ff", fontSize:"13px", fontWeight:"700", letterSpacing:"0.1em", marginBottom:"8px" }}>STEP 1 OF 3</div>
+            <h2 style={{ color:"#e0e0e0", fontSize:"22px", fontWeight:"900", margin:"0 0 6px" }}>Welcome to AIPET X</h2>
+            <p style={{ color:"#555", fontSize:"13px", margin:"0 0 28px" }}>Let's get your workspace set up in under a minute.</p>
+            <div style={{ marginBottom:"18px" }}>
+              <label style={labelStyle}>Organisation Name</label>
+              <input value={org} onChange={e=>setOrg(e.target.value)} placeholder="e.g. Acme Corp" style={inputStyle} />
+            </div>
+            <div style={{ marginBottom:"32px" }}>
+              <label style={labelStyle}>Industry</label>
+              <select value={industry} onChange={e=>setIndustry(e.target.value)} style={inputStyle}>
+                {INDUSTRIES.map(i => <option key={i} value={i}>{i}</option>)}
+              </select>
+            </div>
+            <button onClick={() => setStep(2)} style={{ width:"100%", padding:"13px", borderRadius:"10px", background:"#00e5ff", color:"#000", border:"none", cursor:"pointer", fontSize:"14px", fontWeight:"700", fontFamily:"inherit" }}>
+              Continue →
+            </button>
+          </div>
+        )}
+
+        {step === 2 && (
+          <div>
+            <div style={{ color:"#00e5ff", fontSize:"13px", fontWeight:"700", letterSpacing:"0.1em", marginBottom:"8px" }}>STEP 2 OF 3</div>
+            <h2 style={{ color:"#e0e0e0", fontSize:"22px", fontWeight:"900", margin:"0 0 6px" }}>Set Up Your First Scan</h2>
+            <p style={{ color:"#555", fontSize:"13px", margin:"0 0 28px" }}>Enter the IP range of your network to scan for IoT devices and vulnerabilities.</p>
+            <div style={{ marginBottom:"32px" }}>
+              <label style={labelStyle}>IP Range / Target</label>
+              <input value={ipRange} onChange={e=>setIpRange(e.target.value)} placeholder="192.168.1.0/24" style={inputStyle} />
+              <div style={{ color:"#2a3a4a", fontSize:"11px", marginTop:"6px" }}>Examples: 192.168.1.0/24 · 10.0.0.1 · 172.16.0.0/16</div>
+            </div>
+            <div style={{ display:"flex", gap:"10px" }}>
+              <button onClick={() => setStep(1)} style={{ flex:1, padding:"13px", borderRadius:"10px", background:"#0a1628", color:"#888", border:"1px solid #1e3a5f", cursor:"pointer", fontSize:"14px", fontFamily:"inherit" }}>← Back</button>
+              <button onClick={() => setStep(3)} style={{ flex:2, padding:"13px", borderRadius:"10px", background:"#00e5ff", color:"#000", border:"none", cursor:"pointer", fontSize:"14px", fontWeight:"700", fontFamily:"inherit" }}>Continue →</button>
+            </div>
+          </div>
+        )}
+
+        {step === 3 && (
+          <div>
+            <div style={{ color:"#00e5ff", fontSize:"13px", fontWeight:"700", letterSpacing:"0.1em", marginBottom:"8px" }}>STEP 3 OF 3</div>
+            <h2 style={{ color:"#e0e0e0", fontSize:"22px", fontWeight:"900", margin:"0 0 6px" }}>Install the Device Agent</h2>
+            <p style={{ color:"#555", fontSize:"13px", margin:"0 0 20px" }}>Run this one-liner on any Linux host to start streaming telemetry into AIPET X.</p>
+            <div style={{ background:"#060d1a", border:"1px solid #1e3a5f", borderRadius:"8px", padding:"14px 16px", marginBottom:"28px", overflowX:"auto" }}>
+              <code style={{ color:"#00e5ff", fontSize:"12px", whiteSpace:"pre" }}>{"curl -sSL https://aipet.io/install | bash -s -- --token YOUR_API_TOKEN"}</code>
+            </div>
+            <div style={{ background:"rgba(0,229,255,0.05)", border:"1px solid rgba(0,229,255,0.15)", borderRadius:"8px", padding:"12px 14px", marginBottom:"28px" }}>
+              <div style={{ color:"#00e5ff", fontSize:"11px", fontWeight:"700", marginBottom:"4px" }}>WHAT THE AGENT DOES</div>
+              <div style={{ color:"#555", fontSize:"12px", lineHeight:"1.6" }}>Streams CPU, memory, disk, process, and network telemetry every 30 seconds. Zero root access required. Data stays in your region.</div>
+            </div>
+            <div style={{ display:"flex", gap:"10px" }}>
+              <button onClick={() => setStep(2)} style={{ flex:1, padding:"13px", borderRadius:"10px", background:"#0a1628", color:"#888", border:"1px solid #1e3a5f", cursor:"pointer", fontSize:"14px", fontFamily:"inherit" }}>← Back</button>
+              <button onClick={finish} disabled={saving} style={{ flex:2, padding:"13px", borderRadius:"10px", background: saving?"#1a2236":"#00ff88", color: saving?"#555":"#000", border:"none", cursor: saving?"not-allowed":"pointer", fontSize:"14px", fontWeight:"700", fontFamily:"inherit" }}>
+                {saving ? "Saving..." : "Finish Setup ✓"}
+              </button>
+            </div>
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// ============================================================
+// Reset Password Page — shown when URL has ?reset_token=...
+// ============================================================
+function ResetPasswordPage({ resetToken, onLogin }) {
+  const [password,  setPassword]  = useState("");
+  const [password2, setPassword2] = useState("");
+  const [error,     setError]     = useState("");
+  const [success,   setSuccess]   = useState(false);
+  const [loading,   setLoading]   = useState(false);
+  const API = "http://localhost:5001";
+
+  async function handleReset() {
+    setError("");
+    if (!password || !password2) { setError("Both fields are required"); return; }
+    if (password.length < 8)     { setError("Password must be at least 8 characters"); return; }
+    if (password !== password2)  { setError("Passwords do not match"); return; }
+    setLoading(true);
+    try {
+      const res = await fetch(`${API}/api/auth/reset-password`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ token: resetToken, new_password: password }),
+      });
+      const d = await res.json();
+      if (!res.ok) { setError(d.error || "Reset failed"); setLoading(false); return; }
+      localStorage.setItem("aipet_token", d.token);
+      window.history.replaceState({}, "", "/");
+      setSuccess(true);
+      setTimeout(() => onLogin(d.token, d.user), 1200);
+    } catch(e) { setError("Something went wrong. Try again."); }
+    setLoading(false);
+  }
+
+  const inputStyle = { width:"100%", padding:"12px 16px", borderRadius:"10px", background:"#0a1628", border:"1px solid #1e3a5f", color:"#e0e0e0", fontSize:"14px", outline:"none", boxSizing:"border-box" };
+
+  return (
+    <div style={{ minHeight:"100vh", display:"flex", alignItems:"center", justifyContent:"center", background:"#060d1a", fontFamily:"JetBrains Mono, monospace" }}>
+      <div style={{ width:"100%", maxWidth:"420px", padding:"0 16px" }}>
+        <div style={{ textAlign:"center", marginBottom:"32px" }}>
+          <div style={{ fontSize:"32px", fontWeight:"900", color:"#00e5ff" }}>AIPET X</div>
+          <div style={{ color:"#555", fontSize:"13px", marginTop:"4px" }}>AI-Powered IoT Security Platform</div>
+        </div>
+        <div style={{ background:"#0d1526", border:"1px solid #1e3a5f", borderRadius:"16px", padding:"32px" }}>
+          <h2 style={{ color:"#e0e0e0", fontSize:"20px", fontWeight:"900", margin:"0 0 6px" }}>Set New Password</h2>
+          <p style={{ color:"#555", fontSize:"13px", margin:"0 0 24px" }}>Enter a new password for your account.</p>
+          {success ? (
+            <div style={{ textAlign:"center", padding:"20px 0" }}>
+              <div style={{ color:"#00ff88", fontSize:"28px", marginBottom:"8px" }}>✓</div>
+              <div style={{ color:"#e0e0e0", fontSize:"14px" }}>Password reset! Logging you in…</div>
+            </div>
+          ) : (
+            <>
+              {error && <div style={{ background:"rgba(255,45,85,0.1)", border:"1px solid rgba(255,45,85,0.3)", borderRadius:"8px", padding:"10px 14px", color:"#ff2d55", fontSize:"13px", marginBottom:"16px" }}>{error}</div>}
+              <div style={{ marginBottom:"14px" }}>
+                <div style={{ color:"#00e5ff", fontSize:"11px", fontWeight:"700", letterSpacing:"0.08em", textTransform:"uppercase", marginBottom:"6px" }}>New Password</div>
+                <input type="password" value={password} onChange={e=>setPassword(e.target.value)} placeholder="Minimum 8 characters" style={inputStyle} />
+              </div>
+              <div style={{ marginBottom:"24px" }}>
+                <div style={{ color:"#00e5ff", fontSize:"11px", fontWeight:"700", letterSpacing:"0.08em", textTransform:"uppercase", marginBottom:"6px" }}>Confirm Password</div>
+                <input type="password" value={password2} onChange={e=>setPassword2(e.target.value)} placeholder="Repeat password" style={inputStyle} onKeyDown={e=>e.key==="Enter"&&handleReset()} />
+              </div>
+              <button onClick={handleReset} disabled={loading} style={{ width:"100%", padding:"13px", borderRadius:"10px", background: loading?"#1a2236":"#00e5ff", color: loading?"#555":"#000", border:"none", cursor: loading?"not-allowed":"pointer", fontSize:"14px", fontWeight:"700", fontFamily:"inherit" }}>
+                {loading ? "Resetting…" : "Reset Password"}
+              </button>
+            </>
+          )}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function LoginPage({ onLogin }) {
-  const [isRegister, setIsRegister] = useState(false);
+  const [view,       setView]       = useState("login"); // "login" | "register" | "forgot"
   const [email,      setEmail]      = useState("");
   const [password,   setPassword]   = useState("");
   const [name,       setName]       = useState("");
   const [error,      setError]      = useState("");
+  const [info,       setInfo]       = useState("");
   const [loading,    setLoading]    = useState(false);
 
   useEffect(() => {
@@ -4738,7 +4912,7 @@ function LoginPage({ onLogin }) {
     if (ssoToken) {
       localStorage.setItem('aipet_token', ssoToken);
       window.history.replaceState({}, '', '/');
-      onLogin(ssoToken);
+      onLogin(ssoToken, null);
     }
   }, []);
 
@@ -4747,171 +4921,118 @@ function LoginPage({ onLogin }) {
   };
 
   const handleSubmit = async () => {
-    setError("");
+    setError(""); setInfo("");
     if (!email || !password) { setError("Email and password are required"); return; }
-    if (isRegister && !name) { setError("Name is required"); return; }
-
+    if (view === "register" && !name) { setError("Name is required"); return; }
     setLoading(true);
     try {
-      const endpoint = isRegister ? `${AUTH_API}/register` : `${AUTH_API}/login`;
-      const payload  = isRegister
-        ? { email, password, name }
-        : { email, password };
-
+      const endpoint = view === "register" ? `${AUTH_API}/register` : `${AUTH_API}/login`;
+      const payload  = view === "register" ? { email, password, name } : { email, password };
       const res = await axios.post(endpoint, payload);
-      const jwt = res.data.token;
-
-      // Save token to localStorage so it persists across page refreshes
-      localStorage.setItem("aipet_token", jwt);
-      onLogin(jwt);
+      localStorage.setItem("aipet_token", res.data.token);
+      onLogin(res.data.token, res.data.user);
     } catch (e) {
       setError(e.response?.data?.error || "Something went wrong. Try again.");
-    } finally {
-      setLoading(false);
-    }
+    } finally { setLoading(false); }
   };
 
-  return (
-    <div className="min-h-screen flex items-center justify-center"
-      style={{ backgroundColor: COLORS.darker }}>
-      <div className="w-full max-w-md">
+  const handleForgot = async () => {
+    setError(""); setInfo("");
+    if (!email || !email.includes("@")) { setError("Enter a valid email address"); return; }
+    setLoading(true);
+    try {
+      await axios.post(`${AUTH_API}/forgot-password`, { email });
+      setInfo("If that email exists, a reset link has been sent. Check your inbox.");
+    } catch(e) {
+      setInfo("If that email exists, a reset link has been sent. Check your inbox.");
+    } finally { setLoading(false); }
+  };
 
-        {/* Logo */}
+  const iStyle = { width:"100%", padding:"12px 16px", borderRadius:"10px", fontSize:"14px", outline:"none", boxSizing:"border-box", backgroundColor: COLORS.darker, color: COLORS.text, border: `1px solid ${COLORS.border}` };
+
+  return (
+    <div className="min-h-screen flex items-center justify-center" style={{ backgroundColor: COLORS.darker }}>
+      <div className="w-full max-w-md">
         <div className="text-center mb-8">
-          <div className="w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4"
-            style={{ backgroundColor: COLORS.blue }}>
+          <div className="w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4" style={{ backgroundColor: COLORS.blue }}>
             <Shield size={32} color="white" />
           </div>
           <h1 className="text-3xl font-black" style={{ color: COLORS.text }}>AIPET X</h1>
-          <p className="text-sm mt-1" style={{ color: COLORS.muted }}>
-            AI-Powered IoT Security Platform
-          </p>
+          <p className="text-sm mt-1" style={{ color: COLORS.muted }}>AI-Powered IoT Security Platform</p>
         </div>
 
-        {/* Form card */}
-        <div className="rounded-2xl border p-8"
-          style={{
-            backgroundColor: COLORS.card,
-            borderColor: COLORS.blue + "40",
-            boxShadow: `0 0 40px ${COLORS.blue}15`,
-          }}>
+        <div className="rounded-2xl border p-8" style={{ backgroundColor: COLORS.card, borderColor: COLORS.blue + "40", boxShadow: `0 0 40px ${COLORS.blue}15` }}>
 
-          <h2 className="text-xl font-black mb-6" style={{ color: COLORS.text }}>
-            {isRegister ? "Create your account" : "Sign in to AIPET"}
-          </h2>
-
-          {/* Error message */}
-          {error && (
-            <div className="mb-4 p-3 rounded-xl border text-sm"
-              style={{
-                backgroundColor: COLORS.critical + "15",
-                borderColor: COLORS.critical + "40",
-                color: COLORS.critical
-              }}>
-              {error}
-            </div>
+          {view === "forgot" ? (
+            <>
+              <h2 className="text-xl font-black mb-2" style={{ color: COLORS.text }}>Reset Password</h2>
+              <p className="text-sm mb-6" style={{ color: COLORS.muted }}>Enter your email and we'll send a reset link.</p>
+              {error && <div className="mb-4 p-3 rounded-xl text-sm" style={{ backgroundColor: COLORS.critical+"15", border:`1px solid ${COLORS.critical}40`, color: COLORS.critical }}>{error}</div>}
+              {info  && <div className="mb-4 p-3 rounded-xl text-sm" style={{ backgroundColor: "#00ff8815", border:"1px solid #00ff8840", color:"#00ff88" }}>{info}</div>}
+              {!info && (
+                <>
+                  <div className="mb-5">
+                    <label className="block text-xs font-bold uppercase tracking-wider mb-2" style={{ color: COLORS.muted }}>Email</label>
+                    <input type="email" value={email} onChange={e=>setEmail(e.target.value)} placeholder="you@example.com" style={iStyle} onKeyDown={e=>e.key==="Enter"&&handleForgot()} />
+                  </div>
+                  <button onClick={handleForgot} disabled={loading} className="w-full py-3 rounded-xl font-bold text-sm" style={{ backgroundColor: loading?COLORS.border:COLORS.blue, color: loading?COLORS.muted:"white", cursor: loading?"not-allowed":"pointer" }}>
+                    {loading ? "Sending…" : "Send Reset Link"}
+                  </button>
+                </>
+              )}
+              <div className="mt-4 text-center">
+                <button onClick={() => { setView("login"); setError(""); setInfo(""); }} className="text-sm" style={{ color: COLORS.blue }}>← Back to Sign In</button>
+              </div>
+            </>
+          ) : (
+            <>
+              <h2 className="text-xl font-black mb-6" style={{ color: COLORS.text }}>
+                {view === "register" ? "Create your account" : "Sign in to AIPET"}
+              </h2>
+              {error && <div className="mb-4 p-3 rounded-xl border text-sm" style={{ backgroundColor: COLORS.critical+"15", borderColor: COLORS.critical+"40", color: COLORS.critical }}>{error}</div>}
+              {view === "register" && (
+                <div className="mb-4">
+                  <label className="block text-xs font-bold uppercase tracking-wider mb-2" style={{ color: COLORS.muted }}>Full Name</label>
+                  <input type="text" value={name} onChange={e=>setName(e.target.value)} placeholder="John Smith" style={iStyle} />
+                </div>
+              )}
+              <div className="mb-4">
+                <label className="block text-xs font-bold uppercase tracking-wider mb-2" style={{ color: COLORS.muted }}>Email</label>
+                <input type="email" value={email} onChange={e=>setEmail(e.target.value)} placeholder="you@example.com" style={iStyle} />
+              </div>
+              <div className={view === "login" ? "mb-2" : "mb-6"}>
+                <label className="block text-xs font-bold uppercase tracking-wider mb-2" style={{ color: COLORS.muted }}>Password</label>
+                <input type="password" value={password} onChange={e=>setPassword(e.target.value)} placeholder="Minimum 8 characters" style={iStyle} onKeyDown={e=>e.key==="Enter"&&handleSubmit()} />
+              </div>
+              {view === "login" && (
+                <div className="mb-6 text-right">
+                  <button onClick={() => { setView("forgot"); setError(""); setInfo(""); }} className="text-xs" style={{ color: COLORS.muted }}>Forgot password?</button>
+                </div>
+              )}
+              <button onClick={handleSubmit} disabled={loading} className="w-full py-3 rounded-xl font-bold text-sm transition-all" style={{ backgroundColor: loading?COLORS.border:COLORS.blue, color: loading?COLORS.muted:"white", cursor: loading?"not-allowed":"pointer" }}>
+                {loading ? "Please wait..." : view === "register" ? "Create Account" : "Sign In"}
+              </button>
+              <div className="flex items-center gap-3 my-4">
+                <div className="flex-1 h-px" style={{ backgroundColor: COLORS.border }}/>
+                <span className="text-xs" style={{ color: COLORS.muted }}>or</span>
+                <div className="flex-1 h-px" style={{ backgroundColor: COLORS.border }}/>
+              </div>
+              <button onClick={handleGoogleLogin} className="w-full py-3 rounded-xl font-bold text-sm transition-all flex items-center justify-center gap-3" style={{ backgroundColor: COLORS.dark, color: COLORS.text, border: `1px solid ${COLORS.border}` }}>
+                <svg width="18" height="18" viewBox="0 0 18 18">
+                  <path fill="#4285F4" d="M16.51 8H8.98v3h4.3c-.18 1-.74 1.48-1.6 2.04v2.01h2.6a7.8 7.8 0 002.38-5.88c0-.57-.05-.66-.15-1.18z"/>
+                  <path fill="#34A853" d="M8.98 17c2.16 0 3.97-.72 5.3-1.94l-2.6-2a4.8 4.8 0 01-7.18-2.54H1.83v2.07A8 8 0 008.98 17z"/>
+                  <path fill="#FBBC05" d="M4.5 10.52a4.8 4.8 0 010-3.04V5.41H1.83a8 8 0 000 7.18l2.67-2.07z"/>
+                  <path fill="#EA4335" d="M8.98 4.18c1.17 0 2.23.4 3.06 1.2l2.3-2.3A8 8 0 001.83 5.4L4.5 7.49a4.77 4.77 0 014.48-3.3z"/>
+                </svg>
+                Continue with Google
+              </button>
+              <div className="mt-4 text-center">
+                <button onClick={() => { setView(view==="register"?"login":"register"); setError(""); }} className="text-sm transition-all" style={{ color: COLORS.blue }}>
+                  {view === "register" ? "Already have an account? Sign in" : "Don't have an account? Register"}
+                </button>
+              </div>
+            </>
           )}
-
-          {/* Name field (register only) */}
-          {isRegister && (
-            <div className="mb-4">
-              <label className="block text-xs font-bold uppercase tracking-wider mb-2"
-                style={{ color: COLORS.muted }}>Full Name</label>
-              <input
-                type="text"
-                value={name}
-                onChange={e => setName(e.target.value)}
-                placeholder="John Smith"
-                className="w-full px-4 py-3 rounded-xl text-sm outline-none"
-                style={{
-                  backgroundColor: COLORS.darker,
-                  color: COLORS.text,
-                  border: `1px solid ${COLORS.border}`
-                }}
-              />
-            </div>
-          )}
-
-          {/* Email field */}
-          <div className="mb-4">
-            <label className="block text-xs font-bold uppercase tracking-wider mb-2"
-              style={{ color: COLORS.muted }}>Email</label>
-            <input
-              type="email"
-              value={email}
-              onChange={e => setEmail(e.target.value)}
-              placeholder="you@example.com"
-              className="w-full px-4 py-3 rounded-xl text-sm outline-none"
-              style={{
-                backgroundColor: COLORS.darker,
-                color: COLORS.text,
-                border: `1px solid ${COLORS.border}`
-              }}
-            />
-          </div>
-
-          {/* Password field */}
-          <div className="mb-6">
-            <label className="block text-xs font-bold uppercase tracking-wider mb-2"
-              style={{ color: COLORS.muted }}>Password</label>
-            <input
-              type="password"
-              value={password}
-              onChange={e => setPassword(e.target.value)}
-              placeholder="Minimum 8 characters"
-              className="w-full px-4 py-3 rounded-xl text-sm outline-none"
-              style={{
-                backgroundColor: COLORS.darker,
-                color: COLORS.text,
-                border: `1px solid ${COLORS.border}`
-              }}
-            />
-          </div>
-
-          {/* Submit button */}
-          <button
-            onClick={handleSubmit}
-            disabled={loading}
-            className="w-full py-3 rounded-xl font-bold text-sm transition-all"
-            style={{
-              backgroundColor: loading ? COLORS.border : COLORS.blue,
-              color: loading ? COLORS.muted : "white",
-              cursor: loading ? "not-allowed" : "pointer"
-            }}>
-            {loading
-              ? "Please wait..."
-              : isRegister ? "Create Account" : "Sign In"}
-          </button>
-
-          {/* Divider */}
-          <div className="flex items-center gap-3 my-4">
-            <div className="flex-1 h-px" style={{ backgroundColor: COLORS.border }}/>
-            <span className="text-xs" style={{ color: COLORS.muted }}>or</span>
-            <div className="flex-1 h-px" style={{ backgroundColor: COLORS.border }}/>
-          </div>
-          {/* Google SSO */}
-          <button onClick={handleGoogleLogin}
-            className="w-full py-3 rounded-xl font-bold text-sm transition-all flex items-center justify-center gap-3"
-            style={{ backgroundColor: COLORS.dark, color: COLORS.text, border: `1px solid ${COLORS.border}` }}>
-            <svg width="18" height="18" viewBox="0 0 18 18">
-              <path fill="#4285F4" d="M16.51 8H8.98v3h4.3c-.18 1-.74 1.48-1.6 2.04v2.01h2.6a7.8 7.8 0 002.38-5.88c0-.57-.05-.66-.15-1.18z"/>
-              <path fill="#34A853" d="M8.98 17c2.16 0 3.97-.72 5.3-1.94l-2.6-2a4.8 4.8 0 01-7.18-2.54H1.83v2.07A8 8 0 008.98 17z"/>
-              <path fill="#FBBC05" d="M4.5 10.52a4.8 4.8 0 010-3.04V5.41H1.83a8 8 0 000 7.18l2.67-2.07z"/>
-              <path fill="#EA4335" d="M8.98 4.18c1.17 0 2.23.4 3.06 1.2l2.3-2.3A8 8 0 001.83 5.4L4.5 7.49a4.77 4.77 0 014.48-3.3z"/>
-            </svg>
-            Continue with Google
-          </button>
-          {/* Toggle login/register */}
-          <div className="mt-4 text-center">
-            <button
-              onClick={() => { setIsRegister(!isRegister); setError(""); }}
-              className="text-sm transition-all"
-              style={{ color: COLORS.blue }}>
-              {isRegister
-                ? "Already have an account? Sign in"
-                : "Don't have an account? Register"}
-            </button>
-          </div>
         </div>
       </div>
     </div>
@@ -28577,6 +28698,7 @@ export default function App() {
   const [legalPage, setLegalPage] = useState(null);
   const [activePage, setActivePage] = useState(null);
   const [toast, setToast] = useState(null);
+  const [showOnboarding, setShowOnboarding] = useState(false);
 
   const showToast = (message, type = "success") => {
     setToast({ message, type });
@@ -28584,8 +28706,9 @@ export default function App() {
   };
   const usageLoaded = usage !== null;
 
-  const handleLogin = (jwt) => {
+  const handleLogin = (jwt, userData) => {
     setToken(jwt);
+    if (userData && !userData.onboarding_complete) setShowOnboarding(true);
   };
 
   const handleLogout = () => {
@@ -28732,8 +28855,13 @@ export default function App() {
     return matchSev && matchText;
   });
 
-  // If no token, show landing page or login page
+  // If no token, show landing page, login page, or password reset page
   if (!token) {
+    const _urlParams = new URLSearchParams(window.location.search);
+    const _resetToken = _urlParams.get("reset_token");
+    if (_resetToken) {
+      return <ResetPasswordPage resetToken={_resetToken} onLogin={handleLogin} />;
+    }
     if (legalPage) {
       return (
         <LegalPage
@@ -28790,6 +28918,9 @@ export default function App() {
       position: "relative",
       overflow: "auto",
     }}>
+      {showOnboarding && (
+        <OnboardingWizard token={token} onComplete={() => setShowOnboarding(false)} />
+      )}
 
       {/* Background atmospheric effect */}
       <div style={{

@@ -21,18 +21,24 @@ class User(db.Model):
     stripe_customer_id     = db.Column(db.String(100), unique=True, nullable=True)
     stripe_subscription_id = db.Column(db.String(100), unique=True, nullable=True)
     plan_expires_at        = db.Column(db.DateTime,    nullable=True)
+    onboarding_complete    = db.Column(db.Boolean,     default=False)
+    organisation           = db.Column(db.String(255), nullable=True)
+    industry               = db.Column(db.String(100), nullable=True)
     scans                  = db.relationship("Scan",   backref="user", lazy=True)
     api_keys               = db.relationship("APIKey", backref="user", lazy=True)
 
     def to_dict(self):
         return {
-            "id":         self.id,
-            "email":      self.email,
-            "name":       self.name,
-            "plan":       self.plan,
-            "scans_used": self.scans_used,
-            "created_at": str(self.created_at),
-        }     
+            "id":                  self.id,
+            "email":               self.email,
+            "name":                self.name,
+            "plan":                self.plan,
+            "scans_used":          self.scans_used,
+            "created_at":          str(self.created_at),
+            "onboarding_complete": self.onboarding_complete or False,
+            "organisation":        self.organisation or "",
+            "industry":            self.industry or "",
+        }
 
     def can_scan(self):
         if self.plan in ["professional", "enterprise"]:
@@ -55,6 +61,16 @@ class User(db.Model):
     @property
     def is_paid(self):
         return self.plan in ('professional', 'enterprise')
+
+
+class PasswordResetToken(db.Model):
+    __tablename__ = "password_reset_tokens"
+    id         = db.Column(db.Integer, primary_key=True)
+    user_id    = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    token      = db.Column(db.String(128), unique=True, nullable=False, index=True)
+    expires_at = db.Column(db.DateTime, nullable=False)
+    used       = db.Column(db.Boolean, default=False)
+    created_at = db.Column(db.DateTime, default=lambda: datetime.now(timezone.utc))
 
 
 class Scan(db.Model):

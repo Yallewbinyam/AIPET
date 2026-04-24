@@ -3,9 +3,10 @@
 # =============================================================
 import os
 import sys
+import secrets
 import bcrypt
 from datetime import datetime, timezone, timedelta
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request, jsonify, current_app
 from flask_jwt_extended import (
     create_access_token,
     jwt_required,
@@ -16,7 +17,7 @@ import os as _os
 _base = '/app' if _os.path.exists('/app') else '/home/binyam/AIPET'
 sys.path.insert(0, _base)
 
-from dashboard.backend.models import db, User
+from dashboard.backend.models import db, User, PasswordResetToken
 from dashboard.backend.validation import validate_body, LOGIN_SCHEMA, REGISTER_SCHEMA, CHANGE_PASSWORD_SCHEMA
 
 auth_bp = Blueprint("auth", __name__)
@@ -62,7 +63,8 @@ def register():
     return jsonify({
         "message": "Account created successfully",
         "token":   token,
-        "user":    user.to_dict()
+        "user":    user.to_dict(),
+        "onboarding_complete": False,
     }), 201
 
 
@@ -130,7 +132,8 @@ def login():
     return jsonify({
         "message": "Login successful",
         "token":   token,
-        "user":    user.to_dict()
+        "user":    user.to_dict(),
+        "onboarding_complete": user.onboarding_complete or False,
     }), 200
 
 
@@ -170,12 +173,117 @@ def change_password():
     db.session.commit()
     return jsonify({"message": "Password changed successfully"}), 200
 
+
+@auth_bp.route("/api/auth/forgot-password", methods=["POST"])
+def forgot_password():
+    data  = request.get_json(silent=True) or {}
+    email = data.get("email", "").strip().lower()
+    if not email or "@" not in email:
+        return jsonify({"error": "Valid email required"}), 400
+
+    user = User.query.filter_by(email=email).first()
+    # Always return 200 to prevent user enumeration
+    if not user:
+        return jsonify({"message": "If that email exists, a reset link has been sent."}), 200
+
+    # Expire any existing unused tokens for this user
+    PasswordResetToken.query.filter_by(user_id=user.id, used=False).update({"used": True})
+    db.session.commit()
+
+    token_str  = secrets.token_urlsafe(48)
+    expires_at = datetime.now(timezone.utc) + timedelta(hours=1)
+    prt = PasswordResetToken(user_id=user.id, token=token_str, expires_at=expires_at)
+    db.session.add(prt)
+    db.session.commit()
+
+    frontend_url = os.environ.get("FRONTEND_URL", "http://localhost:3000")
+    reset_url    = f"{frontend_url}?reset_token={token_str}"
+
+    try:
+        from flask_mail import Mail, Message
+        mail    = Mail(current_app)
+        subject = "AIPET X — Password Reset Request"
+        body_html = f"""
+        <div style="font-family:Arial,sans-serif;max-width:540px;margin:0 auto;background:#0a0f1a;color:#e0e0e0;padding:32px;border-radius:8px;">
+          <div style="border-bottom:3px solid #00e5ff;padding-bottom:16px;margin-bottom:24px;">
+            <span style="color:#00e5ff;font-size:18px;font-weight:700;">AIPET X</span>
+          </div>
+          <h2 style="color:#e0e0e0;margin:0 0 12px;">Password Reset Request</h2>
+          <p style="color:#94a3b8;margin:0 0 24px;">We received a request to reset the password for <strong style="color:#e0e0e0;">{user.email}</strong>. Click the button below to set a new password. This link expires in <strong>1 hour</strong>.</p>
+          <a href="{reset_url}" style="display:inline-block;background:#00e5ff;color:#000;font-weight:700;padding:12px 28px;border-radius:6px;text-decoration:none;font-size:14px;">Reset Password</a>
+          <p style="color:#475569;font-size:12px;margin-top:28px;">If you did not request this, ignore this email — your password will not change.</p>
+        </div>"""
+        msg = Message(subject=subject, sender=current_app.config.get("MAIL_DEFAULT_SENDER", "noreply@aipet.io"), recipients=[user.email], html=body_html)
+        mail.send(msg)
+    except Exception as e:
+        current_app.logger.error(f"Password reset email failed: {e}")
+
+    return jsonify({"message": "If that email exists, a reset link has been sent."}), 200
+
+
+@auth_bp.route("/api/auth/reset-password", methods=["POST"])
+def reset_password():
+    data         = request.get_json(silent=True) or {}
+    token_str    = data.get("token", "").strip()
+    new_password = data.get("new_password", "")
+
+    if not token_str or not new_password:
+        return jsonify({"error": "Token and new password are required"}), 400
+    if len(new_password) < 8:
+        return jsonify({"error": "Password must be at least 8 characters"}), 400
+
+    prt = PasswordResetToken.query.filter_by(token=token_str, used=False).first()
+    if not prt:
+        return jsonify({"error": "Invalid or expired reset token"}), 400
+
+    now = datetime.now(timezone.utc)
+    expires = prt.expires_at
+    if expires.tzinfo is None:
+        expires = expires.replace(tzinfo=timezone.utc)
+    if now > expires:
+        prt.used = True
+        db.session.commit()
+        return jsonify({"error": "Reset token has expired. Request a new one."}), 400
+
+    user = User.query.get(prt.user_id)
+    if not user:
+        return jsonify({"error": "User not found"}), 404
+
+    user.password_hash = bcrypt.hashpw(new_password.encode("utf-8"), bcrypt.gensalt()).decode("utf-8")
+    prt.used = True
+    db.session.commit()
+
+    jwt = create_access_token(identity=str(user.id))
+    return jsonify({"message": "Password reset successfully", "token": jwt, "user": user.to_dict()}), 200
+
+
+@auth_bp.route("/api/auth/complete-onboarding", methods=["POST"])
+@jwt_required()
+def complete_onboarding():
+    user_id = get_jwt_identity()
+    user    = User.query.get(int(user_id))
+    if not user:
+        return jsonify({"error": "User not found"}), 404
+
+    data         = request.get_json(silent=True) or {}
+    organisation = data.get("organisation", "").strip()
+    industry     = data.get("industry", "").strip()
+
+    if organisation:
+        user.organisation = organisation
+    if industry:
+        user.industry = industry
+    user.onboarding_complete = True
+    db.session.commit()
+
+    return jsonify({"message": "Onboarding complete", "user": user.to_dict()}), 200
+
+
 # =============================================================
 # Google SSO
 # =============================================================
 from authlib.integrations.flask_client import OAuth
-from flask import redirect, current_app, session
-import secrets
+from flask import redirect, session
 
 oauth = OAuth()
 
