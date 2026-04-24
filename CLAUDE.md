@@ -62,7 +62,7 @@ These items must all be resolved before aipet.io accepts real customer traffic. 
 |---|---|---|---|---|---|
 | PLB-1 | Alembic migrations — no baseline migration exists for any of the 100+ tables; project is entirely on db.create_all() | Day 1.5 recon | Half day, risky (full DB backup required first) | Open | Dedicated day (Day 6 of Month 1, after capability 1 finishes) |
 | PLB-2 | Flask-Limiter view_functions reassignment pattern not applied to auth/login/register — those rate limits are silent no-ops in Flask-Limiter 4.x | Day 1.5 | 30 min | Open | Pre-launch hardening sprint |
-| PLB-3 | Flask-Limiter storage backend is memory:// per-worker — with 10 Gunicorn workers, effective rate limits are ~10x looser than configured | Day 3 verification (Step 6f) | 5 min | Closed (see Phase A commit, 2026-04-25) | Pre-launch hardening sprint |
+| PLB-3 | Flask-Limiter storage backend is memory:// per-worker — with 10 Gunicorn workers, effective rate limits are ~10x looser than configured | Day 3 verification (Step 6f) | 5 min | Closed (commit 138f8269, 2026-04-25) | Pre-launch hardening sprint |
 | PLB-4 | Gmail SMTP credentials not set in production .env — Flask-Mail wired but cannot send | Day 1 | 5 min config + you must create Gmail App Password | Open | Launch week (you create Gmail App Password) |
 | PLB-5 | Sentry DSN not set in production .env — Sentry wired in app_cloud.py but no real DSN | Day 1 | 5 min config + you must create Sentry account | Open | Launch week (you sign up at sentry.io) |
 | PLB-6 | UptimeRobot monitor not yet configured — /api/ping endpoint exists but no monitor pointing at aipet.io | Day 1 | 10 min + aipet.io must be live | Open | Launch day (after aipet.io is deployed) |
