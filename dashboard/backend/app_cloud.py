@@ -15,6 +15,7 @@ from flask_jwt_extended import (
     JWTManager, jwt_required, get_jwt_identity
 )
 from flask_migrate import Migrate
+from flask_mail import Mail
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 from dashboard.backend.validation import (
@@ -181,6 +182,16 @@ def create_app(config_name="development"):
     db.init_app(app)
     JWTManager(app)
     Migrate(app, db)
+
+    # Flask-Mail — configured from env vars; falls back to no-op if unconfigured
+    app.config.setdefault("MAIL_SERVER",   os.environ.get("SMTP_HOST",     "smtp.gmail.com"))
+    app.config.setdefault("MAIL_PORT",     int(os.environ.get("SMTP_PORT", "587")))
+    app.config.setdefault("MAIL_USE_TLS",  True)
+    app.config.setdefault("MAIL_USE_SSL",  False)
+    app.config.setdefault("MAIL_USERNAME", os.environ.get("SMTP_USER",     ""))
+    app.config.setdefault("MAIL_PASSWORD", os.environ.get("SMTP_PASSWORD", ""))
+    app.config.setdefault("MAIL_DEFAULT_SENDER", os.environ.get("SMTP_USER", "noreply@aipet.io"))
+    Mail(app)
 
     # Extensions
     CORS(app, resources={
