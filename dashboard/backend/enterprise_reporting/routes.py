@@ -150,169 +150,439 @@ def history():
     reports = EnterpriseReport.query.filter_by(user_id=get_jwt_identity()).order_by(EnterpriseReport.created_at.desc()).limit(50).all()
     return jsonify({"reports":[{"report_id":r.id,"report_type":r.report_type,"organisation":r.organisation,"period":r.period,"risk_score":r.risk_score,"status":r.status,"created_at":r.created_at.isoformat()} for r in reports]}), 200
 
-def _build_pdf_html(report, sig_name="", sig_title="", sig_date=""):
-    content = report["content"] if isinstance(report["content"], dict) else json.loads(report["content"])
-    title = content.get("title", "Enterprise Security Report")
-    period = content.get("period", "")
+def _build_pdf_html(report, sig_name="", sig_title="", sig_date="", content_override=None):
+    content     = content_override if content_override is not None else (
+        report["content"] if isinstance(report["content"], dict) else json.loads(report["content"])
+    )
+    title       = content.get("title", "Enterprise Security Report")
+    period      = content.get("period", "")
     classification = content.get("classification", "CONFIDENTIAL")
-    org = report.get("organisation", "")
-    risk = report.get("risk_score", 0)
-    now = datetime.datetime.utcnow().strftime("%Y-%m-%d %H:%M UTC")
+    org         = report.get("organisation", "")
+    risk        = report.get("risk_score", 0)
+    now         = datetime.datetime.utcnow().strftime("%Y-%m-%d %H:%M UTC")
+    sig_date_val = sig_date or now[:10]
 
+    # ── Risk score colour ──────────────────────────────────
+    if risk >= 70:
+        risk_color = "#b91c1c"
+    elif risk >= 45:
+        risk_color = "#c2410c"
+    else:
+        risk_color = "#15803d"
+
+    # ── Sections HTML ──────────────────────────────────────
     sections_html = ""
     for sec in content.get("sections", []):
         sec_title = sec.get("title", "")
         sections_html += f"<div class='section'><h2>{sec_title}</h2>"
+
         if "content" in sec:
             sections_html += f"<p>{sec['content']}</p>"
+
+        if "score" in sec and "trend" in sec:
+            score_c = "#15803d" if sec["score"] >= 70 else "#c2410c" if sec["score"] >= 45 else "#b91c1c"
+            sections_html += f"<div class='score-row'><span class='big-num' style='color:{score_c}'>{sec['score']}/100</span><span class='trend-label'>Trend: {sec['trend']}</span></div>"
+
         if "items" in sec:
             items = sec["items"]
             if items and isinstance(items[0], dict):
                 for it in items:
-                    vals = " &nbsp;|&nbsp; ".join(f"<strong>{k.replace('_',' ').title()}</strong>: {v}" for k, v in it.items())
-                    sections_html += f"<div class='item-row'>{vals}</div>"
+                    cells = "".join(f"<td><strong>{k.replace('_',' ').title()}</strong><br/>{v}</td>" for k, v in it.items())
+                    sections_html += f"<table class='kv-table'><tr>{cells}</tr></table>"
             else:
                 sections_html += "<ul>" + "".join(f"<li>{i}</li>" for i in items) + "</ul>"
+
         if "modules" in sec:
-            rows = "".join(f"<tr><td>{m['name']}</td><td>{m['scans']}</td><td>{m['findings']}</td><td class='crit'>{m['critical']}</td></tr>" for m in sec["modules"])
-            sections_html += f"<table><thead><tr><th>Module</th><th>Scans</th><th>Findings</th><th>Critical</th></tr></thead><tbody>{rows}</tbody></table>"
+            rows = "".join(
+                f"<tr><td>{m['name']}</td><td>{m['scans']}</td><td>{m['findings']}</td><td class='crit'>{m['critical']}</td></tr>"
+                for m in sec["modules"]
+            )
+            sections_html += (
+                "<table><thead><tr>"
+                "<th>Module</th><th>Scans</th><th>Findings</th><th>Critical</th>"
+                f"</tr></thead><tbody>{rows}</tbody></table>"
+            )
+
         if "frameworks" in sec:
-            for fw in sec["frameworks"]:
-                name = fw.get("name", ""); score = fw.get("score", 0); status = fw.get("status", "")
-                sections_html += f"<div class='item-row'><strong>{name}</strong> &nbsp;Score: <strong>{score}</strong> &nbsp;Status: <strong>{status}</strong></div>"
+            rows = "".join(
+                f"<tr><td><strong>{fw.get('name','')}</strong></td>"
+                f"<td>{fw.get('score','')}%</td>"
+                f"<td>{fw.get('status','').replace('_',' ')}</td></tr>"
+                for fw in sec["frameworks"]
+            )
+            sections_html += (
+                "<table><thead><tr><th>Framework</th><th>Score</th><th>Status</th></tr></thead>"
+                f"<tbody>{rows}</tbody></table>"
+            )
+
         if "data" in sec:
-            for d in sec["data"]:
-                sections_html += f"<div class='item-row'>{d.get('week','')} — Score: <strong>{d.get('score','')}</strong> &nbsp;Threats: {d.get('threats','')} &nbsp;Resolved: {d.get('resolved','')}</div>"
+            rows = "".join(
+                f"<tr><td>{d.get('week','')}</td><td>{d.get('score','')}</td>"
+                f"<td>{d.get('threats','')}</td><td>{d.get('resolved','')}</td></tr>"
+                for d in sec["data"]
+            )
+            sections_html += (
+                "<table><thead><tr><th>Week</th><th>Score</th><th>Threats</th><th>Resolved</th></tr></thead>"
+                f"<tbody>{rows}</tbody></table>"
+            )
+
         if "incidents" in sec:
             for inc in sec["incidents"]:
-                sections_html += f"<div class='item-row'><strong>{inc.get('id','')}</strong>: {inc.get('title','')} — Severity: <strong>{inc.get('severity','')}</strong> — Duration: {inc.get('duration_hours','')}h — Impact: {inc.get('impact','')}</div>"
+                sev_color = "#b91c1c" if inc.get("severity") == "CRITICAL" else "#c2410c" if inc.get("severity") == "HIGH" else "#374151"
+                sections_html += (
+                    f"<div class='item-row'>"
+                    f"<strong style='color:{sev_color}'>[{inc.get('severity','')}]</strong> "
+                    f"<strong>{inc.get('id','')}</strong>: {inc.get('title','')} &mdash; "
+                    f"Duration: {inc.get('duration_hours','')}h &mdash; Impact: {inc.get('impact','')}"
+                    f"</div>"
+                )
+
+        if "critical" in sec and "high" in sec and "medium" in sec:
+            sections_html += (
+                "<table><thead><tr><th>Severity</th><th>Count</th></tr></thead><tbody>"
+                f"<tr><td class='crit'>Critical</td><td>{sec.get('critical',0)}</td></tr>"
+                f"<tr><td style='color:#c2410c'>High</td><td>{sec.get('high',0)}</td></tr>"
+                f"<tr><td style='color:#b45309'>Medium</td><td>{sec.get('medium',0)}</td></tr>"
+                f"<tr><td>MTTR</td><td>{sec.get('mean_time_to_remediate_days',0)} days</td></tr>"
+                "</tbody></table>"
+            )
+
+        if "total_threats" in sec:
+            sections_html += (
+                "<table><thead><tr><th>Metric</th><th>Value</th></tr></thead><tbody>"
+                f"<tr><td>Total Threats</td><td>{sec.get('total_threats',0)}</td></tr>"
+                f"<tr><td>Resolved</td><td>{sec.get('total_resolved',0)}</td></tr>"
+                f"<tr><td>Resolution Rate</td><td>{sec.get('resolution_rate',0)}%</td></tr>"
+                "</tbody></table>"
+            )
+
+        if "coverage" in sec:
+            sections_html += f"<p><strong>MITRE ATT&CK Coverage:</strong> {sec['coverage']}%</p>"
+            tactics = sec.get("tactics", [])
+            if tactics:
+                badges = "".join(f"<span class='badge'>{t}</span>" for t in tactics)
+                sections_html += f"<div class='badge-row'>{badges}</div>"
+
+        if "count" in sec and "last_assessment" in sec:
+            sections_html += (
+                f"<p><strong>Evidence items collected:</strong> {sec['count']} &nbsp;|&nbsp; "
+                f"<strong>Last assessment:</strong> {sec['last_assessment']}</p>"
+            )
+
+        if "overall_improvement" in sec:
+            sign  = "+" if sec["overall_improvement"] >= 0 else ""
+            color = "#15803d" if sec["overall_improvement"] >= 0 else "#b91c1c"
+            sections_html += f"<p>Overall security score improvement: <strong style='color:{color};font-size:16pt'>{sign}{sec['overall_improvement']}</strong></p>"
+
         sections_html += "</div>"
 
-    sig_date_val = sig_date or now[:10]
     return f"""<!DOCTYPE html>
-<html><head><meta charset="UTF-8"/>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
 <style>
-  @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
+  @page {{
+    size: A4;
+    margin: 2cm 2cm 2.5cm 2cm;
+    @bottom-center {{
+      content: "AIPET X \2014 {classification} \2014 Page " counter(page) " of " counter(pages);
+      font-family: Arial, Helvetica, sans-serif;
+      font-size: 8pt;
+      color: #6b7280;
+    }}
+  }}
+
   * {{ box-sizing: border-box; margin: 0; padding: 0; }}
-  body {{ font-family: 'Inter', Arial, sans-serif; font-size: 11pt; color: #1a1a2e; background: #fff; }}
+
+  body {{
+    font-family: Arial, Helvetica, sans-serif;
+    font-size: 12pt;
+    line-height: 1.6;
+    color: #111827;
+    background: #ffffff;
+  }}
+
+  /* ── Watermark ── */
   .watermark {{
-    position: fixed; top: 50%; left: 50%;
-    transform: translate(-50%, -50%) rotate(-40deg);
-    font-size: 80pt; font-weight: 900; opacity: 0.045;
-    color: #cc0000; letter-spacing: 0.05em; white-space: nowrap;
-    pointer-events: none; z-index: 0;
+    position: fixed;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%) rotate(-42deg);
+    font-size: 96pt;
+    font-weight: 900;
+    color: #ef4444;
+    opacity: 0.06;
+    letter-spacing: 0.1em;
+    white-space: nowrap;
+    z-index: -1;
+    pointer-events: none;
   }}
+
+  /* ── Cover header ── */
   .header {{
-    background: #0a0f1a; color: #fff; padding: 28px 36px 22px;
-    border-bottom: 4px solid #00e5ff;
-    display: flex; justify-content: space-between; align-items: flex-start;
+    border-bottom: 4pt solid #1d4ed8;
+    padding-bottom: 16pt;
+    margin-bottom: 14pt;
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
   }}
-  .header-left h1 {{ font-size: 20pt; font-weight: 700; letter-spacing: -0.02em; }}
-  .header-left .sub {{ font-size: 9pt; color: #00e5ff; margin-top: 4px; letter-spacing: 0.08em; }}
-  .header-right {{ text-align: right; font-size: 9pt; color: #94a3b8; }}
-  .header-right .classification {{
-    display: inline-block; padding: 4px 12px; border-radius: 4px;
-    background: #cc0000; color: #fff; font-weight: 700; font-size: 8pt;
-    letter-spacing: 0.12em; margin-bottom: 6px;
+  .brand {{
+    font-size: 10pt;
+    font-weight: 700;
+    color: #1d4ed8;
+    letter-spacing: 0.15em;
+    text-transform: uppercase;
+    margin-bottom: 6pt;
   }}
+  h1 {{
+    font-size: 20pt;
+    font-weight: 700;
+    color: #111827;
+    line-height: 1.2;
+    max-width: 380pt;
+  }}
+  .header-right {{
+    text-align: right;
+    font-size: 9pt;
+    color: #6b7280;
+    flex-shrink: 0;
+    padding-left: 20pt;
+  }}
+  .classification-badge {{
+    display: inline-block;
+    background: #b91c1c;
+    color: #ffffff;
+    font-size: 8pt;
+    font-weight: 700;
+    letter-spacing: 0.14em;
+    padding: 3pt 10pt;
+    border-radius: 3pt;
+    margin-bottom: 6pt;
+  }}
+
+  /* ── Meta bar ── */
   .meta-bar {{
-    background: #f8fafc; border-bottom: 1px solid #e2e8f0;
-    padding: 10px 36px; display: flex; gap: 40px; font-size: 9pt; color: #475569;
+    background: #f3f4f6;
+    border: 1pt solid #e5e7eb;
+    border-radius: 4pt;
+    padding: 8pt 12pt;
+    margin-bottom: 18pt;
+    display: flex;
+    gap: 28pt;
+    font-size: 9pt;
+    color: #4b5563;
   }}
-  .meta-bar span strong {{ color: #1a1a2e; }}
-  .body {{ padding: 28px 36px; }}
-  .section {{ margin-bottom: 28px; page-break-inside: avoid; }}
-  .section h2 {{
-    font-size: 12pt; font-weight: 700; color: #0a0f1a;
-    border-left: 4px solid #00e5ff; padding-left: 10px;
-    margin-bottom: 12px;
+  .meta-bar strong {{ color: #111827; }}
+
+  /* ── Risk score hero ── */
+  .risk-hero {{
+    text-align: center;
+    padding: 16pt 0 10pt;
+    page-break-after: always;
   }}
-  .section p {{ color: #374151; line-height: 1.65; }}
-  .section ul {{ margin-left: 20px; }}
-  .section ul li {{ margin-bottom: 4px; color: #374151; }}
+  .risk-number {{
+    font-size: 72pt;
+    font-weight: 900;
+    line-height: 1;
+    color: {risk_color};
+  }}
+  .risk-label {{
+    font-size: 10pt;
+    color: #6b7280;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    margin-top: 4pt;
+  }}
+
+  /* ── Sections ── */
+  .section {{
+    margin-bottom: 20pt;
+    page-break-inside: avoid;
+  }}
+  h2 {{
+    font-size: 16pt;
+    font-weight: 700;
+    color: #1d4ed8;
+    border-bottom: 1.5pt solid #bfdbfe;
+    padding-bottom: 5pt;
+    margin-bottom: 10pt;
+    page-break-after: avoid;
+  }}
+  h3 {{
+    font-size: 13pt;
+    font-weight: 700;
+    color: #1e3a8a;
+    margin-bottom: 8pt;
+    page-break-after: avoid;
+  }}
+  p {{
+    color: #374151;
+    margin-bottom: 8pt;
+    orphans: 3;
+    widows: 3;
+  }}
+  ul {{
+    margin-left: 18pt;
+    margin-bottom: 8pt;
+  }}
+  li {{
+    color: #374151;
+    margin-bottom: 4pt;
+    line-height: 1.6;
+    orphans: 3;
+    widows: 3;
+  }}
+
+  /* ── Item rows ── */
   .item-row {{
-    background: #f8fafc; border: 1px solid #e2e8f0;
-    border-radius: 6px; padding: 8px 12px; margin-bottom: 6px;
-    font-size: 10pt; color: #374151;
+    background: #f9fafb;
+    border: 1pt solid #e5e7eb;
+    border-left: 3pt solid #1d4ed8;
+    border-radius: 3pt;
+    padding: 7pt 10pt;
+    margin-bottom: 5pt;
+    font-size: 10pt;
+    color: #374151;
   }}
-  table {{ width: 100%; border-collapse: collapse; font-size: 10pt; margin-top: 8px; }}
-  th {{ background: #0a0f1a; color: #00e5ff; padding: 8px 12px; text-align: left; font-weight: 600; font-size: 9pt; }}
-  td {{ padding: 8px 12px; border-bottom: 1px solid #e2e8f0; }}
-  td.crit {{ color: #dc2626; font-weight: 700; }}
-  tr:nth-child(even) td {{ background: #f8fafc; }}
+
+  /* ── Tables ── */
+  table {{
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 10pt;
+    margin: 8pt 0 12pt;
+    page-break-inside: avoid;
+  }}
+  thead th {{
+    background: #1e3a8a;
+    color: #ffffff;
+    font-weight: 700;
+    font-size: 9pt;
+    padding: 7pt 10pt;
+    text-align: left;
+    border: 1pt solid #1e3a8a;
+  }}
+  td {{
+    padding: 6pt 10pt;
+    border: 1pt solid #d1d5db;
+    vertical-align: top;
+    color: #374151;
+  }}
+  tr:nth-child(even) td {{ background: #f9fafb; }}
+  td.crit {{ color: #b91c1c; font-weight: 700; }}
+  .kv-table td {{ border: 1pt solid #d1d5db; background: #f9fafb; }}
+
+  /* ── Score row ── */
+  .score-row {{ display: flex; align-items: center; gap: 16pt; margin: 8pt 0; }}
+  .big-num {{ font-size: 28pt; font-weight: 900; line-height: 1; }}
+  .trend-label {{ font-size: 11pt; color: #6b7280; }}
+
+  /* ── Badges ── */
+  .badge-row {{ display: flex; flex-wrap: wrap; gap: 4pt; margin-top: 6pt; }}
+  .badge {{
+    background: #eff6ff;
+    border: 1pt solid #bfdbfe;
+    color: #1e40af;
+    font-size: 8pt;
+    padding: 2pt 7pt;
+    border-radius: 3pt;
+    white-space: nowrap;
+  }}
+
+  /* ── Signature block ── */
   .signature-block {{
-    margin-top: 40px; border-top: 2px solid #0a0f1a;
-    padding-top: 24px; page-break-inside: avoid;
+    margin-top: 28pt;
+    border-top: 2pt solid #111827;
+    padding-top: 20pt;
+    page-break-inside: avoid;
   }}
-  .signature-block h3 {{
-    font-size: 11pt; font-weight: 700; color: #0a0f1a; margin-bottom: 20px;
-    letter-spacing: 0.04em;
+  .sig-title {{
+    font-size: 10pt;
+    font-weight: 700;
+    color: #111827;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    margin-bottom: 16pt;
   }}
-  .sig-grid {{ display: flex; gap: 40px; }}
+  .sig-grid {{
+    display: flex;
+    gap: 20pt;
+  }}
   .sig-field {{ flex: 1; }}
-  .sig-field .label {{ font-size: 8pt; color: #64748b; letter-spacing: 0.08em; text-transform: uppercase; margin-bottom: 4px; }}
-  .sig-field .value {{
-    border-bottom: 1px solid #1a1a2e; padding-bottom: 4px;
-    font-size: 11pt; color: #1a1a2e; min-height: 22px;
+  .sig-label {{
+    font-size: 7pt;
+    color: #9ca3af;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    margin-bottom: 4pt;
   }}
-  .footer {{
-    position: fixed; bottom: 0; left: 0; right: 0;
-    border-top: 1px solid #e2e8f0; padding: 8px 36px;
-    background: #fff; display: flex; justify-content: space-between;
-    font-size: 8pt; color: #94a3b8;
+  .sig-value {{
+    border-bottom: 1pt solid #111827;
+    padding-bottom: 3pt;
+    font-size: 11pt;
+    color: #111827;
+    min-height: 20pt;
   }}
 </style>
-</head><body>
+</head>
+<body>
+
 <div class="watermark">{classification}</div>
+
 <div class="header">
-  <div class="header-left">
-    <div class="sub">AIPET X &nbsp;|&nbsp; AUTONOMOUS CYBERSECURITY PLATFORM</div>
+  <div>
+    <div class="brand">AIPET X &nbsp;&mdash;&nbsp; Autonomous Cybersecurity Platform</div>
     <h1>{title}</h1>
   </div>
   <div class="header-right">
-    <div class="classification">{classification}</div><br/>
+    <div class="classification-badge">{classification}</div><br/>
     Generated: {now}<br/>
     Period: {period}
   </div>
 </div>
+
 <div class="meta-bar">
   <span><strong>Organisation:</strong> {org}</span>
   <span><strong>Period:</strong> {period}</span>
   <span><strong>Risk Score:</strong> {risk}/100</span>
   <span><strong>Classification:</strong> {classification}</span>
 </div>
-<div class="body">
+
+<div class="risk-hero">
+  <div class="risk-number">{risk}</div>
+  <div class="risk-label">Risk Score / 100</div>
+</div>
+
 {sections_html}
+
 <div class="signature-block">
-  <h3>AUTHORISATION &amp; SIGNATURE</h3>
+  <div class="sig-title">Authorisation &amp; Signature</div>
   <div class="sig-grid">
     <div class="sig-field">
-      <div class="label">Authorised By (Name)</div>
-      <div class="value">{sig_name}</div>
+      <div class="sig-label">Authorised By (Name)</div>
+      <div class="sig-value">{sig_name}</div>
     </div>
     <div class="sig-field">
-      <div class="label">Title / Role</div>
-      <div class="value">{sig_title}</div>
+      <div class="sig-label">Title / Role</div>
+      <div class="sig-value">{sig_title}</div>
     </div>
     <div class="sig-field">
-      <div class="label">Date</div>
-      <div class="value">{sig_date_val}</div>
+      <div class="sig-label">Date</div>
+      <div class="sig-value">{sig_date_val}</div>
     </div>
     <div class="sig-field">
-      <div class="label">Signature</div>
-      <div class="value">&nbsp;</div>
+      <div class="sig-label">Signature</div>
+      <div class="sig-value">&nbsp;</div>
     </div>
   </div>
 </div>
-</div>
-<div class="footer">
-  <span>AIPET X — Autonomous Cybersecurity Platform &nbsp;|&nbsp; {classification}</span>
-  <span>Generated: {now}</span>
-</div>
-</body></html>"""
+
+</body>
+</html>"""
 
 
-@enterprise_reporting_bp.route("/api/enterprise-reporting/export-pdf/<report_id>", methods=["GET"])
+@enterprise_reporting_bp.route("/api/enterprise-reporting/export-pdf/<report_id>", methods=["POST"])
 @jwt_required()
 def export_pdf(report_id):
     try:
@@ -324,9 +594,11 @@ def export_pdf(report_id):
     if not r:
         return jsonify({"error": "Not found"}), 404
 
-    sig_name  = request.args.get("sig_name", "")
-    sig_title = request.args.get("sig_title", "")
-    sig_date  = request.args.get("sig_date", "")
+    data            = request.get_json(silent=True) or {}
+    sig_name        = data.get("sig_name", "")
+    sig_title       = data.get("sig_title", "")
+    sig_date        = data.get("sig_date", "")
+    content_override = data.get("content_override", None)
 
     report_dict = {
         "content": r.content,
@@ -334,7 +606,7 @@ def export_pdf(report_id):
         "period": r.period,
         "risk_score": r.risk_score,
     }
-    html_str = _build_pdf_html(report_dict, sig_name, sig_title, sig_date)
+    html_str = _build_pdf_html(report_dict, sig_name, sig_title, sig_date, content_override)
     pdf_bytes = HTML(string=html_str).write_pdf()
 
     safe_org  = "".join(c if c.isalnum() else "_" for c in (r.organisation or "report"))
@@ -360,12 +632,13 @@ def email_pdf(report_id):
     if not r:
         return jsonify({"error": "Not found"}), 404
 
-    data        = request.get_json(silent=True) or {}
-    recipient   = data.get("recipient", "").strip()
-    sender_name = data.get("sender_name", "AIPET X Platform").strip() or "AIPET X Platform"
-    sig_name    = data.get("sig_name", "")
-    sig_title   = data.get("sig_title", "")
-    sig_date    = data.get("sig_date", "")
+    data             = request.get_json(silent=True) or {}
+    recipient        = data.get("recipient", "").strip()
+    sender_name      = data.get("sender_name", "AIPET X Platform").strip() or "AIPET X Platform"
+    sig_name         = data.get("sig_name", "")
+    sig_title        = data.get("sig_title", "")
+    sig_date         = data.get("sig_date", "")
+    content_override = data.get("content_override", None)
 
     if not recipient or "@" not in recipient:
         return jsonify({"error": "Valid recipient email required"}), 400
@@ -373,7 +646,7 @@ def email_pdf(report_id):
     # Build PDF
     report_dict  = {"content": r.content, "organisation": r.organisation,
                     "period": r.period, "risk_score": r.risk_score}
-    html_str     = _build_pdf_html(report_dict, sig_name, sig_title, sig_date)
+    html_str     = _build_pdf_html(report_dict, sig_name, sig_title, sig_date, content_override)
     pdf_bytes    = HTML(string=html_str).write_pdf()
 
     safe_org     = "".join(c if c.isalnum() else "_" for c in (r.organisation or "report"))

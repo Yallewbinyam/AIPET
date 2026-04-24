@@ -8762,6 +8762,7 @@ function EnterpriseReportingPage({ token, showToast }) {
   const [emailRecipient, setEmailRecipient] = useState("");
   const [senderName, setSenderName]         = useState("AIPET X Platform");
   const [sending, setSending] = useState(false);
+  const [editedContent, setEditedContent] = useState(null);
   const API = "http://localhost:5001";
   const REPORT_TYPES = [
     { id:"executive", icon:"📊", label:"Executive Summary", desc:"Board level — risk score, top threats, business impact" },
@@ -8776,6 +8777,18 @@ function EnterpriseReportingPage({ token, showToast }) {
   const selectedType = REPORT_TYPES.find(t => t.id === reportType);
 
   useEffect(() => { fetchHistory(); }, []);
+  useEffect(() => {
+    if (reportData?.content) setEditedContent(JSON.parse(JSON.stringify(reportData.content)));
+  }, [reportData?.report_id]);
+  function setSecContent(si, text) {
+    setEditedContent(p => { const n = JSON.parse(JSON.stringify(p)); n.sections[si].content = text; return n; });
+  }
+  function setSecItem(si, ii, value) {
+    setEditedContent(p => { const n = JSON.parse(JSON.stringify(p)); n.sections[si].items[ii] = value; return n; });
+  }
+  function setSecItemField(si, ii, field, text) {
+    setEditedContent(p => { const n = JSON.parse(JSON.stringify(p)); n.sections[si].items[ii][field] = text; return n; });
+  }
   async function fetchHistory() {
     try { const r = await fetch(`${API}/api/enterprise-reporting/history`, { headers:{ Authorization:`Bearer ${token}` }}); const d = await r.json(); setHistory(d.reports || []); } catch(e) {}
   }
@@ -8796,8 +8809,11 @@ function EnterpriseReportingPage({ token, showToast }) {
     if (!reportData?.report_id) return;
     setExporting(true);
     try {
-      const params = new URLSearchParams({ sig_name: sigName, sig_title: sigTitle, sig_date: sigDate }).toString();
-      const res = await fetch(`${API}/api/enterprise-reporting/export-pdf/${reportData.report_id}?${params}`, { headers: { Authorization: `Bearer ${token}` } });
+      const res = await fetch(`${API}/api/enterprise-reporting/export-pdf/${reportData.report_id}`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+        body: JSON.stringify({ sig_name: sigName, sig_title: sigTitle, sig_date: sigDate, content_override: editedContent }),
+      });
       if (!res.ok) { showToast("PDF export failed", "error"); setExporting(false); return; }
       const blob = await res.blob();
       const url = URL.createObjectURL(blob);
@@ -8815,7 +8831,7 @@ function EnterpriseReportingPage({ token, showToast }) {
       const res = await fetch(`${API}/api/enterprise-reporting/email-pdf/${reportData.report_id}`, {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
-        body: JSON.stringify({ recipient: emailRecipient, sender_name: senderName, sig_name: sigName, sig_title: sigTitle, sig_date: sigDate }),
+        body: JSON.stringify({ recipient: emailRecipient, sender_name: senderName, sig_name: sigName, sig_title: sigTitle, sig_date: sigDate, content_override: editedContent }),
       });
       const d = await res.json();
       if (d.sent) { showToast(`Report sent to ${emailRecipient}`, "success"); setEmailRecipient(""); }
@@ -8890,7 +8906,18 @@ function EnterpriseReportingPage({ token, showToast }) {
           {reportData.content?.sections?.map((section, i) => (
             <div key={i} style={{ background:"#0d1526", borderRadius:"12px", padding:"20px", marginBottom:"10px", border:"1px solid #1e3a5f" }}>
               <h3 style={{ color: TYPE_COLOR[reportData.report_type]||"#00e5ff", fontSize:"15px", fontWeight:"800", margin:"0 0 14px" }}>{i+1}. {section.title}</h3>
-              {section.content && <p style={{ color:"#888", fontSize:"13px", lineHeight:"1.7", margin:0 }}>{section.content}</p>}
+              {section.content && (
+                <div style={{ position:"relative" }}>
+                  <p
+                    contentEditable suppressContentEditableWarning
+                    style={{ color:"#888", fontSize:"13px", lineHeight:"1.7", margin:0, outline:"none", borderRadius:"6px", padding:"6px 8px", cursor:"text", transition:"background 0.15s" }}
+                    onFocus={e => { e.currentTarget.style.background="rgba(0,229,255,0.05)"; e.currentTarget.style.border="1px solid #1e3a5f"; }}
+                    onBlur={e  => { setSecContent(i, e.currentTarget.innerText); e.currentTarget.style.background="transparent"; e.currentTarget.style.border="1px solid transparent"; }}
+                    title="Click to edit before exporting PDF"
+                  >{section.content}</p>
+                  <span style={{ position:"absolute", top:2, right:6, fontSize:"9px", color:"#2a3a4a", pointerEvents:"none", letterSpacing:"0.06em" }}>✎ CLICK TO EDIT</span>
+                </div>
+              )}
               {section.score !== undefined && (
                 <div style={{ display:"flex", alignItems:"center", gap:"12px" }}>
                   <div style={{ fontSize:"32px", fontWeight:"900", color: scoreColor(section.score) }}>{section.score}/100</div>
@@ -8899,14 +8926,25 @@ function EnterpriseReportingPage({ token, showToast }) {
               )}
               {section.items && Array.isArray(section.items) && section.items.map((item,j) => (
                 <div key={j} style={{ background:"rgba(255,255,255,0.02)", borderRadius:"8px", padding:"10px 14px", marginBottom:"6px", fontSize:"13px" }}>
-                  {typeof item === "string" ? <div style={{ color:"#888" }}>✓ {item}</div>
-                  : item.risk ? <div style={{ display:"flex", justifyContent:"space-between" }}><span style={{ color:"#e0e0e0" }}>{item.risk}</span><div style={{ display:"flex", gap:"8px" }}><span style={{ color: item.impact==="CRITICAL"?"#ff2d55":"#ff6b00", fontSize:"11px", fontWeight:"bold" }}>{item.impact}</span><span style={{ color: item.status==="Remediated"?"#00ff88":"#ffd60a", fontSize:"11px" }}>{item.status}</span></div></div>
-                  : item.framework || item.name ? <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}><span style={{ color:"#e0e0e0", fontWeight:"bold" }}>{item.framework||item.name}</span><div style={{ display:"flex", gap:"12px" }}>{item.score&&<span style={{ color: scoreColor(item.score), fontWeight:"bold" }}>{item.score}%</span>}{item.status&&<span style={{ fontSize:"11px", color: item.status==="COMPLIANT"?"#00ff88":"#ffd60a" }}>{item.status?.replace(/_/g," ")}</span>}{item.findings!==undefined&&<span style={{ color:"#ff6b00", fontSize:"11px" }}>F:{item.findings} C:{item.critical}</span>}</div></div>
-                  : item.gap ? <div><div style={{ display:"flex", justifyContent:"space-between" }}><span style={{ color:"#e0e0e0" }}>{item.gap}</span><span style={{ color:"#ff2d55", fontSize:"11px", fontWeight:"bold" }}>{item.priority}</span></div><div style={{ color:"#555", fontSize:"11px" }}>{item.framework}</div></div>
-                  : item.action ? <div style={{ display:"flex", justifyContent:"space-between" }}><span style={{ color:"#e0e0e0" }}>{item.action}</span><div style={{ display:"flex", gap:"8px" }}><span style={{ color:"#ffd60a", fontSize:"11px" }}>{item.deadline}</span><span style={{ color:"#555", fontSize:"11px" }}>{item.owner}</span></div></div>
-                  : item.metric ? <div style={{ display:"flex", justifyContent:"space-between" }}><span style={{ color:"#e0e0e0" }}>{item.metric}</span><div style={{ display:"flex", gap:"8px" }}><span style={{ color:"#555", fontSize:"11px" }}>{item.start} → {item.end}</span><span style={{ color:"#00ff88", fontSize:"11px", fontWeight:"bold" }}>+{item.improvement}</span></div></div>
+                  {typeof item === "string" ? (
+                    <div style={{ position:"relative" }}>
+                      <span
+                        contentEditable suppressContentEditableWarning
+                        style={{ color:"#888", display:"block", outline:"none", borderRadius:"4px", padding:"2px 6px", cursor:"text" }}
+                        onFocus={e => { e.currentTarget.style.background="rgba(0,229,255,0.05)"; }}
+                        onBlur={e  => { const t = e.currentTarget.innerText.replace(/^✓\s*/,""); setSecItem(i, j, t); e.currentTarget.style.background="transparent"; }}
+                        title="Click to edit"
+                      >✓ {item}</span>
+                      <span style={{ position:"absolute", top:0, right:4, fontSize:"9px", color:"#1a2a3a", pointerEvents:"none" }}>✎</span>
+                    </div>
+                  )
+                  : item.risk ? <div style={{ display:"flex", justifyContent:"space-between" }}><span contentEditable suppressContentEditableWarning style={{ color:"#e0e0e0", outline:"none", cursor:"text" }} onBlur={e=>setSecItemField(i,j,"risk",e.currentTarget.innerText)} title="Click to edit">{item.risk}</span><div style={{ display:"flex", gap:"8px" }}><span style={{ color: item.impact==="CRITICAL"?"#ff2d55":"#ff6b00", fontSize:"11px", fontWeight:"bold" }}>{item.impact}</span><span style={{ color: item.status==="Remediated"?"#00ff88":"#ffd60a", fontSize:"11px" }}>{item.status}</span></div></div>
+                  : item.framework || item.name ? <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}><span contentEditable suppressContentEditableWarning style={{ color:"#e0e0e0", fontWeight:"bold", outline:"none", cursor:"text" }} onBlur={e=>setSecItemField(i,j,item.framework?"framework":"name",e.currentTarget.innerText)} title="Click to edit">{item.framework||item.name}</span><div style={{ display:"flex", gap:"12px" }}>{item.score&&<span style={{ color: scoreColor(item.score), fontWeight:"bold" }}>{item.score}%</span>}{item.status&&<span style={{ fontSize:"11px", color: item.status==="COMPLIANT"?"#00ff88":"#ffd60a" }}>{item.status?.replace(/_/g," ")}</span>}{item.findings!==undefined&&<span style={{ color:"#ff6b00", fontSize:"11px" }}>F:{item.findings} C:{item.critical}</span>}</div></div>
+                  : item.gap ? <div><div style={{ display:"flex", justifyContent:"space-between" }}><span contentEditable suppressContentEditableWarning style={{ color:"#e0e0e0", outline:"none", cursor:"text" }} onBlur={e=>setSecItemField(i,j,"gap",e.currentTarget.innerText)} title="Click to edit">{item.gap}</span><span style={{ color:"#ff2d55", fontSize:"11px", fontWeight:"bold" }}>{item.priority}</span></div><div style={{ color:"#555", fontSize:"11px" }}>{item.framework}</div></div>
+                  : item.action ? <div style={{ display:"flex", justifyContent:"space-between" }}><span contentEditable suppressContentEditableWarning style={{ color:"#e0e0e0", outline:"none", cursor:"text" }} onBlur={e=>setSecItemField(i,j,"action",e.currentTarget.innerText)} title="Click to edit">{item.action}</span><div style={{ display:"flex", gap:"8px" }}><span style={{ color:"#ffd60a", fontSize:"11px" }}>{item.deadline}</span><span style={{ color:"#555", fontSize:"11px" }}>{item.owner}</span></div></div>
+                  : item.metric ? <div style={{ display:"flex", justifyContent:"space-between" }}><span contentEditable suppressContentEditableWarning style={{ color:"#e0e0e0", outline:"none", cursor:"text" }} onBlur={e=>setSecItemField(i,j,"metric",e.currentTarget.innerText)} title="Click to edit">{item.metric}</span><div style={{ display:"flex", gap:"8px" }}><span style={{ color:"#555", fontSize:"11px" }}>{item.start} → {item.end}</span><span style={{ color:"#00ff88", fontSize:"11px", fontWeight:"bold" }}>+{item.improvement}</span></div></div>
                   : item.week ? <div style={{ display:"flex", justifyContent:"space-between" }}><span style={{ color:"#e0e0e0" }}>{item.week}</span><div style={{ display:"flex", gap:"12px" }}><span style={{ color: scoreColor(item.score), fontWeight:"bold" }}>{item.score}/100</span><span style={{ color:"#ff6b00", fontSize:"11px" }}>T:{item.threats}</span><span style={{ color:"#00ff88", fontSize:"11px" }}>R:{item.resolved}</span></div></div>
-                  : item.id ? <div><div style={{ display:"flex", justifyContent:"space-between", marginBottom:"3px" }}><span style={{ color:"#e0e0e0", fontWeight:"bold" }}>{item.id}: {item.title}</span><span style={{ color:"#ff2d55", fontSize:"11px" }}>{item.severity}</span></div><div style={{ color:"#555", fontSize:"11px" }}>{item.impact}</div></div>
+                  : item.id ? <div><div style={{ display:"flex", justifyContent:"space-between", marginBottom:"3px" }}><span style={{ color:"#e0e0e0", fontWeight:"bold" }}>{item.id}: <span contentEditable suppressContentEditableWarning style={{ outline:"none", cursor:"text" }} onBlur={e=>setSecItemField(i,j,"title",e.currentTarget.innerText)} title="Click to edit">{item.title}</span></span><span style={{ color:"#ff2d55", fontSize:"11px" }}>{item.severity}</span></div><div contentEditable suppressContentEditableWarning style={{ color:"#555", fontSize:"11px", outline:"none", cursor:"text" }} onBlur={e=>setSecItemField(i,j,"impact",e.currentTarget.innerText)} title="Click to edit">{item.impact}</div></div>
                   : <div style={{ color:"#888" }}>{JSON.stringify(item)}</div>}
                 </div>
               ))}
