@@ -10,6 +10,18 @@ import subprocess
 import threading
 from datetime import datetime, timedelta
 from flask import Flask, jsonify, request, send_file, redirect
+
+import sentry_sdk
+from sentry_sdk.integrations.flask import FlaskIntegration
+
+_sentry_dsn = os.environ.get("SENTRY_DSN", "")
+if _sentry_dsn:
+    sentry_sdk.init(
+        dsn=_sentry_dsn,
+        integrations=[FlaskIntegration()],
+        traces_sample_rate=1.0,
+        send_default_pii=False,
+    )
 from flask_cors import CORS
 from flask_jwt_extended import (
     JWTManager, jwt_required, get_jwt_identity
@@ -355,6 +367,7 @@ def create_app(config_name="development"):
         }), 405
     @app.errorhandler(500)
     def internal_error_handler(e):
+        sentry_sdk.capture_exception(e)
         from dashboard.backend.monitoring.alerting import alert_unhandled_exception
         try:
             user_id = get_jwt_identity()
@@ -368,7 +381,7 @@ def create_app(config_name="development"):
         return jsonify({
             "error": "Internal server error",
             "message": "Something went wrong. Our team has been notified."
-        }), 500 
+        }), 500
 
 
     # ── Public routes ─────────────────────────────────────
@@ -391,6 +404,15 @@ def create_app(config_name="development"):
                 "%Y-%m-%d %H:%M:%S"
             )
         })
+
+    @app.route("/api/ping", methods=["GET"])
+    def ping():
+        return jsonify({"status": "ok", "timestamp": datetime.utcnow().isoformat() + "Z"})
+
+    @app.route("/api/sentry-test", methods=["GET"])
+    def sentry_test():
+        division_by_zero = 1 / 0
+        return jsonify({"status": "unreachable"})
 
     @app.route("/api/plans", methods=["GET"])
     def get_plans():
