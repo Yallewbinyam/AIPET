@@ -17,7 +17,11 @@ class Config:
     SESSION_COOKIE_HTTPONLY = True   # Block JavaScript access to cookies
     SESSION_COOKIE_SAMESITE = 'Lax' # Prevent CSRF attacks
     SQLALCHEMY_TRACK_MODIFICATIONS = False
-    RATELIMIT_STORAGE_URI         = "memory://"
+    # Flask-Limiter shared counter store — Redis db 1 (db 0 = Celery broker/results)
+    # Override with FLASK_LIMITER_STORAGE_URI env var for production.
+    # Falls back to in-memory per-worker if Redis is unreachable (in_memory_fallback_enabled=True).
+    FLASK_LIMITER_STORAGE_URI     = os.environ.get("FLASK_LIMITER_STORAGE_URI", "redis://localhost:6379/1")
+    RATELIMIT_STORAGE_URI         = FLASK_LIMITER_STORAGE_URI
 
     # Stripe
     STRIPE_SECRET_KEY             = os.environ.get('STRIPE_SECRET_KEY')

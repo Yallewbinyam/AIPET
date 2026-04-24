@@ -238,8 +238,11 @@ def create_app(config_name="development"):
         key_func=_rate_limit_key,
         app=app,
         default_limits=["100 per minute", "2000 per day"],
-        storage_uri="memory://",
-        headers_enabled=True,           # expose X-RateLimit-* headers
+        storage_uri=os.environ.get(
+            "FLASK_LIMITER_STORAGE_URI", "redis://localhost:6379/1"
+        ),
+        in_memory_fallback_enabled=True,  # degrade gracefully if Redis is down
+        headers_enabled=True,             # expose X-RateLimit-* headers
     )
 
     # Register blueprints
