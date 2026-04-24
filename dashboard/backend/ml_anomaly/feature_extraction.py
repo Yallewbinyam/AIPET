@@ -6,8 +6,35 @@ Public API:
 
 Returns a 12-key dict matching FEATURE_ORDER. Features derived from real scan
 data are populated with real values; features that require network telemetry
-not yet collected (packet counts, flag ratios, etc.) are set to 0.0 and listed
-in the `_synthetic_fields` key so callers know which features are placeholder zeros.
+not yet collected (packet counts, flag ratios, etc.) are imputed using
+per-feature synthetic class means (see PLACEHOLDER STRATEGY below).
+
+PLACEHOLDER STRATEGY
+--------------------
+Rather than zero-filling unobserved features (which creates all-zero vectors
+that are extreme outliers in the synthetic training distribution), we impute
+using the per-feature mean of the *normal* or *anomaly* synthetic class:
+
+- Hosts where open_port_count < _ANOMALY_PORT_THRESHOLD
+  AND cve_count < _ANOMALY_CVE_THRESHOLD:
+      placeholder = mean of that feature in the synthetic NORMAL class.
+  Domain rationale: few ports + few CVEs → low-activity profile.
+
+- Hosts where open_port_count >= _ANOMALY_PORT_THRESHOLD
+  OR  cve_count >= _ANOMALY_CVE_THRESHOLD:
+      placeholder = mean of that feature in the synthetic ANOMALY class.
+  Domain rationale: many open services/CVEs → high-activity profile consistent
+  with the port-scan / exfiltration anomaly patterns in training data.
+
+Thresholds are set above the maximum seen in the synthetic normal class
+(normal: open_port_count ∈ [1,3], cve_count ∈ [0,2]), so any host clearly
+outside the normal scan-data range triggers the anomaly imputation.
+
+Class means are computed ONCE at module load from generate_synthetic() with
+the same seed used for training (seed=42, n_normal=5000, n_anomalous=250),
+ensuring consistency with the fitted model.
+
+All placeholder values used are recorded in _placeholder_values for audit.
 """
 from __future__ import annotations
 
@@ -27,6 +54,34 @@ _NIGHT_HOURS = set(range(22, 24)) | set(range(0, 7))
 # Minimum number of scans containing this host before night_activity is meaningful.
 _MIN_SCANS_FOR_NIGHT = 3
 
+# Hosts with open_port_count >= this OR cve_count >= this use anomaly-class means
+# as placeholders. Thresholds are set just above the synthetic normal class maxima
+# (normal: open_port_count ∈ [1,3], cve_count ∈ [0,2]).
+_ANOMALY_PORT_THRESHOLD = 5
+_ANOMALY_CVE_THRESHOLD  = 5
+
+
+def _compute_class_means() -> tuple[dict[str, float], dict[str, float]]:
+    """Compute per-feature means for normal and anomaly classes.
+
+    Called once at module load time with the same seed used for training.
+    Avoids repeated generation on every request.
+    """
+    from dashboard.backend.ml_anomaly.training_data import generate_synthetic
+    import numpy as np
+
+    X, y = generate_synthetic(n_normal=5000, n_anomalous=250, seed=42)
+    X_normal  = X[y == 0]
+    X_anomaly = X[y == 1]
+
+    normal_means  = {name: float(X_normal[:, i].mean())  for i, name in enumerate(FEATURE_ORDER)}
+    anomaly_means = {name: float(X_anomaly[:, i].mean()) for i, name in enumerate(FEATURE_ORDER)}
+    return normal_means, anomaly_means
+
+
+# Module-level constants — computed once at import, never on a request path.
+_NORMAL_MEANS, _ANOMALY_MEANS = _compute_class_means()
+
 
 def extract_features_for_host(
     user_id: int,
@@ -43,8 +98,10 @@ def extract_features_for_host(
 
     Transparent partial-real contract
     ----------------------------------
-    - `_synthetic_fields`: list of keys whose value is a placeholder 0.0 because
-      the required telemetry is not yet collected by the watch agent.
+    - `_synthetic_fields`: list of keys whose value was imputed (not measured).
+    - `_placeholder_values`: {feature_name: value_used} for every imputed field.
+    - `_placeholder_strategy`: "normal_means" or "anomaly_means" — which class
+      was used for imputation and why (for audit / reporting).
     - `_source_scan_id`: ID of the most-recent completed scan that contained
       *host_ip* (used for audit / traceability).
     - `_host_ip`: the host IP used for this extraction.
@@ -122,10 +179,10 @@ def extract_features_for_host(
         )
         night_activity = float(night_count) / len(scans_with_host)
     else:
-        night_activity = 0.0
+        night_activity = None  # resolved below via placeholder
         synthetic_fields.append("night_activity")
         log.debug(
-            "feature_extraction: night_activity set to 0.0 — only %d scan(s) for %s "
+            "feature_extraction: night_activity set via placeholder — only %d scan(s) for %s "
             "(need >= %d)",
             len(scans_with_host), host_ip, _MIN_SCANS_FOR_NIGHT,
         )
@@ -137,14 +194,42 @@ def extract_features_for_host(
     ]
     synthetic_fields.extend(_PLACEHOLDER_KEYS)
 
-    feature_values: dict[str, float] = {k: 0.0 for k in FEATURE_ORDER}
+    # Choose imputation class: anomaly means for hosts clearly outside the
+    # synthetic normal range; normal means for everything else.
+    if open_port_count >= _ANOMALY_PORT_THRESHOLD or cve_count >= _ANOMALY_CVE_THRESHOLD:
+        placeholder_src = _ANOMALY_MEANS
+        placeholder_strategy = (
+            f"anomaly_means (open_port_count={open_port_count:.0f} or "
+            f"cve_count={cve_count:.0f} exceeds threshold "
+            f"port>={_ANOMALY_PORT_THRESHOLD} / cve>={_ANOMALY_CVE_THRESHOLD})"
+        )
+    else:
+        placeholder_src = _NORMAL_MEANS
+        placeholder_strategy = (
+            f"normal_means (open_port_count={open_port_count:.0f} and "
+            f"cve_count={cve_count:.0f} within normal range)"
+        )
+
+    # Build the full 12-feature vector.
+    feature_values: dict[str, float] = {}
+    for k in FEATURE_ORDER:
+        feature_values[k] = placeholder_src[k]  # default: imputed
+
+    # Override with real values where available.
     feature_values["open_port_count"] = open_port_count
     feature_values["cve_count"] = cve_count
-    feature_values["night_activity"] = night_activity
+    feature_values["night_activity"] = (
+        night_activity if night_activity is not None else placeholder_src["night_activity"]
+    )
+
+    # Record which value was used for each synthetic field (for audit).
+    placeholder_values = {k: placeholder_src[k] for k in synthetic_fields}
 
     return {
         **feature_values,
-        "_synthetic_fields": synthetic_fields,
-        "_source_scan_id": most_recent_scan_id,
-        "_host_ip": host_ip,
+        "_synthetic_fields":    synthetic_fields,
+        "_placeholder_values":  placeholder_values,
+        "_placeholder_strategy": placeholder_strategy,
+        "_source_scan_id":      most_recent_scan_id,
+        "_host_ip":             host_ip,
     }

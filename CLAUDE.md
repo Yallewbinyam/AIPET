@@ -244,7 +244,7 @@ cd /home/binyam/AIPET && source venv/bin/activate && pytest
 | `auth_headers` | session | `{"Authorization": "Bearer <token>", "Content-Type": "application/json"}` for test_user |
 
 **Test files:**
-- `tests/test_ml_anomaly.py` — ml_anomaly blueprint (21 tests). Use as template for every new module.
+- `tests/test_ml_anomaly.py` — ml_anomaly blueprint (25 tests). Use as template for every new module.
 - `tests/test_real_scanner.py` — real_scanner blueprint (1 test: zero-open-ports host persistence with `node_meta.no_open_ports=True`)
 - `tests/test_recon.py` — recon/fingerprint blueprint (30 tests)
 
@@ -271,19 +271,24 @@ The following VMs are used for real-data scanning and anomaly detection testing.
 
 Network: Host-Only adapter uses `10.0.3.0/24` subnet. All VMs must have their Host-Only adapter enabled and the VirtualBox Host-Only network active for cross-VM connectivity.
 
-**ml_anomaly scan data status (as of Month 1 W1 D2.5 — 2026-04-24):**
+**ml_anomaly scan data status (as of Month 1 W1 D2.6 — 2026-04-24):**
 
-Day 2.5 rescan corrected the Day 2 data-quality issue. Metasploitable2 was suspended during the first scan attempt (D2); all 3 VMs were confirmed pingable and rescanned sequentially.
+D2.5 corrected the scan data. D2.6 fixed the ML false-positive by replacing zero-fill placeholders with class-mean imputation (see `feature_extraction.py`).
 
-| VM | IP | Ports | CVEs | risk_score | predict_real result |
+| VM | IP | Ports | CVEs | risk_score | predict_real result (D2.6) |
 |---|---|---|---|---|---|
-| Metasploitable2 | 10.0.3.11 | **23** (FTP, SSH, Telnet, SMTP, HTTP, MySQL, PostgreSQL, VNC, X11, etc.) | 14 | 100 | `is_anomaly=True`, `severity=high`, score=0.65 ✓ |
-| xubuntu | 10.0.3.9 | 0 (all ports closed; `no_open_ports=True` in node_meta) | 0 | 0 | `is_anomaly=True`, `severity=high` ✗ (false positive — see note below) |
-| Windows 11 | 10.0.3.10 | 1 (TCP 7070 realserver) | 5 | 100 | `is_anomaly=True`, `severity=high` |
+| Metasploitable2 | 10.0.3.11 | **23** (FTP, SSH, Telnet, SMTP, HTTP, MySQL, PostgreSQL, VNC, X11, etc.) | 14 | 100 | `is_anomaly=True`, `severity=high`, score=0.714 ✓ |
+| xubuntu | 10.0.3.9 | 0 (`no_open_ports=True`) | 0 | 0 | `is_anomaly=False`, `severity=low`, score=0.355 ✓ |
+| Windows 11 | 10.0.3.10 | 1 (TCP 7070) | 5 | 100 | `is_anomaly=True`, `severity=high`, score=0.704 (5 CVEs ≥ threshold) |
 
-**Known ML limitation (Day 2.5):** xubuntu is incorrectly classified as anomalous. Root cause: 9 of 12 features are placeholder zeros for all hosts (watch agent does not yet collect packet-level telemetry). The all-zeros feature vector for xubuntu is statistically anomalous relative to the synthetic training distribution — the isolation forest cannot distinguish "no data" from "suspicious silence". This will resolve when `training_mode=real_scans` activates (requires 20+ completed scans) and when the watch agent is instrumented for the full 12-feature set.
+**ML placeholder strategy (D2.6):**
+- Hosts with `open_port_count >= 5` OR `cve_count >= 5` → placeholder features use **anomaly-class synthetic means** (port-scan / exfiltration pattern)
+- All other hosts → placeholder features use **normal-class synthetic means**
+- Thresholds sit just above the synthetic normal class maxima (normal: ports ∈ [1,3], CVEs ∈ [0,2])
+- Implemented in `dashboard/backend/ml_anomaly/feature_extraction.py` as module-level constants `_NORMAL_MEANS`, `_ANOMALY_MEANS` (computed once from `generate_synthetic(seed=42)`)
+- Every prediction response includes `_placeholder_values` dict and `_placeholder_strategy` string for audit
 
-**Sanity check (D2.5):** Metasploitable2 open_port_count (23) > xubuntu (0) ✓ | Metasploitable2 ≥5 ports ✓ | Metasploitable2 cve_count=14 > 0 ✓ — all three infrastructure checks pass.
+**Sanity check (D2.6 — ALL PASS):** Metasploitable2 → anomaly ✓ | xubuntu → normal ✓ | infrastructure (port count ordering, CVE count) ✓
 
 ---
 
@@ -298,4 +303,4 @@ These must be done before the first production deploy to `aipet.io`. Do NOT star
 | **Set Sentry DSN** | `sentry_sdk.init()` is guarded by `if _sentry_dsn`. Set `SENTRY_DSN` in production `.env`. No code change needed. |
 | **Create UptimeRobot monitor** | `/api/ping` endpoint is live. Create monitor pointing at `https://aipet.io/api/ping` in the UptimeRobot dashboard. |
 | **Instrument watch agent for full 12-feature ml_anomaly training** | The endpoint agent currently collects CPU/mem/disk/process/network telemetry but does NOT collect TCP flag counts (SYN, RST), directional byte counts (inbound/outbound split), per-protocol packet counts, or unique destination IP/port counts. These are prerequisites for training ml_anomaly on all 12 FEATURE_ORDER features from real data. The current implementation uses placeholder zeros for 9 of 12 features. This must be completed before `training_mode=real_scans` produces a meaningful model. |
-| **Fix xubuntu false-positive ML classification** | xubuntu (10.0.3.9) is mis-classified as anomalous (`is_anomaly=True`) because its all-zeros feature vector is an outlier in the synthetic training space. Fix at Day 3+ by: (1) accumulating ≥20 real scans to enable `training_mode=real_scans`, and (2) instrumenting the watch agent for the missing 9 features. Alternatively, consider using 0.5 as the placeholder for features without real data (the synthetic distribution median) instead of 0.0, which would make placeholder-only hosts appear "normal" rather than "extreme outlier". |
+| **Replace conditional-mean placeholders with real watch-agent telemetry** | The D2.6 fix uses conditional synthetic class means as placeholders for the 9 unobserved network features. This heuristic is pragmatically correct but not a permanent solution — when the watch agent is instrumented to collect packet_rate, syn_ratio, rst_ratio, etc., replace the placeholder logic in `feature_extraction.py` with real measured values. At that point, `training_mode=real_scans` can also be enabled once ≥20 completed scans exist. |

@@ -287,10 +287,11 @@ def test_extract_features_labels_synthetic_fields_correctly(flask_app, test_user
     assert "cve_count" not in sf
     # night_activity should be synthetic (only 1 scan < 3 minimum)
     assert "night_activity" in sf
-    # All placeholder keys must be 0.0
+    # _placeholder_values must exist and cover every synthetic field
+    assert "_placeholder_values" in result
+    pv = result["_placeholder_values"]
     for key in sf:
-        if key in result:
-            assert result[key] == 0.0, f"Placeholder {key} should be 0.0"
+        assert key in pv, f"_placeholder_values missing key {key}"
 
 
 # ── /extract endpoint tests ────────────────────────────────────────────────────
@@ -352,3 +353,122 @@ def test_train_real_scans_mode_rejects_insufficient_data(client, auth_headers):
     d = r.get_json()
     assert "insufficient real data" in d["error"]
     assert "found" in d
+
+
+# =============================================================================
+# D2.6 — Placeholder-mean tests
+# =============================================================================
+
+# Scan fixtures for placeholder strategy tests.
+_ZERO_PORT_IP = "10.99.2.0"   # xubuntu-like: 0 ports, 0 CVEs → normal means
+_HIGH_PORT_IP = "10.99.2.1"   # Metasploitable2-like: 23 ports, 14 CVEs → anomaly means
+
+_ZERO_PORT_RESULTS = json.dumps([{
+    "ip": _ZERO_PORT_IP, "hostnames": [], "status": "up",
+    "os": "Linux", "os_accuracy": 80,
+    "open_ports": [], "port_count": 0,
+    "cves": [], "cve_count": 0, "risk_score": 0,
+    "node_meta": {"no_open_ports": True},
+}])
+
+_HIGH_PORT_RESULTS = json.dumps([{
+    "ip": _HIGH_PORT_IP, "hostnames": [], "status": "up",
+    "os": "Linux", "os_accuracy": 80,
+    "open_ports": [{"port": p, "proto": "tcp", "service": "svc", "product": "", "version": "", "extrainfo": "", "banner": ""}
+                   for p in range(21, 44)],   # 23 ports
+    "port_count": 23,
+    "cves": [{"cve_id": f"CVE-2024-{i:04d}", "description": "test", "cvss_score": 9.0,
+              "severity": "CRITICAL", "published": "2024-01-01", "url": "", "matched_keyword": "test"}
+             for i in range(14)],  # 14 CVEs
+    "cve_count": 14, "risk_score": 100,
+}])
+
+
+@pytest.fixture(scope="module")
+def zero_port_scan(flask_app, test_user):
+    from dashboard.backend.real_scanner.routes import RealScanResult
+    from dashboard.backend.models import db
+    row = RealScanResult(
+        id="test-scan-d26-zero", user_id=test_user.id, target=_ZERO_PORT_IP,
+        status="complete", started_at=_dt.datetime(2026, 4, 24, 10, 0, 0),
+        finished_at=_dt.datetime(2026, 4, 24, 10, 1, 0),
+        hosts_found=1, cve_count=0, results_json=_ZERO_PORT_RESULTS,
+    )
+    db.session.add(row)
+    db.session.commit()
+    yield row
+    db.session.delete(row)
+    db.session.commit()
+
+
+@pytest.fixture(scope="module")
+def high_port_scan(flask_app, test_user):
+    from dashboard.backend.real_scanner.routes import RealScanResult
+    from dashboard.backend.models import db
+    row = RealScanResult(
+        id="test-scan-d26-high", user_id=test_user.id, target=_HIGH_PORT_IP,
+        status="complete", started_at=_dt.datetime(2026, 4, 24, 11, 0, 0),
+        finished_at=_dt.datetime(2026, 4, 24, 11, 5, 0),
+        hosts_found=1, cve_count=14, results_json=_HIGH_PORT_RESULTS,
+    )
+    db.session.add(row)
+    db.session.commit()
+    yield row
+    db.session.delete(row)
+    db.session.commit()
+
+
+def test_extract_uses_placeholder_mean_not_zero_for_missing_features(flask_app, test_user, zero_port_scan):
+    """Placeholder features must use normal-class means, not 0.0, for a low-risk host."""
+    from dashboard.backend.ml_anomaly.feature_extraction import extract_features_for_host, _NORMAL_MEANS
+    result = extract_features_for_host(test_user.id, _ZERO_PORT_IP)
+    assert result is not None
+    for key in ("packet_rate", "byte_rate", "outbound_ratio", "protocol_entropy"):
+        assert result[key] == _NORMAL_MEANS[key], (
+            f"{key}: expected normal mean {_NORMAL_MEANS[key]:.4f}, got {result[key]:.4f}"
+        )
+    # outbound_ratio normal mean is ~0.8, definitely not 0.0
+    assert result["outbound_ratio"] > 0.5
+
+
+def test_placeholder_values_recorded_in_response(flask_app, test_user, zero_port_scan):
+    """_placeholder_values must be present and map every synthetic field to a non-zero value."""
+    from dashboard.backend.ml_anomaly.feature_extraction import extract_features_for_host
+    result = extract_features_for_host(test_user.id, _ZERO_PORT_IP)
+    assert "_placeholder_values" in result
+    pv = result["_placeholder_values"]
+    assert "_placeholder_strategy" in result
+    assert "normal_means" in result["_placeholder_strategy"]
+    for key in result["_synthetic_fields"]:
+        assert key in pv
+        # Normal means should not be zero for any of the 9 network telemetry features
+        if key in ("packet_rate", "byte_rate", "outbound_ratio", "protocol_entropy"):
+            assert pv[key] != 0.0, f"placeholder for {key} must not be 0.0"
+
+
+def test_predict_real_xubuntu_not_flagged_as_anomaly(client, auth_headers, trained_model, zero_port_scan):
+    """A host with 0 ports and 0 CVEs must be classified normal after the placeholder fix."""
+    r = client.post("/api/ml/anomaly/predict_real",
+                    data=json.dumps({"host_ip": _ZERO_PORT_IP}),
+                    headers=auth_headers)
+    assert r.status_code == 200
+    d = r.get_json()
+    # Must not be flagged as high/critical anomaly — false positive fix
+    assert d["is_anomaly"] is False or d["severity"] == "low", (
+        f"xubuntu-like host should be normal/low, got is_anomaly={d['is_anomaly']}, "
+        f"severity={d['severity']}, score={d['anomaly_score']}"
+    )
+
+
+def test_predict_real_metasploitable_still_flagged_as_anomaly(client, auth_headers, trained_model, high_port_scan):
+    """A host with 23 ports and 14 CVEs must still be classified anomalous after the fix."""
+    r = client.post("/api/ml/anomaly/predict_real",
+                    data=json.dumps({"host_ip": _HIGH_PORT_IP}),
+                    headers=auth_headers)
+    assert r.status_code == 200
+    d = r.get_json()
+    assert d["is_anomaly"] is True, (
+        f"Metasploitable2-like host (23 ports, 14 CVEs) must remain anomalous, "
+        f"got is_anomaly={d['is_anomaly']}, severity={d['severity']}, score={d['anomaly_score']}"
+    )
+    assert d["severity"] in ("high", "critical")
