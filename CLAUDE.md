@@ -48,9 +48,32 @@ AIPET X is an autonomous cybersecurity platform focused on IoT pentesting and en
 - **User onboarding wizard** and password reset flow
 - **Python device agent** — live CPU/mem/disk/process/network telemetry every 30 s
 - **Load tested** — Locust, 100 concurrent virtual users, 4 task types
-- **Sentry error monitoring** wired (DSN pending — see Pending Fixes)
-- **UptimeRobot** `/api/ping` endpoint in place (configuration pending)
+- **Sentry error monitoring** wired (DSN not yet set — see PLB-5)
+- **UptimeRobot** `/api/ping` endpoint in place (monitor not yet configured — see PLB-6)
 - **Last commit tag:** `Pre-Month1: all fixes complete, ready for depth phase`
+
+---
+
+## Pre-Launch Blockers
+
+These items must all be resolved before aipet.io accepts real customer traffic. Each task that closes a blocker **MUST** update this table — change Status to `Closed (commit <hash>, <date>)`. Each task that discovers a new blocker **MUST** add a row. This table is the source of truth — not memory, not other documents. Do not let a session end without updating this table if relevant work was done.
+
+| ID | Blocker | Discovered | Effort | Status | Fix-When |
+|---|---|---|---|---|---|
+| PLB-1 | Alembic migrations — no baseline migration exists for any of the 100+ tables; project is entirely on db.create_all() | Day 1.5 recon | Half day, risky (full DB backup required first) | Open | Dedicated day (Day 6 of Month 1, after capability 1 finishes) |
+| PLB-2 | Flask-Limiter view_functions reassignment pattern not applied to auth/login/register — those rate limits are silent no-ops in Flask-Limiter 4.x | Day 1.5 | 30 min | Open | Pre-launch hardening sprint |
+| PLB-3 | Flask-Limiter storage backend is memory:// per-worker — with 10 Gunicorn workers, effective rate limits are ~10x looser than configured | Day 3 verification (Step 6f) | 5 min | Open | Pre-launch hardening sprint |
+| PLB-4 | Gmail SMTP credentials not set in production .env — Flask-Mail wired but cannot send | Day 1 | 5 min config + you must create Gmail App Password | Open | Launch week (you create Gmail App Password) |
+| PLB-5 | Sentry DSN not set in production .env — Sentry wired in app_cloud.py but no real DSN | Day 1 | 5 min config + you must create Sentry account | Open | Launch week (you sign up at sentry.io) |
+| PLB-6 | UptimeRobot monitor not yet configured — /api/ping endpoint exists but no monitor pointing at aipet.io | Day 1 | 10 min + aipet.io must be live | Open | Launch day (after aipet.io is deployed) |
+| PLB-7 | Celery worker + Beat launched via start_cloud.sh (nohup) — production needs systemd services for restart-on-reboot and proper process management | Day 3 | 30 min | Open | Production deployment task (alongside DigitalOcean deploy) |
+| PLB-8 | Watch agent instrumentation gaps — 9 of 12 ml_anomaly features cannot be computed from real data because watch agent does not collect: TCP flag counts, directional bytes, per-protocol packet counts. Also: dest_ips list is hard-capped at 10, breaking detection of port scans to many destinations | Day 2 recon | Half day | Open | Month 2, alongside watch agent improvements |
+
+### Closing Protocol
+
+- When a blocker is fixed: change Status from `Open` to `Closed (commit <commit_hash>, YYYY-MM-DD)`
+- Do NOT delete closed rows for at least 30 days — keep them for audit
+- When a new blocker is found: add a new row with the next PLB-N ID
 
 ---
 
@@ -231,13 +254,7 @@ eval "$(ssh-agent -s)" && ssh-add ~/.ssh/id_aipet && git push origin main
 
 ## 11. Pending Fixes
 
-| Item | Status | Notes |
-|---|---|---|
-| **Gmail SMTP** | Pending | Flask-Mail configured; live SMTP credentials not set in production `.env` |
-| **Sentry DSN** | Pending | Sentry wired in code (`app_cloud.py`); real DSN not set in production `.env` |
-| **UptimeRobot** | Pending | `/api/ping` endpoint live; UptimeRobot monitor not yet created in their dashboard |
-
-All three require adding real values to the production `.env` — no code changes needed.
+Gmail SMTP, Sentry DSN, and UptimeRobot tracking moved to the **Pre-Launch Blockers** section above (PLB-4, PLB-5, PLB-6). That table is the single source of truth for all production-blocking items.
 
 ---
 
@@ -344,15 +361,14 @@ D2.5 corrected the scan data. D2.6 fixed the ML false-positive by replacing zero
 
 ## Deferred Production Tasks
 
-These must be done before the first production deploy to `aipet.io`. Do NOT start these until explicitly tasked.
+Pre-launch blocker tracking moved to the **Pre-Launch Blockers** section above (PLB-1 through PLB-8). This section now tracks only non-launch deferrals (e.g. Month 2+ feature work and code quality improvements).
 
 | Task | Notes |
 |---|---|
-| **Initialise Alembic and stamp baseline migration** | Flask-Migrate 4.1.0 is installed but `flask db init` has never been run. All 100+ existing tables were created via `db.create_all()`. A baseline migration must be generated and stamped before any future `flask db upgrade` can run in production. |
-| **Set Gmail SMTP credentials** | Flask-Mail is wired. Set `SMTP_USER` and `SMTP_PASSWORD` in production `.env`. No code change needed. |
-| **Set Sentry DSN** | `sentry_sdk.init()` is guarded by `if _sentry_dsn`. Set `SENTRY_DSN` in production `.env`. No code change needed. |
-| **Create UptimeRobot monitor** | `/api/ping` endpoint is live. Create monitor pointing at `https://aipet.io/api/ping` in the UptimeRobot dashboard. |
-| **Instrument watch agent for full 12-feature ml_anomaly training** | The endpoint agent currently collects CPU/mem/disk/process/network telemetry but does NOT collect TCP flag counts (SYN, RST), directional byte counts (inbound/outbound split), per-protocol packet counts, or unique destination IP/port counts. These are prerequisites for training ml_anomaly on all 12 FEATURE_ORDER features from real data. The current implementation uses placeholder zeros for 9 of 12 features. This must be completed before `training_mode=real_scans` produces a meaningful model. |
-| **Replace conditional-mean placeholders with real watch-agent telemetry** | The D2.6 fix uses conditional synthetic class means as placeholders for the 9 unobserved network features. This heuristic is pragmatically correct but not a permanent solution — when the watch agent is instrumented to collect packet_rate, syn_ratio, rst_ratio, etc., replace the placeholder logic in `feature_extraction.py` with real measured values. At that point, `training_mode=real_scans` can also be enabled once ≥20 completed scans exist. |
-| **Switch Flask-Limiter to Redis storage** | Current `storage_uri="memory://"` means each Gunicorn worker has its own rate-limit counter. In multi-worker production, rate limits on `/train` and `/retrain_now` are not enforced globally (each worker allows up to 2 calls/hour independently). Fix: change `storage_uri` to `"redis://localhost:6379/2"` in `app_cloud.py`. |
-| **Replace start_cloud.sh Celery launch with systemd services** | For DigitalOcean production deploy, create `aipet-celery-worker.service` and `aipet-celery-beat.service` systemd unit files so the processes restart on reboot and crashes are handled by the OS supervisor. `start_cloud.sh` is adequate for development. |
+| **Replace conditional-mean placeholders with real watch-agent telemetry** | The D2.6 fix uses conditional synthetic class means as placeholders for 9 unobserved ml_anomaly features. Once the watch agent is instrumented (see PLB-8), replace the placeholder logic in `feature_extraction.py` with real measured values and enable `training_mode=real_scans`. Month 2 work. |
+
+---
+
+## Standing Reminders for Claude Code
+
+Every Claude Code task that fixes a Pre-Launch Blocker MUST update the table in the Pre-Launch Blockers section to mark the relevant PLB row as Closed with the commit hash and date. Every task that discovers a new blocker MUST add a new PLB-N row. Do not trust memory across sessions — trust this file.

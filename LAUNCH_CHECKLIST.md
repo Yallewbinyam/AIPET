@@ -1,5 +1,12 @@
-# AIPET Cloud — Launch Checklist
-## Complete before going live at aipet.io
+# AIPET X — Launch Checklist
+
+This file tracks everything that must be done before aipet.io accepts real customer traffic.
+
+---
+
+## Pre-Launch Blockers (mirror)
+
+Single source of truth: **CLAUDE.md → Pre-Launch Blockers**. Do not duplicate the table here — read CLAUDE.md.
 
 ---
 
