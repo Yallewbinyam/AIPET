@@ -66,7 +66,7 @@ These items must all be resolved before aipet.io accepts real customer traffic. 
 | PLB-4 | Gmail SMTP credentials not set in production .env — Flask-Mail wired but cannot send | Day 1 | 5 min config + you must create Gmail App Password | Open | Launch week (you create Gmail App Password) |
 | PLB-5 | Sentry DSN not set in production .env — Sentry wired in app_cloud.py but no real DSN | Day 1 | 5 min config + you must create Sentry account | Open | Launch week (you sign up at sentry.io) |
 | PLB-6 | UptimeRobot monitor not yet configured — /api/ping endpoint exists but no monitor pointing at aipet.io | Day 1 | 10 min + aipet.io must be live | Open | Launch day (after aipet.io is deployed) |
-| PLB-7 | Celery worker + Beat launched via start_cloud.sh (nohup) — production needs systemd services for restart-on-reboot and proper process management | Day 3 | 30 min | Open | Production deployment task (alongside DigitalOcean deploy) |
+| PLB-7 | Celery worker + Beat launched via start_cloud.sh (nohup) — production needs systemd services for restart-on-reboot and proper process management | Day 3 | 30 min | Closed (see Phase C commit, 2026-04-25) — systemd units are templates in deploy/systemd/; not installed on dev. Production deploy task installs them (see deploy/systemd/INSTALL.md). | Production deployment task (alongside DigitalOcean deploy) |
 | PLB-8 | Watch agent instrumentation gaps — 9 of 12 ml_anomaly features cannot be computed from real data because watch agent does not collect: TCP flag counts, directional bytes, per-protocol packet counts. Also: dest_ips list is hard-capped at 10, breaking detection of port scans to many destinations | Day 2 recon | Half day | Open | Month 2, alongside watch agent improvements |
 
 ### Closing Protocol
@@ -265,6 +265,7 @@ Gmail SMTP, Sentry DSN, and UptimeRobot tracking moved to the **Pre-Launch Block
 - **Frontend** is a single-page React app; all routes/views are components in `App.js` (large file — use search)
 - **Database migrations** are run manually with Flask-Migrate (`flask db upgrade`)
 - **Celery worker + Celery Beat** both started by `start_cloud.sh` (D3). Beat schedule: `sync-nvd-cves-hourly` (3600s) + `retrain-anomaly-model-daily` (86400s). PIDs under `pids/`, logs under `logs/`. Redis required before Celery starts (script checks with `redis-cli ping`).
+- **Celery systemd templates** at `deploy/systemd/` (PLB-7 closed). `start_cloud.sh` detects if `aipet-celery-worker.service` / `aipet-celery-beat.service` are active; if so, it skips nohup launch (systemd owns those processes). On dev, nohup fallback runs as before. See `deploy/systemd/INSTALL.md` for production install instructions.
 - **Gunicorn** serves Flask in production (`gunicorn_config.py`)
 - **Nginx** reverse-proxies to Gunicorn (port 5001) and serves the React build
 

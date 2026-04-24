@@ -7,6 +7,18 @@
 #   2. Celery worker  (background tasks: scans, NVD sync, ML retrain)
 #   3. Celery Beat    (periodic task scheduler)
 #
+# Dev vs production model
+# -----------------------
+# On PRODUCTION hosts: Celery worker and Beat are managed by systemd
+# via deploy/systemd/aipet-celery-worker.service and
+# deploy/systemd/aipet-celery-beat.service (see deploy/systemd/INSTALL.md).
+# When those services are active, this script detects them and skips
+# the nohup launch — systemd owns those processes.
+#
+# On DEV (this script's primary mode): the systemd services are not
+# installed, so Celery is launched as nohup background processes with
+# PID files under pids/ and logs under logs/.
+#
 # Usage:
 #   ./start_cloud.sh          start all services
 #   ./stop_cloud.sh           stop all services
@@ -91,14 +103,24 @@ fi
 if [ "$SKIP_CELERY" -eq 1 ]; then
     echo "[!] Skipping Celery (Redis unavailable)"
 else
+    # ── Detect if systemd is managing Celery (production mode) ───────────────
+    WORKER_SYSTEMD=0
+    BEAT_SYSTEMD=0
+    if systemctl is-active --quiet aipet-celery-worker.service 2>/dev/null; then
+        echo "[+] Celery worker managed by systemd (aipet-celery-worker.service) — skipping nohup launch"
+        WORKER_SYSTEMD=1
+    fi
+    if systemctl is-active --quiet aipet-celery-beat.service 2>/dev/null; then
+        echo "[+] Celery Beat managed by systemd (aipet-celery-beat.service) — skipping nohup launch"
+        BEAT_SYSTEMD=1
+    fi
+
+    # ── Dev fallback: nohup launch if systemd services are not active ──────
     # Remove stale Beat schedule file to prevent duplicate scheduling
     rm -f "$PROJECT_DIR/celerybeat-schedule"
 
-    # Guard: refuse to start Beat if a PID file exists and the process is alive
-    if [ -f "$BEAT_PID" ] && kill -0 "$(cat "$BEAT_PID")" 2>/dev/null; then
-        echo "[!] Celery Beat already running (pid $(cat "$BEAT_PID")) — skipping"
-    else
-        echo "[*] Starting Celery worker..."
+    if [ "$WORKER_SYSTEMD" -eq 0 ]; then
+        echo "[*] Starting Celery worker (dev mode — nohup)..."
         nohup "$VENV/celery" \
             -A dashboard.backend.celery_app \
             worker \
@@ -107,21 +129,26 @@ else
             -n aipet-worker@%h \
             --pidfile="$WORKER_PID" \
             > "$WORKER_LOG" 2>&1 &
-
         sleep 2
         echo "[+] Celery worker started"
+    fi
 
-        echo "[*] Starting Celery Beat..."
-        nohup "$VENV/celery" \
-            -A dashboard.backend.celery_app \
-            beat \
-            --loglevel=info \
-            --pidfile="$BEAT_PID" \
-            --schedule="$PROJECT_DIR/celerybeat-schedule" \
-            > "$BEAT_LOG" 2>&1 &
-
-        sleep 1
-        echo "[+] Celery Beat started"
+    # Guard: refuse to start Beat if a PID file exists and the process is alive
+    if [ "$BEAT_SYSTEMD" -eq 0 ]; then
+        if [ -f "$BEAT_PID" ] && kill -0 "$(cat "$BEAT_PID")" 2>/dev/null; then
+            echo "[!] Celery Beat already running (pid $(cat "$BEAT_PID")) — skipping"
+        else
+            echo "[*] Starting Celery Beat (dev mode — nohup)..."
+            nohup "$VENV/celery" \
+                -A dashboard.backend.celery_app \
+                beat \
+                --loglevel=info \
+                --pidfile="$BEAT_PID" \
+                --schedule="$PROJECT_DIR/celerybeat-schedule" \
+                > "$BEAT_LOG" 2>&1 &
+            sleep 1
+            echo "[+] Celery Beat started"
+        fi
     fi
 fi
 

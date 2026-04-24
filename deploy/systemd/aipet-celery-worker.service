@@ -1,0 +1,53 @@
+# =============================================================
+# AIPET X — Celery Worker systemd Service Unit
+# =============================================================
+# TEMPLATE — fill in User, WorkingDirectory, and EnvironmentFile
+# before installing on a production host.
+#
+# Installation (see INSTALL.md for full instructions):
+#   sudo cp aipet-celery-worker.service /etc/systemd/system/
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now aipet-celery-worker.service
+#
+# Queues consumed: scans (real_scanner Nmap jobs) + celery (NVD sync,
+# ml_anomaly retrain, health checks). Multiple workers can run in
+# parallel; scale with WorkerInstances or multiple unit instances.
+# =============================================================
+
+[Unit]
+Description=AIPET X Celery Worker
+After=network.target redis.service postgresql.service
+Requires=redis.service
+
+[Service]
+Type=forking
+User=aipet
+Group=aipet
+WorkingDirectory=/opt/aipet
+EnvironmentFile=/opt/aipet/.env
+
+ExecStart=/opt/aipet/venv/bin/celery \
+    -A dashboard.backend.celery_app \
+    worker \
+    --loglevel=info \
+    -Q scans,celery \
+    -n aipet-worker@%%h \
+    --pidfile=/opt/aipet/pids/celery_worker.pid \
+    --detach
+
+ExecStop=/opt/aipet/venv/bin/celery \
+    -A dashboard.backend.celery_app \
+    control shutdown
+
+PIDFile=/opt/aipet/pids/celery_worker.pid
+
+Restart=on-failure
+RestartSec=5s
+KillMode=mixed
+TimeoutStopSec=30
+
+StandardOutput=append:/var/log/aipet/celery_worker.log
+StandardError=append:/var/log/aipet/celery_worker.log
+
+[Install]
+WantedBy=multi-user.target
