@@ -69,6 +69,10 @@ celery.conf.update(
             "schedule": 3600,          # every 1 hour
             "kwargs":   {"days_back": 1},
         },
+        "retrain-anomaly-model-daily": {
+            "task":     "dashboard.backend.tasks.retrain_anomaly_model",
+            "schedule": 86400,         # every 24 hours
+        },
     },
 
     # Worker settings

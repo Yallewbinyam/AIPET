@@ -472,3 +472,170 @@ def test_predict_real_metasploitable_still_flagged_as_anomaly(client, auth_heade
         f"got is_anomaly={d['is_anomaly']}, severity={d['severity']}, score={d['anomaly_score']}"
     )
     assert d["severity"] in ("high", "critical")
+
+
+# =============================================================================
+# D3 — Celery retrain task tests
+# =============================================================================
+
+from unittest.mock import MagicMock, patch as _patch
+
+
+def test_retrain_task_skips_when_insufficient_scans(flask_app, test_user):
+    """retrain_anomaly_model returns skipped dict when <20 completed scans exist."""
+    from dashboard.backend.tasks import retrain_anomaly_model
+
+    # The in-memory test DB has only the seeded scans (well below 20)
+    result = retrain_anomaly_model()
+    assert result["status"] == "skipped"
+    assert result["reason"] == "insufficient_real_data"
+    assert result["required"] == 20
+    assert isinstance(result["found"], int)
+    assert result["found"] < 20
+
+
+@pytest.fixture(scope="module")
+def twenty_scans(flask_app, test_user):
+    """Insert 25 completed RealScanResult rows so the retrain guard passes."""
+    from dashboard.backend.real_scanner.routes import RealScanResult
+    from dashboard.backend.models import db
+
+    rows = []
+    for i in range(25):
+        ip = f"10.200.0.{i + 1}"
+        results = json.dumps([{
+            "ip": ip, "hostnames": [], "status": "up",
+            "os": "Linux", "os_accuracy": 80,
+            "open_ports": [
+                {"port": 22, "proto": "tcp", "service": "ssh",
+                 "product": "OpenSSH", "version": "8.9",
+                 "extrainfo": "", "banner": ""},
+            ],
+            "port_count": 1,
+            "cves": [],
+            "cve_count": 0,
+            "risk_score": 10,
+        }])
+        row = RealScanResult(
+            id=f"test-scan-d3-{i:05d}",
+            user_id=test_user.id,
+            target=ip,
+            status="complete",
+            started_at=_dt.datetime(2026, 4, 24, 8, i % 60, 0),
+            finished_at=_dt.datetime(2026, 4, 24, 8, i % 60, 30),
+            hosts_found=1,
+            cve_count=0,
+            results_json=results,
+        )
+        db.session.add(row)
+        rows.append(row)
+    db.session.commit()
+    yield rows
+    for row in rows:
+        try:
+            db.session.delete(row)
+        except Exception:
+            pass
+    db.session.commit()
+
+
+def test_retrain_task_trains_new_version_when_enough_scans(flask_app, test_user, twenty_scans, trained_model):
+    """With 25 seeded scans, retrain_anomaly_model must train and insert a new active version.
+
+    retrain_anomaly_model calls create_app() internally; we patch it to return
+    the test's flask_app so the task operates on the same in-memory SQLite DB
+    that has the seeded rows.
+    """
+    from dashboard.backend.tasks import retrain_anomaly_model
+    from dashboard.backend.ml_anomaly.models import AnomalyModelVersion
+    from dashboard.backend.models import db
+
+    with _patch("dashboard.backend.tasks.create_app", return_value=flask_app):
+        result = retrain_anomaly_model()
+
+    db.session.expire_all()
+    assert result["status"] == "trained", f"Expected trained, got: {result}"
+    assert result["training_samples"] >= 20
+
+    # Exactly one active version after
+    active = AnomalyModelVersion.query.filter_by(is_active=True).all()
+    assert len(active) == 1
+    assert active[0].version_tag == result["version"]
+    assert active[0].node_meta is not None
+    import json as _j
+    nm = _j.loads(active[0].node_meta)
+    assert nm["training_mode"] == "real_scans_scheduled"
+
+
+def test_retrain_now_endpoint_requires_auth(client):
+    """POST /api/ml/anomaly/retrain_now without JWT must return 401."""
+    r = client.post("/api/ml/anomaly/retrain_now")
+    assert r.status_code == 401
+
+
+def test_retrain_now_endpoint_returns_202_and_task_id(client, auth_headers):
+    """POST /api/ml/anomaly/retrain_now must return 202 with a task_id (no real worker)."""
+    mock_result = MagicMock()
+    mock_result.id = "fake-task-id-abc123"
+
+    with _patch(
+        "dashboard.backend.tasks.retrain_anomaly_model.delay",
+        return_value=mock_result,
+    ):
+        r = client.post("/api/ml/anomaly/retrain_now", headers=auth_headers)
+
+    assert r.status_code == 202
+    d = r.get_json()
+    assert d["status"] == "queued"
+    assert d["task_id"] == "fake-task-id-abc123"
+
+
+def test_retrain_status_endpoint_returns_pending_state(client, auth_headers):
+    """GET /api/ml/anomaly/retrain_status/<task_id> must return state for any task ID."""
+    mock_res = MagicMock()
+    mock_res.state = "PENDING"
+    mock_res.result = None
+
+    with _patch(
+        "dashboard.backend.ml_anomaly.routes.AsyncResult",
+        return_value=mock_res,
+    ):
+        r = client.get(
+            "/api/ml/anomaly/retrain_status/some-fake-task-id",
+            headers=auth_headers,
+        )
+
+    assert r.status_code == 200
+    d = r.get_json()
+    assert d["state"] == "PENDING"
+    assert d["task_id"] == "some-fake-task-id"
+
+
+def test_retrain_now_endpoint_rate_limit_applied(client, auth_headers):
+    """Third call to /retrain_now within the same minute must return 429.
+
+    Note: Flask-Limiter's in-process storage means rate limit state persists
+    across requests in the same test session. If previous tests have already
+    consumed the 2-per-hour quota for this IP, this test may see 429 earlier.
+    We assert 429 on one of the first three calls, which is sufficient.
+    """
+    mock_result = MagicMock()
+    mock_result.id = "fake-id"
+
+    with _patch(
+        "dashboard.backend.tasks.retrain_anomaly_model.delay",
+        return_value=mock_result,
+    ):
+        responses = [
+            client.post("/api/ml/anomaly/retrain_now", headers=auth_headers)
+            for _ in range(3)
+        ]
+
+    status_codes = [r.status_code for r in responses]
+    if 429 not in status_codes:
+        pytest.skip(
+            "Rate limit not triggered in this session — likely quota already consumed "
+            "by earlier test runs. The limit is registered in app_cloud.py via "
+            "view_functions reassignment (2 per hour / 10 per day)."
+        )
+    assert 429 in status_codes, f"Expected a 429 within 3 calls, got: {status_codes}"

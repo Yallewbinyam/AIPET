@@ -40,7 +40,8 @@ AIPET X is an autonomous cybersecurity platform focused on IoT pentesting and en
 - **93+ modules complete** — all backend blueprints registered and functional
 - **Production hardening done** — Flask-Talisman CSP/HSTS, per-user rate limiting (100 req/min), input validation on all POST endpoints
 - **Real Nmap scanner** integrated with NVD CVE matching
-- **Hourly NVD CVE sync** via Celery Beat
+- **Celery worker + Beat running** via `start_cloud.sh` (as of D3 / 2026-04-24). NVD sync schedule first observed firing on 2026-04-24, adding 474 CVEs to `live_cves`. Previously Celery was wired but never launched.
+- **Automated ML retrain** — `retrain_anomaly_model` task runs every 24 h via Beat; manual trigger via `POST /api/ml/anomaly/retrain_now`; skips gracefully when <20 unique feature vectors available
 - **Stripe payments** — Free (5 scans), Professional (unlimited), Enterprise (unlimited + API access)
 - **PDF report export** via WeasyPrint (A4, page breaks, email delivery)
 - **Google OAuth** login
@@ -124,22 +125,71 @@ All modules live under `dashboard/backend/<module_name>/` as a Blueprint with `_
 
 ---
 
-## 6. Month 1 Plan — 12 New Capabilities to Build
+## 6. Capability Roadmap — 32 Capabilities
 
-The platform is now in the **depth phase**. These 12 capabilities are next:
+**Current status:** Capability 1 partially delivered (Days 1–3 complete: IF model, placeholder fix, Celery pipeline). Days 4–5 remain for SHAP explainability + full UI. Capability 3 delivered in D3.
 
-1. **AI Threat Briefing** — daily AI-generated threat briefing email/dashboard panel
-2. **Attack Surface Management (ASM)** — continuous external asset discovery and exposure scoring
-3. **Deception / Honeypots** — deploy decoy assets, alert on interaction
-4. **Automated Pen Test Reports** — full narrative pentest report generation from scan data
-5. **Policy-as-Code** — export compliance policies as Terraform/OPA/YAML
-6. **Vulnerability Prioritisation (EPSS + CVSS)** — rank CVEs by exploit probability, not just severity
-7. **Secrets Scanning** — detect hardcoded credentials in code repositories
-8. **Cloud Misconfig Remediation** — one-click fix for detected cloud misconfigurations
-9. **Purple Team Playbooks** — structured blue/red exercise playbooks
-10. **SLA / Breach Tracking** — track remediation SLAs, alert on breach
-11. **Executive Dashboard** — board-level KPI view (risk trend, open criticals, compliance %)
-12. **Integrations Hub** — outbound webhooks to Slack, Jira, PagerDuty, ServiceNow
+### Month 1 — Intelligence Core (Capabilities 1–12)
+
+| # | Capability | Status |
+|---|---|---|
+| 1 | Isolation Forest ML anomaly detection + SHAP explainability | Days 1-3 done; SHAP + full UI pending (Days 4-5) |
+| 2 | Per-device behavioural baseline (mean/std/Z-score) | Pending |
+| 3 | Automated ML pipeline (Celery retrain every 24 h) | **Done — D3** |
+| 4 | AlienVault OTX threat intelligence integration | Pending |
+| 5 | CISA KEV exploit validation (actively exploited CVEs) | Pending |
+| 6 | MITRE ATT&CK live mapping | Pending |
+| 7 | Central event pipeline (all 93 modules feed one brain) | Pending |
+| 8 | Automated response chain (scanner → SIEM → compliance → report) | Pending |
+| 9 | Unified real-time risk score (all modules contribute) | Pending |
+| 10 | Claude API powered Ask AIPET (answers about YOUR environment) | Pending |
+| 11 | Predictive risk engine (90-day breach probability forecast) | Pending |
+| 12 | AI-written weekly security briefings | Pending |
+
+### Month 2 — Deep Scanner + Firmware (Capabilities 13–16)
+
+| # | Capability |
+|---|---|
+| 13 | Firmware analysis engine (binwalk — extract, analyse, find hardcoded passwords) |
+| 14 | Exploit path mapping (attack chain visualisation) |
+| 15 | Real network topology graph (from Nmap data — interactive) |
+| 16 | Shodan API integration (internet exposure check) |
+
+### Month 3 — Autonomous Platform (Capabilities 17–20)
+
+| # | Capability |
+|---|---|
+| 17 | Automated response playbooks (isolate, snapshot, rotate credentials) |
+| 18 | Digital twin simulator (attack scenario modelling) |
+| 19 | Zero trust engine (continuous device trust scoring) |
+| 20 | File integrity monitor (hash critical files, alert on change) |
+
+### Month 4 — Global + Mobile (Capabilities 21–24)
+
+| # | Capability |
+|---|---|
+| 21 | Dark web monitor (HaveIBeenPwned + paste site monitoring) |
+| 22 | React Native mobile app (iOS and Android) |
+| 23 | Next 11 languages (Hindi, Turkish, Indonesian, Thai, Vietnamese, Polish, Swedish, Norwegian, Danish, Finnish, Hebrew) |
+| 24 | Executive war room (full-screen mission control view) |
+
+### Month 5 — Academic Rigour (Capability 25)
+
+| # | Capability |
+|---|---|
+| 25 | ML benchmarking and evaluation (compare ML vs rule-based, measure accuracy, precision, recall, F1) |
+
+### Cross-Month — Evidence & Executive (Capabilities 26–32)
+
+| # | Capability |
+|---|---|
+| 26 | Automated screenshot evidence collection (pentest-style, embedded in PDF reports) |
+| 27 | Video evidence recording (30-second capture when threat detected) |
+| 28 | Digital signature + timestamp on reports (tamper-proof) |
+| 29 | Executive one-page summary (CEO-readable in 60 seconds) |
+| 30 | Remediation ticket export to Jira/ServiceNow (one-click with evidence) |
+| 31 | Board presentation mode (auto-generated PowerPoint from scan results) |
+| 32 | Regulatory notification draft (Claude API writes NIS2/GDPR breach letter) |
 
 ---
 
@@ -197,7 +247,7 @@ All three require adding real values to the production `.env` — no code change
 - All blueprints are registered in `dashboard/backend/app_cloud.py`
 - **Frontend** is a single-page React app; all routes/views are components in `App.js` (large file — use search)
 - **Database migrations** are run manually with Flask-Migrate (`flask db upgrade`)
-- **Celery Beat** handles scheduled tasks (NVD sync, etc.) — worker and beat process both started by `start_cloud.sh`
+- **Celery worker + Celery Beat** both started by `start_cloud.sh` (D3). Beat schedule: `sync-nvd-cves-hourly` (3600s) + `retrain-anomaly-model-daily` (86400s). PIDs under `pids/`, logs under `logs/`. Redis required before Celery starts (script checks with `redis-cli ping`).
 - **Gunicorn** serves Flask in production (`gunicorn_config.py`)
 - **Nginx** reverse-proxies to Gunicorn (port 5001) and serves the React build
 
@@ -244,7 +294,7 @@ cd /home/binyam/AIPET && source venv/bin/activate && pytest
 | `auth_headers` | session | `{"Authorization": "Bearer <token>", "Content-Type": "application/json"}` for test_user |
 
 **Test files:**
-- `tests/test_ml_anomaly.py` — ml_anomaly blueprint (25 tests). Use as template for every new module.
+- `tests/test_ml_anomaly.py` — ml_anomaly blueprint (31 tests, including 6 D3 retrain tests). Use as template for every new module.
 - `tests/test_real_scanner.py` — real_scanner blueprint (1 test: zero-open-ports host persistence with `node_meta.no_open_ports=True`)
 - `tests/test_recon.py` — recon/fingerprint blueprint (30 tests)
 
@@ -304,3 +354,5 @@ These must be done before the first production deploy to `aipet.io`. Do NOT star
 | **Create UptimeRobot monitor** | `/api/ping` endpoint is live. Create monitor pointing at `https://aipet.io/api/ping` in the UptimeRobot dashboard. |
 | **Instrument watch agent for full 12-feature ml_anomaly training** | The endpoint agent currently collects CPU/mem/disk/process/network telemetry but does NOT collect TCP flag counts (SYN, RST), directional byte counts (inbound/outbound split), per-protocol packet counts, or unique destination IP/port counts. These are prerequisites for training ml_anomaly on all 12 FEATURE_ORDER features from real data. The current implementation uses placeholder zeros for 9 of 12 features. This must be completed before `training_mode=real_scans` produces a meaningful model. |
 | **Replace conditional-mean placeholders with real watch-agent telemetry** | The D2.6 fix uses conditional synthetic class means as placeholders for the 9 unobserved network features. This heuristic is pragmatically correct but not a permanent solution — when the watch agent is instrumented to collect packet_rate, syn_ratio, rst_ratio, etc., replace the placeholder logic in `feature_extraction.py` with real measured values. At that point, `training_mode=real_scans` can also be enabled once ≥20 completed scans exist. |
+| **Switch Flask-Limiter to Redis storage** | Current `storage_uri="memory://"` means each Gunicorn worker has its own rate-limit counter. In multi-worker production, rate limits on `/train` and `/retrain_now` are not enforced globally (each worker allows up to 2 calls/hour independently). Fix: change `storage_uri` to `"redis://localhost:6379/2"` in `app_cloud.py`. |
+| **Replace start_cloud.sh Celery launch with systemd services** | For DigitalOcean production deploy, create `aipet-celery-worker.service` and `aipet-celery-beat.service` systemd unit files so the processes restart on reboot and crashes are handled by the OS supervisor. `start_cloud.sh` is adequate for development. |

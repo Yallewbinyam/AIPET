@@ -131,6 +131,10 @@ __pypackages__/
 celerybeat-schedule
 celerybeat.pid
 
+# Runtime logs and PID files (written by start_cloud.sh)
+logs/
+pids/
+
 # SageMath parsed files
 *.sage.py
 

@@ -338,6 +338,13 @@ def create_app(config_name="development"):
         _train_fn = limiter.limit("20 per day")(_train_fn)
         app.view_functions["ml_anomaly.train"] = _train_fn
 
+    # /retrain_now queues an expensive Celery task — stricter limit than /train
+    _retrain_fn = app.view_functions.get("ml_anomaly.retrain_now")
+    if _retrain_fn:
+        _retrain_fn = limiter.limit("2 per hour")(_retrain_fn)
+        _retrain_fn = limiter.limit("10 per day")(_retrain_fn)
+        app.view_functions["ml_anomaly.retrain_now"] = _retrain_fn
+
     # Setup logging
     setup_logging(
         app=app,

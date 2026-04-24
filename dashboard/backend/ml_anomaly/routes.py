@@ -15,6 +15,7 @@ import uuid
 from datetime import datetime, timezone
 
 import numpy as np
+from celery.result import AsyncResult
 from flask import Blueprint, jsonify, request
 from flask_jwt_extended import get_jwt_identity, jwt_required
 from sklearn.metrics import f1_score, precision_score, recall_score
@@ -238,6 +239,34 @@ def list_models():
 # ---------------------------------------------------------------------------
 # GET /detections
 # ---------------------------------------------------------------------------
+
+@ml_anomaly_bp.route("/retrain_now", methods=["POST"])
+@jwt_required()
+def retrain_now():
+    """Queue the retrain_anomaly_model task via Celery and return the task ID.
+
+    Rate-limited in app_cloud.py (2 per hour / 10 per day) using the
+    view_functions reassignment pattern — same as /train.
+    Returns 202 Accepted immediately; client polls /retrain_status/<task_id>.
+    """
+    from dashboard.backend.tasks import retrain_anomaly_model
+    result = retrain_anomaly_model.delay()
+    return jsonify({"status": "queued", "task_id": result.id}), 202
+
+
+@ml_anomaly_bp.route("/retrain_status/<task_id>", methods=["GET"])
+@jwt_required()
+def retrain_status(task_id):
+    """Return the Celery AsyncResult state for a previously queued retrain task."""
+    from dashboard.backend.celery_app import celery
+    res = AsyncResult(task_id, app=celery)
+    payload = {"task_id": task_id, "state": res.state}
+    if res.state == "SUCCESS":
+        payload["result"] = res.result
+    elif res.state == "FAILURE":
+        payload["error"] = str(res.result)
+    return jsonify(payload), 200
+
 
 @ml_anomaly_bp.route("/detections", methods=["GET"])
 @jwt_required()

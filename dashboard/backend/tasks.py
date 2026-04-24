@@ -26,6 +26,7 @@ import requests as http_requests
 from datetime import datetime, timezone, timedelta
 from celery import shared_task
 from celery.utils.log import get_task_logger
+from dashboard.backend.app_cloud import create_app
 
 # Add project root to path
 BASE_DIR = '/app' if os.path.exists('/app') else '/home/binyam/AIPET'
@@ -63,7 +64,6 @@ def run_scan_task(self, scan_id, user_id, target, mode,
     Returns:
         dict: Scan results summary
     """
-    from dashboard.backend.app_cloud import create_app
     from dashboard.backend.models import db, Scan, User, Finding
 
     app = create_app()
@@ -329,7 +329,6 @@ def sync_nvd_cves(self, days_back: int = 1):
         "DATABASE_URL",
         "postgresql://aipet_user:aipet_password@localhost:5433/aipet_db"
     )
-    from dashboard.backend.app_cloud import create_app
     from dashboard.backend.models import db
     from dashboard.backend.live_cves.models import LiveCve, CveSyncLog
 
@@ -402,6 +401,172 @@ def sync_nvd_cves(self, days_back: int = 1):
             sync_log.finished_at = datetime.utcnow()
             db.session.commit()
             raise self.retry(exc=exc)
+
+
+@shared_task(
+    name="dashboard.backend.tasks.retrain_anomaly_model",
+    max_retries=1,
+    default_retry_delay=300,
+)
+def retrain_anomaly_model():
+    """
+    Retrain the Isolation Forest on accumulated real scan data.
+
+    Guard: if fewer than 20 completed real_scan_results rows exist,
+    log a warning and return a skipped dict — never fall back to synthetic
+    data during a scheduled run.
+
+    Scheduled every 24 hours via Celery Beat.
+    Also triggerable manually via POST /api/ml/anomaly/retrain_now.
+    """
+    import uuid
+    import json as _json
+    import os
+
+    os.environ.setdefault(
+        "DATABASE_URL",
+        "postgresql://aipet_user:aipet_password@localhost:5433/aipet_db"
+    )
+    from dashboard.backend.models import db
+    from dashboard.backend.real_scanner.routes import RealScanResult
+    from dashboard.backend.ml_anomaly.models import AnomalyModelVersion
+    from dashboard.backend.ml_anomaly.detector import AnomalyDetector, LATEST_PATH
+    from dashboard.backend.ml_anomaly.features import FEATURE_ORDER
+    from dashboard.backend.ml_anomaly.feature_extraction import extract_features_for_host
+
+    REQUIRED_SCANS = 20
+    CONTAMINATION  = 0.05
+    N_ESTIMATORS   = 100
+    RANDOM_STATE   = 42
+
+    app = create_app()
+    with app.app_context():
+        log = app.logger
+
+        # ── Guard: count completed scans ──────────────────────────────────
+        scan_count = RealScanResult.query.filter_by(status="complete").count()
+        if scan_count < REQUIRED_SCANS:
+            log.warning(
+                "retrain_anomaly_model: skipped — %d completed scans, need %d",
+                scan_count, REQUIRED_SCANS,
+            )
+            return {
+                "status":   "skipped",
+                "reason":   "insufficient_real_data",
+                "found":    scan_count,
+                "required": REQUIRED_SCANS,
+            }
+
+        try:
+            # ── Collect (user_id, host_ip) pairs from all completed scans ──
+            all_scans = RealScanResult.query.filter_by(status="complete").all()
+            pairs_seen = set()
+            host_pairs = []
+            for scan in all_scans:
+                try:
+                    hosts = _json.loads(scan.results_json or "[]")
+                except Exception:
+                    continue
+                for host in hosts:
+                    ip = host.get("ip")
+                    if ip:
+                        key = (scan.user_id, ip)
+                        if key not in pairs_seen:
+                            pairs_seen.add(key)
+                            host_pairs.append((scan.user_id, ip))
+
+            # ── Extract feature vectors ────────────────────────────────────
+            import numpy as np
+            vectors = []
+            for user_id, host_ip in host_pairs:
+                try:
+                    feats = extract_features_for_host(user_id, host_ip)
+                    if feats is None:
+                        continue
+                    vec = [float(feats.get(f, 0.0)) for f in FEATURE_ORDER]
+                    vectors.append(vec)
+                except Exception as e:
+                    log.warning(
+                        "retrain_anomaly_model: feature extraction failed for %s: %s",
+                        host_ip, e,
+                    )
+
+            if len(vectors) < REQUIRED_SCANS:
+                log.warning(
+                    "retrain_anomaly_model: skipped — extracted %d feature vectors, need %d",
+                    len(vectors), REQUIRED_SCANS,
+                )
+                return {
+                    "status":   "skipped",
+                    "reason":   "insufficient_feature_vectors",
+                    "found":    len(vectors),
+                    "required": REQUIRED_SCANS,
+                }
+
+            X = np.array(vectors, dtype=np.float64)
+
+            # ── Train ─────────────────────────────────────────────────────
+            detector = AnomalyDetector()
+            detector.fit(
+                X,
+                FEATURE_ORDER,
+                contamination=CONTAMINATION,
+                n_estimators=N_ESTIMATORS,
+                random_state=RANDOM_STATE,
+            )
+
+            # ── Save model ────────────────────────────────────────────────
+            version_tag = (
+                datetime.now(timezone.utc).strftime("v%Y%m%d_%H%M%S")
+                + "_" + uuid.uuid4().hex[:6]
+            )
+            models_dir = os.path.join(
+                os.path.dirname(__file__), "ml_anomaly", "models_store"
+            )
+            model_path = os.path.join(models_dir, f"iforest_{version_tag}.joblib")
+            detector.save(model_path)
+            detector.save(LATEST_PATH)
+
+            # ── Update DB ──────────────────────────────────────────────────
+            AnomalyModelVersion.query.filter_by(is_active=True).update({"is_active": False})
+
+            mv = AnomalyModelVersion(
+                version_tag      = version_tag,
+                algorithm        = "isolation_forest",
+                contamination    = CONTAMINATION,
+                n_estimators     = N_ESTIMATORS,
+                feature_names    = _json.dumps(FEATURE_ORDER),
+                training_samples = len(X),
+                precision_score  = None,   # no ground-truth labels for real data
+                recall_score     = None,
+                f1_score         = None,
+                model_path       = model_path,
+                is_active        = True,
+                node_meta        = _json.dumps({
+                    "training_mode":     "real_scans_scheduled",
+                    "scheduled_at":      datetime.now(timezone.utc).isoformat(),
+                    "scan_rows_used":    scan_count,
+                    "host_pairs_found":  len(host_pairs),
+                    "vectors_extracted": len(vectors),
+                }),
+            )
+            db.session.add(mv)
+            db.session.commit()
+
+            log.info(
+                "retrain_anomaly_model: trained %s on %d vectors from %d scans",
+                version_tag, len(vectors), scan_count,
+            )
+            return {
+                "status":           "trained",
+                "version":          version_tag,
+                "training_samples": len(vectors),
+                "scan_rows_used":   scan_count,
+            }
+
+        except Exception as exc:
+            log.exception("retrain_anomaly_model: unexpected error — %s", exc)
+            raise
 
 
 def _rematch_scan_results(db, days_back: int = 7):
