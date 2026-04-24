@@ -73,5 +73,5 @@ fi
 
 echo "============================================================"
 export SMTP_USER="yallewbinyam@gmail.com"
-export SMTP_PASSWORD="vkmarazfsvtrhavn"
+export SMTP_PASSWORD="zbggazzspycjojjp"
 export SENTRY_DSN="${SENTRY_DSN:-}"
