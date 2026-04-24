@@ -24,7 +24,10 @@ from dashboard.backend.ml_anomaly.features import FEATURE_ORDER, to_vector
 from dashboard.backend.ml_anomaly.models import AnomalyDetection, AnomalyModelVersion
 from dashboard.backend.ml_anomaly.training_data import generate_synthetic
 from dashboard.backend.models import db
+from dashboard.backend.ml_anomaly.feature_extraction import extract_features_for_host
 from dashboard.backend.validation import (
+    ML_ANOMALY_EXTRACT_SCHEMA,
+    ML_ANOMALY_PREDICT_REAL_SCHEMA,
     ML_ANOMALY_PREDICT_SCHEMA,
     ML_ANOMALY_TRAIN_SCHEMA,
     validate_body,
@@ -81,6 +84,17 @@ def get_features():
 def train():
     body = request.get_json(silent=True) or {}
 
+    training_mode = body.get("training_mode", "synthetic")
+
+    if training_mode == "real_scans":
+        from dashboard.backend.real_scanner.routes import RealScanResult
+        real_count = RealScanResult.query.filter_by(status="complete").count()
+        if real_count < 20:
+            return jsonify({
+                "error": "insufficient real data — at least 20 completed scans required",
+                "found": real_count,
+            }), 400
+
     # Use caller-supplied overrides when provided; fall back to data-driven defaults
     n_estimators_override  = body.get("n_estimators")
     contamination_override = body.get("contamination")
@@ -125,6 +139,7 @@ def train():
         f1_score         = f1,
         model_path       = model_path,
         is_active        = True,
+        node_meta        = json.dumps({"training_mode": training_mode}),
     )
     db.session.add(mv)
     db.session.commit()
@@ -235,3 +250,96 @@ def list_detections():
         .all()
     )
     return jsonify([d.to_dict() for d in detections]), 200
+
+
+# ---------------------------------------------------------------------------
+# POST /extract  — return real feature vector for a scanned host
+# ---------------------------------------------------------------------------
+
+@ml_anomaly_bp.route("/extract", methods=["POST"])
+@jwt_required()
+@validate_body(ML_ANOMALY_EXTRACT_SCHEMA)
+def extract():
+    user_id = int(get_jwt_identity())
+    body    = request.get_json(silent=True) or {}
+    host_ip = body.get("host_ip", "").strip()
+
+    features = extract_features_for_host(user_id, host_ip)
+    if features is None:
+        return jsonify({"error": f"No scan data found for {host_ip} — run a scan first"}), 404
+    return jsonify(features), 200
+
+
+# ---------------------------------------------------------------------------
+# POST /predict_real  — score a host using features from real scan data
+# ---------------------------------------------------------------------------
+
+@ml_anomaly_bp.route("/predict_real", methods=["POST"])
+@jwt_required()
+@validate_body(ML_ANOMALY_PREDICT_REAL_SCHEMA)
+def predict_real():
+    user_id       = int(get_jwt_identity())
+    body          = request.get_json(silent=True) or {}
+    host_ip       = body.get("host_ip", "").strip()
+    target_device = body.get("target_device") or host_ip
+
+    features = extract_features_for_host(user_id, host_ip)
+    if features is None:
+        return jsonify({"error": "no scan data for this host — run a scan first"}), 404
+
+    detector, version = _load_active_detector()
+    if detector is None:
+        return jsonify({"error": "No trained model found. POST /train first."}), 400
+
+    # Strip internal metadata keys before building the feature vector.
+    sample = {k: v for k, v in features.items() if not k.startswith("_")}
+
+    vec    = to_vector(sample)
+    X      = vec.reshape(1, -1)
+    labels, scores = detector.predict(X)
+
+    raw_score     = float(scores[0])
+    sigmoid_score = _sigmoid(raw_score)
+    is_anomaly    = bool(labels[0] == 1)
+    severity      = _severity(sigmoid_score, is_anomaly)
+
+    X_scaled = detector.scaler.transform(X)
+    z_scores = X_scaled[0]
+    top_idx  = np.argsort(np.abs(z_scores))[::-1][:3]
+    top_contributors = [
+        {"feature": FEATURE_ORDER[int(i)], "z_score": round(float(z_scores[i]), 4)}
+        for i in top_idx
+    ]
+
+    synthetic_fields = features.get("_synthetic_fields", [])
+
+    detection = AnomalyDetection(
+        model_version_id = version.id,
+        user_id          = user_id,
+        target_ip        = host_ip,
+        target_device    = target_device,
+        is_anomaly       = is_anomaly,
+        anomaly_score    = round(sigmoid_score, 6),
+        severity         = severity,
+        feature_vector   = json.dumps(dict(zip(FEATURE_ORDER, vec.tolist()))),
+        top_contributors = json.dumps(top_contributors),
+        node_meta        = json.dumps({
+            "source":          "real_scan_data",
+            "synthetic_fields": synthetic_fields,
+            "source_scan_id":  features.get("_source_scan_id"),
+        }),
+    )
+    db.session.add(detection)
+    db.session.commit()
+
+    return jsonify({
+        "detection_id":    detection.id,
+        "target_ip":       host_ip,
+        "target_device":   target_device,
+        "is_anomaly":      is_anomaly,
+        "anomaly_score":   round(sigmoid_score, 6),
+        "severity":        severity,
+        "top_contributors": top_contributors,
+        "model_version":   version.version_tag,
+        "synthetic_fields": synthetic_fields,
+    }), 200

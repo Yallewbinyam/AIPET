@@ -37,6 +37,15 @@ def is_ip_or_cidr(v: str) -> bool:
     return bool(re.match(r'^[a-zA-Z0-9._\-]{1,253}$', v))
 
 
+def is_ip(v: str) -> bool:
+    """Accepts only a valid IPv4 or IPv6 address — no CIDRs, no hostnames."""
+    try:
+        ipaddress.ip_address(str(v).strip())
+        return True
+    except ValueError:
+        return False
+
+
 def is_positive_int(v, max_val: int = 100_000) -> bool:
     try:
         n = int(v)
@@ -162,12 +171,22 @@ TELEMETRY_SCHEMA = {
 }
 
 ML_ANOMALY_TRAIN_SCHEMA = {
-    "contamination": optional(is_float_range(0.0, 0.5)),
-    "n_estimators":  optional(is_int_range(50, 1000)),
+    "contamination":  optional(is_float_range(0.0, 0.5)),
+    "n_estimators":   optional(is_int_range(50, 1000)),
+    "training_mode":  optional(lambda v: v in ("synthetic", "real_scans")),
 }
 
 ML_ANOMALY_PREDICT_SCHEMA = {
     "sample":        is_dict,
     "target_ip":     optional(lambda v: is_safe_string(v, 64) and is_ip_or_cidr(v)),
+    "target_device": optional(lambda v: is_safe_string(v, 255)),
+}
+
+ML_ANOMALY_EXTRACT_SCHEMA = {
+    "host_ip": is_ip,
+}
+
+ML_ANOMALY_PREDICT_REAL_SCHEMA = {
+    "host_ip":       is_ip,
     "target_device": optional(lambda v: is_safe_string(v, 255)),
 }
