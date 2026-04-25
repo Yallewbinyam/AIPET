@@ -190,3 +190,7 @@ ML_ANOMALY_PREDICT_REAL_SCHEMA = {
     "host_ip":       is_ip,
     "target_device": optional(lambda v: is_safe_string(v, 255)),
 }
+
+BUILD_DEVICE_BASELINE_SCHEMA = {
+    "host_ip": is_ip,
+}

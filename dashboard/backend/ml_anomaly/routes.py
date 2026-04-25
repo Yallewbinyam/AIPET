@@ -20,7 +20,7 @@ from datetime import datetime, timezone
 
 import numpy as np
 from celery.result import AsyncResult
-from flask import Blueprint, jsonify, request
+from flask import Blueprint, current_app, jsonify, request
 from flask_jwt_extended import get_jwt_identity, jwt_required
 from sklearn.metrics import f1_score, precision_score, recall_score
 
@@ -430,15 +430,38 @@ def predict_real():
     db.session.add(detection)
     db.session.commit()
 
+    # ── Capability 2: per-device behavioral baseline check ───────────────────
+    # Non-fatal: if this fails for any reason, the Isolation Forest result is
+    # still returned. behavioral_baseline field in the response is always set.
+    try:
+        from dashboard.backend.behavioral.device_deviation_detector import (
+            detect_and_record_deviations,
+        )
+        beh = detect_and_record_deviations(user_id, host_ip, sample)
+        behavioral_baseline = {
+            "status":                beh.get("status"),
+            "severity":              beh.get("severity"),
+            "top_deviations":        beh.get("top_deviations"),
+            "baseline_observations": beh.get("baseline_observations"),
+            "baseline_confidence":   beh.get("baseline_confidence"),
+            "ba_anomaly_id":         beh.get("ba_anomaly_id"),
+        }
+    except Exception as _beh_exc:
+        current_app.logger.exception(
+            "predict_real: behavioral check failed for %s: %s", host_ip, _beh_exc
+        )
+        behavioral_baseline = {"status": "error", "error": str(_beh_exc)}
+
     return jsonify({
-        "detection_id":     detection.id,
-        "target_ip":        host_ip,
-        "target_device":    target_device,
-        "is_anomaly":       is_anomaly,
-        "anomaly_score":    round(sigmoid_score, 6),
-        "severity":         severity,
-        "top_contributors": top_contributors,
-        "explainer_type":   explainer.explainer_type,
-        "model_version":    version.version_tag,
-        "synthetic_fields": synthetic_fields,
+        "detection_id":       detection.id,
+        "target_ip":          host_ip,
+        "target_device":      target_device,
+        "is_anomaly":         is_anomaly,
+        "anomaly_score":      round(sigmoid_score, 6),
+        "severity":           severity,
+        "top_contributors":   top_contributors,
+        "explainer_type":     explainer.explainer_type,
+        "model_version":      version.version_tag,
+        "synthetic_fields":   synthetic_fields,
+        "behavioral_baseline": behavioral_baseline,
     }), 200

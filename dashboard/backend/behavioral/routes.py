@@ -18,6 +18,7 @@ from flask import Blueprint, request, jsonify
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from dashboard.backend.models import db
 from dashboard.backend.behavioral.models import BaBaseline, BaAnomaly, BaPattern
+from dashboard.backend.validation import BUILD_DEVICE_BASELINE_SCHEMA, validate_body
 
 behavioral_bp = Blueprint("behavioral", __name__)
 
@@ -284,3 +285,114 @@ def anomaly_timeline():
         by_hour[h] = by_hour.get(h, 0) + 1
 
     return jsonify({"timeline": by_hour})
+
+
+# ── Per-device baseline endpoints (Capability 2) ─────────────────────────────
+
+@behavioral_bp.route("/api/behavioral/device/baseline/build", methods=["POST"])
+@jwt_required()
+@validate_body(BUILD_DEVICE_BASELINE_SCHEMA)
+def build_device_baseline_endpoint():
+    """Build a per-device baseline from real scan history for one host."""
+    from dashboard.backend.behavioral.device_baseline_builder import upsert_device_baseline
+    user_id = int(get_jwt_identity())
+    host_ip = request.get_json(silent=True).get("host_ip", "").strip()
+
+    result = upsert_device_baseline(user_id, host_ip)
+    if result is None:
+        return jsonify({
+            "status":  "insufficient_data",
+            "host_ip": host_ip,
+            "message": "Fewer than 5 completed scans contain this host — run more scans first.",
+        }), 400
+
+    return jsonify({"status": "ok", "host_ip": host_ip, "baseline": result}), 200
+
+
+@behavioral_bp.route("/api/behavioral/device/<host_ip>/baseline", methods=["GET"])
+@jwt_required()
+def get_device_baseline(host_ip):
+    """Return the stored per-device baseline for host_ip."""
+    baseline = BaBaseline.query.filter_by(
+        entity_id   = host_ip,
+        entity_type = "device",
+    ).order_by(BaBaseline.last_updated.desc()).first()
+
+    if baseline is None:
+        return jsonify({"error": "no baseline for this host"}), 404
+
+    return jsonify({"baseline": baseline.to_dict()}), 200
+
+
+@behavioral_bp.route("/api/behavioral/device/baselines/build_all", methods=["POST"])
+@jwt_required()
+def build_all_device_baselines():
+    """
+    Build baselines for every distinct host across this user's completed scans.
+    Rate-limited to 5 per hour (applied via app_cloud.py view_functions pattern).
+    """
+    import json as _json
+    from dashboard.backend.behavioral.device_baseline_builder import upsert_device_baseline
+    from dashboard.backend.real_scanner.routes import RealScanResult
+
+    user_id = int(get_jwt_identity())
+
+    scans = RealScanResult.query.filter_by(
+        user_id = user_id,
+        status  = "complete",
+    ).all()
+
+    # Collect distinct host IPs across all scan results
+    host_ips: set[str] = set()
+    for scan in scans:
+        try:
+            hosts = _json.loads(scan.results_json or "[]")
+        except (json.JSONDecodeError, TypeError):
+            continue
+        for host in hosts:
+            ip = host.get("ip")
+            if ip:
+                host_ips.add(ip)
+
+    built, skipped, errors = [], [], []
+
+    for ip in sorted(host_ips):
+        try:
+            result = upsert_device_baseline(user_id, ip)
+            if result is None:
+                skipped.append(ip)
+            else:
+                built.append({
+                    "host_ip":          ip,
+                    "observations":     result["observations"],
+                    "confidence_level": result["confidence_level"],
+                })
+        except Exception as e:
+            errors.append({"host_ip": ip, "error": str(e)})
+
+    return jsonify({
+        "built":                len(built),
+        "skipped_cold_start":   len(skipped),
+        "errors":               len(errors),
+        "total_hosts":          len(host_ips),
+        "baselines":            built,
+        "cold_start_hosts":     skipped,
+    }), 200
+
+
+@behavioral_bp.route("/api/behavioral/device/baselines/list", methods=["GET"])
+@jwt_required()
+def list_device_baselines():
+    """List all per-device baselines with ml_anomaly_v1 vocabulary."""
+    rows = BaBaseline.query.filter_by(entity_type="device").order_by(
+        BaBaseline.last_updated.desc()
+    ).all()
+
+    result = []
+    for row in rows:
+        d = row.to_dict()
+        bl = d.get("baseline", {})
+        if isinstance(bl, dict) and bl.get("feature_vocabulary") == "ml_anomaly_v1":
+            result.append(d)
+
+    return jsonify({"device_baselines": result, "count": len(result)}), 200

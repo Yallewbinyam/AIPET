@@ -362,6 +362,12 @@ def create_app(config_name="development"):
         _retrain_fn = limiter.limit("10 per day")(_retrain_fn)
         app.view_functions["ml_anomaly.retrain_now"] = _retrain_fn
 
+    # /device/baselines/build_all iterates all scan results — expensive, cap it.
+    _build_all_fn = app.view_functions.get("behavioral.build_all_device_baselines")
+    if _build_all_fn:
+        _build_all_fn = limiter.limit("5 per hour")(_build_all_fn)
+        app.view_functions["behavioral.build_all_device_baselines"] = _build_all_fn
+
     # Setup logging
     setup_logging(
         app=app,

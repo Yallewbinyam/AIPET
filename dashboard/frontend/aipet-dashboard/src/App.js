@@ -17176,15 +17176,18 @@ function ComplianceAutoPage({ token, showToast }) {
 // ─────────────────────────────────────────────────────────────
 function BehavioralAIPage({ token, showToast }) {
 
-  const [baselines,  setBaselines]  = useState([]);
-  const [anomalies,  setAnomalies]  = useState([]);
-  const [stats,      setStats]      = useState(null);
-  const [loading,    setLoading]    = useState(true);
-  const [running,    setRunning]    = useState(false);
-  const [tab,        setTab]        = useState("anomalies");
-  const [selBaseline,setSelBaseline]= useState(null);
-  const [updating,   setUpdating]   = useState({});
-  const [statusFilter,setStatusFilter]=useState("");
+  const [baselines,      setBaselines]      = useState([]);
+  const [anomalies,      setAnomalies]      = useState([]);
+  const [stats,          setStats]          = useState(null);
+  const [deviceBaselines,setDeviceBaselines]= useState([]);
+  const [selDevice,      setSelDevice]      = useState(null);
+  const [buildingAll,    setBuildingAll]    = useState(false);
+  const [loading,        setLoading]        = useState(true);
+  const [running,        setRunning]        = useState(false);
+  const [tab,            setTab]            = useState("anomalies");
+  const [selBaseline,    setSelBaseline]    = useState(null);
+  const [updating,       setUpdating]       = useState({});
+  const [statusFilter,   setStatusFilter]   = useState("");
 
   const H = { headers: { Authorization: `Bearer ${token}` } };
 
@@ -17221,17 +17224,30 @@ function BehavioralAIPage({ token, showToast }) {
 
   const fetchAll = useCallback(async () => {
     try {
-      const [blRes, anRes, stRes] = await Promise.all([
+      const [blRes, anRes, stRes, devRes] = await Promise.all([
         axios.get(`${API}/behavioral/baselines`, H),
         axios.get(`${API}/behavioral/anomalies?days=7${statusFilter ? "&status="+statusFilter : ""}`, H),
         axios.get(`${API}/behavioral/stats`, H),
+        axios.get(`${API}/behavioral/device/baselines/list`, H),
       ]);
       setBaselines(blRes.data.baselines || []);
       setAnomalies(anRes.data.anomalies || []);
       setStats(stRes.data);
+      setDeviceBaselines(devRes.data.device_baselines || []);
     } catch { showToast("Failed to load behavioral data", "error"); }
     finally { setLoading(false); }
   }, [token, statusFilter]);
+
+  const handleBuildAll = async () => {
+    setBuildingAll(true);
+    try {
+      const res = await axios.post(`${API}/behavioral/device/baselines/build_all`, {}, H);
+      showToast(`Built ${res.data.built} device baselines (${res.data.skipped_cold_start} cold-start)`, "success");
+      fetchAll();
+    } catch (e) {
+      showToast(e.response?.data?.error || "Build failed", "error");
+    } finally { setBuildingAll(false); }
+  };
 
   useEffect(() => { fetchAll(); }, [fetchAll]);
 
@@ -17351,8 +17367,9 @@ function BehavioralAIPage({ token, showToast }) {
         background:C.card, padding:"4px", borderRadius:"12px",
         border:`1px solid ${C.border}`, width:"fit-content" }}>
         {[
-          { id:"anomalies", label:`Anomalies (${anomalies.length})` },
-          { id:"baselines", label:`Baselines (${baselines.length})` },
+          { id:"anomalies",       label:`Anomalies (${anomalies.length})`                },
+          { id:"baselines",       label:`Baselines (${baselines.length})`                },
+          { id:"device_baselines",label:`Device Baselines (${deviceBaselines.length})`  },
         ].map(t => (
           <button key={t.id} onClick={() => setTab(t.id)}
             style={{ padding:"8px 20px", borderRadius:"9px", border:"none",
@@ -17509,6 +17526,99 @@ function BehavioralAIPage({ token, showToast }) {
               );
             })}
           </div>
+        </div>
+      )}
+
+      {/* Device Baselines tab (Capability 2 — 12-feature FEATURE_ORDER baselines) */}
+      {tab === "device_baselines" && (
+        <div>
+          <div style={{ display:"flex", alignItems:"center", justifyContent:"space-between", marginBottom:"16px" }}>
+            <div style={{ fontSize:"13px", color:C.muted }}>
+              Per-device baselines built from real scan history using the 12-feature ML vocabulary.
+            </div>
+            <button onClick={handleBuildAll} disabled={buildingAll}
+              style={{ padding:"8px 18px", borderRadius:"10px", border:"none",
+                cursor:buildingAll?"not-allowed":"pointer", fontSize:"13px", fontWeight:"700",
+                background:buildingAll ? C.surface : "linear-gradient(135deg,#a78bfa,#7c3aed)",
+                color:buildingAll ? C.muted : "#fff", transition:"all 0.2s" }}>
+              {buildingAll ? "Building..." : "Build All"}
+            </button>
+          </div>
+          {deviceBaselines.length === 0 ? (
+            <div style={{ ...cardStyle({ padding:"48px", textAlign:"center" }), color:C.muted }}>
+              No device baselines yet. Click Build All (requires 5+ scans per host).
+            </div>
+          ) : deviceBaselines.map(b => {
+            const bl      = typeof b.baseline === "object" ? b.baseline : {};
+            const conf    = bl.confidence_level || "low";
+            const confClr = conf === "high" ? "#00ff88" : conf === "medium" ? "#ffd600" : "#ff8c00";
+            const nObs    = bl.observations || b.confidence || 0;
+            const synth   = bl.synthetic_features_in_baseline || [];
+            const means   = bl.feature_means || {};
+            const stds    = bl.feature_stds  || {};
+            const isOpen  = selDevice?.id === b.id;
+            return (
+              <div key={b.id} style={{ ...cardStyle({ marginBottom:"10px", cursor:"pointer" }),
+                borderColor: isOpen ? "#a78bfa40" : C.border }}>
+                <div onClick={() => setSelDevice(isOpen ? null : b)}
+                  style={{ display:"flex", alignItems:"center", gap:"14px" }}>
+                  <div style={{ width:"44px", height:"44px", borderRadius:"10px",
+                    background:confClr+"12", border:`1px solid ${confClr}40`,
+                    display:"flex", alignItems:"center", justifyContent:"center",
+                    fontSize:"20px" }}>📡</div>
+                  <div style={{ flex:1 }}>
+                    <div style={{ fontWeight:"700", fontSize:"14px", fontFamily:"JetBrains Mono, monospace" }}>
+                      {b.entity_id}
+                    </div>
+                    <div style={{ display:"flex", gap:"8px", alignItems:"center", marginTop:"4px" }}>
+                      <span style={{ padding:"2px 8px", borderRadius:"100px", fontSize:"10px",
+                        fontWeight:"700", background:confClr+"15", color:confClr,
+                        textTransform:"uppercase" }}>{conf}</span>
+                      <span style={{ fontSize:"11px", color:C.muted }}>{nObs} observations</span>
+                      {synth.length > 0 && (
+                        <span style={{ fontSize:"10px", color:"#64748b" }}>{synth.length} imputed</span>
+                      )}
+                    </div>
+                  </div>
+                  <div style={{ fontSize:"18px", color:C.muted }}>{isOpen ? "▲" : "▼"}</div>
+                </div>
+
+                {isOpen && Object.keys(means).length > 0 && (
+                  <div style={{ marginTop:"14px", padding:"12px", borderRadius:"10px",
+                    background:C.surface, border:`1px solid ${C.border}` }}>
+                    <div style={{ fontSize:"10px", fontWeight:"700", color:C.muted,
+                      textTransform:"uppercase", letterSpacing:"1px", marginBottom:"10px" }}>
+                      12-Feature Baseline (mean ± std)
+                    </div>
+                    <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"6px" }}>
+                      {Object.keys(means).map(f => {
+                        const isSynth = synth.includes(f);
+                        return (
+                          <div key={f} style={{ padding:"6px 8px", borderRadius:"6px",
+                            background:isSynth ? "#1a1a2e" : C.card,
+                            border:`1px solid ${isSynth ? "#374151" : C.border}` }}>
+                            <div style={{ display:"flex", alignItems:"center", gap:"4px", marginBottom:"2px" }}>
+                              <div style={{ fontSize:"9px", color:isSynth ? "#64748b" : C.muted,
+                                textTransform:"uppercase", letterSpacing:"0.5px", fontFamily:"monospace" }}>
+                                {f.replace(/_/g," ")}
+                              </div>
+                              {isSynth && <span style={{ fontSize:"9px", color:"#64748b",
+                                background:"#1e293b", borderRadius:"3px", padding:"0 3px" }}>i</span>}
+                            </div>
+                            <div style={{ fontSize:"11px", fontFamily:"JetBrains Mono, monospace",
+                              color:isSynth ? "#64748b" : C.text }}>
+                              {(means[f] || 0).toFixed(3)}
+                              <span style={{ color:C.faint }}> ± {(stds[f] || 0).toFixed(3)}</span>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+              </div>
+            );
+          })}
         </div>
       )}
 

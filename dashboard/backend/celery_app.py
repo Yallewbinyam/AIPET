@@ -73,6 +73,10 @@ celery.conf.update(
             "task":     "dashboard.backend.tasks.retrain_anomaly_model",
             "schedule": 86400,         # every 24 hours
         },
+        "rebuild-device-baselines-every-12-hours": {
+            "task":     "dashboard.backend.tasks.rebuild_device_baselines",
+            "schedule": 43200,         # every 12 hours
+        },
     },
 
     # Worker settings

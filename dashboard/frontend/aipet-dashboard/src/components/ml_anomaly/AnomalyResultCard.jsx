@@ -51,6 +51,39 @@ export default function AnomalyResultCard({ result, onExplain }) {
         </div>
       )}
 
+      {/* Behavioral baseline section (Capability 2) */}
+      {result.behavioral_baseline && result.behavioral_baseline.status !== "error" && (
+        <div style={{ background: "#0a1628", border: "1px solid #1e3a5f", borderRadius: 6, padding: "10px 12px", marginBottom: 10 }}>
+          <div style={{ color: "#64748b", fontSize: 10, fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.05em", marginBottom: 6 }}>
+            Behavioral Baseline (Capability 2)
+          </div>
+          {result.behavioral_baseline.status === "no_baseline" ? (
+            <div style={{ fontSize: 11, color: "#64748b" }}>No baseline yet — run build_all after 5+ scans of this host.</div>
+          ) : (
+            <>
+              <div style={{ display: "flex", gap: 16, fontSize: 12, marginBottom: 6 }}>
+                <span style={{ color: result.behavioral_baseline.severity === "critical" ? "#dc2626" : result.behavioral_baseline.severity === "high" ? "#ea580c" : result.behavioral_baseline.severity === "medium" ? "#d97706" : "#16a34a", fontWeight: 700, textTransform: "uppercase" }}>
+                  {result.behavioral_baseline.severity || "normal"}
+                </span>
+                {result.behavioral_baseline.baseline_observations != null && (
+                  <span style={{ color: "#64748b" }}>{result.behavioral_baseline.baseline_observations} obs · {result.behavioral_baseline.baseline_confidence} confidence</span>
+                )}
+              </div>
+              {result.behavioral_baseline.top_deviations?.length > 0 && (
+                <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+                  {result.behavioral_baseline.top_deviations.slice(0, 3).map((d, i) => (
+                    <div key={i} style={{ display: "flex", justifyContent: "space-between", fontSize: 11 }}>
+                      <span style={{ color: "#94a3b8", fontFamily: "monospace" }}>{d.feature}</span>
+                      <span style={{ color: d.z_score >= 5 ? "#dc2626" : d.z_score >= 3 ? "#ea580c" : "#d97706", fontWeight: 600 }}>{d.z_score.toFixed(1)}σ {d.direction}</span>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </>
+          )}
+        </div>
+      )}
+
       {result.detection_id && (
         <button onClick={() => onExplain(result.detection_id)}
           style={{ background: "transparent", border: `1px solid ${C.border}`, borderRadius: 6, color: "#93c5fd", fontSize: 12, padding: "5px 12px", cursor: "pointer" }}>

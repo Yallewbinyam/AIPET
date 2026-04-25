@@ -95,7 +95,7 @@ All modules live under `dashboard/backend/<module_name>/` as a Blueprint with `_
 | `redteam` | Red team tooling and simulation |
 | `forensics` | Digital forensics investigation |
 | `malware_sandbox` | Malware sandboxing and analysis |
-| `behavioral` | Behavioural anomaly detection |
+| `behavioral` | Per-device behavioural baseline (Z-score across 12-feature FEATURE_ORDER vocabulary), 12-hour Celery rebuild, integrated into /predict_real |
 | `incidents` | Incident management and response |
 | `remediation` | Guided remediation workflows |
 | `defense` / `defense_mesh` | Defensive controls and mesh policy |
@@ -157,7 +157,7 @@ All modules live under `dashboard/backend/<module_name>/` as a Blueprint with `_
 | # | Capability | Status |
 |---|---|---|
 | 1 | Isolation Forest ML anomaly detection + SHAP explainability | ✅ **COMPLETE** (Days 1–5). Full React panel: ModelStatusBar, ScanHostForm, DetectionsTable, DetectionDetailModal with 12-feature SHAP bars, ModelVersionsTable. SHAP via TreeExplainer (0.2ms/call). |
-| 2 | Per-device behavioural baseline (mean/std/Z-score) | Pending |
+| 2 | Per-device behavioural baseline (mean/std/Z-score) | ✅ **COMPLETE** — `device_baseline_builder.py` builds baselines from real scan data using FEATURE_ORDER vocabulary; `device_deviation_detector.py` computes Z-scores per feature; /predict_real returns both Isolation Forest + behavioral results; 12h Celery Beat rebuild; `BehavioralAIPage` extended with Device Baselines tab + 12-feature breakdown; AnomalyResultCard shows behavioral deviation inline. |
 | 3 | Automated ML pipeline (Celery retrain every 24 h) | ✅ **COMPLETE** (D3) |
 | 4 | AlienVault OTX threat intelligence integration | Pending |
 | 5 | CISA KEV exploit validation (actively exploited CVEs) | Pending |

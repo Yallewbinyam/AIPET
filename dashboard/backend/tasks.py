@@ -573,6 +573,78 @@ def retrain_anomaly_model():
             raise
 
 
+@shared_task(
+    name="dashboard.backend.tasks.rebuild_device_baselines",
+    max_retries=1,
+    default_retry_delay=60,
+)
+def rebuild_device_baselines():
+    """
+    Rebuild per-device baselines for every distinct (user_id, host_ip) pair
+    across all completed real_scan_results. Runs every 12 hours via Beat.
+    One per-device failure does not abort the loop.
+    """
+    import json as _json
+
+    os.environ.setdefault(
+        "DATABASE_URL",
+        "postgresql://aipet_user:aipet_password@localhost:5433/aipet_db"
+    )
+    from dashboard.backend.models import db
+    from dashboard.backend.real_scanner.routes import RealScanResult
+    from dashboard.backend.behavioral.device_baseline_builder import upsert_device_baseline
+
+    app = create_app()
+    with app.app_context():
+        log = app.logger
+
+        all_scans = RealScanResult.query.filter_by(status="complete").all()
+
+        # Collect distinct (user_id, host_ip) pairs
+        pairs_seen: set[tuple] = set()
+        host_pairs: list[tuple[int, str]] = []
+        for scan in all_scans:
+            try:
+                hosts = _json.loads(scan.results_json or "[]")
+            except Exception:
+                continue
+            for host in hosts:
+                ip = host.get("ip")
+                if ip:
+                    key = (scan.user_id, ip)
+                    if key not in pairs_seen:
+                        pairs_seen.add(key)
+                        host_pairs.append((scan.user_id, ip))
+
+        built = skipped = errors = 0
+
+        for uid, ip in host_pairs:
+            try:
+                result = upsert_device_baseline(uid, ip)
+                if result is None:
+                    skipped += 1
+                else:
+                    built += 1
+            except Exception as e:
+                errors += 1
+                log.warning(
+                    "rebuild_device_baselines: failed for user=%s host=%s: %s",
+                    uid, ip, e,
+                )
+
+        log.info(
+            "rebuild_device_baselines: built=%d skipped_cold_start=%d errors=%d total=%d",
+            built, skipped, errors, len(host_pairs),
+        )
+        return {
+            "status":              "ok",
+            "built":               built,
+            "skipped_cold_start":  skipped,
+            "errors":              errors,
+            "total":               len(host_pairs),
+        }
+
+
 def _rematch_scan_results(db, days_back: int = 7):
     """
     For each recent real_scan_result, match open ports/services against live_cves
