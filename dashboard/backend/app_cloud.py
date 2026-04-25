@@ -150,6 +150,8 @@ from dashboard.backend.calendar.routes import calendar_bp
 from dashboard.backend.real_scanner.routes import real_scanner_bp
 from dashboard.backend.live_cves.routes import live_cves_bp
 from dashboard.backend.live_cves.models import LiveCve, CveSyncLog
+from dashboard.backend.mitre_attack.routes import mitre_attack_bp
+from dashboard.backend.mitre_attack.models import MitreTechnique
 from dashboard.backend.agent_monitor.routes import agent_monitor_bp
 from dashboard.backend.ml_anomaly.routes import ml_anomaly_bp
 from dashboard.backend.ml_anomaly.models import AnomalyModelVersion, AnomalyDetection
@@ -350,6 +352,7 @@ def create_app(config_name="development"):
     app.register_blueprint(calendar_bp)
     app.register_blueprint(real_scanner_bp)
     app.register_blueprint(live_cves_bp)
+    app.register_blueprint(mitre_attack_bp)
     app.register_blueprint(agent_monitor_bp)
     app.register_blueprint(api_keys_bp, url_prefix='/api/keys')
     app.register_blueprint(ml_anomaly_bp)
@@ -394,9 +397,14 @@ def create_app(config_name="development"):
         log_level=os.environ.get("LOG_LEVEL", "INFO")
     )
 
-    # Create tables
+    # Create tables and seed MITRE ATT&CK catalog
     with app.app_context():
         db.create_all()
+        try:
+            from dashboard.backend.mitre_attack.models import seed_catalog_from_dict
+            seed_catalog_from_dict()
+        except Exception as _seed_exc:
+            app.logger.warning("MITRE catalog seed skipped: %s", _seed_exc)
 
     # ── Error handlers ────────────────────────────────────
     @app.errorhandler(429)

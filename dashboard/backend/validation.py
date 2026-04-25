@@ -202,3 +202,8 @@ CHECK_HOST_TI_SCHEMA = {
 KEV_CHECK_HOST_SCHEMA = {
     "host_ip": is_ip,
 }
+
+MITRE_MAP_DETECTION_SCHEMA = {
+    "detection_id": is_positive_int,
+    "source": lambda v: v in ("ml_anomaly", "behavioral", "kev", "otx"),
+}

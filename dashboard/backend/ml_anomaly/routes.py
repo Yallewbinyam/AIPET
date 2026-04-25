@@ -516,18 +516,82 @@ def predict_real():
             "kev_hits_count": 0,
         }
 
+    # ── Capability 6: MITRE ATT&CK live mapping ──────────────────────────────
+    # Aggregate techniques from all four prior verdicts.
+    # Non-fatal: wraps all mapper calls in a single try/except.
+    try:
+        from dashboard.backend.mitre_attack.mitre_mapper import (
+            from_ml_features, from_behavioral_anomaly,
+            from_kev_hit, from_otx_match, aggregate_techniques,
+        )
+        _mappings = []
+
+        # Source 1: ML SHAP features
+        _mappings.extend(from_ml_features(top_contributors))
+
+        # Source 2: Behavioral baseline deviations
+        _beh_status = behavioral_baseline.get("status")
+        if _beh_status == "checked":
+            _anom_type = "traffic_spike"  # default for device-deviation anomalies
+            _top_devs  = behavioral_baseline.get("top_deviations") or []
+            _mappings.extend(from_behavioral_anomaly(_anom_type, _top_devs))
+
+        # Source 3: KEV hits (use CWEs from kev_catalog for each hit)
+        if kev_active_exploitation.get("kev_hits_count", 0) > 0:
+            from dashboard.backend.live_cves.models import KevCatalogEntry
+            for _hit in kev_active_exploitation.get("kev_hits", []):
+                _cve_entry = db.session.get(KevCatalogEntry, _hit["cve_id"])
+                _cwes = _cve_entry.cwes if _cve_entry else None
+                # cwes stored as list of "CWE-XX" strings
+                _cwe_list = [str(c) for c in (_cwes or [])]
+                _mappings.extend(from_kev_hit(_hit["cve_id"], _cwe_list))
+
+        # Source 4: OTX indicator matches
+        if threat_intel.get("match_count", 0) > 0:
+            for _match in threat_intel.get("matches", []):
+                _mappings.extend(from_otx_match(
+                    _match.get("indicator_type", "ip"),
+                    _match.get("tags"),
+                ))
+
+        _aggregated = aggregate_techniques(_mappings)
+        _tactics    = sorted({t["tactic"] for t in _aggregated})
+        _confs      = [t["confidence"] for t in _aggregated]
+        _highest    = ("high" if "high" in _confs
+                        else "medium" if "medium" in _confs
+                        else "low" if _confs else "none")
+
+        mitre_techniques = {
+            "status":            "checked",
+            "technique_count":   len(_aggregated),
+            "techniques":        _aggregated,
+            "tactics_covered":   _tactics,
+            "highest_confidence": _highest,
+            "error":             None,
+        }
+    except Exception as _mitre_exc:
+        current_app.logger.exception(
+            "predict_real: MITRE mapping failed for %s: %s", host_ip, _mitre_exc
+        )
+        mitre_techniques = {
+            "status":  "unavailable",
+            "error":   str(_mitre_exc)[:200],
+            "technique_count": 0,
+        }
+
     return jsonify({
-        "detection_id":           detection.id,
-        "target_ip":              host_ip,
-        "target_device":          target_device,
-        "is_anomaly":             is_anomaly,
-        "anomaly_score":          round(sigmoid_score, 6),
-        "severity":               severity,
-        "top_contributors":       top_contributors,
-        "explainer_type":         explainer.explainer_type,
-        "model_version":          version.version_tag,
-        "synthetic_fields":       synthetic_fields,
-        "behavioral_baseline":    behavioral_baseline,
-        "threat_intel":           threat_intel,
+        "detection_id":            detection.id,
+        "target_ip":               host_ip,
+        "target_device":           target_device,
+        "is_anomaly":              is_anomaly,
+        "anomaly_score":           round(sigmoid_score, 6),
+        "severity":                severity,
+        "top_contributors":        top_contributors,
+        "explainer_type":          explainer.explainer_type,
+        "model_version":           version.version_tag,
+        "synthetic_fields":        synthetic_fields,
+        "behavioral_baseline":     behavioral_baseline,
+        "threat_intel":            threat_intel,
         "kev_active_exploitation": kev_active_exploitation,
+        "mitre_techniques":        mitre_techniques,
     }), 200

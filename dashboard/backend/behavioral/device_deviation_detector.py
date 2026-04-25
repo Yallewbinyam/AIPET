@@ -159,6 +159,15 @@ def detect_and_record_deviations(
         f"({result['baseline_confidence']} confidence)."
     )
 
+    # Derive mitre_id from the top-deviating feature rather than hardcoding T1071.
+    # Fixed in Capability 6 — was incorrectly hardcoded since Capability 2.
+    try:
+        from dashboard.backend.mitre_attack.mitre_mapper import from_behavioral_deviations
+        _tech_mappings = from_behavioral_deviations(top5)
+        mitre_id = _tech_mappings[0]["technique_id"] if _tech_mappings else "T1071"
+    except Exception:
+        mitre_id = "T1071"  # safe fallback if mapper unavailable
+
     anomaly = BaAnomaly(
         baseline_id  = baseline_row_id,
         entity_name  = host_ip,
@@ -169,7 +178,7 @@ def detect_and_record_deviations(
         deviation    = round(max_z, 2),
         observed     = json.dumps(observed_payload),
         expected     = json.dumps(expected_payload),
-        mitre_id     = "T1071",
+        mitre_id     = mitre_id,
         status       = "new",
     )
     db.session.add(anomaly)

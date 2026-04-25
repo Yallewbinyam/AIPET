@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { AlertTriangle, CheckCircle, Info, AlertOctagon, Skull } from "lucide-react";
+import { AlertTriangle, CheckCircle, Info, AlertOctagon, Skull, Crosshair } from "lucide-react";
 import SHAPBreakdown from "./SHAPBreakdown";
 
 const SEV = {
@@ -173,6 +173,58 @@ export default function AnomalyResultCard({ result, onExplain }) {
                 {kevExpanded ? "Show less" : `Show all ${kev.kev_hits.length} hits`}
               </button>
             )}
+          </div>
+        );
+      })()}
+
+      {/* MITRE ATT&CK mapping section (Capability 6) */}
+      {result.mitre_techniques && (() => {
+        const mt = result.mitre_techniques;
+        const CONF_COLOR = { high: "#dc2626", medium: "#d97706", low: "#6b7280" };
+        if (mt.status === "unavailable") return (
+          <div style={{ background: "#1a1200", border: "1px solid #78350f40", borderRadius: 6,
+            padding: "8px 12px", marginBottom: 10, fontSize: 11, color: "#92400e" }}>
+            MITRE ATT&CK mapping unavailable.
+          </div>
+        );
+        if (!mt.technique_count) return (
+          <div style={{ background: "#0a1a0e", border: "1px solid #16a34a30", borderRadius: 6,
+            padding: "8px 12px", marginBottom: 10, fontSize: 11, color: "#16a34a" }}>
+            No specific MITRE ATT&CK techniques mapped for this detection.
+          </div>
+        );
+        return (
+          <div style={{ background: "#100014", border: "1px solid #7c3aed30", borderRadius: 6,
+            padding: "10px 12px", marginBottom: 10 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 6 }}>
+              <Crosshair size={13} color="#a78bfa" />
+              <span style={{ color: "#a78bfa", fontWeight: 700, fontSize: 11 }}>
+                MITRE ATT&CK — {mt.technique_count} technique{mt.technique_count > 1 ? "s" : ""}
+              </span>
+            </div>
+            {mt.tactics_covered?.length > 0 && (
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 4, marginBottom: 8 }}>
+                {mt.tactics_covered.map(tac => (
+                  <span key={tac} style={{ fontSize: 9, padding: "1px 6px", borderRadius: 100,
+                    background: "#7c3aed20", border: "1px solid #7c3aed40",
+                    color: "#a78bfa", fontWeight: 600 }}>
+                    {tac}
+                  </span>
+                ))}
+              </div>
+            )}
+            <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
+              {(mt.techniques || []).slice(0, 8).map((t, i) => (
+                <span key={i} style={{ fontSize: 10, padding: "2px 7px", borderRadius: 4,
+                  background: (CONF_COLOR[t.confidence] ?? "#6b7280") + "15",
+                  border: `1px solid ${(CONF_COLOR[t.confidence] ?? "#6b7280")}40`,
+                  color: CONF_COLOR[t.confidence] ?? "#6b7280",
+                  fontFamily: "JetBrains Mono, monospace", fontWeight: 700,
+                  title: t.name }}>
+                  {t.technique_id}
+                </span>
+              ))}
+            </div>
           </div>
         );
       })()}
