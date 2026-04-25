@@ -159,6 +159,8 @@ from dashboard.backend.risk_engine.routes import risk_engine_bp
 from dashboard.backend.risk_engine.models import DeviceRiskScore
 from dashboard.backend.automated_response.routes import automated_response_bp
 from dashboard.backend.automated_response.models import ResponseThreshold, ResponseHistory
+from dashboard.backend.risk_forecast.routes import risk_forecast_bp
+from dashboard.backend.risk_forecast.models import DeviceRiskScoreHistory, ForecastAlert
 from dashboard.backend.agent_monitor.routes import agent_monitor_bp
 from dashboard.backend.ml_anomaly.routes import ml_anomaly_bp
 from dashboard.backend.ml_anomaly.models import AnomalyModelVersion, AnomalyDetection
@@ -363,6 +365,7 @@ def create_app(config_name="development"):
     app.register_blueprint(central_events_bp)
     app.register_blueprint(risk_engine_bp)
     app.register_blueprint(automated_response_bp)
+    app.register_blueprint(risk_forecast_bp)
     app.register_blueprint(agent_monitor_bp)
     app.register_blueprint(api_keys_bp, url_prefix='/api/keys')
     app.register_blueprint(ml_anomaly_bp)
@@ -406,6 +409,18 @@ def create_app(config_name="development"):
     if _ask_fn:
         _ask_fn = limiter.limit("20 per minute")(_ask_fn)
         app.view_functions["ask.ask_question"] = _ask_fn
+
+    # /api/forecast/recompute_all triggers forecast Celery task — cap to 1/hour.
+    _forecast_recompute_fn = app.view_functions.get("risk_forecast.recompute_all")
+    if _forecast_recompute_fn:
+        _forecast_recompute_fn = limiter.limit("1 per hour")(_forecast_recompute_fn)
+        app.view_functions["risk_forecast.recompute_all"] = _forecast_recompute_fn
+
+    # /api/forecast/<entity>?recompute=true does live computation — cap to 10/min.
+    _forecast_entity_fn = app.view_functions.get("risk_forecast.get_entity_forecast")
+    if _forecast_entity_fn:
+        _forecast_entity_fn = limiter.limit("10 per minute")(_forecast_entity_fn)
+        app.view_functions["risk_forecast.get_entity_forecast"] = _forecast_entity_fn
 
     # /api/response/check_now triggers recompute + threshold check — cap to 1/hour.
     _resp_check_fn = app.view_functions.get("automated_response.check_now")

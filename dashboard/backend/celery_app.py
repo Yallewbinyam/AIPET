@@ -90,6 +90,14 @@ celery.conf.update(
             "task":     "dashboard.backend.tasks.recompute_device_risk_scores",
             "schedule": 300,           # every 5 minutes — capability 9
         },
+        "generate-risk-forecasts-hourly": {
+            "task":     "dashboard.backend.tasks.generate_risk_forecasts",
+            "schedule": 3600,          # every 1 hour — capability 11
+        },
+        "prune-risk-history-weekly": {
+            "task":     "dashboard.backend.tasks.prune_risk_history",
+            "schedule": 604800,        # every 7 days — capability 11 retention
+        },
     },
 
     # Worker settings

@@ -1019,3 +1019,64 @@ def recompute_device_risk_scores(user_id=None):
             "risk_engine":        risk_result,
             "automated_response": response_result,
         }
+
+
+@shared_task(
+    name="dashboard.backend.tasks.generate_risk_forecasts",
+    max_retries=1,
+    default_retry_delay=120,
+)
+def generate_risk_forecasts(user_id=None):
+    """
+    Hourly Celery task. Calls risk_forecast.forecast_all_entities().
+    user_id=None processes all users (Beat schedule).
+    user_id=<int> processes one user (manual trigger via POST /api/forecast/recompute_all).
+    """
+    import pathlib as _pathlib
+    try:
+        from dotenv import load_dotenv as _ld
+        _ld(dotenv_path=str(_pathlib.Path(__file__).resolve().parents[2] / ".env"), override=False)
+    except Exception:
+        pass
+
+    from dashboard.backend.risk_forecast.engine import forecast_all_entities
+
+    app = create_app()
+    with app.app_context():
+        log = app.logger
+        try:
+            result = forecast_all_entities(user_id=user_id)
+            log.info(
+                "generate_risk_forecasts: processed=%d ok=%d low=%d insuf=%d alerts=%d errors=%d %.2fs",
+                result.get("processed", 0), result.get("ok", 0),
+                result.get("low_confidence", 0), result.get("insufficient", 0),
+                result.get("alerts_created", 0), result.get("errors", 0),
+                result.get("runtime_seconds", 0),
+            )
+            return result
+        except Exception as exc:
+            log.exception("generate_risk_forecasts: fatal error: %s", exc)
+            return {"status": "error", "error": str(exc)}
+
+
+@shared_task(
+    name="dashboard.backend.tasks.prune_risk_history",
+    max_retries=1,
+    default_retry_delay=300,
+)
+def prune_risk_history():
+    """
+    Weekly Celery task. Deletes device_risk_score_history rows older than 30 days.
+    """
+    from dashboard.backend.risk_forecast.engine import prune_old_history
+
+    app = create_app()
+    with app.app_context():
+        log = app.logger
+        try:
+            deleted = prune_old_history(retention_days=30)
+            log.info("prune_risk_history: deleted %d rows", deleted)
+            return {"status": "ok", "deleted": deleted}
+        except Exception as exc:
+            log.exception("prune_risk_history: fatal error: %s", exc)
+            return {"status": "error", "error": str(exc)}

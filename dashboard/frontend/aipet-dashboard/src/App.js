@@ -10,6 +10,7 @@ import MitrePanel       from "./components/mitre/MitrePanel";
 import EventsFeedPanel      from "./components/events/EventsFeedPanel";
 import RiskScoreDashboard       from "./components/risk/RiskScoreDashboard";
 import AutomatedResponsePanel   from "./components/automated_response/AutomatedResponsePanel";
+import RiskForecastPanel        from "./components/forecast/RiskForecastPanel";
 import * as d3 from "d3";
 // Load JetBrains Mono font for technical aesthetic
 const fontLink = document.createElement("link");
@@ -5919,6 +5920,7 @@ const NAV_ITEMS = [
   { id: "eventsfeed",  label: "Security Events",    icon: Activity,     group: "enterprise" },
   { id: "riskscore",   label: "Risk Score",          icon: Gauge,        group: "enterprise" },
   { id: "autoresponse",label: "Automated Response",  icon: Zap,          group: "enterprise" },
+  { id: "riskforecast",label: "Risk Forecast",       icon: TrendingUp,   group: "enterprise" },
 
   { id: "dspm",        label: "Data Security",  icon: Lock,          group: "enterprise" },
   { id: "costsecurity",label: "Cost Security",  icon: TrendingUp,    group: "enterprise" },
@@ -30054,6 +30056,9 @@ export default function App() {
           )}
           {activeTab === "autoresponse" && (
             <AutomatedResponsePanel token={token} />
+          )}
+          {activeTab === "riskforecast" && (
+            <RiskForecastPanel token={token} />
           )}
           {activeTab === "identitygraph" && (
             <IdentityGraphPage token={token} showToast={showToast} />

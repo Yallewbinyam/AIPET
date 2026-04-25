@@ -247,6 +247,28 @@ def upsert_score_for_entity(
         except Exception:
             pass
         computed["id"] = None
+        return computed
+
+    # Capability 11: snapshot into history table (non-fatal)
+    try:
+        from dashboard.backend.risk_forecast.models import DeviceRiskScoreHistory
+        hist = DeviceRiskScoreHistory(
+            user_id              = user_id,
+            entity               = entity,
+            entity_type          = entity_type,
+            score                = computed["score"],
+            event_count_24h      = computed.get("event_count_24h", 0),
+            contributing_modules = computed.get("contributing_modules", []),
+            snapshot_at          = now,
+        )
+        db.session.add(hist)
+        db.session.commit()
+    except Exception:
+        _LOG.exception("upsert_score_for_entity: history snapshot failed entity=%s", entity)
+        try:
+            db.session.rollback()
+        except Exception:
+            pass
 
     return computed
 
