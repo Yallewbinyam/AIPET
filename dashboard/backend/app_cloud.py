@@ -57,6 +57,7 @@ from dashboard.backend.map.routes import map_bp
 from dashboard.backend.predict.routes import predict_bp
 from dashboard.backend.watch.routes import watch_bp
 from dashboard.backend.ask.routes import ask_bp
+from dashboard.backend.ask.usage import AskUsageLog
 from dashboard.backend.compliance.routes import compliance_bp
 from dashboard.backend.iam.routes import iam_bp, seed_default_roles
 from dashboard.backend.iam.models import Role, Permission, UserRole, AuditLog, SSOProvider
@@ -399,6 +400,12 @@ def create_app(config_name="development"):
     if _kev_sync_fn:
         _kev_sync_fn = limiter.limit("1 per hour")(_kev_sync_fn)
         app.view_functions["live_cves.kev_sync_now"] = _kev_sync_fn
+
+    # /api/ask — Claude API call, expensive — cap to 20/minute per IP (plan quota enforced internally).
+    _ask_fn = app.view_functions.get("ask.ask_question")
+    if _ask_fn:
+        _ask_fn = limiter.limit("20 per minute")(_ask_fn)
+        app.view_functions["ask.ask_question"] = _ask_fn
 
     # /api/response/check_now triggers recompute + threshold check — cap to 1/hour.
     _resp_check_fn = app.view_functions.get("automated_response.check_now")

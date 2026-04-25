@@ -44,3 +44,6 @@ python-dateutil==2.9.0
 joblib==1.4.2
 numpy==1.26.4
 scikit-learn==1.5.2
+
+# Claude / Anthropic SDK
+anthropic==0.97.0

@@ -155,7 +155,7 @@ All modules live under `dashboard/backend/<module_name>/` as a Blueprint with `_
 
 ## 6. Capability Roadmap — 33 Capabilities
 
-**Current status:** Capabilities 1, 2, 3, 4, 5, 6, 7, 8, 9 ✅ Complete (1–7, 8, 9). 24 remaining (10–32).
+**Current status:** Capabilities 1, 2, 3, 4, 5, 6, 7, 8, 9, 10 ✅ Complete. 23 remaining (11–32).
 
 ### Month 1 — Intelligence Core (Capabilities 1–12)
 
@@ -172,7 +172,7 @@ All modules live under `dashboard/backend/<module_name>/` as a Blueprint with `_
 | 7 (merged) | Central event pipeline (all 93 modules feed one brain) | ✅ Split into 7a + 7b, both complete. 15 of ~93 modules wired. |
 | 8 | Automated response chain (scanner → SIEM → compliance → report) | ✅ **COMPLETE** — `automated_response/` module: `ResponseThreshold` (per-user, seeded with 3 defaults: notify≥60, high_alert≥80, emergency≥95) + `ResponseHistory` (per-entity-per-playbook cooldown, 4h default). `check_thresholds_and_respond()` runs inside `recompute_device_risk_scores` Celery task. `send_alert` action wired to `settings.send_slack_alert()` + `send_teams_alert()` (was previously silent). Emits `automated_response_triggered` to central_events. 6 REST endpoints. `AutomatedResponsePanel` React UI. 29 backend tests. |
 | 9 | Unified real-time risk score (all modules contribute) | ✅ **COMPLETE** — `risk_engine/` module: `DeviceRiskScore` model (11 columns, 6 indexes incl. `(user_id, score)` for C8 queries), `engine.py` (formula: `min(100, Σ[base × SOURCE_MULTIPLIERS × 2^(-age/8h)])`, SEVERITY_POINTS dict, 24h lookback), `recompute_all_scores()` (idempotent UPSERT), Celery Beat 5-min recompute, 5 REST endpoints, `RiskScoreDashboard` React panel; `/predict_real` returns score as 6th verdict (live compute + stored comparison); 29 backend tests including clamp-at-100 and time-decay verification. |
-| 10 | Claude API powered Ask AIPET (answers about YOUR environment) | Pending |
+| 10 | Claude API powered Ask AIPET (answers about YOUR environment) | ✅ **COMPLETE** — `ask/` module upgraded: `explain/claude_client.py` migrated to `anthropic` SDK 0.97.0 (was raw `urllib`), now uses proper `system` parameter and returns `input_tokens` for cost tracking. `ask/context.py` extended with 9 new sections (device_risk_scores, central_events, ml_anomaly_detections, kev_catalog, ioc_entries, mitre_techniques, ba_anomalies, response_history, real_scan_results); total context ~4.5KB. `ask/usage.py`: `AskUsageLog` table (unique on user_id+date), `check_daily_limit()`, `check_and_record_usage()`. Limits: Professional 50/day, Enterprise 500/day. 3 endpoints: `POST /api/ask` (with 429 enforcement), `GET /api/ask/context`, `GET /api/ask/usage`. Rate limit: 20 req/min via view_functions. 24 backend tests. Live test: Claude answered Capability 8-aware question (device 10.0.255.1, risk score 100, emergency threshold) in 13.7s. |
 | 11 | Predictive risk engine (90-day breach probability forecast) | Pending |
 | 12 | AI-written weekly security briefings | Pending |
 
