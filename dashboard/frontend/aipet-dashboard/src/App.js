@@ -3,7 +3,8 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import "./i18n";
 import axios from "axios";
-import MLAnomalyPanel from "./components/ml_anomaly/MLAnomalyPanel";
+import MLAnomalyPanel    from "./components/ml_anomaly/MLAnomalyPanel";
+import ThreatIntelPanel from "./components/threat_intel/ThreatIntelPanel";
 import * as d3 from "d3";
 // Load JetBrains Mono font for technical aesthetic
 const fontLink = document.createElement("link");
@@ -25784,6 +25785,51 @@ function ThreatIntelPage({ token, showToast }) {
 
   useEffect(() => { fetchAll(); }, [fetchAll]);
 
+  // ── OTX Sync state + handlers ─────────────────────────────
+  const [syncing,     setSyncing]     = React.useState(false);
+  const [syncTaskId,  setSyncTaskId]  = React.useState(null);
+  const [syncResult,  setSyncResult]  = React.useState(null);
+  const [checkIp,     setCheckIp]     = React.useState("");
+  const [checkResult, setCheckResult] = React.useState(null);
+  const [checking,    setChecking]    = React.useState(false);
+
+  const handleSyncNow = async () => {
+    setSyncing(true); setSyncResult(null);
+    try {
+      const res = await axios.post(`${API}/threatintel/sync_now`, {}, H);
+      setSyncTaskId(res.data.task_id);
+      showToast("OTX sync queued", "success");
+      // Poll for completion
+      let done = false;
+      for (let i = 0; i < 60 && !done; i++) {
+        await new Promise(r => setTimeout(r, 3000));
+        const s = await axios.get(`${API}/threatintel/sync_status/${res.data.task_id}`, H);
+        if (s.data.state === "SUCCESS") {
+          setSyncResult(s.data.result);
+          done = true;
+          fetchAll();
+          showToast(`Sync done — ${s.data.result?.indicators_added ?? 0} added`, "success");
+        } else if (s.data.state === "FAILURE") {
+          done = true;
+          showToast("OTX sync failed", "error");
+        }
+      }
+    } catch (e) {
+      showToast(e.response?.data?.error || "Sync failed", "error");
+    } finally { setSyncing(false); }
+  };
+
+  const handleCheckHost = async () => {
+    if (!checkIp.trim()) return;
+    setChecking(true); setCheckResult(null);
+    try {
+      const res = await axios.post(`${API}/threatintel/check_host`, { host_ip: checkIp.trim() }, H);
+      setCheckResult(res.data);
+    } catch (e) {
+      showToast(e.response?.data?.error || "Check failed", "error");
+    } finally { setChecking(false); }
+  };
+
   // ── Lookup handler ────────────────────────────────────────
   const handleLookup = async () => {
     if (!lookupVal.trim()) return;
@@ -25919,6 +25965,70 @@ function ThreatIntelPage({ token, showToast }) {
           ))}
         </div>
       )}
+
+      {/* ── OTX Sync + Check Host (Capability 4) ────────────── */}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px", marginBottom: "24px" }}>
+        {/* OTX Sync card */}
+        <div style={{ ...cardStyle(), borderColor: stats?.otx_active ? "#00e5ff25" : "#ff8c0025" }}>
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "12px" }}>
+            <div>
+              <div style={{ fontWeight: "700", fontSize: "14px" }}>AlienVault OTX</div>
+              <div style={{ fontSize: "11px", color: C.muted, marginTop: "2px" }}>
+                {stats?.otx_last_sync ? `Last sync: ${new Date(stats.otx_last_sync).toLocaleString()}` : "Never synced"}
+                {stats?.otx_ioc_count ? ` · ${stats.otx_ioc_count} IOCs` : ""}
+              </div>
+            </div>
+            <button onClick={handleSyncNow} disabled={syncing}
+              style={{ padding: "8px 16px", borderRadius: "10px", border: "none",
+                cursor: syncing ? "not-allowed" : "pointer", fontSize: "12px", fontWeight: "700",
+                background: syncing ? C.border : "linear-gradient(135deg,#00e5ff,#0ea5e9)",
+                color: syncing ? C.muted : "#000" }}>
+              {syncing ? "Syncing..." : "Sync Now"}
+            </button>
+          </div>
+          {syncResult && (
+            <div style={{ fontSize: "11px", color: C.muted, padding: "8px", background: C.border, borderRadius: "6px" }}>
+              Added {syncResult.indicators_added} · Updated {syncResult.indicators_updated} · {syncResult.pulses_processed} pulses · {syncResult.runtime_seconds}s
+            </div>
+          )}
+        </div>
+
+        {/* Check Host card */}
+        <div style={{ ...cardStyle(), borderColor: "#a78bfa25" }}>
+          <div style={{ fontWeight: "700", fontSize: "14px", marginBottom: "10px" }}>Check a Host</div>
+          <div style={{ display: "flex", gap: "8px" }}>
+            <input value={checkIp} onChange={e => setCheckIp(e.target.value)}
+              onKeyDown={e => e.key === "Enter" && handleCheckHost()}
+              placeholder="Enter IP address"
+              style={{ flex: 1, background: C.border, border: `1px solid #2d3f55`,
+                borderRadius: "8px", padding: "8px 12px", color: C.text,
+                fontSize: "13px", fontFamily: "JetBrains Mono, monospace" }} />
+            <button onClick={handleCheckHost} disabled={checking}
+              style={{ padding: "8px 14px", borderRadius: "8px", border: "none",
+                cursor: checking ? "not-allowed" : "pointer", fontSize: "12px",
+                fontWeight: "700", background: "#a78bfa", color: "#fff" }}>
+              {checking ? "..." : "Check"}
+            </button>
+          </div>
+          {checkResult && (
+            <div style={{ marginTop: "10px", fontSize: "11px" }}>
+              {checkResult.match_count === 0
+                ? <span style={{ color: "#16a34a" }}>No matches — appears clean.</span>
+                : <>
+                    <span style={{ color: "#dc2626", fontWeight: "700" }}>{checkResult.match_count} match(es) — {checkResult.highest_severity.toUpperCase()}</span>
+                    <div style={{ marginTop: "6px" }}>
+                      {checkResult.matches.slice(0, 3).map((m, i) => (
+                        <div key={i} style={{ color: C.muted, marginBottom: "2px" }}>
+                          {m.indicator_type}: <span style={{ fontFamily: "monospace" }}>{m.indicator}</span> — {m.pulse_name}
+                        </div>
+                      ))}
+                    </div>
+                  </>
+              }
+            </div>
+          )}
+        </div>
+      </div>
 
       {/* ── Lookup widget ───────────────────────────────────── */}
       <div style={{ ...cardStyle({ marginBottom: "28px" }),
@@ -29954,7 +30064,9 @@ export default function App() {
             <ZeroTrustPage token={token} showToast={showToast} />
           )}
           {activeTab === "threatintel" && (
-            <ThreatIntelPage token={token} showToast={showToast} />
+            <div style={{ padding: "24px" }}>
+              <ThreatIntelPanel token={token} />
+            </div>
           )}
           {activeTab === "siem" && (
             <SiemPage token={token} showToast={showToast} />

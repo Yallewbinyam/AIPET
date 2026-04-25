@@ -452,16 +452,55 @@ def predict_real():
         )
         behavioral_baseline = {"status": "error", "error": str(_beh_exc)}
 
+    # ── Capability 4: threat intelligence cross-reference ────────────────────
+    # Non-fatal: if this fails, /predict_real still returns the other results.
+    try:
+        from dashboard.backend.threatintel.cross_reference import (
+            check_host_against_threat_intel,
+        )
+        # Pass host_data from the most recent scan so hostnames are checked too
+        from dashboard.backend.real_scanner.routes import RealScanResult
+        _scan = (
+            RealScanResult.query
+            .filter_by(user_id=user_id, status="complete")
+            .order_by(RealScanResult.started_at.desc())
+            .first()
+        )
+        _host_data = None
+        if _scan:
+            try:
+                _hosts = json.loads(_scan.results_json or "[]")
+                for _h in _hosts:
+                    if _h.get("ip") == host_ip:
+                        _host_data = _h
+                        break
+            except (json.JSONDecodeError, TypeError):
+                pass
+        ti = check_host_against_threat_intel(user_id, host_ip, _host_data)
+        threat_intel = {
+            "status":           ti.get("status"),
+            "match_count":      ti.get("match_count", 0),
+            "highest_severity": ti.get("highest_severity", "none"),
+            "matches":          ti.get("matches", []),
+            "error":            None,
+        }
+    except Exception as _ti_exc:
+        current_app.logger.exception(
+            "predict_real: threat intel check failed for %s: %s", host_ip, _ti_exc
+        )
+        threat_intel = {"status": "unavailable", "error": str(_ti_exc), "match_count": 0}
+
     return jsonify({
-        "detection_id":       detection.id,
-        "target_ip":          host_ip,
-        "target_device":      target_device,
-        "is_anomaly":         is_anomaly,
-        "anomaly_score":      round(sigmoid_score, 6),
-        "severity":           severity,
-        "top_contributors":   top_contributors,
-        "explainer_type":     explainer.explainer_type,
-        "model_version":      version.version_tag,
-        "synthetic_fields":   synthetic_fields,
+        "detection_id":        detection.id,
+        "target_ip":           host_ip,
+        "target_device":       target_device,
+        "is_anomaly":          is_anomaly,
+        "anomaly_score":       round(sigmoid_score, 6),
+        "severity":            severity,
+        "top_contributors":    top_contributors,
+        "explainer_type":      explainer.explainer_type,
+        "model_version":       version.version_tag,
+        "synthetic_fields":    synthetic_fields,
         "behavioral_baseline": behavioral_baseline,
+        "threat_intel":        threat_intel,
     }), 200

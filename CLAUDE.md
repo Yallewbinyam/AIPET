@@ -88,7 +88,7 @@ All modules live under `dashboard/backend/<module_name>/` as a Blueprint with `_
 | `real_scanner` | Nmap host/service/OS scan, NVD CVE matching |
 | `live_cves` | Hourly NVD sync, auto-rematch scans |
 | `siem` / `cloud_siem` | SIEM event ingestion and dashboards |
-| `threatintel` / `threat_intel_ingest` / `threat_radar` | Threat intelligence feeds, IOC tracking |
+| `threatintel` / `threat_intel_ingest` / `threat_radar` | Threat intelligence feeds, IOC tracking. AlienVault OTX integration (96-line client, 6-hour Celery sync, locally cached IOCs — 45,750 indicators after first full sync); `/predict_real` now returns threat intel as a third independent verdict alongside Isolation Forest + behavioral baseline. |
 | `aisoc` / `soc_twin` | AI-assisted SOC automation and digital twin |
 | `adversary_profiling` | Attacker profiling and TTP mapping |
 | `attackpath` | Attack path analysis and visualisation |
@@ -159,7 +159,7 @@ All modules live under `dashboard/backend/<module_name>/` as a Blueprint with `_
 | 1 | Isolation Forest ML anomaly detection + SHAP explainability | ✅ **COMPLETE** (Days 1–5). Full React panel: ModelStatusBar, ScanHostForm, DetectionsTable, DetectionDetailModal with 12-feature SHAP bars, ModelVersionsTable. SHAP via TreeExplainer (0.2ms/call). |
 | 2 | Per-device behavioural baseline (mean/std/Z-score) | ✅ **COMPLETE** — `device_baseline_builder.py` builds baselines from real scan data using FEATURE_ORDER vocabulary; `device_deviation_detector.py` computes Z-scores per feature; /predict_real returns both Isolation Forest + behavioral results; 12h Celery Beat rebuild; `BehavioralAIPage` extended with Device Baselines tab + 12-feature breakdown; AnomalyResultCard shows behavioral deviation inline. |
 | 3 | Automated ML pipeline (Celery retrain every 24 h) | ✅ **COMPLETE** (D3) |
-| 4 | AlienVault OTX threat intelligence integration | Pending |
+| 4 | AlienVault OTX threat intelligence integration | ✅ **COMPLETE** — `otx_client.py` (96 lines, key never logged), `cross_reference.py` (119 lines, DB-local <1ms lookup), `sync_otx_threat_intel` Celery task (6h Beat schedule), 45,750 IOCs from 1,000 pulses on first sync; `/predict_real` returns three independent verdicts (Isolation Forest + behavioral + threat intel); standalone `ThreatIntelPanel` React component (SyncControlBar, CheckHostForm, RecentIOCsTable); 17 backend tests. |
 | 5 | CISA KEV exploit validation (actively exploited CVEs) | Pending |
 | 6 | MITRE ATT&CK live mapping | Pending |
 | 7 | Central event pipeline (all 93 modules feed one brain) | Pending |
@@ -264,7 +264,8 @@ Gmail SMTP, Sentry DSN, and UptimeRobot tracking moved to the **Pre-Launch Block
 - All blueprints are registered in `dashboard/backend/app_cloud.py`
 - **Frontend** is a single-page React app; all routes/views are components in `App.js` (large file — use search)
 - **Database migrations** are run manually with Flask-Migrate (`flask db upgrade`)
-- **Celery worker + Celery Beat** both started by `start_cloud.sh` (D3). Beat schedule: `sync-nvd-cves-hourly` (3600s) + `retrain-anomaly-model-daily` (86400s). PIDs under `pids/`, logs under `logs/`. Redis required before Celery starts (script checks with `redis-cli ping`).
+- **Celery worker + Celery Beat** both started by `start_cloud.sh` (D3). Beat schedule: `sync-nvd-cves-hourly` (3600s) + `retrain-anomaly-model-daily` (86400s) + `sync-otx-threat-intel-every-6-hours` (21600s). PIDs under `pids/`, logs under `logs/`. Redis required before Celery starts (script checks with `redis-cli ping`).
+- **OTX_API_KEY required in .env** — get a free key at https://otx.alienvault.com → Settings → API Integration. Without it, the 6-hour OTX sync task returns `{"status": "error"}` silently (non-fatal).
 - **Celery systemd templates** at `deploy/systemd/` (PLB-7 closed). `start_cloud.sh` detects if `aipet-celery-worker.service` / `aipet-celery-beat.service` are active; if so, it skips nohup launch (systemd owns those processes). On dev, nohup fallback runs as before. See `deploy/systemd/INSTALL.md` for production install instructions.
 - **Gunicorn** serves Flask in production (`gunicorn_config.py`)
 - **Nginx** reverse-proxies to Gunicorn (port 5001) and serves the React build

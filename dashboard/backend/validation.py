@@ -194,3 +194,7 @@ ML_ANOMALY_PREDICT_REAL_SCHEMA = {
 BUILD_DEVICE_BASELINE_SCHEMA = {
     "host_ip": is_ip,
 }
+
+CHECK_HOST_TI_SCHEMA = {
+    "host_ip": is_ip,
+}

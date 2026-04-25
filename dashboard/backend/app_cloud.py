@@ -6,6 +6,14 @@
 import os
 import sys
 import json
+import pathlib
+
+# Load .env before any other code reads environment variables.
+try:
+    from dotenv import load_dotenv as _load_dotenv
+    _load_dotenv(dotenv_path=str(pathlib.Path(__file__).resolve().parents[2] / ".env"), override=False)
+except Exception:
+    pass
 import subprocess
 import threading
 from datetime import datetime, timedelta
@@ -367,6 +375,12 @@ def create_app(config_name="development"):
     if _build_all_fn:
         _build_all_fn = limiter.limit("5 per hour")(_build_all_fn)
         app.view_functions["behavioral.build_all_device_baselines"] = _build_all_fn
+
+    # /threatintel/sync_now kicks off a Celery OTX fetch — strictly cap it.
+    _sync_now_fn = app.view_functions.get("threatintel.sync_now")
+    if _sync_now_fn:
+        _sync_now_fn = limiter.limit("1 per hour")(_sync_now_fn)
+        app.view_functions["threatintel.sync_now"] = _sync_now_fn
 
     # Setup logging
     setup_logging(

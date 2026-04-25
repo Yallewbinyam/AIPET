@@ -404,6 +404,183 @@ def sync_nvd_cves(self, days_back: int = 1):
 
 
 @shared_task(
+    name="dashboard.backend.tasks.sync_otx_threat_intel",
+    max_retries=1,
+    default_retry_delay=120,
+)
+def sync_otx_threat_intel():
+    """
+    Fetch subscribed OTX pulses and upsert their indicators into ioc_entries.
+    Scheduled every 6 hours via Celery Beat.
+    One OTX feed row (feed_type='otx') is created/reused; indicators are
+    stored with pulse metadata JSON-encoded in the description field.
+    """
+    import time as _time
+
+    os.environ.setdefault(
+        "DATABASE_URL",
+        "postgresql://aipet_user:aipet_password@localhost:5433/aipet_db"
+    )
+    # Guarantee .env is loaded regardless of worker startup order.
+    # Use an explicit path derived from __file__ so the Celery worker
+    # finds it even when find_dotenv() fails due to no calling frame.
+    try:
+        import pathlib as _pathlib
+        from dotenv import load_dotenv as _load_dotenv
+        _env_path = _pathlib.Path(__file__).resolve().parents[2] / ".env"
+        _load_dotenv(dotenv_path=str(_env_path), override=False)
+    except Exception:
+        pass
+
+    from dashboard.backend.models import db
+    from dashboard.backend.threatintel.models import IocFeed, IocEntry
+    from dashboard.backend.threatintel.otx_client import OTXClient
+
+    # OTX indicator type → AIPET ioc_type mapping
+    _TYPE_MAP = {
+        "IPv4": "ip", "IPv6": "ip",
+        "domain": "domain", "hostname": "domain",
+        "URL": "url",
+        "FileHash-MD5": "hash", "FileHash-SHA1": "hash",
+        "FileHash-SHA256": "hash", "FileHash-SHA512": "hash",
+    }
+
+    # Severity from pulse tags
+    _SEVERITY_TAGS = {
+        "critical": {"apt", "ransomware", "c2", "command and control", "botnet"},
+        "high":     {"malware", "trojan", "exploit", "backdoor", "rootkit"},
+        "medium":   {"phishing", "scam", "spam"},
+    }
+
+    def _severity_from_tags(tags):
+        tag_set = {t.lower() for t in (tags or [])}
+        for sev, kws in _SEVERITY_TAGS.items():
+            if tag_set & kws:
+                return sev
+        return "Low"
+
+    app = create_app()
+    with app.app_context():
+        log = app.logger
+        t0 = _time.time()
+
+        try:
+            client = OTXClient()
+        except RuntimeError as exc:
+            log.error("sync_otx_threat_intel: %s", exc)
+            return {"status": "error", "error": str(exc)}
+
+        # Ensure an index exists on ioc_entries.value for fast lookup
+        try:
+            db.session.execute(
+                db.text(
+                    "CREATE INDEX IF NOT EXISTS ix_ioc_entries_value "
+                    "ON ioc_entries (value)"
+                )
+            )
+            db.session.commit()
+        except Exception as idx_exc:
+            log.warning("sync_otx_threat_intel: could not create index: %s", idx_exc)
+            db.session.rollback()
+
+        # Get or create the OTX feed row
+        otx_feed = IocFeed.query.filter_by(feed_type="otx").first()
+        if not otx_feed:
+            otx_feed = IocFeed(
+                name="AlienVault OTX",
+                feed_type="otx",
+                description="AlienVault Open Threat Exchange — subscribed pulses",
+                enabled=True,
+            )
+            db.session.add(otx_feed)
+            db.session.flush()
+
+        try:
+            pulses = client.get_subscribed_pulses(page_size=50, max_pages=20)
+        except Exception as exc:
+            log.exception("sync_otx_threat_intel: pulse fetch failed: %s", exc)
+            return {"status": "error", "error": str(exc)}
+
+        added = updated = errors = 0
+
+        for pulse in pulses:
+            pulse_id   = pulse.get("id", "")
+            pulse_name = pulse.get("name", "")
+            tags       = pulse.get("tags", [])
+            sev        = _severity_from_tags(tags)
+            source_ref = f"https://otx.alienvault.com/pulse/{pulse_id}"
+            meta_json  = json.dumps({
+                "pulse_id":   pulse_id,
+                "pulse_name": pulse_name,
+                "tags":       tags,
+            })
+
+            for indicator in pulse.get("indicators", []):
+                ioc_type_raw = indicator.get("type", "")
+                ioc_type     = _TYPE_MAP.get(ioc_type_raw)
+                if not ioc_type:
+                    continue  # Skip unsupported types
+
+                value = (indicator.get("indicator") or "").strip()
+                if not value or len(value) > 490:
+                    continue
+
+                try:
+                    existing = IocEntry.query.filter_by(
+                        value=value, feed_id=otx_feed.id
+                    ).first()
+                    if existing:
+                        existing.description = meta_json
+                        existing.source_ref  = source_ref
+                        existing.severity    = sev.capitalize()
+                        existing.active      = True
+                        updated += 1
+                    else:
+                        entry = IocEntry(
+                            feed_id     = otx_feed.id,
+                            ioc_type    = ioc_type,
+                            value       = value,
+                            threat_type = (tags[0] if tags else ioc_type_raw)[:99],
+                            confidence  = 75,
+                            severity    = sev.capitalize(),
+                            description = meta_json,
+                            source_ref  = source_ref,
+                            active      = True,
+                        )
+                        db.session.add(entry)
+                        added += 1
+                except Exception as row_exc:
+                    log.warning(
+                        "sync_otx_threat_intel: row error for value=%s: %s",
+                        value[:40], row_exc,
+                    )
+                    db.session.rollback()
+                    errors += 1
+                    continue
+
+        db.session.flush()
+        otx_feed.last_sync   = datetime.now(timezone.utc).replace(tzinfo=None)
+        otx_feed.entry_count = IocEntry.query.filter_by(
+            feed_id=otx_feed.id, active=True
+        ).count()
+        db.session.commit()
+
+        runtime = round(_time.time() - t0, 2)
+        log.info(
+            "sync_otx_threat_intel: pulses=%d added=%d updated=%d errors=%d %.1fs",
+            len(pulses), added, updated, errors, runtime,
+        )
+        return {
+            "status":              "ok",
+            "pulses_processed":    len(pulses),
+            "indicators_added":    added,
+            "indicators_updated":  updated,
+            "errors":              errors,
+            "runtime_seconds":     runtime,
+        }
+
+
+@shared_task(
     name="dashboard.backend.tasks.retrain_anomaly_model",
     max_retries=1,
     default_retry_delay=300,

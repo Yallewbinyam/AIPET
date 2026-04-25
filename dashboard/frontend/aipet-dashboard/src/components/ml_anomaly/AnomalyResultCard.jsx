@@ -84,6 +84,36 @@ export default function AnomalyResultCard({ result, onExplain }) {
         </div>
       )}
 
+      {/* Threat Intel section (Capability 4) */}
+      {result.threat_intel && (() => {
+        const ti = result.threat_intel;
+        if (ti.status === "unavailable") return (
+          <div style={{ background: "#1a1200", border: "1px solid #78350f40", borderRadius: 6, padding: "8px 12px", marginBottom: 10, fontSize: 11, color: "#92400e" }}>
+            Threat intelligence check unavailable — sync may be in progress.
+          </div>
+        );
+        if (ti.match_count === 0) return (
+          <div style={{ background: "#0a1a0e", border: "1px solid #16a34a30", borderRadius: 6, padding: "8px 12px", marginBottom: 10, fontSize: 11, color: "#16a34a" }}>
+            No matches in current threat intelligence database.
+          </div>
+        );
+        const sevClr = ti.highest_severity === "critical" ? "#dc2626" : ti.highest_severity === "high" ? "#ea580c" : ti.highest_severity === "medium" ? "#d97706" : "#64748b";
+        return (
+          <div style={{ background: sevClr + "08", border: `1px solid ${sevClr}30`, borderRadius: 6, padding: "10px 12px", marginBottom: 10 }}>
+            <div style={{ color: sevClr, fontWeight: 700, fontSize: 12, marginBottom: 6 }}>
+              {ti.match_count} threat intelligence {ti.match_count === 1 ? "match" : "matches"} — {ti.highest_severity.toUpperCase()}
+            </div>
+            {(ti.matches || []).slice(0, 3).map((m, i) => (
+              <div key={i} style={{ display: "flex", justifyContent: "space-between", fontSize: 11, marginBottom: 3 }}>
+                <span style={{ color: "#94a3b8", fontFamily: "monospace", overflow: "hidden", textOverflow: "ellipsis", maxWidth: "55%" }}>{m.indicator}</span>
+                <span style={{ color: "#64748b" }}>{m.indicator_type}</span>
+                <span style={{ color: sevClr, fontWeight: 600 }}>{m.severity}</span>
+              </div>
+            ))}
+          </div>
+        );
+      })()}
+
       {result.detection_id && (
         <button onClick={() => onExplain(result.detection_id)}
           style={{ background: "transparent", border: `1px solid ${C.border}`, borderRadius: 6, color: "#93c5fd", fontSize: 12, padding: "5px 12px", cursor: "pointer" }}>

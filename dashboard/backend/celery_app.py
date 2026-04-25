@@ -77,6 +77,10 @@ celery.conf.update(
             "task":     "dashboard.backend.tasks.rebuild_device_baselines",
             "schedule": 43200,         # every 12 hours
         },
+        "sync-otx-threat-intel-every-6-hours": {
+            "task":     "dashboard.backend.tasks.sync_otx_threat_intel",
+            "schedule": 21600,         # every 6 hours
+        },
     },
 
     # Worker settings

@@ -15,11 +15,13 @@ import os
 import json
 import requests
 from datetime import datetime, timezone, timedelta
+from celery.result import AsyncResult
 from flask import Blueprint, request, jsonify
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from dashboard.backend.models import db, Scan, Finding
 from dashboard.backend.threatintel.models import IocFeed, IocEntry, ThreatMatch
 from dashboard.backend.siem.models import SiemEvent
+from dashboard.backend.validation import CHECK_HOST_TI_SCHEMA, validate_body
 
 threatintel_bp = Blueprint("threatintel", __name__)
 
@@ -374,6 +376,11 @@ def stats():
     total_matches   = ThreatMatch.query.count()
     abuseipdb_active= bool(os.environ.get("ABUSEIPDB_API_KEY"))
 
+    otx_feed    = IocFeed.query.filter_by(feed_type="otx").first()
+    otx_active  = bool(os.environ.get("OTX_API_KEY"))
+    otx_last_sync = str(otx_feed.last_sync) if (otx_feed and otx_feed.last_sync) else None
+    otx_ioc_count = otx_feed.entry_count if otx_feed else 0
+
     return jsonify({
         "total_iocs":       total_iocs,
         "active_feeds":     active_feeds,
@@ -381,4 +388,58 @@ def stats():
         "critical_matches": critical_matches,
         "total_matches":    total_matches,
         "abuseipdb_active": abuseipdb_active,
+        "otx_active":       otx_active,
+        "otx_last_sync":    otx_last_sync,
+        "otx_ioc_count":    otx_ioc_count,
     })
+
+
+# ── OTX / Capability-4 endpoints ────────────────────────────
+
+@threatintel_bp.route("/api/threatintel/sync_now", methods=["POST"])
+@jwt_required()
+def sync_now():
+    """Trigger an OTX sync as a Celery task. Rate-limited 1/hour via app_cloud.py."""
+    from dashboard.backend.tasks import sync_otx_threat_intel
+    task = sync_otx_threat_intel.delay()
+    return jsonify({"status": "queued", "task_id": task.id}), 202
+
+
+@threatintel_bp.route("/api/threatintel/sync_status/<task_id>", methods=["GET"])
+@jwt_required()
+def sync_status(task_id):
+    """Poll Celery task state for a sync started by sync_now."""
+    result = AsyncResult(task_id)
+    payload = {"task_id": task_id, "state": result.state}
+    if result.state == "SUCCESS":
+        payload["result"] = result.result
+    elif result.state == "FAILURE":
+        payload["error"] = str(result.result)
+    return jsonify(payload)
+
+
+@threatintel_bp.route("/api/threatintel/check_host", methods=["POST"])
+@jwt_required()
+@validate_body(CHECK_HOST_TI_SCHEMA)
+def check_host():
+    """On-demand cross-reference of a host IP against the local IOC database."""
+    from dashboard.backend.threatintel.cross_reference import check_host_against_threat_intel
+    user_id = int(get_jwt_identity())
+    host_ip = (request.get_json(silent=True) or {}).get("host_ip", "").strip()
+    result = check_host_against_threat_intel(user_id, host_ip)
+    return jsonify(result)
+
+
+@threatintel_bp.route("/api/threatintel/iocs/recent", methods=["GET"])
+@jwt_required()
+def recent_iocs():
+    """Most recent N active IOC entries — useful for 'what's in the DB' panel."""
+    limit = min(int(request.args.get("limit", 50)), 200)
+    entries = (
+        IocEntry.query
+        .filter_by(active=True)
+        .order_by(IocEntry.created_at.desc())
+        .limit(limit)
+        .all()
+    )
+    return jsonify({"iocs": [e.to_dict() for e in entries], "count": len(entries)})
