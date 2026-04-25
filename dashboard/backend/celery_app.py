@@ -58,8 +58,9 @@ celery.conf.update(
 
     # Task routing
     task_routes = {
-        "dashboard.backend.tasks.run_scan_task": {"queue": "scans"},
-        "dashboard.backend.tasks.sync_nvd_cves": {"queue": "celery"},
+        "dashboard.backend.tasks.run_scan_task":  {"queue": "scans"},
+        "dashboard.backend.tasks.sync_nvd_cves":  {"queue": "celery"},
+        "dashboard.backend.tasks.sync_cisa_kev":  {"queue": "celery"},
     },
 
     # Celery Beat — periodic tasks
@@ -80,6 +81,10 @@ celery.conf.update(
         "sync-otx-threat-intel-every-6-hours": {
             "task":     "dashboard.backend.tasks.sync_otx_threat_intel",
             "schedule": 21600,         # every 6 hours
+        },
+        "sync-cisa-kev-daily": {
+            "task":     "dashboard.backend.tasks.sync_cisa_kev",
+            "schedule": 86400,         # every 24 hours — CISA updates weekly, daily is sufficient
         },
     },
 

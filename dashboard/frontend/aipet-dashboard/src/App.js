@@ -5,6 +5,7 @@ import "./i18n";
 import axios from "axios";
 import MLAnomalyPanel    from "./components/ml_anomaly/MLAnomalyPanel";
 import ThreatIntelPanel from "./components/threat_intel/ThreatIntelPanel";
+import KevPanel         from "./components/kev/KevPanel";
 import * as d3 from "d3";
 // Load JetBrains Mono font for technical aesthetic
 const fontLink = document.createElement("link");
@@ -5909,6 +5910,7 @@ const NAV_ITEMS = [
   { id: "identitygraph",label: "Identity Graph", icon: Users,        group: "enterprise" },
   { id: "behavioral",  label: "Behavioral AI",  icon: Activity,      group: "enterprise" },
   { id: "mlanomaly",  label: "ML Anomaly",     icon: Activity,      group: "enterprise" },
+  { id: "cisakov",    label: "Active Exploitation", icon: AlertTriangle, group: "enterprise" },
 
   { id: "dspm",        label: "Data Security",  icon: Lock,          group: "enterprise" },
   { id: "costsecurity",label: "Cost Security",  icon: TrendingUp,    group: "enterprise" },
@@ -30022,6 +30024,11 @@ export default function App() {
                 ML Anomaly Detection
               </h2>
               <MLAnomalyPanel token={token} />
+            </div>
+          )}
+          {activeTab === "cisakov" && (
+            <div style={{ padding: "24px" }}>
+              <KevPanel token={token} />
             </div>
           )}
           {activeTab === "identitygraph" && (

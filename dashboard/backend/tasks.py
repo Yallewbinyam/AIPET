@@ -881,3 +881,73 @@ def _rematch_scan_results(db, days_back: int = 7):
             logger.warning(f"rematch error for scan {scan.id}: {e}")
 
     db.session.commit()
+
+
+@shared_task(
+    name="dashboard.backend.tasks.sync_cisa_kev",
+    max_retries=1,
+    default_retry_delay=300,
+)
+def sync_cisa_kev():
+    """
+    Download the CISA Known Exploited Vulnerabilities catalog and upsert all
+    entries into kev_catalog.  Idempotent: re-running on the same day produces
+    no duplicates (session.merge upserts by PK).
+
+    Scheduled daily via Celery Beat.  Also triggerable via
+    POST /api/live-cves/kev/sync_now.
+    """
+    import time as _time
+    import pathlib as _pathlib
+
+    try:
+        from dotenv import load_dotenv as _load_dotenv
+        _env_path = _pathlib.Path(__file__).resolve().parents[2] / ".env"
+        _load_dotenv(dotenv_path=str(_env_path), override=False)
+    except Exception:
+        pass
+
+    from dashboard.backend.models import db
+    from dashboard.backend.live_cves.kev_client import CISAKEVClient
+    from dashboard.backend.live_cves.models import KevCatalogEntry
+
+    app = create_app()
+    with app.app_context():
+        log = app.logger
+        t0  = _time.time()
+
+        client = CISAKEVClient()
+        try:
+            raw = client.fetch_catalog()
+        except RuntimeError as exc:
+            log.error("sync_cisa_kev: fetch failed: %s", exc)
+            return {"status": "error", "error": str(exc)}
+
+        catalog_version = raw.get("catalogVersion", "unknown")
+        entries = client.normalize_entries(raw)
+        fetched = len(entries)
+
+        upserted = 0
+        for row in entries:
+            try:
+                obj = KevCatalogEntry(**row)
+                db.session.merge(obj)
+                upserted += 1
+            except Exception as row_exc:
+                log.warning("sync_cisa_kev: row error cve=%s: %s",
+                            row.get("cve_id", "?")[:20], row_exc)
+                db.session.rollback()
+
+        db.session.commit()
+        runtime = round(_time.time() - t0, 2)
+        log.info(
+            "sync_cisa_kev: version=%s fetched=%d upserted=%d %.1fs",
+            catalog_version, fetched, upserted, runtime,
+        )
+        return {
+            "status":          "ok",
+            "catalog_version": catalog_version,
+            "fetched_count":   fetched,
+            "upserted_count":  upserted,
+            "runtime_seconds": runtime,
+        }

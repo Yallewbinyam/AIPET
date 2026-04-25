@@ -87,7 +87,7 @@ All modules live under `dashboard/backend/<module_name>/` as a Blueprint with `_
 | `auth` | JWT login, registration, Google OAuth, password reset |
 | `payments` | Stripe subscriptions, webhooks, billing portal |
 | `real_scanner` | Nmap host/service/OS scan, NVD CVE matching |
-| `live_cves` | Hourly NVD sync, auto-rematch scans |
+| `live_cves` | Hourly NVD sync, auto-rematch scans. CISA KEV catalog (1,583 actively-exploited CVEs, daily Celery sync, unauthenticated public feed); `/predict_real` now returns four independent verdicts (Isolation Forest + Behavioral + OTX + KEV). `kev_catalog` table: PK=cve_id, includes ransomware flag, vendor, due_date. |
 | `siem` / `cloud_siem` | SIEM event ingestion and dashboards |
 | `threatintel` / `threat_intel_ingest` / `threat_radar` | Threat intelligence feeds, IOC tracking. AlienVault OTX integration (96-line client, 6-hour Celery sync, locally cached IOCs — 45,750 indicators after first full sync); `/predict_real` now returns threat intel as a third independent verdict alongside Isolation Forest + behavioral baseline. |
 | `aisoc` / `soc_twin` | AI-assisted SOC automation and digital twin |
@@ -151,7 +151,7 @@ All modules live under `dashboard/backend/<module_name>/` as a Blueprint with `_
 
 ## 6. Capability Roadmap — 32 Capabilities
 
-**Current status:** Capability 1 ✅ COMPLETE (Days 1–5). Capability 3 ✅ COMPLETE (D3). 30 capabilities remaining.
+**Current status:** Capabilities 1, 2, 3, 4, 5 ✅ Complete. 27 remaining.
 
 ### Month 1 — Intelligence Core (Capabilities 1–12)
 
@@ -161,7 +161,7 @@ All modules live under `dashboard/backend/<module_name>/` as a Blueprint with `_
 | 2 | Per-device behavioural baseline (mean/std/Z-score) | ✅ **COMPLETE** — `device_baseline_builder.py` builds baselines from real scan data using FEATURE_ORDER vocabulary; `device_deviation_detector.py` computes Z-scores per feature; /predict_real returns both Isolation Forest + behavioral results; 12h Celery Beat rebuild; `BehavioralAIPage` extended with Device Baselines tab + 12-feature breakdown; AnomalyResultCard shows behavioral deviation inline. |
 | 3 | Automated ML pipeline (Celery retrain every 24 h) | ✅ **COMPLETE** (D3) |
 | 4 | AlienVault OTX threat intelligence integration | ✅ **COMPLETE** — `otx_client.py` (96 lines, key never logged), `cross_reference.py` (119 lines, DB-local <1ms lookup), `sync_otx_threat_intel` Celery task (6h Beat schedule), 45,750 IOCs from 1,000 pulses on first sync; `/predict_real` returns three independent verdicts (Isolation Forest + behavioral + threat intel); standalone `ThreatIntelPanel` React component (SyncControlBar, CheckHostForm, RecentIOCsTable); 17 backend tests. |
-| 5 | CISA KEV exploit validation (actively exploited CVEs) | Pending |
+| 5 | CISA KEV exploit validation (actively exploited CVEs) | ✅ **COMPLETE** — `kev_catalog` table (PK=cve_id, 1,583 entries), `kev_client.py` (no API key — CISA is public), `kev_cross_reference.py` (local DB IN-query, <1ms), `sync_cisa_kev` Celery task (daily Beat), 5 new endpoints, `/predict_real` now returns four independent verdicts (adds KEV as 4th); `KevPanel` React component (KevSyncBar, KevCheckHostForm, KevCatalogTable, KevDetailModal); 21 backend tests. |
 | 6 | MITRE ATT&CK live mapping | Pending |
 | 7 | Central event pipeline (all 93 modules feed one brain) | Pending |
 | 8 | Automated response chain (scanner → SIEM → compliance → report) | Pending |
@@ -267,6 +267,7 @@ Gmail SMTP, Sentry DSN, and UptimeRobot tracking moved to the **Pre-Launch Block
 - **Database migrations** are run manually with Flask-Migrate (`flask db upgrade`)
 - **Celery worker + Celery Beat** both started by `start_cloud.sh` (D3). Beat schedule: `sync-nvd-cves-hourly` (3600s) + `retrain-anomaly-model-daily` (86400s) + `sync-otx-threat-intel-every-6-hours` (21600s). PIDs under `pids/`, logs under `logs/`. Redis required before Celery starts (script checks with `redis-cli ping`).
 - **OTX_API_KEY required in .env** — get a free key at https://otx.alienvault.com → Settings → API Integration. Without it, the 6-hour OTX sync task returns `{"status": "error"}` silently (non-fatal).
+- **CISA KEV is unauthenticated** — no API key needed. Daily sync downloads all 1,583+ entries in one GET request (~2MB JSON). Re-running the sync is safe: `session.merge()` upserts by cve_id PK, producing zero duplicates.
 - **Celery systemd templates** at `deploy/systemd/` (PLB-7 closed). `start_cloud.sh` detects if `aipet-celery-worker.service` / `aipet-celery-beat.service` are active; if so, it skips nohup launch (systemd owns those processes). On dev, nohup fallback runs as before. See `deploy/systemd/INSTALL.md` for production install instructions.
 - **Gunicorn** serves Flask in production (`gunicorn_config.py`)
 - **Nginx** reverse-proxies to Gunicorn (port 5001) and serves the React build
@@ -370,6 +371,7 @@ Pre-launch blocker tracking moved to the **Pre-Launch Blockers** section above (
 | Task | Notes |
 |---|---|
 | **Replace conditional-mean placeholders with real watch-agent telemetry** | The D2.6 fix uses conditional synthetic class means as placeholders for 9 unobserved ml_anomaly features. Once the watch agent is instrumented (see PLB-8), replace the placeholder logic in `feature_extraction.py` with real measured values and enable `training_mode=real_scans`. Month 2 work. |
+| **Polish Pass 1 — World-class UI/UX** | Dedicated 1–2 day session at end of Month 1 (after capability 12 ships). Scope: smooth transitions, skeleton loaders, designed empty/error states, typographic hierarchy, mobile responsiveness verification, accessibility audit, consistent design tokens across all panels. NOT a launch blocker but flagged as a quality concern. |
 
 ---
 

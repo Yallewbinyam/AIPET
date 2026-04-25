@@ -382,6 +382,12 @@ def create_app(config_name="development"):
         _sync_now_fn = limiter.limit("1 per hour")(_sync_now_fn)
         app.view_functions["threatintel.sync_now"] = _sync_now_fn
 
+    # /live-cves/kev/sync_now downloads the CISA KEV catalog — cap to 1/hour.
+    _kev_sync_fn = app.view_functions.get("live_cves.kev_sync_now")
+    if _kev_sync_fn:
+        _kev_sync_fn = limiter.limit("1 per hour")(_kev_sync_fn)
+        app.view_functions["live_cves.kev_sync_now"] = _kev_sync_fn
+
     # Setup logging
     setup_logging(
         app=app,

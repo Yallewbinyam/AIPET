@@ -1,5 +1,5 @@
-import React from "react";
-import { AlertTriangle, CheckCircle, Info } from "lucide-react";
+import React, { useState } from "react";
+import { AlertTriangle, CheckCircle, Info, AlertOctagon, Skull } from "lucide-react";
 import SHAPBreakdown from "./SHAPBreakdown";
 
 const SEV = {
@@ -11,6 +11,7 @@ const SEV = {
 const C = { border: "#21262d", text: "#e6edf3", muted: "#7d8590", card: "#0d1117" };
 
 export default function AnomalyResultCard({ result, onExplain }) {
+  const [kevExpanded, setKevExpanded] = useState(false);
   if (!result) return null;
   const sev = SEV[result.severity] ?? SEV.medium;
   const { Icon } = sev;
@@ -110,6 +111,68 @@ export default function AnomalyResultCard({ result, onExplain }) {
                 <span style={{ color: sevClr, fontWeight: 600 }}>{m.severity}</span>
               </div>
             ))}
+          </div>
+        );
+      })()}
+
+      {/* KEV Active Exploitation section (Capability 5) */}
+      {result.kev_active_exploitation && (() => {
+        const kev = result.kev_active_exploitation;
+        if (kev.status === "unavailable") return (
+          <div style={{ background: "#1a1200", border: "1px solid #78350f40", borderRadius: 6,
+            padding: "8px 12px", marginBottom: 10, fontSize: 11, color: "#92400e" }}>
+            KEV check unavailable — catalog may not be synced yet.
+          </div>
+        );
+        if (kev.status === "no_kev_data") return (
+          <div style={{ background: "#111827", border: "1px solid #37415140", borderRadius: 6,
+            padding: "8px 12px", marginBottom: 10, fontSize: 11, color: "#6b7280" }}>
+            KEV catalog empty — trigger a sync from the Active Exploitation panel.
+          </div>
+        );
+        if (!kev.kev_hits_count) return (
+          <div style={{ background: "#0a1a0e", border: "1px solid #16a34a30", borderRadius: 6,
+            padding: "8px 12px", marginBottom: 10, fontSize: 11, color: "#16a34a" }}>
+            No actively-exploited CVEs detected ({kev.host_total_cves ?? 0} CVEs checked against {kev.kev_catalog_size} KEV entries).
+          </div>
+        );
+        const hits = kevExpanded ? kev.kev_hits : kev.kev_hits.slice(0, 3);
+        return (
+          <div style={{ background: "#1a0000", border: "1px solid #dc262640", borderRadius: 6,
+            padding: "10px 12px", marginBottom: 10 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 6 }}>
+              <AlertOctagon size={14} color="#dc2626" />
+              <span style={{ color: "#dc2626", fontWeight: 700, fontSize: 12 }}>
+                {kev.kev_hits_count} actively-exploited CVE{kev.kev_hits_count > 1 ? "s" : ""} detected
+              </span>
+              {kev.ransomware_associated_count > 0 && (
+                <span style={{ display: "flex", alignItems: "center", gap: 3,
+                  background: "#f9731620", border: "1px solid #f9731640",
+                  borderRadius: 4, padding: "1px 6px", fontSize: 10, color: "#f97316", fontWeight: 700 }}>
+                  <Skull size={10} /> {kev.ransomware_associated_count} ransomware
+                </span>
+              )}
+            </div>
+            {hits.map((h, i) => (
+              <div key={i} style={{ display: "flex", alignItems: "baseline", gap: 8,
+                fontSize: 11, marginBottom: 3 }}>
+                <span style={{ fontFamily: "monospace", color: "#dc2626", flexShrink: 0 }}>{h.cve_id}</span>
+                <span style={{ color: "#94a3b8", overflow: "hidden", textOverflow: "ellipsis",
+                  whiteSpace: "nowrap", flex: 1 }}>
+                  {h.vulnerability_name}
+                </span>
+                {h.known_ransomware_use === "Known" && (
+                  <Skull size={10} color="#f97316" style={{ flexShrink: 0 }} />
+                )}
+              </div>
+            ))}
+            {kev.kev_hits.length > 3 && (
+              <button onClick={() => setKevExpanded(x => !x)}
+                style={{ background: "none", border: "none", color: "#94a3b8",
+                  fontSize: 11, cursor: "pointer", padding: "2px 0", marginTop: 4 }}>
+                {kevExpanded ? "Show less" : `Show all ${kev.kev_hits.length} hits`}
+              </button>
+            )}
           </div>
         );
       })()}

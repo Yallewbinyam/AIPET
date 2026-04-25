@@ -198,3 +198,7 @@ BUILD_DEVICE_BASELINE_SCHEMA = {
 CHECK_HOST_TI_SCHEMA = {
     "host_ip": is_ip,
 }
+
+KEV_CHECK_HOST_SCHEMA = {
+    "host_ip": is_ip,
+}

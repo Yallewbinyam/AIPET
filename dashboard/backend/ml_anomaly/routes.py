@@ -490,17 +490,44 @@ def predict_real():
         )
         threat_intel = {"status": "unavailable", "error": str(_ti_exc), "match_count": 0}
 
+    # ── Capability 5: CISA KEV active-exploitation cross-reference ─────────────
+    # Non-fatal: if this fails, /predict_real still returns the other results.
+    try:
+        from dashboard.backend.live_cves.kev_cross_reference import (
+            check_host_cves_against_kev,
+        )
+        _kev = check_host_cves_against_kev(user_id, host_ip)
+        kev_active_exploitation = {
+            "status":                    _kev.get("status"),
+            "host_total_cves":           _kev.get("host_total_cves"),
+            "kev_hits_count":            _kev.get("kev_hits_count", 0),
+            "ransomware_associated_count": _kev.get("ransomware_associated_count", 0),
+            "kev_hits":                  _kev.get("kev_hits", []),
+            "kev_catalog_size":          _kev.get("kev_catalog_size"),
+            "error":                     None,
+        }
+    except Exception as _kev_exc:
+        current_app.logger.exception(
+            "predict_real: KEV check failed for %s: %s", host_ip, _kev_exc
+        )
+        kev_active_exploitation = {
+            "status": "unavailable",
+            "error":  str(_kev_exc)[:200],
+            "kev_hits_count": 0,
+        }
+
     return jsonify({
-        "detection_id":        detection.id,
-        "target_ip":           host_ip,
-        "target_device":       target_device,
-        "is_anomaly":          is_anomaly,
-        "anomaly_score":       round(sigmoid_score, 6),
-        "severity":            severity,
-        "top_contributors":    top_contributors,
-        "explainer_type":      explainer.explainer_type,
-        "model_version":       version.version_tag,
-        "synthetic_fields":    synthetic_fields,
-        "behavioral_baseline": behavioral_baseline,
-        "threat_intel":        threat_intel,
+        "detection_id":           detection.id,
+        "target_ip":              host_ip,
+        "target_device":          target_device,
+        "is_anomaly":             is_anomaly,
+        "anomaly_score":          round(sigmoid_score, 6),
+        "severity":               severity,
+        "top_contributors":       top_contributors,
+        "explainer_type":         explainer.explainer_type,
+        "model_version":          version.version_tag,
+        "synthetic_fields":       synthetic_fields,
+        "behavioral_baseline":    behavioral_baseline,
+        "threat_intel":           threat_intel,
+        "kev_active_exploitation": kev_active_exploitation,
     }), 200
