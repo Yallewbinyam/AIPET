@@ -86,6 +86,10 @@ celery.conf.update(
             "task":     "dashboard.backend.tasks.sync_cisa_kev",
             "schedule": 86400,         # every 24 hours — CISA updates weekly, daily is sufficient
         },
+        "recompute-device-risk-scores-every-5-minutes": {
+            "task":     "dashboard.backend.tasks.recompute_device_risk_scores",
+            "schedule": 300,           # every 5 minutes — capability 9
+        },
     },
 
     # Worker settings

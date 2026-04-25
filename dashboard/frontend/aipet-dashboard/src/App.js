@@ -7,7 +7,8 @@ import MLAnomalyPanel    from "./components/ml_anomaly/MLAnomalyPanel";
 import ThreatIntelPanel from "./components/threat_intel/ThreatIntelPanel";
 import KevPanel         from "./components/kev/KevPanel";
 import MitrePanel       from "./components/mitre/MitrePanel";
-import EventsFeedPanel  from "./components/events/EventsFeedPanel";
+import EventsFeedPanel      from "./components/events/EventsFeedPanel";
+import RiskScoreDashboard   from "./components/risk/RiskScoreDashboard";
 import * as d3 from "d3";
 // Load JetBrains Mono font for technical aesthetic
 const fontLink = document.createElement("link");
@@ -36,7 +37,7 @@ import {
   Wifi, Globe, FileText, Zap, Eye,
   TrendingUp, AlertOctagon, Info, CreditCard,
   Star, Check, X, Settings,
-  GitBranch, Users, Crosshair } from "lucide-react";
+  GitBranch, Users, Crosshair, Gauge } from "lucide-react";
 
 const API      = "http://localhost:5001/api";
 const AUTH_API = "http://localhost:5001/api/auth";
@@ -5915,6 +5916,7 @@ const NAV_ITEMS = [
   { id: "cisakov",     label: "Active Exploitation", icon: AlertTriangle, group: "enterprise" },
   { id: "mitreattck",  label: "MITRE ATT&CK",       icon: Crosshair,    group: "enterprise" },
   { id: "eventsfeed",  label: "Security Events",    icon: Activity,     group: "enterprise" },
+  { id: "riskscore",   label: "Risk Score",          icon: Gauge,        group: "enterprise" },
 
   { id: "dspm",        label: "Data Security",  icon: Lock,          group: "enterprise" },
   { id: "costsecurity",label: "Cost Security",  icon: TrendingUp,    group: "enterprise" },
@@ -30044,6 +30046,9 @@ export default function App() {
             <div style={{ padding: "24px" }}>
               <EventsFeedPanel token={token} />
             </div>
+          )}
+          {activeTab === "riskscore" && (
+            <RiskScoreDashboard token={token} />
           )}
           {activeTab === "identitygraph" && (
             <IdentityGraphPage token={token} showToast={showToast} />

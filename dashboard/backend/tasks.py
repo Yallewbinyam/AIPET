@@ -951,3 +951,50 @@ def sync_cisa_kev():
             "upserted_count":  upserted,
             "runtime_seconds": runtime,
         }
+
+
+@shared_task(
+    name="dashboard.backend.tasks.recompute_device_risk_scores",
+    max_retries=1,
+    default_retry_delay=60,
+)
+def recompute_device_risk_scores(user_id=None):
+    """
+    Recompute device_risk_scores for all entities that have central_events
+    in the trailing 24-hour window.  Idempotent — running twice on the same
+    data produces the same score (no cumulative drift).
+
+    Scheduled every 5 minutes via Celery Beat (capability 9).
+    Also triggerable per-user via POST /api/risk/recompute_now.
+
+    user_id=None processes all users (Beat schedule).
+    user_id=<int> processes only that user (manual trigger from UI).
+    """
+    import pathlib as _pathlib
+
+    try:
+        from dotenv import load_dotenv as _load_dotenv
+        _env_path = _pathlib.Path(__file__).resolve().parents[2] / ".env"
+        _load_dotenv(dotenv_path=str(_env_path), override=False)
+    except Exception:
+        pass
+
+    from dashboard.backend.risk_engine.engine import recompute_all_scores
+
+    app = create_app()
+    with app.app_context():
+        log = app.logger
+        try:
+            result = recompute_all_scores(user_id=user_id)
+            log.info(
+                "recompute_device_risk_scores: processed=%d updated=%d errors=%d %.2fs%s",
+                result.get("processed", 0),
+                result.get("updated",   0),
+                result.get("errors",    0),
+                result.get("runtime_seconds", 0),
+                f" user_id={user_id}" if user_id is not None else " (all users)",
+            )
+            return result
+        except Exception as exc:
+            log.exception("recompute_device_risk_scores: fatal error: %s", exc)
+            return {"status": "error", "error": str(exc)}

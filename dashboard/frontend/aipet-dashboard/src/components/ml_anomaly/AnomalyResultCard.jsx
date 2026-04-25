@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { AlertTriangle, CheckCircle, Info, AlertOctagon, Skull, Crosshair } from "lucide-react";
+import { AlertTriangle, CheckCircle, Info, AlertOctagon, Skull, Crosshair, Gauge } from "lucide-react";
 import SHAPBreakdown from "./SHAPBreakdown";
 
 const SEV = {
@@ -225,6 +225,56 @@ export default function AnomalyResultCard({ result, onExplain }) {
                 </span>
               ))}
             </div>
+          </div>
+        );
+      })()}
+
+      {/* Device Risk Score section (Capability 9) */}
+      {result.device_risk_score && (() => {
+        const drs = result.device_risk_score;
+        if (drs.status === "unavailable") return (
+          <div style={{ background: "#111827", border: "1px solid #37415140", borderRadius: 6,
+            padding: "8px 12px", marginBottom: 10, fontSize: 11, color: "#6b7280" }}>
+            Device risk score unavailable — recompute may be in progress.
+          </div>
+        );
+        if (drs.status === "no_recent_events") return (
+          <div style={{ background: "#0a1a0e", border: "1px solid #16a34a30", borderRadius: 6,
+            padding: "8px 12px", marginBottom: 10, fontSize: 11, color: "#16a34a" }}>
+            No events in last 24h for this device — risk score is 0.
+          </div>
+        );
+        const score = drs.score ?? 0;
+        const scoreClr = score >= 76 ? "#ff4444" : score >= 51 ? "#ff8c00" : score >= 26 ? "#f5c518" : "#00ff88";
+        return (
+          <div style={{ background: scoreClr + "08", border: `1px solid ${scoreClr}30`,
+            borderRadius: 6, padding: "10px 12px", marginBottom: 10 }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 6 }}>
+              <Gauge size={13} color={scoreClr} />
+              <span style={{ color: scoreClr, fontWeight: 700, fontSize: 12 }}>
+                Device Risk Score
+              </span>
+              <span style={{ marginLeft: "auto", color: scoreClr, fontWeight: 800, fontSize: 20 }}>
+                {score}
+              </span>
+              <span style={{ color: "#7d8590", fontSize: 10 }}>/100</span>
+            </div>
+            <div style={{ fontSize: 11, color: "#7d8590", marginBottom: 6 }}>
+              Based on {drs.event_count_24h ?? 0} events in last 24h
+              {(drs.contributing_modules?.length ?? 0) > 0 &&
+                ` from ${drs.contributing_modules.length} module${drs.contributing_modules.length > 1 ? "s" : ""}`}
+            </div>
+            {(drs.top_contributors?.length ?? 0) > 0 && (
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
+                {drs.top_contributors.slice(0, 3).map((tc, i) => (
+                  <span key={i} style={{ fontSize: 10, padding: "1px 7px", borderRadius: 100,
+                    background: "#21262d", border: "1px solid #374151",
+                    color: "#94a3b8", fontWeight: 600 }}>
+                    {tc.source_module} +{tc.contribution}
+                  </span>
+                ))}
+              </div>
+            )}
           </div>
         );
       })()}

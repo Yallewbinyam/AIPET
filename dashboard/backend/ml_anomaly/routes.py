@@ -603,6 +603,39 @@ def predict_real():
             "technique_count": 0,
         }
 
+    # ── Capability 9: device risk score (6th verdict) ────────────────────────
+    device_risk_score = {"status": "unavailable", "score": None,
+                         "event_count_24h": None, "contributing_modules": None,
+                         "top_contributors": None, "computed_at": None}
+    try:
+        from dashboard.backend.risk_engine.engine import compute_score_for_entity
+        from dashboard.backend.risk_engine.models import DeviceRiskScore
+        _live = compute_score_for_entity(user_id, host_ip)
+        device_risk_score = {
+            "status":               _live.get("status", "ok"),
+            "score":                _live.get("score"),
+            "event_count_24h":      _live.get("event_count_24h"),
+            "contributing_modules": _live.get("contributing_modules"),
+            "top_contributors":     _live.get("top_contributors"),
+            "computed_at":          _live.get("computed_at"),
+        }
+        # Also attach the stored (last Celery-computed) score for comparison
+        _stored = DeviceRiskScore.query.filter_by(
+            user_id=user_id, entity=host_ip
+        ).first()
+        if _stored:
+            device_risk_score["stored_score"] = _stored.score
+            device_risk_score["stored_at"] = (
+                _stored.last_recomputed_at.isoformat()
+                if _stored.last_recomputed_at else None
+            )
+    except Exception as _risk_exc:
+        current_app.logger.exception(
+            "predict_real: device risk score failed for %s: %s", host_ip, _risk_exc
+        )
+        device_risk_score = {"status": "unavailable", "error": str(_risk_exc),
+                             "score": None}
+
     return jsonify({
         "detection_id":            detection.id,
         "target_ip":               host_ip,
@@ -618,4 +651,5 @@ def predict_real():
         "threat_intel":            threat_intel,
         "kev_active_exploitation": kev_active_exploitation,
         "mitre_techniques":        mitre_techniques,
+        "device_risk_score":       device_risk_score,
     }), 200
