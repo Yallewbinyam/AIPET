@@ -216,6 +216,28 @@ def _run_nmap_scan(scan_id: str, target: str, user_id: int, app):
             scan_obj.results_json = json.dumps(hosts_data)
             db.session.commit()
 
+            try:
+                from dashboard.backend.central_events.adapter import emit_event
+                duration = (scan_obj.finished_at - scan_obj.started_at).total_seconds() if scan_obj.started_at else None
+                emit_event(
+                    source_module = "real_scanner",
+                    source_table  = "real_scan_results",
+                    source_row_id = scan_obj.id,
+                    event_type    = "scan_completed",
+                    severity      = "info",
+                    user_id       = scan_obj.user_id,
+                    entity        = scan_obj.target,
+                    entity_type   = "scan_target",
+                    title         = f"Scan completed for {scan_obj.target}",
+                    payload       = {
+                        "host_count":             scan_obj.hosts_found,
+                        "cve_count":              scan_obj.cve_count,
+                        "scan_duration_seconds":  duration,
+                    },
+                )
+            except Exception:
+                app.logger.exception("emit_event call site error in real_scanner")
+
         except Exception as e:
             scan_obj.status = "error"
             scan_obj.error  = str(e)

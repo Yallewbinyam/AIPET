@@ -5,7 +5,7 @@
 # ============================================================
 
 import re, json, uuid, datetime
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request, jsonify, current_app
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from dashboard.backend.models import db
 from sqlalchemy import Column, String, Integer, Text, DateTime, ForeignKey, Float
@@ -161,6 +161,27 @@ def analyse():
         ))
 
     db.session.commit()
+
+    try:
+        from dashboard.backend.central_events.adapter import emit_event
+        emit_event(
+            source_module = "identity_guardian",
+            source_table  = "identity_guardian_alerts",
+            source_row_id = alert.id,
+            event_type    = "identity_guardian_alert",
+            severity      = alert.severity.lower(),
+            user_id       = alert.user_id,
+            entity        = alert.subject,
+            entity_type   = "user",
+            title         = alert.summary[:200] if alert.summary else f"Identity risk analysis for {alert.subject}",
+            risk_score    = alert.risk_score,
+            payload       = {
+                "signal_count": len(signals),
+                "status":       alert.status,
+            },
+        )
+    except Exception:
+        current_app.logger.exception("emit_event call site error in identity_guardian")
 
     return jsonify({
         "alert_id":     alert.id,

@@ -59,6 +59,23 @@ def register():
     db.session.add(user)
     db.session.commit()
 
+    try:
+        from dashboard.backend.central_events.adapter import emit_event
+        emit_event(
+            source_module = "auth",
+            source_table  = "users",
+            source_row_id = user.id,
+            event_type    = "user_registered",
+            severity      = "info",
+            user_id       = user.id,
+            entity        = user.email,
+            entity_type   = "user",
+            title         = f"New user registered: {user.email}",
+            payload       = {"plan": user.plan},
+        )
+    except Exception:
+        current_app.logger.exception("emit_event call site error in auth (register)")
+
     token = create_access_token(identity=str(user.id))
     return jsonify({
         "message": "Account created successfully",
@@ -98,6 +115,22 @@ def login():
             "count": new_count,
             "locked_until": now + timedelta(minutes=15) if new_count >= 5 else None
         }
+        try:
+            from dashboard.backend.central_events.adapter import emit_event
+            emit_event(
+                source_module = "auth",
+                source_table  = "users",
+                source_row_id = "unknown",
+                event_type    = "user_login_failed",
+                severity      = "medium",
+                user_id       = None,
+                entity        = email,
+                entity_type   = "user",
+                title         = f"Failed login attempt for {email} (account not found)",
+                payload       = {"reason": "account_not_found"},
+            )
+        except Exception:
+            current_app.logger.exception("emit_event call site error in auth (login_failed)")
         return jsonify({"error": "Invalid email or password"}), 401
 
     if not bcrypt.checkpw(
@@ -111,6 +144,23 @@ def login():
             "count": new_count,
             "locked_until": locked_until
         }
+
+        try:
+            from dashboard.backend.central_events.adapter import emit_event
+            emit_event(
+                source_module = "auth",
+                source_table  = "users",
+                source_row_id = user.id,
+                event_type    = "user_login_failed",
+                severity      = "medium",
+                user_id       = user.id,
+                entity        = email,
+                entity_type   = "user",
+                title         = f"Failed login attempt for {email}",
+                payload       = {"reason": "bad_password", "attempt_count": new_count},
+            )
+        except Exception:
+            current_app.logger.exception("emit_event call site error in auth (login_failed)")
 
         if locked_until:
             return jsonify({
@@ -127,6 +177,23 @@ def login():
 
     user.last_login = datetime.now(timezone.utc)
     db.session.commit()
+
+    try:
+        from dashboard.backend.central_events.adapter import emit_event
+        emit_event(
+            source_module = "auth",
+            source_table  = "users",
+            source_row_id = user.id,
+            event_type    = "user_login",
+            severity      = "info",
+            user_id       = user.id,
+            entity        = user.email,
+            entity_type   = "user",
+            title         = f"User logged in: {user.email}",
+            payload       = {"plan": user.plan},
+        )
+    except Exception:
+        current_app.logger.exception("emit_event call site error in auth (login)")
 
     token = create_access_token(identity=str(user.id))
     return jsonify({
