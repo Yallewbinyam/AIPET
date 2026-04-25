@@ -25,7 +25,7 @@ defense_bp = Blueprint("defense", __name__)
 
 # ── Action executor ──────────────────────────────────────────
 
-def _execute_action(action_type, target, reason, playbook=None):
+def _execute_action(action_type, target, reason, playbook=None, user_id=None):
     """
     Execute a single defense action and log the outcome.
 
@@ -33,14 +33,16 @@ def _execute_action(action_type, target, reason, playbook=None):
       quarantine_device  — set device status to quarantined in Zero-Trust
       create_incident    — create a SIEM incident
       block_ip           — mark IP as blocked in SIEM event feed
-      send_alert         — push Critical SIEM event (hooks into Slack/Teams via existing settings)
+      send_alert         — push Critical SIEM event AND call Slack/Teams if webhook configured
       reassess_trust     — trigger trust score recalculation for device
 
-    Returns (DefenseAction, Optional[SiemEvent]) — neither is committed yet; caller commits.
+    Returns (DefenseAction, Optional[SiemEvent], Optional[dict]) — caller commits.
+    Third element is {"slack_sent", "teams_sent", "error"} for send_alert, else None.
     """
-    outcome  = "unknown"
-    status   = "executed"
-    siem_ev  = None
+    outcome   = "unknown"
+    status    = "executed"
+    siem_ev   = None
+    notif_meta = None
 
     try:
         if action_type == "quarantine_device":
@@ -87,8 +89,7 @@ def _execute_action(action_type, target, reason, playbook=None):
             outcome = f"Block event logged for IP {target}"
 
         elif action_type == "send_alert":
-            # Push Critical SIEM alert — existing Slack/Teams webhook
-            # picks this up via the watch/alert system
+            # Push Critical SIEM event
             siem_ev = SiemEvent(
                 event_type  = "defense_action",
                 source      = "AIPET Autonomous Defense",
@@ -99,6 +100,30 @@ def _execute_action(action_type, target, reason, playbook=None):
             )
             db.session.add(siem_ev)
             outcome = f"Critical alert pushed to SIEM for {target}"
+
+            # Additionally call Slack/Teams if user has webhooks configured
+            slack_sent = False
+            teams_sent = False
+            notif_err  = None
+            if user_id is not None:
+                try:
+                    from dashboard.backend.models import UserSettings
+                    from dashboard.backend.settings.routes import (
+                        send_slack_alert, send_teams_alert,
+                    )
+                    settings = UserSettings.query.filter_by(user_id=user_id).first()
+                    if settings and settings.slack_webhook_url:
+                        slack_msg = f"AIPET Alert — {target}\n{reason}"
+                        slack_sent = send_slack_alert(settings.slack_webhook_url, slack_msg)
+                    if settings and settings.teams_webhook_url:
+                        teams_msg = f"AIPET Alert — {target}\n{reason}"
+                        teams_sent = send_teams_alert(settings.teams_webhook_url, teams_msg)
+                except Exception as _notif_exc:
+                    notif_err = str(_notif_exc)
+                    current_app.logger.exception(
+                        "_execute_action: send_alert notification failed for user_id=%s", user_id
+                    )
+            notif_meta = {"slack_sent": slack_sent, "teams_sent": teams_sent, "error": notif_err}
 
         elif action_type == "reassess_trust":
             # Recalculate trust score for this device
@@ -132,7 +157,7 @@ def _execute_action(action_type, target, reason, playbook=None):
         reason        = reason,
         outcome       = outcome,
     )
-    return log, siem_ev
+    return log, siem_ev, notif_meta
 
 
 def _match_playbook(playbook, event):
@@ -251,7 +276,7 @@ def trigger_playbook(pb_id):
     executed = []
     defense_siem_events = []
     for action_type in actions:
-        log, siem_ev = _execute_action(
+        log, siem_ev, _ = _execute_action(
             action_type = action_type,
             target      = target,
             reason      = f"Manual trigger of playbook: {pb.name}",
@@ -357,7 +382,7 @@ def auto_respond():
         executed = []
         auto_siem_events = []
         for action_type in actions:
-            log, siem_ev = _execute_action(
+            log, siem_ev, _ = _execute_action(
                 action_type = action_type,
                 target      = target,
                 reason      = f"Auto-response to event {event_id}: {event.title}",

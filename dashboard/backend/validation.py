@@ -207,3 +207,18 @@ MITRE_MAP_DETECTION_SCHEMA = {
     "detection_id": is_positive_int,
     "source": lambda v: v in ("ml_anomaly", "behavioral", "kev", "otx"),
 }
+
+EVENTS_QUERY_SCHEMA = {
+    "days":          optional(lambda v: is_int_range(1, 90)(v)),
+    "severity":      optional(lambda v: v in ("info", "low", "medium", "high", "critical")),
+    "source_module": optional(lambda v: is_safe_string(v, 64)),
+    "entity":        optional(lambda v: is_safe_string(v, 256)),
+    "event_type":    optional(lambda v: is_safe_string(v, 128)),
+}
+
+THRESHOLD_UPDATE_SCHEMA = {
+    "min_score":      optional(lambda v: is_int_range(0, 100)(v)),
+    "enabled":        optional(lambda v: isinstance(v, bool)),
+    "cooldown_hours": optional(lambda v: is_int_range(1, 168)(v)),
+    "playbook_id":    optional(lambda v: v is None or is_positive_int(v)),
+}

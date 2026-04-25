@@ -985,16 +985,37 @@ def recompute_device_risk_scores(user_id=None):
     with app.app_context():
         log = app.logger
         try:
-            result = recompute_all_scores(user_id=user_id)
+            risk_result = recompute_all_scores(user_id=user_id)
             log.info(
                 "recompute_device_risk_scores: processed=%d updated=%d errors=%d %.2fs%s",
-                result.get("processed", 0),
-                result.get("updated",   0),
-                result.get("errors",    0),
-                result.get("runtime_seconds", 0),
+                risk_result.get("processed", 0),
+                risk_result.get("updated",   0),
+                risk_result.get("errors",    0),
+                risk_result.get("runtime_seconds", 0),
                 f" user_id={user_id}" if user_id is not None else " (all users)",
             )
-            return result
         except Exception as exc:
-            log.exception("recompute_device_risk_scores: fatal error: %s", exc)
+            log.exception("recompute_device_risk_scores: risk engine fatal error: %s", exc)
             return {"status": "error", "error": str(exc)}
+
+        # Capability 8: after scores refreshed, check thresholds and fire responses
+        response_result: dict = {}
+        try:
+            from dashboard.backend.automated_response.engine import check_thresholds_and_respond
+            response_result = check_thresholds_and_respond(user_id=user_id)
+            log.info(
+                "check_thresholds_and_respond: entities=%d fired=%d cooldown=%d errors=%d %.2fs",
+                response_result.get("entities_evaluated", 0),
+                response_result.get("responses_fired",    0),
+                response_result.get("skipped_cooldown",   0),
+                response_result.get("errors",             0),
+                response_result.get("runtime_seconds",    0),
+            )
+        except Exception as exc:
+            log.exception("check_thresholds_and_respond failed: %s", exc)
+            response_result = {"status": "error", "error": str(exc)}
+
+        return {
+            "risk_engine":        risk_result,
+            "automated_response": response_result,
+        }

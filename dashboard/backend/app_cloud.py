@@ -156,6 +156,8 @@ from dashboard.backend.central_events.routes import central_events_bp
 from dashboard.backend.central_events.models import CentralEvent
 from dashboard.backend.risk_engine.routes import risk_engine_bp
 from dashboard.backend.risk_engine.models import DeviceRiskScore
+from dashboard.backend.automated_response.routes import automated_response_bp
+from dashboard.backend.automated_response.models import ResponseThreshold, ResponseHistory
 from dashboard.backend.agent_monitor.routes import agent_monitor_bp
 from dashboard.backend.ml_anomaly.routes import ml_anomaly_bp
 from dashboard.backend.ml_anomaly.models import AnomalyModelVersion, AnomalyDetection
@@ -359,6 +361,7 @@ def create_app(config_name="development"):
     app.register_blueprint(mitre_attack_bp)
     app.register_blueprint(central_events_bp)
     app.register_blueprint(risk_engine_bp)
+    app.register_blueprint(automated_response_bp)
     app.register_blueprint(agent_monitor_bp)
     app.register_blueprint(api_keys_bp, url_prefix='/api/keys')
     app.register_blueprint(ml_anomaly_bp)
@@ -396,6 +399,12 @@ def create_app(config_name="development"):
     if _kev_sync_fn:
         _kev_sync_fn = limiter.limit("1 per hour")(_kev_sync_fn)
         app.view_functions["live_cves.kev_sync_now"] = _kev_sync_fn
+
+    # /api/response/check_now triggers recompute + threshold check — cap to 1/hour.
+    _resp_check_fn = app.view_functions.get("automated_response.check_now")
+    if _resp_check_fn:
+        _resp_check_fn = limiter.limit("1 per hour")(_resp_check_fn)
+        app.view_functions["automated_response.check_now"] = _resp_check_fn
 
     # /api/risk/recompute_now triggers a Celery recompute — expensive, cap to 1/hour.
     _risk_recompute_fn = app.view_functions.get("risk_engine.recompute_now")

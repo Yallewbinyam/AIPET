@@ -8,7 +8,8 @@ import ThreatIntelPanel from "./components/threat_intel/ThreatIntelPanel";
 import KevPanel         from "./components/kev/KevPanel";
 import MitrePanel       from "./components/mitre/MitrePanel";
 import EventsFeedPanel      from "./components/events/EventsFeedPanel";
-import RiskScoreDashboard   from "./components/risk/RiskScoreDashboard";
+import RiskScoreDashboard       from "./components/risk/RiskScoreDashboard";
+import AutomatedResponsePanel   from "./components/automated_response/AutomatedResponsePanel";
 import * as d3 from "d3";
 // Load JetBrains Mono font for technical aesthetic
 const fontLink = document.createElement("link");
@@ -5917,6 +5918,7 @@ const NAV_ITEMS = [
   { id: "mitreattck",  label: "MITRE ATT&CK",       icon: Crosshair,    group: "enterprise" },
   { id: "eventsfeed",  label: "Security Events",    icon: Activity,     group: "enterprise" },
   { id: "riskscore",   label: "Risk Score",          icon: Gauge,        group: "enterprise" },
+  { id: "autoresponse",label: "Automated Response",  icon: Zap,          group: "enterprise" },
 
   { id: "dspm",        label: "Data Security",  icon: Lock,          group: "enterprise" },
   { id: "costsecurity",label: "Cost Security",  icon: TrendingUp,    group: "enterprise" },
@@ -30049,6 +30051,9 @@ export default function App() {
           )}
           {activeTab === "riskscore" && (
             <RiskScoreDashboard token={token} />
+          )}
+          {activeTab === "autoresponse" && (
+            <AutomatedResponsePanel token={token} />
           )}
           {activeTab === "identitygraph" && (
             <IdentityGraphPage token={token} showToast={showToast} />
