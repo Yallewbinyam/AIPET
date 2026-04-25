@@ -3,7 +3,7 @@ import { useState, useEffect, useCallback, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import "./i18n";
 import axios from "axios";
-import MLAnomalyCard from "./components/MLAnomalyCard";
+import MLAnomalyPanel from "./components/ml_anomaly/MLAnomalyPanel";
 import * as d3 from "d3";
 // Load JetBrains Mono font for technical aesthetic
 const fontLink = document.createElement("link");
@@ -29801,7 +29801,7 @@ export default function App() {
               <h2 style={{ color: "#00e5ff", fontSize: "22px", margin: "0 0 20px 0" }}>
                 ML Anomaly Detection
               </h2>
-              <MLAnomalyCard token={token} />
+              <MLAnomalyPanel token={token} />
             </div>
           )}
           {activeTab === "identitygraph" && (
