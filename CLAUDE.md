@@ -42,6 +42,7 @@ AIPET X is an autonomous cybersecurity platform focused on IoT pentesting and en
 - **Real Nmap scanner** integrated with NVD CVE matching
 - **Celery worker + Beat running** via `start_cloud.sh` (as of D3 / 2026-04-24). NVD sync schedule first observed firing on 2026-04-24, adding 474 CVEs to `live_cves`. Previously Celery was wired but never launched.
 - **Automated ML retrain** — `retrain_anomaly_model` task runs every 24 h via Beat; manual trigger via `POST /api/ml/anomaly/retrain_now`; skips gracefully when <20 unique feature vectors available
+- **AlienVault OTX** — `sync_otx_threat_intel` runs every 6 h via Beat; first full sync produced 45,750 IOCs from 1,000 pulses (218s). `app_cloud.py` and `tasks.py` both load `.env` via explicit `pathlib.Path(__file__).parents[n]` so the API key reaches the Gunicorn and Celery worker processes regardless of CWD.
 - **Stripe payments** — Free (5 scans), Professional (unlimited), Enterprise (unlimited + API access)
 - **PDF report export** via WeasyPrint (A4, page breaks, email delivery)
 - **Google OAuth** login
