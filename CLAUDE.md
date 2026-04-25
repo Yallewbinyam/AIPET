@@ -89,6 +89,7 @@ All modules live under `dashboard/backend/<module_name>/` as a Blueprint with `_
 | `real_scanner` | Nmap host/service/OS scan, NVD CVE matching |
 | `live_cves` | Hourly NVD sync, auto-rematch scans. CISA KEV catalog (1,583 actively-exploited CVEs, daily Celery sync, unauthenticated public feed); `/predict_real` now returns four independent verdicts (Isolation Forest + Behavioral + OTX + KEV). `kev_catalog` table: PK=cve_id, includes ransomware flag, vendor, due_date. |
 | `mitre_attack` | MITRE ATT&CK live mapping — 40-technique curated catalog (`catalog.py`), central `mitre_mapper.py` with source-aware functions (ML features → T1110/T1190/T1046, behavioral anomaly_type, KEV CWEs, OTX indicator types), `/predict_real` now returns five independent verdicts. `mitre_techniques` table seeded on startup. |
+| `central_events` | Unified event pipeline (Capability 7a). `emit_event()` adapter — non-raising, one INSERT per call, user-scoped, <10ms. Wired into 5 modules (ml_anomaly, behavioral, threatintel/OTX, live_cves/KEV, mitre_attack). Cross-module event feed at `/api/events/feed` with severity/module/entity filters, `/api/events/stats`, `/api/events/<id>`, `/api/events/entity/<name>`. `EventsFeedPanel` + `EventDetailModal` React UI. |
 | `siem` / `cloud_siem` | SIEM event ingestion and dashboards |
 | `threatintel` / `threat_intel_ingest` / `threat_radar` | Threat intelligence feeds, IOC tracking. AlienVault OTX integration (96-line client, 6-hour Celery sync, locally cached IOCs — 45,750 indicators after first full sync); `/predict_real` now returns threat intel as a third independent verdict alongside Isolation Forest + behavioral baseline. |
 | `aisoc` / `soc_twin` | AI-assisted SOC automation and digital twin |
@@ -150,9 +151,9 @@ All modules live under `dashboard/backend/<module_name>/` as a Blueprint with `_
 
 ---
 
-## 6. Capability Roadmap — 32 Capabilities
+## 6. Capability Roadmap — 33 Capabilities
 
-**Current status:** Capabilities 1, 2, 3, 4, 5, 6 ✅ Complete. 26 remaining.
+**Current status:** Capabilities 1, 2, 3, 4, 5, 6, 7a ✅ Complete. 26 remaining (7b through 32).
 
 ### Month 1 — Intelligence Core (Capabilities 1–12)
 
@@ -164,8 +165,9 @@ All modules live under `dashboard/backend/<module_name>/` as a Blueprint with `_
 | 4 | AlienVault OTX threat intelligence integration | ✅ **COMPLETE** — `otx_client.py` (96 lines, key never logged), `cross_reference.py` (119 lines, DB-local <1ms lookup), `sync_otx_threat_intel` Celery task (6h Beat schedule), 45,750 IOCs from 1,000 pulses on first sync; `/predict_real` returns three independent verdicts (Isolation Forest + behavioral + threat intel); standalone `ThreatIntelPanel` React component (SyncControlBar, CheckHostForm, RecentIOCsTable); 17 backend tests. |
 | 5 | CISA KEV exploit validation (actively exploited CVEs) | ✅ **COMPLETE** — `kev_catalog` table (PK=cve_id, 1,583 entries), `kev_client.py` (no API key — CISA is public), `kev_cross_reference.py` (local DB IN-query, <1ms), `sync_cisa_kev` Celery task (daily Beat), 5 new endpoints, `/predict_real` now returns four independent verdicts (adds KEV as 4th); `KevPanel` React component (KevSyncBar, KevCheckHostForm, KevCatalogTable, KevDetailModal); 21 backend tests. |
 | 6 | MITRE ATT&CK live mapping | ✅ **COMPLETE** — `mitre_attack/` module: 40-technique `TECHNIQUE_CATALOG`, `mitre_mapper.py` (5 source-aware functions), `mitre_techniques` DB table (seeded on startup); `/predict_real` returns five independent verdicts with ATT&CK aggregation; T1071 hardcoding bug fixed in `device_deviation_detector.py`; `MitrePanel` React component (catalog browser + tactic filter + detail modal); 23 backend tests. |
-| 6 | MITRE ATT&CK live mapping | Pending |
-| 7 | Central event pipeline (all 93 modules feed one brain) | Pending |
+| 7a | Central event pipeline — foundation + 5 modules wired | ✅ **COMPLETE** — `central_events/` module: `CentralEvent` model (16 columns, 11 indexes), `emit_event()` adapter (non-raising, <10ms, user-scoped), 4 REST endpoints (`/api/events/feed`, `/api/events/stats`, `/api/events/<id>`, `/api/events/entity/<name>`); wired into ml_anomaly, behavioral, threatintel (OTX), live_cves (KEV), mitre_attack; `EventsFeedPanel` + `EventDetailModal` React components, "Security Events" nav entry; 19 backend tests (includes resilience test: parent route returns 200 when emit_event raises). Fixes: `BigInteger→Integer` for SQLite compat, lazy→module-level imports in adapter. |
+| 7b | Central event pipeline — remaining ~10 modules | Pending — wire real_scanner, siem, defense, digitaltwin, multicloud, otics, redteam, zerotrust, auth, identity_guardian to emit_event(). Migrate the 8 modules writing directly to siem_events to use emit_event instead. Estimated effort: 2–3 hours. |
+| 7 (deprecated label) | Central event pipeline (all 93 modules feed one brain) | Split into 7a ✅ + 7b Pending |
 | 8 | Automated response chain (scanner → SIEM → compliance → report) | Pending |
 | 9 | Unified real-time risk score (all modules contribute) | Pending |
 | 10 | Claude API powered Ask AIPET (answers about YOUR environment) | Pending |
@@ -271,6 +273,7 @@ Gmail SMTP, Sentry DSN, and UptimeRobot tracking moved to the **Pre-Launch Block
 - **OTX_API_KEY required in .env** — get a free key at https://otx.alienvault.com → Settings → API Integration. Without it, the 6-hour OTX sync task returns `{"status": "error"}` silently (non-fatal).
 - **CISA KEV is unauthenticated** — no API key needed. Daily sync downloads all 1,583+ entries in one GET request (~2MB JSON). Re-running the sync is safe: `session.merge()` upserts by cve_id PK, producing zero duplicates.
 - **Celery systemd templates** at `deploy/systemd/` (PLB-7 closed). `start_cloud.sh` detects if `aipet-celery-worker.service` / `aipet-celery-beat.service` are active; if so, it skips nohup launch (systemd owns those processes). On dev, nohup fallback runs as before. See `deploy/systemd/INSTALL.md` for production install instructions.
+- **Central event pipeline** (`central_events/`) — synchronous `emit_event()` call inserted after each module commits its domain row. Failures are always silent (try/except + rollback in adapter; belt-and-suspenders try/except at each call site). Every event carries `user_id` for per-user scoping. Modules not yet wired (7b scope) continue writing to their own tables; migration to `emit_event` is incremental.
 - **Gunicorn** serves Flask in production (`gunicorn_config.py`)
 - **Nginx** reverse-proxies to Gunicorn (port 5001) and serves the React build
 

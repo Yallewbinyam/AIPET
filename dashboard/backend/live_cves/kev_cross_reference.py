@@ -90,16 +90,61 @@ def check_host_cves_against_kev(user_id: int, host_ip: str) -> dict:
 
     ransomware_count = sum(1 for h in hits if h.known_ransomware_use == "Known")
 
-    return {
+    kev_hits_dicts = [_hit_dict(h) for h in hits[:10]]
+    result = {
         "status":                    "checked",
         "host_ip":                   host_ip,
         "host_total_cves":           len(cve_ids),
         "kev_hits_count":            len(hits),
-        "kev_hits":                  [_hit_dict(h) for h in hits[:10]],
+        "kev_hits":                  kev_hits_dicts,
         "ransomware_associated_count": ransomware_count,
         "checked_at":                datetime.now(timezone.utc).isoformat(),
         "kev_catalog_size":          kev_size,
     }
+
+    # ── Capability 7a: emit central event (KEV hits only) ────────────────────
+    if hits:
+        try:
+            from dashboard.backend.central_events.adapter import emit_event
+            _mitre = None
+            try:
+                from dashboard.backend.mitre_attack.mitre_mapper import (
+                    from_kev_hit, aggregate_techniques,
+                )
+                _mappings = []
+                for h in hits[:5]:
+                    cwes = [str(c) for c in (h.cwes or [])]
+                    _mappings.extend(from_kev_hit(h.cve_id, cwes))
+                _mitre = aggregate_techniques(_mappings) if _mappings else None
+            except Exception:
+                pass
+
+            sev = "critical" if ransomware_count > 0 else "high"
+            first_cve = hits[0].cve_id
+            emit_event(
+                source_module    = "live_cves",
+                source_table     = "kev_catalog",
+                source_row_id    = first_cve,
+                event_type       = "kev_active_exploitation_detected",
+                severity         = sev,
+                user_id          = user_id,
+                entity           = host_ip,
+                entity_type      = "device",
+                title            = (
+                    f"{len(hits)} actively-exploited CVE"
+                    f"{'s' if len(hits) > 1 else ''} detected on {host_ip}"
+                ),
+                mitre_techniques = _mitre,
+                payload          = {
+                    "kev_hits":                   kev_hits_dicts[:5],
+                    "ransomware_associated_count": ransomware_count,
+                    "host_total_cves":             len(cve_ids),
+                },
+            )
+        except Exception:
+            pass
+
+    return result
 
 
 def _hit_dict(entry: "KevCatalogEntry") -> dict:

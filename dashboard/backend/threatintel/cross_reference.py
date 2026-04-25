@@ -109,7 +109,7 @@ def check_host_against_threat_intel(
 
     highest = matches[0]["severity"] if matches else "none"
 
-    return {
+    result = {
         "status":           "checked",
         "host_ip":          host_ip,
         "matches":          top_matches,
@@ -117,3 +117,49 @@ def check_host_against_threat_intel(
         "highest_severity": highest,
         "checked_at":       datetime.now(timezone.utc).isoformat(),
     }
+
+    # ── Capability 7a: emit central event (matches only) ──────────────────────
+    if matches:
+        try:
+            from dashboard.backend.central_events.adapter import emit_event
+            _mitre = None
+            try:
+                from dashboard.backend.mitre_attack.mitre_mapper import (
+                    from_otx_match, aggregate_techniques,
+                )
+                _mappings = []
+                for m in top_matches[:3]:
+                    _mappings.extend(from_otx_match(
+                        m.get("indicator_type", "ip"),
+                        m.get("tags"),
+                    ))
+                _mitre = aggregate_techniques(_mappings) if _mappings else None
+            except Exception:
+                pass
+
+            first = top_matches[0]
+            emit_event(
+                source_module    = "threatintel",
+                source_table     = "ioc_entries",
+                source_row_id    = first.get("source_ref", str(first.get("indicator", ""))),
+                event_type       = "threat_intel_match",
+                severity         = highest if highest != "none" else "low",
+                user_id          = user_id,
+                entity           = host_ip,
+                entity_type      = "device",
+                title            = (
+                    f"OTX match: {first.get('indicator')} — "
+                    f"{first.get('pulse_name', 'unknown pulse')}"
+                ),
+                mitre_techniques = _mitre,
+                payload          = {
+                    "match_count":      len(matches),
+                    "highest_severity": highest,
+                    "matches":          top_matches[:3],
+                    "source":           "alienvault_otx",
+                },
+            )
+        except Exception:
+            pass
+
+    return result

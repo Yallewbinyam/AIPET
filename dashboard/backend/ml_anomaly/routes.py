@@ -430,6 +430,30 @@ def predict_real():
     db.session.add(detection)
     db.session.commit()
 
+    # ── Capability 7a: emit central event (anomaly detections only) ───────────
+    if is_anomaly:
+        try:
+            from dashboard.backend.central_events.adapter import emit_event
+            emit_event(
+                source_module    = "ml_anomaly",
+                source_table     = "ml_anomaly_detections",
+                source_row_id    = detection.id,
+                event_type       = "isolation_forest_anomaly_detected",
+                severity         = severity.lower(),
+                user_id          = user_id,
+                entity           = host_ip,
+                entity_type      = "device",
+                title            = f"Isolation Forest: {host_ip} flagged at score {round(sigmoid_score, 2)}",
+                mitre_techniques = None,   # populated in Capability 6 block below
+                risk_score       = int(sigmoid_score * 100),
+                payload          = {
+                    "anomaly_score":    round(sigmoid_score, 6),
+                    "top_contributors": top_contributors[:3],
+                },
+            )
+        except Exception:
+            pass  # emit_event is already non-fatal internally; belt-and-suspenders
+
     # ── Capability 2: per-device behavioral baseline check ───────────────────
     # Non-fatal: if this fails for any reason, the Isolation Forest result is
     # still returned. behavioral_baseline field in the response is always set.

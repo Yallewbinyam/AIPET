@@ -185,4 +185,41 @@ def detect_and_record_deviations(
     db.session.commit()
 
     result["ba_anomaly_id"] = anomaly.id
+
+    # ── Capability 7a: emit central event ─────────────────────────────────────
+    try:
+        from dashboard.backend.central_events.adapter import emit_event
+        _mitre = None
+        try:
+            from dashboard.backend.mitre_attack.mitre_mapper import (
+                from_behavioral_deviations, aggregate_techniques,
+            )
+            _mitre = aggregate_techniques(from_behavioral_deviations(top5))
+        except Exception:
+            pass
+
+        emit_event(
+            source_module    = "behavioral",
+            source_table     = "ba_anomalies",
+            source_row_id    = anomaly.id,
+            event_type       = "behavioral_deviation",
+            severity         = severity.lower(),
+            user_id          = user_id,
+            entity           = host_ip,
+            entity_type      = "device",
+            title            = (
+                f"Behavioral deviation on {host_ip}: "
+                f"{top_feature} at {max_z:.1f}σ"
+            ),
+            mitre_techniques = _mitre,
+            payload          = {
+                "top_deviations":        top5,
+                "baseline_observations": result.get("baseline_observations"),
+                "baseline_confidence":   result.get("baseline_confidence"),
+                "max_z_score":           max_z,
+            },
+        )
+    except Exception:
+        pass  # belt-and-suspenders; emit_event is already non-fatal
+
     return result

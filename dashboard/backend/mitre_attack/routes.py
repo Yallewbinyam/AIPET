@@ -81,10 +81,43 @@ def map_detection():
         mappings = from_behavioral_anomaly(anom.anomaly_type)
 
     aggregated = aggregate_techniques(mappings)
+
+    # ── Capability 7a: emit central event (techniques found only) ────────────
+    if aggregated:
+        try:
+            from dashboard.backend.central_events.adapter import emit_event
+            top_ids = [t["technique_id"] for t in aggregated[:3]]
+            confs   = [t["confidence"] for t in aggregated]
+            best    = ("high" if "high" in confs
+                       else "medium" if "medium" in confs else "low")
+            emit_event(
+                source_module    = "mitre_attack",
+                source_table     = "mitre_techniques",
+                source_row_id    = f"{source}:{detection_id}",
+                event_type       = "mitre_techniques_mapped",
+                severity         = best,
+                user_id          = user_id,
+                entity           = None,
+                entity_type      = "none",
+                title            = (
+                    f"{len(aggregated)} MITRE technique"
+                    f"{'s' if len(aggregated) > 1 else ''} mapped: "
+                    f"{', '.join(top_ids)}"
+                ),
+                mitre_techniques = aggregated,
+                payload          = {
+                    "tactics_covered":       list({t["tactic"] for t in aggregated}),
+                    "source_detection_type": source,
+                    "source_detection_id":   detection_id,
+                },
+            )
+        except Exception:
+            pass
+
     return jsonify({
-        "detection_id": detection_id,
-        "source":        source,
-        "techniques":    aggregated,
+        "detection_id":    detection_id,
+        "source":          source,
+        "techniques":      aggregated,
         "technique_count": len(aggregated),
     })
 
