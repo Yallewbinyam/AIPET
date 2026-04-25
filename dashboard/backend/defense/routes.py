@@ -13,7 +13,7 @@ Endpoints:
 """
 import json
 from datetime import datetime, timezone, timedelta
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request, jsonify, current_app
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from dashboard.backend.models import db
 from dashboard.backend.defense.models import DefensePlaybook, DefenseAction
@@ -36,10 +36,11 @@ def _execute_action(action_type, target, reason, playbook=None):
       send_alert         — push Critical SIEM event (hooks into Slack/Teams via existing settings)
       reassess_trust     — trigger trust score recalculation for device
 
-    Returns a DefenseAction record (not yet committed — caller commits).
+    Returns (DefenseAction, Optional[SiemEvent]) — neither is committed yet; caller commits.
     """
-    outcome = "unknown"
-    status  = "executed"
+    outcome  = "unknown"
+    status   = "executed"
+    siem_ev  = None
 
     try:
         if action_type == "quarantine_device":
@@ -74,7 +75,7 @@ def _execute_action(action_type, target, reason, playbook=None):
 
         elif action_type == "block_ip":
             # Push a SIEM event marking this IP as blocked
-            event = SiemEvent(
+            siem_ev = SiemEvent(
                 event_type  = "defense_action",
                 source      = "AIPET Autonomous Defense",
                 severity    = "High",
@@ -82,13 +83,13 @@ def _execute_action(action_type, target, reason, playbook=None):
                 description = reason,
                 mitre_id    = "T1071",
             )
-            db.session.add(event)
+            db.session.add(siem_ev)
             outcome = f"Block event logged for IP {target}"
 
         elif action_type == "send_alert":
             # Push Critical SIEM alert — existing Slack/Teams webhook
             # picks this up via the watch/alert system
-            event = SiemEvent(
+            siem_ev = SiemEvent(
                 event_type  = "defense_action",
                 source      = "AIPET Autonomous Defense",
                 severity    = "Critical",
@@ -96,7 +97,7 @@ def _execute_action(action_type, target, reason, playbook=None):
                 description = reason,
                 mitre_id    = "T1078",
             )
-            db.session.add(event)
+            db.session.add(siem_ev)
             outcome = f"Critical alert pushed to SIEM for {target}"
 
         elif action_type == "reassess_trust":
@@ -131,7 +132,7 @@ def _execute_action(action_type, target, reason, playbook=None):
         reason        = reason,
         outcome       = outcome,
     )
-    return log
+    return log, siem_ev
 
 
 def _match_playbook(playbook, event):
@@ -248,8 +249,9 @@ def trigger_playbook(pb_id):
         return jsonify({"error": "Invalid actions JSON in playbook"}), 400
 
     executed = []
+    defense_siem_events = []
     for action_type in actions:
-        log = _execute_action(
+        log, siem_ev = _execute_action(
             action_type = action_type,
             target      = target,
             reason      = f"Manual trigger of playbook: {pb.name}",
@@ -257,12 +259,33 @@ def trigger_playbook(pb_id):
         )
         log.triggered_by = f"manual:user:{get_jwt_identity()}"
         db.session.add(log)
+        if siem_ev:
+            defense_siem_events.append((siem_ev, target))
         executed.append({"action": action_type, "outcome": log.outcome})
 
     # Update playbook stats
     pb.trigger_count  += 1
     pb.last_triggered  = datetime.now(timezone.utc)
     db.session.commit()
+
+    for sev_event, ev_target in defense_siem_events:
+        try:
+            from dashboard.backend.central_events.adapter import emit_event
+            emit_event(
+                source_module    = "defense",
+                source_table     = "siem_events",
+                source_row_id    = sev_event.id,
+                event_type       = sev_event.event_type,
+                severity         = sev_event.severity.lower(),
+                user_id          = sev_event.user_id,
+                entity           = ev_target,
+                entity_type      = "device",
+                title            = sev_event.title,
+                mitre_techniques = [{"technique_id": sev_event.mitre_id, "confidence": 1.0}] if sev_event.mitre_id else None,
+                payload          = {"original_siem_event_id": sev_event.id},
+            )
+        except Exception:
+            current_app.logger.exception("emit_event call site error in defense (trigger_playbook)")
 
     return jsonify({
         "success":  True,
@@ -332,8 +355,9 @@ def auto_respond():
                 break
 
         executed = []
+        auto_siem_events = []
         for action_type in actions:
-            log = _execute_action(
+            log, siem_ev = _execute_action(
                 action_type = action_type,
                 target      = target,
                 reason      = f"Auto-response to event {event_id}: {event.title}",
@@ -341,6 +365,8 @@ def auto_respond():
             )
             log.triggered_by = f"event:{event_id}"
             db.session.add(log)
+            if siem_ev:
+                auto_siem_events.append((siem_ev, target))
             executed.append({"action": action_type, "outcome": log.outcome})
 
         pb.trigger_count  += 1
@@ -352,6 +378,26 @@ def auto_respond():
         })
 
     db.session.commit()
+
+    for sev_event, ev_target in auto_siem_events:
+        try:
+            from dashboard.backend.central_events.adapter import emit_event
+            emit_event(
+                source_module    = "defense",
+                source_table     = "siem_events",
+                source_row_id    = sev_event.id,
+                event_type       = sev_event.event_type,
+                severity         = sev_event.severity.lower(),
+                user_id          = sev_event.user_id,
+                entity           = ev_target,
+                entity_type      = "device",
+                title            = sev_event.title,
+                mitre_techniques = [{"technique_id": sev_event.mitre_id, "confidence": 1.0}] if sev_event.mitre_id else None,
+                payload          = {"original_siem_event_id": sev_event.id},
+            )
+        except Exception:
+            current_app.logger.exception("emit_event call site error in defense (auto_respond)")
+
     return jsonify({
         "event_id":  event_id,
         "evaluated": len(playbooks),

@@ -13,7 +13,7 @@ Endpoints:
 import json
 import random
 from datetime import datetime, timezone, timedelta
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request, jsonify, current_app
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from dashboard.backend.models import db
 from dashboard.backend.multicloud.models import CloudAccount, CloudAsset, CloudFinding
@@ -393,6 +393,7 @@ def scan_account(account_id):
     account.status        = "connected"
 
     # Push critical findings to SIEM
+    cloud_siem_events = []
     for f in saved_findings:
         if f.severity == "Critical":
             event = SiemEvent(
@@ -404,8 +405,28 @@ def scan_account(account_id):
                 mitre_id    = f.mitre_id,
             )
             db.session.add(event)
+            cloud_siem_events.append(event)
 
     db.session.commit()
+
+    for sev_event in cloud_siem_events:
+        try:
+            from dashboard.backend.central_events.adapter import emit_event
+            emit_event(
+                source_module    = "multicloud",
+                source_table     = "siem_events",
+                source_row_id    = sev_event.id,
+                event_type       = sev_event.event_type,
+                severity         = sev_event.severity.lower(),
+                user_id          = sev_event.user_id,
+                entity           = account.name or str(account_id),
+                entity_type      = "service",
+                title            = sev_event.title,
+                mitre_techniques = [{"technique_id": sev_event.mitre_id, "confidence": 1.0}] if sev_event.mitre_id else None,
+                payload          = {"original_siem_event_id": sev_event.id, "provider": account.provider},
+            )
+        except Exception:
+            current_app.logger.exception("emit_event call site error in multicloud")
 
     return jsonify({
         "account":  account.to_dict(),

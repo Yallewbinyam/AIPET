@@ -15,7 +15,7 @@ Endpoints:
 """
 import json
 from datetime import datetime, timezone, timedelta
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request, jsonify, current_app
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from dashboard.backend.models import db, Scan, Finding
 from dashboard.backend.zerotrust.models import ZtDeviceTrust, ZtPolicy, ZtAccessLog
@@ -98,9 +98,10 @@ def _ingest_siem_zt(source_ip, action, reason, trust_score):
     """
     Push Zero-Trust events into the SIEM feed.
     Only pushes block/quarantine decisions — not allow (too noisy).
+    Returns the SiemEvent object (or None) — caller must commit then emit.
     """
     if action not in ("block", "quarantine"):
-        return
+        return None
     try:
         severity = "Critical" if action == "quarantine" else "High"
         event = SiemEvent(
@@ -112,8 +113,9 @@ def _ingest_siem_zt(source_ip, action, reason, trust_score):
             mitre_id    = "T1078",
         )
         db.session.add(event)
+        return event
     except Exception:
-        pass
+        return None
 
 
 # ── Device trust endpoints ───────────────────────────────────
@@ -169,16 +171,39 @@ def assess_devices():
             db.session.add(device)
 
         # Push to SIEM if device newly quarantined or restricted
+        zt_ev = None
         if status in ("quarantined", "restricted") and prev_status != status:
-            _ingest_siem_zt(
+            zt_ev = _ingest_siem_zt(
                 ip, "quarantine" if status == "quarantined" else "block",
                 f"Trust score dropped to {score}. Factors: {'; '.join(risk_factors)}",
                 score
             )
 
-        assessed.append({"ip": ip, "score": score, "status": status})
+        assessed.append({"ip": ip, "score": score, "status": status, "_zt_ev": zt_ev})
 
     db.session.commit()
+
+    for item in assessed:
+        sev_event = item.pop("_zt_ev", None)
+        if sev_event:
+            try:
+                from dashboard.backend.central_events.adapter import emit_event
+                emit_event(
+                    source_module    = "zerotrust",
+                    source_table     = "siem_events",
+                    source_row_id    = sev_event.id,
+                    event_type       = sev_event.event_type,
+                    severity         = sev_event.severity.lower(),
+                    user_id          = None,
+                    entity           = item["ip"],
+                    entity_type      = "device",
+                    title            = sev_event.title,
+                    mitre_techniques = [{"technique_id": sev_event.mitre_id, "confidence": 1.0}] if sev_event.mitre_id else None,
+                    payload          = {"original_siem_event_id": sev_event.id, "trust_score": item["score"]},
+                )
+            except Exception:
+                current_app.logger.exception("emit_event call site error in zerotrust (assess_devices)")
+
     return jsonify({"assessed": len(assessed), "devices": assessed})
 
 
@@ -193,11 +218,12 @@ def update_device(device_ip):
     device = ZtDeviceTrust.query.filter_by(device_ip=device_ip).first_or_404()
     data   = request.get_json(silent=True) or {}
 
+    zt_ev = None
     if "status" in data:
         device.status     = data["status"]
         device.updated_at = datetime.now(timezone.utc)
         # Log override to SIEM
-        _ingest_siem_zt(
+        zt_ev = _ingest_siem_zt(
             device_ip, data["status"],
             f"Manual override by analyst (user {get_jwt_identity()})",
             device.trust_score
@@ -207,6 +233,26 @@ def update_device(device_ip):
         device.trust_score = data["trust_score"]
 
     db.session.commit()
+
+    if zt_ev:
+        try:
+            from dashboard.backend.central_events.adapter import emit_event
+            emit_event(
+                source_module    = "zerotrust",
+                source_table     = "siem_events",
+                source_row_id    = zt_ev.id,
+                event_type       = zt_ev.event_type,
+                severity         = zt_ev.severity.lower(),
+                user_id          = None,
+                entity           = device_ip,
+                entity_type      = "device",
+                title            = zt_ev.title,
+                mitre_techniques = [{"technique_id": zt_ev.mitre_id, "confidence": 1.0}] if zt_ev.mitre_id else None,
+                payload          = {"original_siem_event_id": zt_ev.id},
+            )
+        except Exception:
+            current_app.logger.exception("emit_event call site error in zerotrust (update_device)")
+
     return jsonify({"success": True, "device": device.to_dict()})
 
 
@@ -312,9 +358,27 @@ def evaluate_access():
             trust_score = trust_score,
         )
         db.session.add(log)
-        _ingest_siem_zt(source_ip, "quarantine",
+        zt_ev = _ingest_siem_zt(source_ip, "quarantine",
             f"Quarantined device attempted access to {dest_ip}:{port}", trust_score)
         db.session.commit()
+        if zt_ev:
+            try:
+                from dashboard.backend.central_events.adapter import emit_event
+                emit_event(
+                    source_module    = "zerotrust",
+                    source_table     = "siem_events",
+                    source_row_id    = zt_ev.id,
+                    event_type       = zt_ev.event_type,
+                    severity         = zt_ev.severity.lower(),
+                    user_id          = None,
+                    entity           = source_ip,
+                    entity_type      = "device",
+                    title            = zt_ev.title,
+                    mitre_techniques = [{"technique_id": zt_ev.mitre_id, "confidence": 1.0}] if zt_ev.mitre_id else None,
+                    payload          = {"original_siem_event_id": zt_ev.id, "dest_ip": dest_ip},
+                )
+            except Exception:
+                current_app.logger.exception("emit_event call site error in zerotrust (evaluate_access quarantine)")
         return jsonify({
             "action":      "block",
             "reason":      f"Device is quarantined (trust score: {trust_score})",
@@ -361,10 +425,31 @@ def evaluate_access():
         trust_score = trust_score,
     )
     db.session.add(log)
+    zt_ev = None
     if action in ("block", "quarantine"):
-        _ingest_siem_zt(source_ip, action, reason, trust_score)
+        zt_ev = _ingest_siem_zt(source_ip, action, reason, trust_score)
 
     db.session.commit()
+
+    if zt_ev:
+        try:
+            from dashboard.backend.central_events.adapter import emit_event
+            emit_event(
+                source_module    = "zerotrust",
+                source_table     = "siem_events",
+                source_row_id    = zt_ev.id,
+                event_type       = zt_ev.event_type,
+                severity         = zt_ev.severity.lower(),
+                user_id          = None,
+                entity           = source_ip,
+                entity_type      = "device",
+                title            = zt_ev.title,
+                mitre_techniques = [{"technique_id": zt_ev.mitre_id, "confidence": 1.0}] if zt_ev.mitre_id else None,
+                payload          = {"original_siem_event_id": zt_ev.id, "dest_ip": dest_ip, "action": action},
+            )
+        except Exception:
+            current_app.logger.exception("emit_event call site error in zerotrust (evaluate_access policy)")
+
     return jsonify({
         "action":      action,
         "reason":      reason,

@@ -1,6 +1,6 @@
 import json
 from datetime import datetime, timezone, timedelta
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request, jsonify, current_app
 from flask_jwt_extended import jwt_required, get_jwt_identity, verify_jwt_in_request
 from dashboard.backend.models import db
 from dashboard.backend.siem.models import SiemEvent, SiemRule, SiemIncident
@@ -60,6 +60,27 @@ def siem_ingest():
     db.session.flush()
     _run_rules(event)
     db.session.commit()
+
+    # Cycle prevention: skip emit if this event came from the central_events pipeline
+    if not (data.get("node_meta") or {}).get("from_central_emit"):
+        try:
+            from dashboard.backend.central_events.adapter import emit_event
+            emit_event(
+                source_module = "siem",
+                source_table  = "siem_events",
+                source_row_id = event.id,
+                event_type    = event.event_type,
+                severity      = event.severity.lower(),
+                user_id       = event.user_id,
+                entity        = event.source,
+                entity_type   = None,
+                title         = event.title,
+                mitre_techniques = [{"technique_id": event.mitre_id, "confidence": 1.0}] if event.mitre_id else None,
+                payload       = {"original_siem_event_id": event.id},
+            )
+        except Exception:
+            current_app.logger.exception("emit_event call site error in siem (ingest)")
+
     return jsonify({"success": True, "event_id": event.id}), 201
 
 @siem_bp.route("/api/siem/events", methods=["GET"])
