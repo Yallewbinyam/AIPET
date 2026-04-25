@@ -17,7 +17,7 @@ Endpoints:
 """
 import json
 from datetime import datetime, timezone, timedelta
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request, jsonify, current_app
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from dashboard.backend.models import db, Scan, Finding
 from dashboard.backend.digitaltwin.models import TwinNode, TwinEdge, TwinSnapshot
@@ -163,6 +163,7 @@ def sync_twin():
 
     synced    = 0
     diverged  = 0
+    divergence_events = []
 
     for ip in ips:
         findings = Finding.query.filter_by(target=ip).all()
@@ -219,12 +220,33 @@ def sync_twin():
                 mitre_id    = "T1078",
             )
             db.session.add(event)
+            divergence_events.append((event, ip))
             diverged += 1
 
         node.updated_at = now
         synced += 1
 
     db.session.commit()
+
+    for sev_event, ev_ip in divergence_events:
+        try:
+            from dashboard.backend.central_events.adapter import emit_event
+            emit_event(
+                source_module     = "digitaltwin",
+                source_table      = "siem_events",
+                source_row_id     = sev_event.id,
+                event_type        = sev_event.event_type,
+                severity          = sev_event.severity.lower(),
+                user_id           = sev_event.user_id,
+                entity            = ev_ip,
+                entity_type       = "device",
+                title             = sev_event.title,
+                mitre_techniques  = [{"technique_id": sev_event.mitre_id, "confidence": 1.0}] if sev_event.mitre_id else None,
+                payload           = {"original_siem_event_id": sev_event.id},
+            )
+        except Exception:
+            current_app.logger.exception("emit_event call site error in digitaltwin (twin_divergence)")
+
     return jsonify({
         "synced":   synced,
         "diverged": diverged,
@@ -314,6 +336,24 @@ def simulate_compromise(node_id):
     )
     db.session.add(event)
     db.session.commit()
+
+    try:
+        from dashboard.backend.central_events.adapter import emit_event
+        emit_event(
+            source_module    = "digitaltwin",
+            source_table     = "siem_events",
+            source_row_id    = event.id,
+            event_type       = event.event_type,
+            severity         = event.severity.lower(),
+            user_id          = event.user_id,
+            entity           = target.ip_address,
+            entity_type      = "device",
+            title            = event.title,
+            mitre_techniques = [{"technique_id": event.mitre_id, "confidence": 1.0}] if event.mitre_id else None,
+            payload          = {"original_siem_event_id": event.id, "blast_radius": len(blast_radius)},
+        )
+    except Exception:
+        current_app.logger.exception("emit_event call site error in digitaltwin (twin_simulation)")
 
     return jsonify({
         "target":       target.to_dict(),

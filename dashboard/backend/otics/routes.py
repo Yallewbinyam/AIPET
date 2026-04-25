@@ -15,7 +15,7 @@ import json
 import time
 import random
 from datetime import datetime, timezone, timedelta
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request, jsonify, current_app
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from dashboard.backend.models import db
 from dashboard.backend.otics.models import OtDevice, OtScan, OtFinding
@@ -348,6 +348,7 @@ def run_scan():
 
     # Push Critical findings to SIEM automatically
     critical = [f for f in findings if f.severity == "Critical"]
+    ot_siem_events = []
     for f in critical:
         event = SiemEvent(
             event_type  = "ot_ics_finding",
@@ -358,8 +359,28 @@ def run_scan():
             mitre_id    = f.mitre_ics_id,
         )
         db.session.add(event)
+        ot_siem_events.append(event)
 
     db.session.commit()
+
+    for sev_event in ot_siem_events:
+        try:
+            from dashboard.backend.central_events.adapter import emit_event
+            emit_event(
+                source_module    = "otics",
+                source_table     = "siem_events",
+                source_row_id    = sev_event.id,
+                event_type       = sev_event.event_type,
+                severity         = sev_event.severity.lower(),
+                user_id          = scan.user_id,
+                entity           = target,
+                entity_type      = "device",
+                title            = sev_event.title,
+                mitre_techniques = [{"technique_id": sev_event.mitre_id, "confidence": 1.0}] if sev_event.mitre_id else None,
+                payload          = {"original_siem_event_id": sev_event.id, "protocol": protocol},
+            )
+        except Exception:
+            current_app.logger.exception("emit_event call site error in otics")
 
     return jsonify({
         "scan":     scan.to_dict(),

@@ -17,7 +17,7 @@ import random
 import os
 import urllib.request
 from datetime import datetime, timezone, timedelta
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request, jsonify, current_app
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from dashboard.backend.models import db
 from dashboard.backend.redteam.models import RtCampaign, RtAttack
@@ -330,6 +330,7 @@ def run_campaign(cid):
     success_count = 0
     blocked_count = 0
     now           = datetime.now(timezone.utc)
+    attack_siem_events = []
 
     for tech in techniques:
         # Pick a target for this technique
@@ -369,6 +370,7 @@ def run_campaign(cid):
                 mitre_id    = tech["mitre_id"],
             )
             db.session.add(event)
+            attack_siem_events.append((event, target))
         elif result == "blocked":
             blocked_count += 1
 
@@ -396,6 +398,26 @@ def run_campaign(cid):
     campaign.completed_at  = datetime.now(timezone.utc)
 
     db.session.commit()
+
+    for sev_event, ev_target in attack_siem_events:
+        try:
+            from dashboard.backend.central_events.adapter import emit_event
+            emit_event(
+                source_module    = "redteam",
+                source_table     = "siem_events",
+                source_row_id    = sev_event.id,
+                event_type       = sev_event.event_type,
+                severity         = sev_event.severity.lower(),
+                user_id          = sev_event.user_id,
+                entity           = ev_target,
+                entity_type      = "device",
+                title            = sev_event.title,
+                mitre_techniques = [{"technique_id": sev_event.mitre_id, "confidence": 1.0}] if sev_event.mitre_id else None,
+                payload          = {"original_siem_event_id": sev_event.id},
+            )
+        except Exception:
+            current_app.logger.exception("emit_event call site error in redteam")
+
     return jsonify({
         "campaign":      campaign.to_dict(),
         "total":         total,
