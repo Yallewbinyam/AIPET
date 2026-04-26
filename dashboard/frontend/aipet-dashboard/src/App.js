@@ -137,8 +137,8 @@ function RiskGauge({ risk, color, score }) {
   const circumference = 2 * Math.PI * 54;
   const offset = circumference - (animated / 100) * circumference;
   return (
-    <div className="flex flex-col items-center justify-center p-8">
-      <div className="relative w-48 h-48">
+    <div className="flex flex-col items-center justify-center p-4 md:p-8">
+      <div className="relative w-28 h-28 md:w-48 md:h-48">
         <svg className="w-full h-full transform -rotate-90" viewBox="0 0 120 120">
           <circle cx="60" cy="60" r="54" fill="none" stroke="#1e293b" strokeWidth="12"/>
           <circle cx="60" cy="60" r="54" fill="none" stroke={color} strokeWidth="12"
@@ -148,13 +148,13 @@ function RiskGauge({ risk, color, score }) {
             style={{ transition: "stroke-dashoffset 1.5s ease-in-out" }}/>
         </svg>
         <div className="absolute inset-0 flex flex-col items-center justify-center">
-          <span className="text-5xl font-black" style={{ color }}>{animated}</span>
+          <span className="text-3xl md:text-5xl font-black" style={{ color }}>{animated}</span>
           <span className="text-xs font-medium" style={{ color: COLORS.muted }}>RISK SCORE</span>
         </div>
       </div>
-      <div className="mt-4 text-center">
-        <div className="text-2xl font-black tracking-wider" style={{ color }}>{risk}</div>
-        <div className="text-sm mt-1" style={{ color: COLORS.muted }}>Overall Risk Level</div>
+      <div className="mt-2 md:mt-4 text-center">
+        <div className="text-lg md:text-2xl font-black tracking-wider" style={{ color }}>{risk}</div>
+        <div className="text-xs md:text-sm mt-1" style={{ color: COLORS.muted }}>Overall Risk Level</div>
       </div>
     </div>
   );
@@ -162,19 +162,19 @@ function RiskGauge({ risk, color, score }) {
 
 function StatCard({ title, value, icon: Icon, color, subtitle }) {
   return (
-    <div className="rounded-2xl p-6 border"
+    <div className="rounded-2xl p-3 md:p-6 border"
       style={{ backgroundColor: COLORS.card, borderColor: COLORS.border }}>
-      <div className="flex items-start justify-between mb-4">
-        <div className="p-3 rounded-xl" style={{ backgroundColor: color + "20" }}>
-          <Icon size={22} style={{ color }} />
+      <div className="flex items-start justify-between mb-2 md:mb-4">
+        <div className="p-2 md:p-3 rounded-xl" style={{ backgroundColor: color + "20" }}>
+          <Icon size={18} style={{ color }} />
         </div>
-        <TrendingUp size={14} style={{ color: COLORS.muted }} />
+        <TrendingUp size={12} style={{ color: COLORS.muted }} />
       </div>
-      <div className="text-4xl font-black mb-1" style={{ color: COLORS.text }}>
+      <div className="text-2xl md:text-4xl font-black mb-1" style={{ color: COLORS.text }}>
         <AnimatedNumber value={typeof value === "number" ? value : 0} />
         {typeof value === "string" && value}
       </div>
-      <div className="text-sm font-medium" style={{ color: COLORS.muted }}>{title}</div>
+      <div className="text-xs md:text-sm font-medium truncate" style={{ color: COLORS.muted }}>{title}</div>
       {subtitle && <div className="text-xs mt-1" style={{ color: COLORS.muted }}>{subtitle}</div>}
     </div>
   );
@@ -29754,6 +29754,7 @@ export default function App() {
           overflowY: "auto",
           padding: "28px 32px",
           backgroundColor: "transparent",
+          paddingBottom: (showInstallBanner && isMobile) ? "120px" : undefined,
         }}>
 
           {/* DASHBOARD / OVERVIEW */}
@@ -29779,16 +29780,17 @@ export default function App() {
             </div>
           )}
           {activeTab === "dashboard" && summary && (
-            <div className="space-y-6">
-              <div className="grid grid-cols-4 gap-4">
+            <div className="space-y-4 md:space-y-6">
+              {/* Row 1: gauge + stat cards — stacked on mobile, 4-col on desktop */}
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-3 md:gap-4">
                 {/* Risk gauge */}
-                <div className="rounded-2xl border col-span-1"
+                <div className="rounded-2xl border md:col-span-1"
                   style={{ backgroundColor: COLORS.card, borderColor: COLORS.border }}>
                   <RiskGauge risk={summary.overall_risk} color={riskColor} score={riskScore} />
                 </div>
 
-                {/* Stat cards */}
-                <div className="col-span-3 grid grid-cols-3 gap-4">
+                {/* Stat cards — 2-col mobile, 3-col desktop */}
+                <div className="md:col-span-3 grid grid-cols-2 md:grid-cols-3 gap-3 md:gap-4">
                   <StatCard title="Devices Discovered" value={summary.devices}
                     icon={Cpu} color={COLORS.purple} />
                   <StatCard title="Critical Findings" accent={COLORS.critical} value={summary.findings?.critical || 0}
@@ -29804,11 +29806,12 @@ export default function App() {
                 </div>
               </div>
 
-              <div className="grid grid-cols-2 gap-6">
+              {/* Row 2: charts — stacked on mobile, 2-col on desktop */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
                 {/* Pie chart */}
-                <div className="rounded-2xl p-6 border"
+                <div className="rounded-2xl p-4 md:p-6 border"
                   style={{ backgroundColor: COLORS.card, borderColor: COLORS.border }}>
-                  <h3 className="font-bold mb-4 flex items-center gap-2" style={{ color: COLORS.text }}>
+                  <h3 className="font-bold mb-3 md:mb-4 flex items-center gap-2 text-sm md:text-base" style={{ color: COLORS.text }}>
                     <AlertTriangle size={16} style={{ color: COLORS.high }} />
                     Findings by Severity
                   </h3>
@@ -29837,9 +29840,9 @@ export default function App() {
                 </div>
 
                 {/* Modules */}
-                <div className="rounded-2xl p-6 border"
+                <div className="rounded-2xl p-4 md:p-6 border"
                   style={{ backgroundColor: COLORS.card, borderColor: COLORS.border }}>
-                  <h3 className="font-bold mb-4 flex items-center gap-2" style={{ color: COLORS.text }}>
+                  <h3 className="font-bold mb-3 md:mb-4 flex items-center gap-2 text-sm md:text-base" style={{ color: COLORS.text }}>
                     <CheckCircle size={16} style={{ color: COLORS.low }} />
                     Modules Executed
                   </h3>
@@ -29855,15 +29858,16 @@ export default function App() {
                     ].map((m, i) => {
                       const ran = (summary.modules_run || []).some(r => r.includes(m.split(": ")[1]) || m.includes(r));
                       return (
-                        <div key={i} className="flex items-center gap-3 p-3 rounded-xl"
-                          style={{ backgroundColor: COLORS.darker }}>
-                          <CheckCircle size={16} style={{ color: ran ? COLORS.low : COLORS.muted }} />
-                          <span className="text-sm font-medium" style={{ color: ran ? COLORS.text : COLORS.muted }}>{m}</span>
+                        <div key={i} className="flex items-center gap-3 rounded-xl"
+                          style={{ backgroundColor: COLORS.darker, padding: "10px 12px", minHeight: "44px" }}>
+                          <CheckCircle size={16} style={{ color: ran ? COLORS.low : COLORS.muted, flexShrink: 0 }} />
+                          <span className="text-xs md:text-sm font-medium" style={{ color: ran ? COLORS.text : COLORS.muted }}>{m}</span>
                           <span className="ml-auto text-xs px-2 py-0.5 rounded-full"
                             style={{
                               backgroundColor: ran ? COLORS.low + "20" : "rgba(255,255,255,0.03)",
                               color: ran ? COLORS.low : "#334155",
-                              border: ran ? "none" : "1px solid rgba(255,255,255,0.05)"
+                              border: ran ? "none" : "1px solid rgba(255,255,255,0.05)",
+                              flexShrink: 0,
                             }}>
                             {ran ? "DONE" : "NOT DETECTED"}
                           </span>
