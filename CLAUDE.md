@@ -119,6 +119,8 @@ All modules live under `dashboard/backend/<module_name>/` as a Blueprint with `_
 | `code_security` | SAST / code security review |
 | `supplychain` | Supply chain risk analysis |
 | `endpoint_agent` / `agent_monitor` | Endpoint telemetry agent and monitor |
+| `agent_keys` | Per-device non-expiring API key system for agent authentication. Keys bcrypt-hashed at rest, shown once at creation, scoped to "agent" only (cannot hit user endpoints), revocable. 5 REST endpoints under `/api/agent/keys`. `AgentKeysPanel` React component in Settings tab. |
+| `agent_scan_ingest` | POST /api/agent/scan-results accepts nmap XML or structured JSON from authenticated agents. Writes to `real_scan_results` table (same as cloud-side scanner — visible in existing scan UI immediately). Idempotent via agent-provided `scan_id`. Cross-tenant scan_id collision → 403. Emits `scan_completed` to `central_events`. |
 | `runtime_protection` | Runtime application/host protection |
 | `network_exposure` / `netvisualizer` | Network exposure map and visualiser |
 | `digitaltwin` / `digital_twin_v2` | Digital twin modelling |
@@ -157,7 +159,7 @@ All modules live under `dashboard/backend/<module_name>/` as a Blueprint with `_
 
 ## 6. Capability Roadmap — 33 Capabilities
 
-**Current status:** Capabilities 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12 ✅ Complete. 21 remaining (13–32).
+**Current status:** Capabilities 1–12 ✅ Complete + Capability 13 Day 1 ✅ (API keys + scan ingest). 20 capabilities remaining (13 Day 2+, 14–32).
 
 ### Month 1 — Intelligence Core (Capabilities 1–12)
 
@@ -181,9 +183,12 @@ All modules live under `dashboard/backend/<module_name>/` as a Blueprint with `_
 
 ### Month 2 — Deep Scanner + Firmware (Capabilities 13–16)
 
-| # | Capability |
-|---|---|
-| 13 | Firmware analysis engine (binwalk — extract, analyse, find hardcoded passwords) |
+| # | Capability | Status |
+|---|---|---|
+| 13 Day 1 | Agent API keys + scan ingest endpoint | ✅ **COMPLETE** — `agent_keys/` module: `AgentApiKey` model (bcrypt at rest, prefix-indexed, scope=agent, revocable), `generate_api_key()`, `verify_key()`, `agent_key_required()` decorator, 5 endpoints (`/api/agent/keys` CRUD + usage). `agent_scan_ingest/` module: POST `/api/agent/scan-results` accepts nmap XML + structured JSON, writes to `real_scan_results` table, idempotent via scan_id, cross-tenant 403, emits central event. `AgentKeysPanel` React component in Settings tab. aipet_agent.py updated for `--agent-key` mode + `--scan` one-shot. Rate limits: create 5/min, ingest 60/min. 41 backend tests (342 total). |
+| 13 Day 2 | Agent install package + systemd unit | Pending |
+| 13 Day 3 | Windows service + token refresh watchdog | Pending |
+| 14 | Exploit path mapping (attack chain visualisation) | Pending |
 | 14 | Exploit path mapping (attack chain visualisation) |
 | 15 | Real network topology graph (from Nmap data — interactive) |
 | 16 | Shodan API integration (internet exposure check) |
@@ -282,6 +287,7 @@ Gmail SMTP, Sentry DSN, and UptimeRobot tracking moved to the **Pre-Launch Block
 - **Risk score engine** (`risk_engine/`) — formula constants at module level in `engine.py`, reviewable without reading computation logic: `SEVERITY_POINTS = {critical:60, high:35, medium:15, low:8, info:2}`, `SOURCE_MULTIPLIERS = {ml_anomaly:1.0, live_cves:1.2, threatintel:1.1, behavioral:0.9, mitre_attack:0.7, real_scanner:0.8, redteam:1.0, defense:0.6, auth:0.6, siem:0.7, multicloud:0.9, otics:1.0, zerotrust:0.9, identity_guardian:1.0, digitaltwin:0.5}`, `HALF_LIFE_HOURS=8`, `LOOKBACK_HOURS=24`. Capability 8 queries `device_risk_scores` via `filter(user_id==uid, score>=threshold)` using the `ix_device_risk_user_score` composite index.
 - **Automated response** (`automated_response/`) — runs inside `recompute_device_risk_scores` Celery task after scores refresh. Per-entity cooldown tracked in `response_history.fired_at` (NOT `DefensePlaybook.last_triggered` — that stays for the manual path). Default thresholds seeded lazily (idempotent) on first API call. `send_alert` action now calls `settings.send_slack_alert()` + `send_teams_alert()` when webhooks configured; failure is non-fatal (logged, slack_sent=False, status still "executed"). `_execute_action` now returns 3-tuple `(log, siem_ev, notif_meta)` — existing manual callers use `_`.
 - **Central event pipeline** (`central_events/`) — synchronous `emit_event()` call inserted after each module commits its domain row. Failures are always silent (try/except + rollback in adapter; belt-and-suspenders try/except at each call site). Every event carries `user_id` for per-user scoping. 8 modules dual-write (siem_events + central_events); refactor to single-source is a future task. Cycle prevention in siem/ingest: if incoming event has `node_meta.from_central_emit=True`, the emit is skipped to break re-ingest loops. The `_execute_action` helper in defense returns `(log, Optional[SiemEvent])`; `_ingest_siem_zt` in zerotrust returns `Optional[SiemEvent]` — callers emit after their respective commits.
+- **Agent authentication model** — two paths: (1) JWT (`Authorization: Bearer`) for human users — 15-min expiry, returned by `/api/auth/login`; (2) Agent keys (`X-Agent-Key`) for device agents — non-expiring, bcrypt-hashed at rest, scope=`agent` (cannot access user endpoints). Agent key routes are under `agent_keys_bp` at `/api/agent/keys`. The `agent_key_required()` decorator in `dashboard/backend/agent_keys/auth.py` mirrors `@jwt_required` but reads `X-Agent-Key` header, verifies via bcrypt against prefix-indexed DB rows, and populates `g.current_agent_key` + `g.current_user_id`. Agent scan ingest is idempotent: `agent_scan_submissions` table tracks `(user_id, scan_id)` unique pairs to prevent duplicates. Cross-tenant collision (scan_id owned by another user) → 403.
 - **Gunicorn** serves Flask in production (`gunicorn_config.py`)
 - **Nginx** reverse-proxies to Gunicorn (port 5001) and serves the React build
 - **PWA stack** (Capability 12) — `public/manifest.json` (8 icons, 3 shortcuts, categories), `public/sw.js` v4.0.0 (install/activate/fetch/push/notificationclick lifecycle), SW registered in `public/index.html`. VAPID keys in `.env` (VAPID_PRIVATE_KEY, VAPID_PUBLIC_KEY, VAPID_SUBJECT). `push_notifications/dispatcher.py` imports `webpush` at module level (patchable). Tier 1 scope: emergency ≥95 only — notify/high_alert do NOT trigger push. Mobile responsive pass applied to 5 panels (Risk Score, Events Feed, Ask AIPET, Automated Response, AnomalyResultCard) + hamburger nav; other panels deferred to Polish Pass 1.

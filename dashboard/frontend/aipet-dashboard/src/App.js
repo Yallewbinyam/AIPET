@@ -44,7 +44,7 @@ import {
   Wifi, Globe, FileText, Zap, Eye,
   TrendingUp, AlertOctagon, Info, CreditCard,
   Star, Check, X, Settings,
-  GitBranch, Users, Crosshair, Gauge } from "lucide-react";
+  GitBranch, Users, Crosshair, Gauge, Key } from "lucide-react";
 
 const API      = "http://localhost:5001/api";
 const AUTH_API = "http://localhost:5001/api/auth";
@@ -28898,6 +28898,226 @@ function AgentMonitorPage({ token, showToast }) {
 }
 
 
+// ── Agent Keys Panel (Capability 13) ─────────────────────────────────────────
+function AgentKeysPanel({ token }) {
+  const [keys,        setKeys]        = useState([]);
+  const [loading,     setLoading]     = useState(true);
+  const [showModal,   setShowModal]   = useState(false);
+  const [label,       setLabel]       = useState("");
+  const [permissions, setPermissions] = useState(["scan:write", "telemetry:write"]);
+  const [creating,    setCreating]    = useState(false);
+  const [revealedKey, setRevealedKey] = useState(null);
+  const [copied,      setCopied]      = useState(false);
+  const [error,       setError]       = useState("");
+
+  const fetchKeys = async () => {
+    setLoading(true);
+    try {
+      const r = await axios.get(`${API}/agent/keys`, {
+        headers: { Authorization: `Bearer ${token}` }
+      });
+      setKeys(r.data.keys || []);
+    } catch (e) {
+      setError(e.response?.data?.error || "Failed to load agent keys.");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => { fetchKeys(); }, []);
+
+  const createKey = async () => {
+    if (!label.trim()) { setError("Label is required."); return; }
+    setCreating(true);
+    setError("");
+    try {
+      const r = await axios.post(`${API}/agent/keys`,
+        { label: label.trim(), permissions },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      setRevealedKey(r.data.full_key);
+      setLabel("");
+      setPermissions(["scan:write", "telemetry:write"]);
+      setShowModal(false);
+      fetchKeys();
+    } catch (e) {
+      setError(e.response?.data?.error || "Failed to create agent key.");
+    } finally {
+      setCreating(false);
+    }
+  };
+
+  const revokeKey = async (keyId, keyLabel) => {
+    if (!window.confirm(`Revoke agent key "${keyLabel}"? The agent using this key will immediately get 401 errors.`)) return;
+    try {
+      await axios.put(`${API}/agent/keys/${keyId}/revoke`,
+        { reason: "Revoked via dashboard" },
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      fetchKeys();
+    } catch (e) {
+      setError("Failed to revoke key.");
+    }
+  };
+
+  const togglePermission = (perm) => {
+    setPermissions(prev =>
+      prev.includes(perm) ? prev.filter(p => p !== perm) : [...prev, perm]
+    );
+  };
+
+  const copyKey = () => {
+    if (revealedKey) {
+      navigator.clipboard.writeText(revealedKey).then(() => {
+        setCopied(true);
+        setTimeout(() => setCopied(false), 2000);
+      });
+    }
+  };
+
+  return (
+    <div style={{ marginBottom: "24px" }}>
+      <div className="rounded-2xl border p-6"
+        style={{ backgroundColor: COLORS.card, borderColor: COLORS.border }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: "16px" }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "10px" }}>
+            <Key size={20} style={{ color: COLORS.purple }} />
+            <h3 style={{ color: COLORS.text, fontSize: "16px", fontWeight: "800", margin: 0 }}>Agent API Keys</h3>
+          </div>
+          <button
+            onClick={() => { setShowModal(true); setError(""); }}
+            style={{ backgroundColor: COLORS.purple, color: "white", border: "none", borderRadius: "10px", padding: "8px 16px", fontSize: "13px", fontWeight: "700", cursor: "pointer" }}>
+            + New Agent Key
+          </button>
+        </div>
+        <p style={{ color: COLORS.muted, fontSize: "13px", margin: "0 0 16px" }}>
+          Non-expiring keys for device agents. The full key is shown once at creation — save it immediately. Scope: agent only (cannot access user endpoints).
+        </p>
+
+        {/* Revealed key — shown once */}
+        {revealedKey && (
+          <div style={{ marginBottom: "16px", backgroundColor: COLORS.low + "12", border: `1px solid ${COLORS.low}40`, borderRadius: "12px", padding: "14px" }}>
+            <div style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "8px" }}>
+              <CheckCircle size={15} style={{ color: COLORS.low }} />
+              <span style={{ color: COLORS.low, fontSize: "13px", fontWeight: "700" }}>Key created — copy it now. This is the ONLY time it will be shown.</span>
+            </div>
+            <div style={{ fontFamily: "JetBrains Mono, monospace", fontSize: "11px", color: COLORS.text, backgroundColor: COLORS.darker, borderRadius: "8px", padding: "10px", wordBreak: "break-all" }}>
+              {revealedKey}
+            </div>
+            <div style={{ display: "flex", gap: "8px", marginTop: "8px" }}>
+              <button onClick={copyKey}
+                style={{ backgroundColor: copied ? COLORS.low + "30" : COLORS.border, color: copied ? COLORS.low : COLORS.text, border: "none", borderRadius: "8px", padding: "6px 12px", fontSize: "12px", fontWeight: "600", cursor: "pointer" }}>
+                {copied ? "Copied!" : "Copy Key"}
+              </button>
+              <button onClick={() => setRevealedKey(null)}
+                style={{ backgroundColor: "transparent", color: COLORS.muted, border: `1px solid ${COLORS.border}`, borderRadius: "8px", padding: "6px 12px", fontSize: "12px", cursor: "pointer" }}>
+                I saved it
+              </button>
+            </div>
+          </div>
+        )}
+
+        {error && (
+          <div style={{ color: COLORS.critical, fontSize: "13px", marginBottom: "12px" }}>{error}</div>
+        )}
+
+        {/* Keys table */}
+        {loading ? (
+          <div style={{ color: COLORS.muted, fontSize: "13px" }}>Loading keys…</div>
+        ) : keys.length === 0 ? (
+          <div style={{ color: COLORS.muted, fontSize: "13px", textAlign: "center", padding: "24px 0" }}>
+            No agent keys yet. Create one to authenticate your device agents.
+          </div>
+        ) : (
+          <div style={{ overflowX: "auto" }}>
+            <table style={{ width: "100%", borderCollapse: "collapse", fontSize: "13px" }}>
+              <thead>
+                <tr style={{ borderBottom: `1px solid ${COLORS.border}` }}>
+                  {["Label", "Prefix", "Permissions", "Status", "Last Used", "Uses", ""].map(h => (
+                    <th key={h} style={{ color: COLORS.muted, fontWeight: "600", padding: "8px 10px", textAlign: "left" }}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {keys.map(k => (
+                  <tr key={k.id} style={{ borderBottom: `1px solid ${COLORS.border}20` }}>
+                    <td style={{ color: COLORS.text, padding: "8px 10px", fontWeight: "600" }}>{k.label}</td>
+                    <td style={{ color: COLORS.muted, padding: "8px 10px", fontFamily: "JetBrains Mono, monospace", fontSize: "11px" }}>{k.key_prefix}…</td>
+                    <td style={{ color: COLORS.muted, padding: "8px 10px", fontSize: "11px" }}>{(k.permissions || []).join(", ")}</td>
+                    <td style={{ padding: "8px 10px" }}>
+                      <span style={{ backgroundColor: k.enabled ? COLORS.low + "20" : COLORS.critical + "20", color: k.enabled ? COLORS.low : COLORS.critical, borderRadius: "6px", padding: "2px 8px", fontSize: "11px", fontWeight: "700" }}>
+                        {k.enabled ? "Active" : "Revoked"}
+                      </span>
+                    </td>
+                    <td style={{ color: COLORS.muted, padding: "8px 10px", fontSize: "11px" }}>
+                      {k.last_used_at ? new Date(k.last_used_at).toLocaleDateString() : "Never"}
+                    </td>
+                    <td style={{ color: COLORS.muted, padding: "8px 10px" }}>{k.use_count || 0}</td>
+                    <td style={{ padding: "8px 10px" }}>
+                      {k.enabled && (
+                        <button onClick={() => revokeKey(k.id, k.label)}
+                          style={{ backgroundColor: COLORS.critical + "20", color: COLORS.critical, border: "none", borderRadius: "6px", padding: "4px 10px", fontSize: "11px", fontWeight: "600", cursor: "pointer" }}>
+                          Revoke
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      {/* Create Key Modal */}
+      {showModal && (
+        <div style={{ position: "fixed", inset: 0, backgroundColor: "rgba(0,0,0,0.6)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 1000 }}>
+          <div style={{ backgroundColor: COLORS.card, border: `1px solid ${COLORS.border}`, borderRadius: "16px", padding: "28px", width: "min(480px, 92vw)" }}>
+            <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "20px" }}>
+              <h4 style={{ color: COLORS.text, fontWeight: "800", fontSize: "16px", margin: 0 }}>Create Agent Key</h4>
+              <button onClick={() => setShowModal(false)}
+                style={{ background: "none", border: "none", color: COLORS.muted, cursor: "pointer" }}>
+                <X size={18} />
+              </button>
+            </div>
+
+            <label style={{ color: COLORS.muted, fontSize: "12px", fontWeight: "600", display: "block", marginBottom: "6px" }}>Label</label>
+            <input
+              value={label}
+              onChange={e => setLabel(e.target.value)}
+              placeholder="e.g. Server room agent, Hospital sensor"
+              style={{ width: "100%", backgroundColor: COLORS.darker, border: `1px solid ${COLORS.border}`, borderRadius: "10px", padding: "10px 12px", color: COLORS.text, fontSize: "13px", marginBottom: "16px", boxSizing: "border-box" }}
+            />
+
+            <label style={{ color: COLORS.muted, fontSize: "12px", fontWeight: "600", display: "block", marginBottom: "8px" }}>Permissions</label>
+            {["scan:write", "telemetry:write"].map(perm => (
+              <label key={perm} style={{ display: "flex", alignItems: "center", gap: "8px", marginBottom: "8px", cursor: "pointer" }}>
+                <input type="checkbox" checked={permissions.includes(perm)} onChange={() => togglePermission(perm)}
+                  style={{ accentColor: COLORS.purple }} />
+                <span style={{ color: COLORS.text, fontSize: "13px" }}>{perm}</span>
+              </label>
+            ))}
+
+            {error && <div style={{ color: COLORS.critical, fontSize: "12px", marginBottom: "12px" }}>{error}</div>}
+
+            <div style={{ display: "flex", gap: "10px", marginTop: "20px" }}>
+              <button onClick={createKey} disabled={creating}
+                style={{ flex: 1, backgroundColor: creating ? COLORS.border : COLORS.purple, color: "white", border: "none", borderRadius: "10px", padding: "10px", fontSize: "13px", fontWeight: "700", cursor: creating ? "not-allowed" : "pointer" }}>
+                {creating ? "Creating…" : "Create Key"}
+              </button>
+              <button onClick={() => setShowModal(false)}
+                style={{ flex: 1, backgroundColor: "transparent", color: COLORS.muted, border: `1px solid ${COLORS.border}`, borderRadius: "10px", padding: "10px", fontSize: "13px", cursor: "pointer" }}>
+                Cancel
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+
 // ── Push Notifications Settings Panel (Capability 12) ────────────────────────
 function PushNotificationPanel({ token }) {
   const [permission,     setPermission]     = useState(getCurrentPermission());
@@ -30332,6 +30552,7 @@ export default function App() {
           {/* API KEYS */}
           {activeTab === "settings" && (
             <div>
+              <AgentKeysPanel token={token} />
               <PushNotificationPanel token={token} />
               <SettingsPage token={token} showToast={showToast} />
             </div>

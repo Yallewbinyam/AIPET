@@ -162,6 +162,8 @@ from dashboard.backend.automated_response.models import ResponseThreshold, Respo
 from dashboard.backend.risk_forecast.routes import risk_forecast_bp
 from dashboard.backend.risk_forecast.models import DeviceRiskScoreHistory, ForecastAlert
 from dashboard.backend.agent_monitor.routes import agent_monitor_bp
+from dashboard.backend.agent_keys.routes import agent_keys_bp
+from dashboard.backend.agent_scan_ingest.routes import agent_scan_ingest_bp
 from dashboard.backend.push_notifications.routes import push_bp
 from dashboard.backend.push_notifications.models import PushSubscription
 from dashboard.backend.ml_anomaly.routes import ml_anomaly_bp
@@ -369,6 +371,8 @@ def create_app(config_name="development"):
     app.register_blueprint(automated_response_bp)
     app.register_blueprint(risk_forecast_bp)
     app.register_blueprint(agent_monitor_bp)
+    app.register_blueprint(agent_keys_bp, url_prefix="/api/agent/keys")
+    app.register_blueprint(agent_scan_ingest_bp)
     app.register_blueprint(push_bp)
     app.register_blueprint(api_keys_bp, url_prefix='/api/keys')
     app.register_blueprint(ml_anomaly_bp)
@@ -455,6 +459,18 @@ def create_app(config_name="development"):
     if _push_test_fn:
         _push_test_fn = limiter.limit("5 per minute")(_push_test_fn)
         app.view_functions["push_notifications.test_push"] = _push_test_fn
+
+    # /api/agent/keys POST (create) — cap to 5/minute to prevent key-farming.
+    _agent_key_create_fn = app.view_functions.get("agent_keys.create_agent_key")
+    if _agent_key_create_fn:
+        _agent_key_create_fn = limiter.limit("5 per minute")(_agent_key_create_fn)
+        app.view_functions["agent_keys.create_agent_key"] = _agent_key_create_fn
+
+    # /api/agent/scan-results — agents upload scans; 60/minute per agent key is generous.
+    _scan_ingest_fn = app.view_functions.get("agent_scan_ingest.ingest_scan")
+    if _scan_ingest_fn:
+        _scan_ingest_fn = limiter.limit("60 per minute")(_scan_ingest_fn)
+        app.view_functions["agent_scan_ingest.ingest_scan"] = _scan_ingest_fn
 
     # Setup logging
     setup_logging(
