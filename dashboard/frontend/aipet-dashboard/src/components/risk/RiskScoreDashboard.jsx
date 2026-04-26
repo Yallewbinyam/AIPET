@@ -50,9 +50,9 @@ export default function RiskScoreDashboard({ token }) {
   };
 
   return (
-    <div style={{ padding: 24, maxWidth: 1100, margin: "0 auto" }}>
+    <div style={{ padding: "clamp(12px, 3vw, 24px)", maxWidth: 1100, margin: "0 auto" }}>
       {/* Header */}
-      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 20 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 20, flexWrap: "wrap" }}>
         <Gauge size={22} color="#00d4ff" />
         <span style={{ color: C.text, fontWeight: 700, fontSize: 18 }}>
           Device Risk Score Dashboard

@@ -142,6 +142,7 @@ def fire_response(
         "actions_executed":  [],
         "slack_sent":        False,
         "teams_sent":        False,
+        "web_push_sent":     False,
         "central_event_id":  None,
         "error":             None,
     }
@@ -202,6 +203,27 @@ def fire_response(
 
         db.session.commit()
 
+        # Tier 1 web push: emergency threshold only (score >= 95)
+        web_push_sent = False
+        if threshold.name == "emergency":
+            try:
+                from dashboard.backend.push_notifications.dispatcher import send_web_push
+                push_result = send_web_push(
+                    user_id  = user_id,
+                    title    = f"AIPET X Emergency: {entity}",
+                    body     = (
+                        f"Risk score {score} crossed emergency threshold. "
+                        f"Actions: {', '.join(a['action'] for a in executed_actions)}"
+                    ),
+                    severity = "critical",
+                    tag      = f"emergency-{entity}",
+                    url      = "/",
+                )
+                web_push_sent = push_result.get("succeeded", 0) > 0
+            except Exception:
+                _LOG.exception("fire_response: web push dispatch failed (non-fatal) entity=%s", entity)
+                web_push_sent = False
+
         # Insert ResponseHistory
         hist = ResponseHistory(
             user_id             = user_id,
@@ -218,6 +240,7 @@ def fire_response(
             teams_sent          = teams_sent,
             notification_error  = notif_error,
             fired_at            = now,
+            node_meta           = {"web_push_sent": web_push_sent},
         )
         db.session.add(hist)
         db.session.flush()
@@ -262,6 +285,7 @@ def fire_response(
             "actions_executed": executed_actions,
             "slack_sent":       slack_sent,
             "teams_sent":       teams_sent,
+            "web_push_sent":    web_push_sent,
             "central_event_id": central_ev_id,
         })
         _LOG.info(

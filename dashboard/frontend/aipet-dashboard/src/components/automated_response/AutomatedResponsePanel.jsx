@@ -16,6 +16,13 @@ export default function AutomatedResponsePanel({ token }) {
   const [loading,    setLoading]    = useState(true);
   const [checking,   setChecking]   = useState(false);
   const [error,      setError]      = useState(null);
+  const [mobile,     setMobile]     = useState(() => window.innerWidth < 768);
+
+  React.useEffect(() => {
+    const fn = () => setMobile(window.innerWidth < 768);
+    window.addEventListener("resize", fn);
+    return () => window.removeEventListener("resize", fn);
+  }, []);
 
   const load = useCallback(async () => {
     if (!token) return;
@@ -46,8 +53,9 @@ export default function AutomatedResponsePanel({ token }) {
   };
 
   return (
-    <div style={{ padding: 24, maxWidth: 1100, margin: "0 auto" }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 20 }}>
+    <div style={{ padding: "clamp(12px, 3vw, 24px)", maxWidth: 1100, margin: "0 auto" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 20,
+        flexWrap: "wrap" }}>
         <Zap size={22} color="#f5c518" />
         <span style={{ color: C.text, fontWeight: 700, fontSize: 18 }}>
           Automated Response

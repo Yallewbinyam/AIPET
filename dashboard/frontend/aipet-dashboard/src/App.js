@@ -11,6 +11,11 @@ import EventsFeedPanel      from "./components/events/EventsFeedPanel";
 import RiskScoreDashboard       from "./components/risk/RiskScoreDashboard";
 import AutomatedResponsePanel   from "./components/automated_response/AutomatedResponsePanel";
 import RiskForecastPanel        from "./components/forecast/RiskForecastPanel";
+import {
+  isPushSupported, getCurrentPermission,
+  requestPermissionAndSubscribe, sendTestPush,
+  listSubscriptions, disableSubscription,
+} from "./pwa/pushNotifications";
 import * as d3 from "d3";
 // Load JetBrains Mono font for technical aesthetic
 const fontLink = document.createElement("link");
@@ -610,7 +615,7 @@ function AskPanel({ token }) {
           <div className="text-xs font-bold uppercase tracking-widest mb-3" style={{ color: COLORS.cyan, opacity: 0.7, fontFamily: "'JetBrains Mono', monospace" }}>
             Suggested Questions
           </div>
-          <div className="grid grid-cols-2 gap-2">
+          <div className="grid gap-2" style={{ gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))" }}>
             {SUGGESTED_QUESTIONS.map((q, i) => (
               <button key={i} onClick={() => sendQuestion(q)}
                 className="text-left px-4 py-3 rounded-lg text-xs transition-all"
@@ -619,6 +624,7 @@ function AskPanel({ token }) {
                   color: COLORS.text,
                   border: `1px solid ${COLORS.border}`,
                   lineHeight: "1.5",
+                  minHeight: "44px",
                 }}
                 onMouseEnter={e => {
                   e.currentTarget.style.borderColor = COLORS.cyan + "60";
@@ -644,9 +650,8 @@ function AskPanel({ token }) {
           <div className="p-4 space-y-4 max-h-96 overflow-y-auto">
             {messages.map((msg, i) => (
               <div key={i} className={`flex ${msg.role === "user" ? "justify-end" : "justify-start"}`}>
-                <div className={`max-w-3xl rounded-xl p-3 text-xs leading-relaxed ${
-                  msg.role === "user" ? "ml-8" : "mr-8"
-                }`}
+                <div className={`max-w-3xl rounded-xl p-3 text-xs leading-relaxed`}
+                  style={{ maxWidth: "min(48rem, 90vw)" }}
                   style={{
                     backgroundColor: msg.role === "user"
                       ? COLORS.blue + "20"
@@ -28893,30 +28898,192 @@ function AgentMonitorPage({ token, showToast }) {
 }
 
 
+// ── Push Notifications Settings Panel (Capability 12) ────────────────────────
+function PushNotificationPanel({ token }) {
+  const [permission,     setPermission]     = useState(getCurrentPermission());
+  const [subscriptions,  setSubscriptions]  = useState([]);
+  const [loading,        setLoading]        = useState(false);
+  const [testLoading,    setTestLoading]    = useState(false);
+  const [message,        setMessage]        = useState(null);
+
+  const supported = isPushSupported();
+
+  const loadSubs = useCallback(async () => {
+    if (!token) return;
+    const subs = await listSubscriptions(token);
+    setSubscriptions(subs);
+  }, [token]);
+
+  useEffect(() => { loadSubs(); }, [loadSubs]);
+
+  const handleEnable = async () => {
+    setLoading(true);
+    setMessage(null);
+    const result = await requestPermissionAndSubscribe(token);
+    setPermission(getCurrentPermission());
+    if (result.ok) {
+      setMessage({ type: "success", text: "Push notifications enabled. You will receive emergency alerts on this device." });
+      await loadSubs();
+    } else {
+      const msgs = {
+        permission_denied:         "Notification permission denied. Enable it in your browser settings.",
+        not_supported:             "Push notifications not supported in this browser.",
+        vapid_key_fetch_failed:    "Could not fetch server key. Is the backend running?",
+        subscribe_failed:          "Browser subscription failed. Try again.",
+        backend_subscribe_failed:  "Could not register with server. Try again.",
+      };
+      setMessage({ type: "error", text: msgs[result.reason] || "Subscription failed." });
+    }
+    setLoading(false);
+  };
+
+  const handleTest = async () => {
+    setTestLoading(true);
+    setMessage(null);
+    const result = await sendTestPush(token);
+    if (result.sent > 0) {
+      setMessage({ type: "success", text: `Test notification sent to ${result.sent} device(s).` });
+    } else {
+      setMessage({ type: "error", text: "No active subscriptions — enable notifications first." });
+    }
+    setTestLoading(false);
+  };
+
+  const handleDisable = async (endpoint) => {
+    await disableSubscription(token, endpoint);
+    await loadSubs();
+    setMessage({ type: "success", text: "Subscription removed." });
+  };
+
+  const C = { border: "#21262d", text: "#e6edf3", muted: "#7d8590", card: "#0d1117" };
+
+  return (
+    <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 8, padding: 20, marginBottom: 20 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 16 }}>
+        <span style={{ fontSize: 16 }}>🔔</span>
+        <span style={{ color: C.text, fontWeight: 700, fontSize: 15 }}>Push Notifications</span>
+        <span style={{ color: C.muted, fontSize: 11, marginLeft: 4 }}>Emergency alerts — score ≥ 95</span>
+      </div>
+
+      {!supported && (
+        <div style={{ color: "#f59e0b", fontSize: 12, marginBottom: 12 }}>
+          Push notifications are not supported in this browser. Try Chrome on Android or Safari 16.4+ on iOS.
+        </div>
+      )}
+
+      {message && (
+        <div style={{ fontSize: 12, padding: "8px 12px", borderRadius: 6, marginBottom: 12,
+          background: message.type === "success" ? "#00ff8820" : "#ff444420",
+          border: `1px solid ${message.type === "success" ? "#00ff8840" : "#ff444440"}`,
+          color: message.type === "success" ? "#00ff88" : "#ff8888" }}>
+          {message.text}
+        </div>
+      )}
+
+      <div style={{ display: "flex", gap: 10, marginBottom: 16, flexWrap: "wrap" }}>
+        {supported && permission !== "granted" && (
+          <button onClick={handleEnable} disabled={loading}
+            style={{ padding: "9px 18px", borderRadius: 7, border: "none", cursor: "pointer",
+              background: "linear-gradient(135deg,#00e5ff,#0099ff)", color: "#000",
+              fontSize: 13, fontWeight: 700, minHeight: 44 }}>
+            {loading ? "Enabling…" : "Enable push notifications"}
+          </button>
+        )}
+        {permission === "granted" && subscriptions.length === 0 && (
+          <button onClick={handleEnable} disabled={loading}
+            style={{ padding: "9px 18px", borderRadius: 7, border: "none", cursor: "pointer",
+              background: "linear-gradient(135deg,#00e5ff,#0099ff)", color: "#000",
+              fontSize: 13, fontWeight: 700, minHeight: 44 }}>
+            {loading ? "Subscribing…" : "Subscribe this device"}
+          </button>
+        )}
+        {subscriptions.length > 0 && (
+          <button onClick={handleTest} disabled={testLoading}
+            style={{ padding: "9px 18px", borderRadius: 7, border: `1px solid ${C.border}`,
+              cursor: "pointer", background: "transparent", color: "#00e5ff",
+              fontSize: 13, fontWeight: 600, minHeight: 44 }}>
+            {testLoading ? "Sending…" : "Send test notification"}
+          </button>
+        )}
+      </div>
+
+      {subscriptions.length > 0 && (
+        <div>
+          <div style={{ color: C.muted, fontSize: 10, fontWeight: 700, textTransform: "uppercase",
+            letterSpacing: "0.1em", marginBottom: 8 }}>
+            Active devices
+          </div>
+          {subscriptions.map(sub => (
+            <div key={sub.id} style={{ display: "flex", alignItems: "center", gap: 10,
+              padding: "8px 0", borderBottom: `1px solid ${C.border}20` }}>
+              <span style={{ color: C.text, fontSize: 12, flex: 1 }}>
+                {sub.device_label || "Browser"}
+              </span>
+              <span style={{ color: C.muted, fontSize: 10 }}>
+                {sub.last_sent_at ? `Last notified ${new Date(sub.last_sent_at).toLocaleDateString()}` : "Not yet notified"}
+              </span>
+              <button onClick={() => handleDisable(sub.endpoint)}
+                style={{ background: "none", border: `1px solid #ff444440`, borderRadius: 5,
+                  color: "#ff8888", fontSize: 10, cursor: "pointer", padding: "3px 8px" }}>
+                Remove
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      <div style={{ color: C.muted, fontSize: 10, marginTop: 12, lineHeight: 1.6 }}>
+        Only <strong style={{ color: "#ff4444" }}>emergency</strong> threshold alerts (risk score ≥ 95) trigger push notifications.
+        Notify and High Alert thresholds are Slack/Teams only.
+      </div>
+    </div>
+  );
+}
+
 export default function App() {
-  // PWA install prompt
+  // ── PWA install prompt ───────────────────────────────────────────────────
+  const _isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
+  const _isStandalone = window.matchMedia("(display-mode: standalone)").matches
+    || window.navigator.standalone === true;
+
   const [installPrompt, setInstallPrompt] = useState(null);
-  const [showInstallBanner, setShowInstallBanner] = useState(false);
+  const [showInstallBanner, setShowInstallBanner] = useState(
+    () => !localStorage.getItem("aipet_install_dismissed") && !_isStandalone
+  );
 
   useEffect(() => {
+    if (_isIOS || _isStandalone) return;
     const handler = (e) => {
       e.preventDefault();
       setInstallPrompt(e);
-      setShowInstallBanner(true);
     };
-    window.addEventListener('beforeinstallprompt', handler);
-    return () => window.removeEventListener('beforeinstallprompt', handler);
+    window.addEventListener("beforeinstallprompt", handler);
+    return () => window.removeEventListener("beforeinstallprompt", handler);
   }, []);
 
   const handleInstallApp = async () => {
     if (!installPrompt) return;
     installPrompt.prompt();
     const { outcome } = await installPrompt.userChoice;
-    if (outcome === 'accepted') {
-      setShowInstallBanner(false);
-      setInstallPrompt(null);
+    if (outcome === "accepted") {
+      _dismissInstallBanner();
     }
   };
+
+  const _dismissInstallBanner = () => {
+    setShowInstallBanner(false);
+    localStorage.setItem("aipet_install_dismissed", "1");
+  };
+
+  // ── Mobile sidebar state ─────────────────────────────────────────────────
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [isMobile, setIsMobile] = useState(() => window.innerWidth < 768);
+
+  useEffect(() => {
+    const onResize = () => setIsMobile(window.innerWidth < 768);
+    window.addEventListener("resize", onResize);
+    return () => window.removeEventListener("resize", onResize);
+  }, []);
   const [data,       setData]       = useState({});
   const [activeTab,  setActiveTab]  = useState("dashboard");
   const [collapsedGroups, setCollapsedGroups] = useState({});
@@ -29165,8 +29332,14 @@ export default function App() {
         zIndex: 0,
       }} />
 
+      {/* Mobile overlay backdrop */}
+      {isMobile && sidebarOpen && (
+        <div onClick={() => setSidebarOpen(false)}
+          style={{ position: "fixed", inset: 0, background: "rgba(0,0,0,0.6)", zIndex: 99 }} />
+      )}
+
       {/* Sidebar */}
-      <div style={{
+      <div className={"aipet-sidebar" + (sidebarOpen ? " open" : "")} style={{
         width: "240px",
         minWidth: "240px",
         backgroundColor: "#0a0f1a",
@@ -29174,7 +29347,7 @@ export default function App() {
         display: "flex",
         flexDirection: "column",
         position: "relative",
-        zIndex: 10,
+        zIndex: 100,
       }}>
 
         {/* Logo */}
@@ -29190,7 +29363,7 @@ export default function App() {
             }}>
               <Shield size={18} color="#00e5ff" />
             </div>
-            <div>
+            <div style={{ flex: 1 }}>
               <div style={{
                 fontFamily: "'JetBrains Mono', monospace",
                 fontWeight: 900,
@@ -29205,6 +29378,13 @@ export default function App() {
                 letterSpacing: "0.05em",
               }}>IoT Security Platform</div>
             </div>
+            {isMobile && (
+              <button onClick={() => setSidebarOpen(false)}
+                style={{ background: "none", border: "none", cursor: "pointer",
+                  color: "#64748b", fontSize: "20px", padding: "4px", lineHeight: 1 }}>
+                ×
+              </button>
+            )}
           </div>
         </div>
 
@@ -29278,7 +29458,7 @@ export default function App() {
               ) : matched.map(({ id, label, icon: Icon }) => {
                 const active = activeTab === id;
                 return (
-                  <button key={id} onClick={() => { setActiveTab(id); setNavSearch(""); }}
+                  <button key={id} onClick={() => { setActiveTab(id); setNavSearch(""); if (isMobile) setSidebarOpen(false); }}
                     style={{
                       width: "100%", display: "flex", alignItems: "center", gap: "10px",
                       padding: "8px 10px", borderRadius: "8px", border: "none", cursor: "pointer",
@@ -29340,7 +29520,7 @@ export default function App() {
                   const active = activeTab === id;
                   return (
                     <button key={id}
-                      onClick={() => setActiveTab(id)}
+                      onClick={() => { setActiveTab(id); if (isMobile) setSidebarOpen(false); }}
                       style={{
                         width: "100%",
                         display: "flex", alignItems: "center", gap: "10px",
@@ -29461,7 +29641,7 @@ export default function App() {
       <div style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "auto", position: "relative", zIndex: 10 }}>
 
         {/* Top header */}
-        <div style={{
+        <div className="aipet-top-header" style={{
           padding: "0 32px",
           height: "60px",
           minHeight: "60px",
@@ -29471,6 +29651,21 @@ export default function App() {
           backdropFilter: "blur(20px)",
           position: "sticky", top: 0, zIndex: 20,
         }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "12px" }}>
+            {/* Hamburger — shown only on mobile */}
+            {isMobile && (
+              <button onClick={() => setSidebarOpen(true)}
+                style={{ background: "none", border: "1px solid #1e2d3d", borderRadius: "8px",
+                  cursor: "pointer", color: "#64748b", padding: "6px 8px",
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  minWidth: "44px", minHeight: "44px" }}>
+                <svg width="18" height="14" viewBox="0 0 18 14" fill="none">
+                  <rect y="0"  width="18" height="2" rx="1" fill="#94a3b8"/>
+                  <rect y="6"  width="18" height="2" rx="1" fill="#94a3b8"/>
+                  <rect y="12" width="18" height="2" rx="1" fill="#94a3b8"/>
+                </svg>
+              </button>
+            )}
           <div>
             <h1 style={{
               fontSize: "16px",
@@ -29484,6 +29679,7 @@ export default function App() {
             <p style={{ fontSize: "11px", color: "#64748b", margin: 0, marginTop: "2px" }}>
               {summary?.last_scan ? `Last scan: ${summary.last_scan}` : "No scans yet — run a scan to begin"}
             </p>
+          </div>
           </div>
 
           {/* Header right — risk indicator + plan + user */}
@@ -29553,7 +29749,7 @@ export default function App() {
         </div>
 
         {/* Page content */}
-        <div style={{
+        <div className="aipet-content-pad" style={{
           flex: 1,
           overflowY: "auto",
           padding: "28px 32px",
@@ -30131,7 +30327,10 @@ export default function App() {
 
           {/* API KEYS */}
           {activeTab === "settings" && (
-            <SettingsPage token={token} showToast={showToast} />
+            <div>
+              <PushNotificationPanel token={token} />
+              <SettingsPage token={token} showToast={showToast} />
+            </div>
           )}
           {activeTab === "apikeys" && (
             <ApiKeysPage
@@ -30145,8 +30344,8 @@ export default function App() {
       {showScan && <ScanModal onClose={() => setShowScan(false)} onScan={startScan} scanning={scanning} />}
       <Toast toast={toast} />
 
-      {/* PWA Install Banner */}
-      {showInstallBanner && (
+      {/* PWA Install Banner — Android/Chrome: show native install prompt */}
+      {showInstallBanner && !_isIOS && installPrompt && (
         <div style={{
           position: "fixed", top: "16px", left: "50%",
           transform: "translateX(-50%)", zIndex: 99999,
@@ -30159,11 +30358,9 @@ export default function App() {
           maxWidth: "420px", width: "calc(100% - 32px)",
         }}>
           <img src="/icons/icon-96.png" alt="AIPET X"
-            style={{ width: "40px", height: "40px",
-              borderRadius: "10px" }} />
+            style={{ width: "40px", height: "40px", borderRadius: "10px" }} />
           <div style={{ flex: 1 }}>
-            <div style={{ fontSize: "13px", fontWeight: "700",
-              color: "#e2e8f0", marginBottom: "2px" }}>
+            <div style={{ fontSize: "13px", fontWeight: "700", color: "#e2e8f0", marginBottom: "2px" }}>
               Install AIPET X
             </div>
             <div style={{ fontSize: "11px", color: "#64748b" }}>
@@ -30171,20 +30368,51 @@ export default function App() {
             </div>
           </div>
           <button onClick={handleInstallApp}
-            style={{ padding: "8px 16px", borderRadius: "8px",
-              border: "none", cursor: "pointer",
+            style={{ padding: "8px 16px", borderRadius: "8px", border: "none", cursor: "pointer",
               background: "linear-gradient(135deg, #00e5ff, #0099ff)",
-              color: "#000", fontSize: "12px", fontWeight: "700",
-              flexShrink: 0 }}>
+              color: "#000", fontSize: "12px", fontWeight: "700", flexShrink: 0 }}>
             Install
           </button>
-          <button onClick={() => setShowInstallBanner(false)}
-            style={{ background: "none", border: "none",
-              color: "#475569", cursor: "pointer",
-              fontSize: "18px", lineHeight: 1, padding: "0 4px",
-              flexShrink: 0 }}>
+          <button onClick={_dismissInstallBanner}
+            style={{ background: "none", border: "none", color: "#475569", cursor: "pointer",
+              fontSize: "18px", lineHeight: 1, padding: "0 4px", flexShrink: 0 }}>
             ×
           </button>
+        </div>
+      )}
+
+      {/* PWA Install Banner — iOS Safari: manual Add to Home Screen instructions */}
+      {showInstallBanner && _isIOS && !_isStandalone && (
+        <div style={{
+          position: "fixed", bottom: "24px", left: "50%",
+          transform: "translateX(-50%)", zIndex: 99999,
+          background: "rgba(8,12,16,0.97)",
+          border: "1px solid #00e5ff40",
+          borderRadius: "16px", padding: "16px 20px",
+          boxShadow: "0 8px 40px rgba(0,229,255,0.2)",
+          backdropFilter: "blur(24px)",
+          maxWidth: "360px", width: "calc(100% - 32px)",
+        }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "10px", marginBottom: "10px" }}>
+            <img src="/icons/icon-96.png" alt="AIPET X"
+              style={{ width: "36px", height: "36px", borderRadius: "8px" }} />
+            <div style={{ flex: 1 }}>
+              <div style={{ fontSize: "13px", fontWeight: "700", color: "#e2e8f0" }}>
+                Install AIPET X
+              </div>
+            </div>
+            <button onClick={_dismissInstallBanner}
+              style={{ background: "none", border: "none", color: "#475569", cursor: "pointer",
+                fontSize: "18px", lineHeight: 1, padding: "0 4px" }}>
+              ×
+            </button>
+          </div>
+          <div style={{ fontSize: "12px", color: "#94a3b8", lineHeight: "1.6" }}>
+            To install on your iPhone:
+            <br />1. Tap the <span style={{ color: "#00e5ff" }}>Share</span> button (⎗) at the bottom
+            <br />2. Scroll down and tap <span style={{ color: "#00e5ff" }}>Add to Home Screen</span>
+            <br />3. Tap <span style={{ color: "#00e5ff" }}>Add</span> in the top right
+          </div>
         </div>
       )}
 
@@ -30201,6 +30429,12 @@ export default function App() {
         ::-webkit-scrollbar-track { background: transparent; }
         ::-webkit-scrollbar-thumb { background: #1e2d3d; border-radius: 2px; }
         ::-webkit-scrollbar-thumb:hover { background: #334155; }
+        @media (max-width: 767px) {
+          .aipet-sidebar { display: none !important; }
+          .aipet-sidebar.open { display: flex !important; position: fixed !important; top: 0 !important; left: 0 !important; bottom: 0 !important; z-index: 100 !important; }
+          .aipet-content-pad { padding: 16px !important; }
+          .aipet-top-header { padding: 0 16px !important; }
+        }
       `}</style>
     </div>
   );

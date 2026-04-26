@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useState, useEffect } from "react";
 import { Gauge, AlertTriangle } from "lucide-react";
 
 const C = { text: "#e6edf3", muted: "#7d8590", card: "#0d1117", border: "#21262d" };
@@ -11,12 +11,20 @@ const SCORE_COLOR = (s) => {
 };
 
 export default function RiskTopBar({ stats, top }) {
+  const [mobile, setMobile] = useState(() => window.innerWidth < 768);
+  useEffect(() => {
+    const fn = () => setMobile(window.innerWidth < 768);
+    window.addEventListener("resize", fn);
+    return () => window.removeEventListener("resize", fn);
+  }, []);
+
   const highRisk   = (stats?.by_score_bucket?.["76-100"] ?? 0) + (stats?.by_score_bucket?.["51-75"] ?? 0);
   const topEntity  = top?.[0];
   const maxColor   = SCORE_COLOR(topEntity?.score ?? 0);
 
   return (
-    <div style={{ display: "flex", gap: 12, marginBottom: 16, flexWrap: "wrap" }}>
+    <div style={{ display: "flex", gap: 12, marginBottom: 16,
+      flexWrap: "wrap", flexDirection: mobile ? "column" : "row" }}>
       <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 8,
         padding: "12px 18px", flex: "1 1 180px", minWidth: 150 }}>
         <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 4 }}>

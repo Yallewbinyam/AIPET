@@ -162,6 +162,8 @@ from dashboard.backend.automated_response.models import ResponseThreshold, Respo
 from dashboard.backend.risk_forecast.routes import risk_forecast_bp
 from dashboard.backend.risk_forecast.models import DeviceRiskScoreHistory, ForecastAlert
 from dashboard.backend.agent_monitor.routes import agent_monitor_bp
+from dashboard.backend.push_notifications.routes import push_bp
+from dashboard.backend.push_notifications.models import PushSubscription
 from dashboard.backend.ml_anomaly.routes import ml_anomaly_bp
 from dashboard.backend.ml_anomaly.models import AnomalyModelVersion, AnomalyDetection
 from dashboard.backend.timeline_enhanced.models import TeEvent, TeCluster
@@ -367,6 +369,7 @@ def create_app(config_name="development"):
     app.register_blueprint(automated_response_bp)
     app.register_blueprint(risk_forecast_bp)
     app.register_blueprint(agent_monitor_bp)
+    app.register_blueprint(push_bp)
     app.register_blueprint(api_keys_bp, url_prefix='/api/keys')
     app.register_blueprint(ml_anomaly_bp)
     # /train is expensive — cap it well below the global 100/min default.
@@ -439,6 +442,19 @@ def create_app(config_name="development"):
     if _risk_entity_fn:
         _risk_entity_fn = limiter.limit("10 per minute")(_risk_entity_fn)
         app.view_functions["risk_engine.get_entity_score"] = _risk_entity_fn
+
+    # /api/push/subscribe and /api/push/unsubscribe — cap to 10/minute per user.
+    for _push_fn_name in ("push_notifications.subscribe", "push_notifications.unsubscribe"):
+        _push_fn = app.view_functions.get(_push_fn_name)
+        if _push_fn:
+            _push_fn = limiter.limit("10 per minute")(_push_fn)
+            app.view_functions[_push_fn_name] = _push_fn
+
+    # /api/push/test — expensive (calls pywebpush); cap to 5/minute.
+    _push_test_fn = app.view_functions.get("push_notifications.test_push")
+    if _push_test_fn:
+        _push_test_fn = limiter.limit("5 per minute")(_push_test_fn)
+        app.view_functions["push_notifications.test_push"] = _push_test_fn
 
     # Setup logging
     setup_logging(

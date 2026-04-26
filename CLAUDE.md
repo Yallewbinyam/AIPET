@@ -92,7 +92,8 @@ All modules live under `dashboard/backend/<module_name>/` as a Blueprint with `_
 | `central_events` | Unified event pipeline (Capabilities 7a + 7b). `emit_event()` adapter — non-raising, one INSERT per call, user-scoped, <10ms. **15 modules wired** (5 from 7a + 10 from 7b: real_scanner, identity_guardian, auth, digitaltwin, otics, redteam, siem, defense, multicloud, zerotrust). siem ingest includes cycle-prevention via `node_meta.from_central_emit` flag. 8 modules dual-write (siem_events + central_events). Cross-module event feed at `/api/events/feed` with severity/module/entity filters, `/api/events/stats`, `/api/events/<id>`, `/api/events/entity/<name>`. `EventsFeedPanel` + `EventDetailModal` React UI. |
 | `risk_engine` | Unified real-time risk score per device (Capability 9). Reads from `central_events` with 8-hour half-life exponential decay (formula: score = min(100, Σ[base × source_mult × 2^(-age/8h)])). Weighted by severity + source module. Celery Beat recompute every 5 minutes. `/predict_real` returns it as 6th verdict. 5 REST endpoints. `RiskScoreDashboard` React panel with `RiskTopBar`, `RiskScoreTable`, `RiskBreakdownModal`. |
 | `risk_forecast` | ARIMA-based predictive risk forecasting (Capability 11). `DeviceRiskScoreHistory` table snapshotted on every Cap 9 5-min recompute. Three-tier model: insufficient_data (<10 pts) / low_confidence linear (10–29 pts) / ok ARIMA(1,1,1) (30+ pts). `ForecastAlert` table for predicted crossings within 48h. Hourly Celery task + weekly 30-day prune. Does NOT trigger Cap 8 — analyst alerts only. `RiskForecastPanel` React UI with recharts confidence interval chart. |
-| `automated_response` | Automated response chain (Capability 8). Watches `device_risk_scores` after each 5-min recompute. Per-user thresholds: notify ≥60, high_alert ≥80, emergency ≥95. Per-entity 4-hour cooldown tracked in `response_history` table (NOT `DefensePlaybook.last_triggered` which stays for the manual path). `send_alert` action now calls `settings/routes.send_slack_alert()` + `send_teams_alert()` when webhooks configured (was previously a silent DB-only write). Emits `automated_response_triggered` to `central_events` after each fire. 6 REST endpoints. `AutomatedResponsePanel` React panel with threshold editing, history table, stats bar. |
+| `automated_response` | Automated response chain (Capability 8). Watches `device_risk_scores` after each 5-min recompute. Per-user thresholds: notify ≥60, high_alert ≥80, emergency ≥95. Per-entity 4-hour cooldown tracked in `response_history` table (NOT `DefensePlaybook.last_triggered` which stays for the manual path). `send_alert` action now calls `settings/routes.send_slack_alert()` + `send_teams_alert()` when webhooks configured (was previously a silent DB-only write). Emits `automated_response_triggered` to `central_events` after each fire. Tier 1 web push (emergency ≥95 only) via `push_notifications.dispatcher.send_web_push` — non-fatal. 6 REST endpoints. `AutomatedResponsePanel` React panel with threshold editing, history table, stats bar. |
+| `push_notifications` | Web Push API integration (Capability 12). `PushSubscription` model: endpoint, p256dh_key, auth_secret, enabled, failure_count. Auto-disables on HTTP 410 or 5 consecutive failures. `send_web_push()` — never raises, VAPID/pywebpush 2.3.0. Tier 1 scope: emergency threshold only (score ≥95). 5 endpoints: GET /api/push/vapid-public-key (no auth), POST subscribe/unsubscribe/test, GET subscriptions. `PushNotificationPanel` React component in Settings tab. VAPID keys in `.env`. |
 | `siem` / `cloud_siem` | SIEM event ingestion and dashboards |
 | `threatintel` / `threat_intel_ingest` / `threat_radar` | Threat intelligence feeds, IOC tracking. AlienVault OTX integration (96-line client, 6-hour Celery sync, locally cached IOCs — 45,750 indicators after first full sync); `/predict_real` now returns threat intel as a third independent verdict alongside Isolation Forest + behavioral baseline. |
 | `aisoc` / `soc_twin` | AI-assisted SOC automation and digital twin |
@@ -156,7 +157,7 @@ All modules live under `dashboard/backend/<module_name>/` as a Blueprint with `_
 
 ## 6. Capability Roadmap — 33 Capabilities
 
-**Current status:** Capabilities 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11 ✅ Complete. 22 remaining (12–32).
+**Current status:** Capabilities 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12 ✅ Complete. 21 remaining (13–32).
 
 ### Month 1 — Intelligence Core (Capabilities 1–12)
 
@@ -175,7 +176,8 @@ All modules live under `dashboard/backend/<module_name>/` as a Blueprint with `_
 | 9 | Unified real-time risk score (all modules contribute) | ✅ **COMPLETE** — `risk_engine/` module: `DeviceRiskScore` model (11 columns, 6 indexes incl. `(user_id, score)` for C8 queries), `engine.py` (formula: `min(100, Σ[base × SOURCE_MULTIPLIERS × 2^(-age/8h)])`, SEVERITY_POINTS dict, 24h lookback), `recompute_all_scores()` (idempotent UPSERT), Celery Beat 5-min recompute, 5 REST endpoints, `RiskScoreDashboard` React panel; `/predict_real` returns score as 6th verdict (live compute + stored comparison); 29 backend tests including clamp-at-100 and time-decay verification. |
 | 10 | Claude API powered Ask AIPET (answers about YOUR environment) | ✅ **COMPLETE** — `ask/` module upgraded: `explain/claude_client.py` migrated to `anthropic` SDK 0.97.0 (was raw `urllib`), now uses proper `system` parameter and returns `input_tokens` for cost tracking. `ask/context.py` extended with 9 new sections (device_risk_scores, central_events, ml_anomaly_detections, kev_catalog, ioc_entries, mitre_techniques, ba_anomalies, response_history, real_scan_results); total context ~4.5KB. `ask/usage.py`: `AskUsageLog` table (unique on user_id+date), `check_daily_limit()`, `check_and_record_usage()`. Limits: Professional 50/day, Enterprise 500/day. 3 endpoints: `POST /api/ask` (with 429 enforcement), `GET /api/ask/context`, `GET /api/ask/usage`. Rate limit: 20 req/min via view_functions. 24 backend tests. Live test: Claude answered Capability 8-aware question (device 10.0.255.1, risk score 100, emergency threshold) in 13.7s. |
 | 11 | Predictive risk engine (90-day breach probability forecast) | ✅ **COMPLETE** — `risk_forecast/` module: `DeviceRiskScoreHistory` (snapshotted every 5-min by Cap 9 Celery task, composite index `(user_id,entity,entity_type,snapshot_at)`), `ForecastAlert` (unique on `(user_id,entity,threshold_name,status)`, 48h-horizon only). Engine: 3-tier confidence (insufficient_data <10 pts / low_confidence linear 10-29 pts / ok ARIMA(1,1,1) 30+ pts). statsmodels 0.14.6. Hourly Celery Beat + weekly prune task (30-day retention). 7 REST endpoints. `RiskForecastPanel` React UI with recharts confidence interval shading. Cap 11 raises analyst alerts ONLY — does NOT trigger Cap 8 automated responses (design decision). 28 backend tests. Live: 35-pt trending entity → ok/linear forecast, emergency alert created, response_history unchanged. |
-| 12 | AI-written weekly security briefings | Pending |
+| 12 | Production-ready PWA + Web Push notifications | ✅ **COMPLETE** — `push_notifications/` module: `PushSubscription` model (endpoint, p256dh_key, auth_secret, enabled, failure_count, auto-disable on 410/5-failures), `dispatcher.py` (send_web_push — never raises, VAPID/pywebpush, Tier 1 emergency-only scope), 5 REST endpoints (`/api/push/vapid-public-key`, subscribe, unsubscribe, subscriptions, test). Wired into `automated_response/engine.py` — emergency threshold (score≥95) fires web push after Slack/Teams; non-fatal. pywebpush 2.3.0. VAPID keys in `.env`. `pwa/pushNotifications.js` (frontend helper: requestPermissionAndSubscribe, sendTestPush, listSubscriptions, disableSubscription). `PushNotificationPanel` React component in Settings tab. iOS detection + "Tap Share → Add to Home Screen" instructions. Install dismissed guard via `localStorage`. Mobile responsive pass: hamburger nav (<768px sidebar overlay), RiskScoreTable card layout, RiskTopBar vertical stack, EventsFeedPanel horizontal-scroll filters, ThresholdsCard vertical stacking, AnomalyResultCard overflow fix, AskPanel auto-fill grid. 18 backend tests (299 total). |
+| 12b | AI-written weekly security briefings | Pending (original Cap 12 deferred to 12b) |
 
 ### Month 2 — Deep Scanner + Firmware (Capabilities 13–16)
 
@@ -282,6 +284,36 @@ Gmail SMTP, Sentry DSN, and UptimeRobot tracking moved to the **Pre-Launch Block
 - **Central event pipeline** (`central_events/`) — synchronous `emit_event()` call inserted after each module commits its domain row. Failures are always silent (try/except + rollback in adapter; belt-and-suspenders try/except at each call site). Every event carries `user_id` for per-user scoping. 8 modules dual-write (siem_events + central_events); refactor to single-source is a future task. Cycle prevention in siem/ingest: if incoming event has `node_meta.from_central_emit=True`, the emit is skipped to break re-ingest loops. The `_execute_action` helper in defense returns `(log, Optional[SiemEvent])`; `_ingest_siem_zt` in zerotrust returns `Optional[SiemEvent]` — callers emit after their respective commits.
 - **Gunicorn** serves Flask in production (`gunicorn_config.py`)
 - **Nginx** reverse-proxies to Gunicorn (port 5001) and serves the React build
+- **PWA stack** (Capability 12) — `public/manifest.json` (8 icons, 3 shortcuts, categories), `public/sw.js` v4.0.0 (install/activate/fetch/push/notificationclick lifecycle), SW registered in `public/index.html`. VAPID keys in `.env` (VAPID_PRIVATE_KEY, VAPID_PUBLIC_KEY, VAPID_SUBJECT). `push_notifications/dispatcher.py` imports `webpush` at module level (patchable). Tier 1 scope: emergency ≥95 only — notify/high_alert do NOT trigger push. Mobile responsive pass applied to 5 panels (Risk Score, Events Feed, Ask AIPET, Automated Response, AnomalyResultCard) + hamburger nav; other panels deferred to Polish Pass 1.
+
+---
+
+## PWA Testing Instructions
+
+### Chrome DevTools (no real phone needed)
+1. Start frontend: `cd dashboard/frontend/aipet-dashboard && npm start`
+2. Open http://localhost:3000, log in
+3. DevTools → Application → Manifest — verify manifest loads with all 8 icons
+4. DevTools → Application → Service Workers — verify sw.js "activated and running"
+5. Toggle Device Toolbar (Ctrl+Shift+M) → select iPhone SE (375px)
+6. Verify hamburger menu appears; tap → all nav sections reachable
+7. Navigate to Settings → Push Notifications section → click "Enable push notifications" → Allow
+8. Click "Send test notification" → notification should appear in OS
+
+### Real Android phone
+1. `ip addr show | grep inet` — note laptop's local IP (e.g. 10.0.3.4)
+2. Phone on same WiFi → open Chrome → navigate to `http://10.0.3.4:3000`
+3. Log in → verify dashboard loads → Chrome menu → "Add to Home Screen"
+4. AIPET X icon on home screen → tap → fullscreen (standalone mode)
+5. Settings → Notifications → Enable → Allow → Send test
+6. From laptop: `curl -X POST http://localhost:5001/api/response/check_now -H "Authorization: Bearer <token>"`
+7. Phone should buzz within 30s with emergency notification (if risk score ≥95)
+
+### Real iPhone (requires HTTPS)
+- Run `ngrok http 3000` → access via the https:// URL provided
+- OR use `mkcert` to set up localhost HTTPS: `mkcert localhost` then configure CRA to use the cert
+- iOS 16.4+ required for push notifications via PWA
+- Safari Share button → Add to Home Screen → open from home screen → Settings → Enable
 
 ---
 

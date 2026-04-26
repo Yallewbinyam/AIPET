@@ -20,8 +20,9 @@ export default function AnomalyResultCard({ result, onExplain }) {
   const placeholders = result.placeholder_values ?? null;
 
   return (
-    <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 8, padding: 16, marginTop: 12 }}>
-      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
+    <div style={{ background: C.card, border: `1px solid ${C.border}`, borderRadius: 8,
+      padding: "clamp(10px, 3vw, 16px)", marginTop: 12, overflowX: "hidden" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12, flexWrap: "wrap" }}>
         <Icon size={20} color={sev.color} />
         <span style={{ color: sev.color, fontWeight: 700, fontSize: 15 }}>{sev.label}</span>
         <span style={{ color: C.muted, fontSize: 13 }}>{result.target_ip}</span>

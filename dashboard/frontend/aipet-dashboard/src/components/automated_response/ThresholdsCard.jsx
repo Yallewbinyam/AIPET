@@ -7,6 +7,12 @@ const TIER_COLOR = { notify: "#f5c518", high_alert: "#ff8c00", emergency: "#ff44
 export default function ThresholdsCard({ thresholds, token, onRefresh }) {
   const [editing, setEditing] = useState(null);
   const [saving,  setSaving]  = useState(false);
+  const [mobile,  setMobile]  = useState(() => window.innerWidth < 768);
+  React.useEffect(() => {
+    const fn = () => setMobile(window.innerWidth < 768);
+    window.addEventListener("resize", fn);
+    return () => window.removeEventListener("resize", fn);
+  }, []);
 
   const save = async (id, body) => {
     setSaving(true);
@@ -25,8 +31,12 @@ export default function ThresholdsCard({ thresholds, token, onRefresh }) {
         const color = TIER_COLOR[t.name] ?? "#6b7280";
         const isEdit = editing === t.id;
         return (
-          <div key={t.id} style={{ display: "flex", alignItems: "center", gap: 12,
-            padding: "8px 0", borderBottom: `1px solid ${C.border}` }}>
+          <div key={t.id} style={{ display: "flex",
+            flexDirection: mobile ? "column" : "row",
+            alignItems: mobile ? "flex-start" : "center",
+            gap: mobile ? 6 : 12,
+            padding: mobile ? "12px 0" : "8px 0",
+            borderBottom: `1px solid ${C.border}` }}>
             <span style={{ color, fontWeight: 700, fontSize: 12, minWidth: 80 }}>
               {t.name}
             </span>

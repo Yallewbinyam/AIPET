@@ -45,6 +45,13 @@ export default function EventsFeedPanel({ token }) {
   const [error,    setError]    = useState("");
   const [selected, setSelected] = useState(null);
   const [filters,  setFilters]  = useState({ days: "7", severity: "", source_module: "" });
+  const [mobile,   setMobile]   = useState(() => window.innerWidth < 768);
+
+  React.useEffect(() => {
+    const fn = () => setMobile(window.innerWidth < 768);
+    window.addEventListener("resize", fn);
+    return () => window.removeEventListener("resize", fn);
+  }, []);
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -72,7 +79,7 @@ export default function EventsFeedPanel({ token }) {
   const totalBySev = (sev) => stats?.by_severity?.find(b => b.severity === sev)?.count ?? 0;
 
   return (
-    <div style={{ maxWidth: 960 }}>
+    <div style={{ maxWidth: 960, width: "100%" }}>
       <div style={{ marginBottom: 20 }}>
         <h2 style={{ margin: "0 0 4px", fontSize: 20, fontWeight: 800, color: C.text }}>
           Security Event Feed
@@ -91,8 +98,11 @@ export default function EventsFeedPanel({ token }) {
         </div>
       )}
 
-      {/* Filters */}
-      <div style={{ display: "flex", gap: 10, marginBottom: 16, flexWrap: "wrap" }}>
+      {/* Filters — horizontal scroll on mobile */}
+      <div style={{ display: "flex", gap: 10, marginBottom: 16,
+        flexWrap: mobile ? "nowrap" : "wrap",
+        overflowX: mobile ? "auto" : "visible",
+        paddingBottom: mobile ? 4 : 0 }}>
         {[
           { key: "days", label: "Days", opts: [["1","1d"],["7","7d"],["30","30d"]] },
           { key: "severity", label: "Severity",

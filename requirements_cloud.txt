@@ -48,3 +48,6 @@ scikit-learn==1.5.2
 # Claude / Anthropic SDK
 anthropic==0.97.0
 statsmodels>=0.14.0
+
+# Web Push notifications (Capability 12)
+pywebpush>=2.0.0
