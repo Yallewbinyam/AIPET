@@ -1,0 +1,62 @@
+#!/bin/sh
+# AIPET X Agent — post-install
+# Idempotent: safe to re-run on upgrade or reinstall.
+set -e
+
+AGENT_USER="aipet-agent"
+AGENT_HOME="/var/lib/aipet-agent"
+LOG_DIR="/var/log/aipet-agent"
+INSTALL_DIR="/opt/aipet-agent"
+VENV_DIR="$INSTALL_DIR/venv"
+CONF_DIR="/etc/aipet-agent"
+
+# 1. Create system user (no shell, no login)
+if ! getent passwd "$AGENT_USER" >/dev/null 2>&1; then
+    useradd --system --home-dir "$AGENT_HOME" --shell /usr/sbin/nologin \
+        --comment "AIPET X Agent" "$AGENT_USER"
+fi
+
+# 2. Create state and log directories
+mkdir -p "$AGENT_HOME" "$LOG_DIR" "$CONF_DIR"
+chown "$AGENT_USER:$AGENT_USER" "$AGENT_HOME" "$LOG_DIR"
+chmod 750 "$AGENT_HOME" "$LOG_DIR"
+chmod 755 "$CONF_DIR"
+
+# 3. Set up isolated Python venv with required deps
+if [ ! -d "$VENV_DIR" ]; then
+    python3 -m venv "$VENV_DIR"
+fi
+"$VENV_DIR/bin/pip" install --quiet --upgrade pip >/dev/null 2>&1 || true
+"$VENV_DIR/bin/pip" install --quiet -r "$INSTALL_DIR/requirements.txt"
+
+# 4. Reload systemd so the unit shipped at /lib/systemd/system/aipet-agent.service is visible
+if command -v systemctl >/dev/null 2>&1; then
+    systemctl daemon-reload || true
+fi
+
+# 6. Friendly next-steps message (no auto-start — wait for config)
+cat <<'MSG'
+
+──────────────────────────────────────────────────
+  AIPET X Agent installed.
+──────────────────────────────────────────────────
+
+Next step — configure the agent:
+
+  sudo aipet-agent setup
+
+Or edit the config file directly:
+
+  sudo cp /etc/aipet-agent/agent.conf.example /etc/aipet-agent/agent.conf
+  sudo nano /etc/aipet-agent/agent.conf
+  sudo systemctl enable --now aipet-agent
+
+Status:    sudo systemctl status aipet-agent
+Logs:      sudo journalctl -u aipet-agent -f
+Uninstall: sudo apt-get remove --purge aipet-agent
+
+Documentation: https://docs.aipet.io/agent
+──────────────────────────────────────────────────
+MSG
+
+exit 0

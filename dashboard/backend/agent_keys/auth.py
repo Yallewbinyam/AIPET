@@ -75,6 +75,64 @@ def verify_key(full_key: str):
     return None
 
 
+def agent_or_jwt_required(*, scope: str = "agent", permissions: list = None):
+    """
+    Hybrid decorator: accepts EITHER a JWT (Authorization: Bearer …) OR
+    an agent API key (X-Agent-Key: aipet_…).
+
+    Resolution order:
+      1. If X-Agent-Key header is present, validate it. On success, sets
+         g.current_user_id = key.user_id, g.current_agent_key = key,
+         g.auth_mode = "agent_key".
+      2. Otherwise fall back to JWT. Sets g.current_user_id = jwt subject,
+         g.current_agent_key = None, g.auth_mode = "jwt".
+      3. If neither header is present and no JWT in cookie, returns 401.
+
+    This is what /api/agent/telemetry needs so the same endpoint serves
+    both interactive dashboard sessions (JWT) and the systemd-managed
+    device agent (X-Agent-Key).
+    """
+    from functools import wraps as _wraps
+
+    def decorator(fn):
+        @_wraps(fn)
+        def wrapped(*args, **kwargs):
+            # Path 1: agent key
+            api_key = request.headers.get("X-Agent-Key", "").strip()
+            if api_key:
+                key_row = verify_key(api_key)
+                if not key_row:
+                    return jsonify({"error": "Invalid or revoked agent key"}), 401
+                if key_row.scope != scope:
+                    return jsonify({"error": f"Key does not have required scope: {scope}"}), 403
+                if permissions:
+                    key_perms = key_row.permissions or []
+                    missing = [p for p in permissions if p not in key_perms]
+                    if missing:
+                        return jsonify({"error": f"Key missing permissions: {missing}"}), 403
+                g.current_agent_key = key_row
+                g.current_user_id = key_row.user_id
+                g.auth_mode = "agent_key"
+                return fn(*args, **kwargs)
+
+            # Path 2: JWT (defer the import so this module stays light)
+            from flask_jwt_extended import verify_jwt_in_request, get_jwt_identity
+            try:
+                verify_jwt_in_request()
+            except Exception as exc:
+                return jsonify({"error": "Authentication required (X-Agent-Key or Bearer JWT)"}), 401
+            try:
+                uid = int(get_jwt_identity())
+            except (TypeError, ValueError):
+                return jsonify({"error": "Invalid JWT subject"}), 401
+            g.current_agent_key = None
+            g.current_user_id = uid
+            g.auth_mode = "jwt"
+            return fn(*args, **kwargs)
+        return wrapped
+    return decorator
+
+
 def agent_key_required(*, scope: str = "agent", permissions: list = None):
     """
     Decorator analog to @jwt_required for agent endpoints.

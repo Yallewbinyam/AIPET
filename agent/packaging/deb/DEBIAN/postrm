@@ -1,0 +1,34 @@
+#!/bin/sh
+# AIPET X Agent — post-removal
+# `remove` keeps user data; `purge` wipes everything.
+set -e
+
+VENV_DIR="/opt/aipet-agent/venv"
+
+case "$1" in
+    remove)
+        # Drop the venv (binary artefacts created by postinst, not user data).
+        # The unit file at /lib/systemd/system/aipet-agent.service is dpkg-owned and removed automatically.
+        rm -rf "$VENV_DIR" || true
+        if command -v systemctl >/dev/null 2>&1; then
+            systemctl daemon-reload || true
+        fi
+        ;;
+
+    purge)
+        # Full cleanup — remove all state, logs, config, and the system user.
+        rm -rf /var/lib/aipet-agent /var/log/aipet-agent /etc/aipet-agent || true
+        rm -rf "$VENV_DIR" || true
+        if getent passwd aipet-agent >/dev/null 2>&1; then
+            userdel aipet-agent 2>/dev/null || true
+        fi
+        if getent group aipet-agent >/dev/null 2>&1; then
+            groupdel aipet-agent 2>/dev/null || true
+        fi
+        if command -v systemctl >/dev/null 2>&1; then
+            systemctl daemon-reload || true
+        fi
+        ;;
+esac
+
+exit 0

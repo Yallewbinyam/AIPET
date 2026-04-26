@@ -1,0 +1,15 @@
+#!/bin/sh
+# AIPET X Agent — pre-removal
+# Stops + disables the service before files are removed.
+set -e
+
+if command -v systemctl >/dev/null 2>&1; then
+    if systemctl is-active --quiet aipet-agent.service; then
+        systemctl stop aipet-agent.service || true
+    fi
+    if systemctl is-enabled --quiet aipet-agent.service 2>/dev/null; then
+        systemctl disable aipet-agent.service || true
+    fi
+fi
+
+exit 0

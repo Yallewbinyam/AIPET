@@ -1,0 +1,18 @@
+Package: aipet-agent
+Version: 1.0.0
+Section: net
+Priority: optional
+Architecture: all
+Depends: python3 (>= 3.8), python3-venv, python3-pip, nmap, systemd, ca-certificates
+Maintainer: AIPET X <admin@aipet.io>
+Homepage: https://aipet.io
+Description: AIPET X security agent for IoT network scanning
+ Lightweight agent that scans your local network for IoT devices,
+ detects vulnerabilities, and reports findings to the AIPET X cloud.
+ .
+ Designed for healthcare, manufacturing, educational, and small
+ enterprise organisations. Runs as a hardened systemd service under
+ a dedicated unprivileged user (aipet-agent). Configuration lives in
+ /etc/aipet-agent/agent.conf and is loaded as an EnvironmentFile.
+ .
+ After install, configure with: sudo aipet-agent setup

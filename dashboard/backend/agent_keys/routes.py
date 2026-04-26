@@ -5,12 +5,12 @@
 
 from datetime import datetime, timezone
 
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request, jsonify, g
 from flask_jwt_extended import jwt_required, get_jwt_identity
 
 from ..models import db, User
 from .models import AgentApiKey
-from .auth import generate_api_key
+from .auth import generate_api_key, agent_key_required
 from ..validation import validate_body, optional, is_safe_string
 
 agent_keys_bp = Blueprint("agent_keys", __name__)
@@ -137,6 +137,29 @@ def delete_agent_key(key_id):
     db.session.delete(key_row)
     db.session.commit()
     return jsonify({"deleted": True, "id": key_id}), 200
+
+
+# ── GET /api/agent/keys/me ────────────────────────────────
+# Used by the on-device watchdog to detect revocation. Authenticated via
+# X-Agent-Key (the same header the agent uses for telemetry/scans), so a
+# revoked key naturally returns 401 via @agent_key_required and the agent
+# can shut itself down.
+
+@agent_keys_bp.route("/me", methods=["GET"])
+@agent_key_required(scope="agent")
+def get_my_key():
+    key = g.current_agent_key
+    return jsonify({
+        "id":           key.id,
+        "label":        key.label,
+        "scope":        key.scope,
+        "permissions":  key.permissions or [],
+        "enabled":      key.enabled,
+        "key_prefix":   key.key_prefix,
+        "last_used_at": key.last_used_at.isoformat() if key.last_used_at else None,
+        "created_at":   key.created_at.isoformat() if key.created_at else None,
+        "expires_at":   key.expires_at.isoformat() if key.expires_at else None,
+    }), 200
 
 
 # ── GET /api/agent/keys/usage ─────────────────────────────

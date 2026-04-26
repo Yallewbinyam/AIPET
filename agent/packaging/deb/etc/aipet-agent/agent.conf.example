@@ -1,0 +1,34 @@
+# AIPET X Agent — Configuration
+# This file is loaded as an EnvironmentFile by systemd, so each line must
+# be KEY=value (no quotes, no shell expansion).
+#
+# To use: copy to agent.conf and edit, or run `sudo aipet-agent setup`.
+#   sudo cp /etc/aipet-agent/agent.conf.example /etc/aipet-agent/agent.conf
+#   sudo chmod 600 /etc/aipet-agent/agent.conf
+#   sudo chown root:aipet-agent /etc/aipet-agent/agent.conf
+
+# AIPET cloud API base URL
+AIPET_API=https://api.aipet.io
+
+# Per-device agent API key (get one at https://app.aipet.io/settings/agents)
+# Format: aipet_<random>
+AIPET_AGENT_KEY=
+
+# Friendly label for this agent shown in the dashboard
+AIPET_AGENT_LABEL=
+
+# Network/subnet to scan. Use CIDR (e.g. 192.168.1.0/24) or a single host.
+# Set to "auto" to detect the local subnet at runtime.
+AIPET_SCAN_TARGET=auto
+
+# Hours between scans
+AIPET_SCAN_INTERVAL_HOURS=24
+
+# Telemetry send interval, in seconds (separate from network scans)
+AIPET_INTERVAL=60
+
+# Watchdog: how often to revalidate the agent key (seconds). 300 = 5 min.
+AIPET_WATCHDOG_INTERVAL=300
+
+# Log level: DEBUG, INFO, WARNING, ERROR
+AIPET_LOG_LEVEL=INFO
