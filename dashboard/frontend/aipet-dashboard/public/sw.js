@@ -1,7 +1,7 @@
-// AIPET X Service Worker v4.0.0
+// AIPET X Service Worker v4.0.1
 // Provides offline support, caching, and push notifications
 
-const CACHE_NAME = 'aipet-x-v4.0.0';
+const CACHE_NAME = 'aipet-x-v4.0.1';
 const STATIC_ASSETS = [
   '/',
   '/index.html',
@@ -35,11 +35,15 @@ self.addEventListener('activate', event => {
     )
   );
   self.clients.claim();
-  console.log('[AIPET SW] Active — v4.0.0');
+  console.log('[AIPET SW] Active — v4.0.1');
 });
 
 // ── Fetch — Network first, cache fallback ─────────────────
 self.addEventListener('fetch', event => {
+  // Cache API only accepts http/https — skip chrome-extension:// and other schemes
+  const url = new URL(event.request.url);
+  if (!url.protocol.startsWith('http')) return;
+
   // Skip non-GET and API calls
   if (event.request.method !== 'GET') return;
   if (event.request.url.includes('/api/')) return;

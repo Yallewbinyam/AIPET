@@ -311,3 +311,29 @@ class TestAutomatedResponsePushIntegration:
 
         assert isinstance(result, dict)
         assert result.get("web_push_sent") is False
+
+
+# ── Service worker regression notes ──────────────────────────────────────────
+# These are not executable backend tests (the SW runs in the browser), but they
+# document the bugs that were fixed so future regressions are caught in review.
+
+class TestServiceWorkerRegressionNotes:
+    def test_sw_version_is_4_0_1(self):
+        """v4.0.1 bumped to force browsers to pick up the non-http scheme fix."""
+        import pathlib
+        sw = pathlib.Path(__file__).parents[1] / "dashboard/frontend/aipet-dashboard/public/sw.js"
+        content = sw.read_text()
+        assert "v4.0.1" in content, "SW version must be 4.0.1 after the scheme fix"
+
+    def test_sw_has_http_protocol_guard(self):
+        """
+        Regression: chrome-extension:// requests crashed the SW with
+        'TypeError: Failed to execute put on Cache: Request scheme chrome-extension
+        is unsupported'. Fix: skip any request whose URL protocol is not http/https.
+        """
+        import pathlib
+        sw = pathlib.Path(__file__).parents[1] / "dashboard/frontend/aipet-dashboard/public/sw.js"
+        content = sw.read_text()
+        assert "url.protocol.startsWith('http')" in content, (
+            "Fetch handler must guard against non-http schemes"
+        )
