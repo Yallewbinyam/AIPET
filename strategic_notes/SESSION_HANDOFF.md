@@ -2,7 +2,7 @@
 
 **Purpose:** Paste this entire document as the first message of a new Claude.ai conversation. The fresh assistant reads this and is immediately calibrated to continue the work without needing to re-learn context.
 
-**Last updated:** 2026-04-27 (after WSL2 migration + Capability 13 Day 1 ship)
+**Last updated:** 2026-04-27 (after WSL2 migration + Capability 13 Day 1 + Day 2 + Day 3-partial ship)
 
 ---
 
@@ -42,18 +42,22 @@
 | 11 | ✅ | ARIMA risk forecasting (3-tier: insufficient/linear/ARIMA) |
 | 12 | ✅ | PWA + Web Push (VAPID/pywebpush) + 5 mobile-responsive panels |
 | 13 Day 1 | ✅ | Agent API keys (per-device, non-expiring, bcrypt-hashed) + scan ingest endpoint |
-| 13 Day 2 | ⏭️ | Install package (.deb), systemd unit, token refresh watchdog |
-| 13 Day 3 | ⏭️ | Windows service support (NSSM/WinSW) |
+| 13 Day 2 | ✅ | .deb package + security-hardened systemd unit + token-revocation watchdog + hybrid telemetry auth (closed an inherited Day 1 gap mid-task: `/api/agent/telemetry` was JWT-only, broke under systemd; now accepts X-Agent-Key OR JWT). Live verified end-to-end on WSL: install → start → telemetry → revoke → exit (no restart) → purge. |
+| 13 Day 3 | 🟡 | Windows service support — code complete (platform-portable agent, NSSM 2.24 bundled, install_windows.bat, AppExit 1 Stop on revocation, uninstall + Add/Remove Programs). 51 cross-platform tests pass under mocked `platform.system()`. **Windows live verify deferred to PLB-9** — runtime path on Windows has only been mock-tested. Network plumbing for Windows VM (10.0.3.10 ↔ 10.0.3.2 host gateway, port forwards 5001/8080/3000, firewall rules, WSL HTTPS bypass for `10.0.3.2:5001` in `app_cloud.py:214`) is verified working. The deployable bundle `agent/packaging/aipet-agent-windows-1.0.0.zip` (139 KB) was downloaded successfully to the Windows VM. |
 | 14-33 | ⏭️ | Roadmap continuing |
 
 **Cumulative metrics:**
-- 12 capabilities + Cap 13 Day 1 = ~13 of 33
-- 342 backend tests passing (1 skipped)
-- ~370 total tests including frontend
-- 30+ commits across two-day intensive session
+- 12 capabilities + Cap 13 Day 1 + Day 2 + Day 3-partial = ~13.5 of 33
+- 447 backend tests passing (3 skipped — 2 = shellcheck not installed, 1 = pre-existing)
+- ~474 total tests including frontend
+- 33+ commits across the multi-day session
 - Zero regressions throughout
 
-**Latest commit:** `e766195e` — Capability 13 Day 1: Agent API keys + scan ingest endpoint
+**Latest commit:** `348f89c0` — Capability 13 Day 3 (PARTIAL — code complete, Windows live verify pending PLB-9)
+**Recent commits:**
+- `348f89c0` — Cap 13 Day 3 (partial)
+- `d690ce4f` — Cap 13 Day 2 (Linux .deb + systemd + watchdog + hybrid telemetry auth)
+- `e766195e` — Cap 13 Day 1 (agent API keys + scan ingest)
 
 ---
 
@@ -153,7 +157,7 @@ Distinction realistic with this framing. ARIMA in Capability 11 is the strongest
 
 ## 7. Pre-Launch Blockers (PLBs)
 
-**5 Open / 3 Closed** as of latest verification.
+**6 Open / 3 Closed** as of latest verification.
 
 | ID | Status | Description |
 |---|---|---|
@@ -165,6 +169,7 @@ Distinction realistic with this framing. ARIMA in Capability 11 is the strongest
 | PLB-6 | Open | UptimeRobot configuration — uptime monitoring |
 | PLB-7 | Closed | (resolved earlier) |
 | PLB-8 | Open | Watch agent instrumentation — production telemetry |
+| PLB-9 | Open | **Cap 13 Day 3 Windows live verify on real Windows VM** (install + service start + reboot survival + watchdog detection + uninstall). Code complete + 51 mock tests passing, but the runtime path on Windows has only been mock-tested. Blocks Windows-shop hospital pilots. ~1 hour focused. **This is tomorrow's first task.** |
 
 **Always trust CLAUDE.md PLB section over memory.** It's the source of truth.
 
@@ -181,8 +186,17 @@ Distinction realistic with this framing. ARIMA in Capability 11 is the strongest
 - **Decision: bundle into one dedicated Polish Pass session, ~4-6 hours focused, scheduled for end of Month 1**
 
 ### Capability 13 remaining work:
-- Day 2: install package (.deb), systemd unit, token refresh watchdog (~4 hours)
-- Day 3: Windows service support (~4 hours)
+- Day 2: ✅ shipped in commit `d690ce4f` (live verified end-to-end on WSL)
+- Day 3: 🟡 code shipped in commit `348f89c0`; **Windows live verify pending — PLB-9, ~1 hour, tomorrow's first task**
+
+### Day 3 Windows VM verify — what's already set up:
+- Windows VM at 10.0.3.10 (Windows 11 Pro 25H2), reachable from WSL
+- WSL backend at 10.0.3.2:5001, dashboard at 10.0.3.2:3000 — both reachable from VM
+- Port forwards 5001/8080/3000 + firewall rules verified
+- HTTPS bypass for `10.0.3.2:5001` in `dashboard/backend/app_cloud.py:214` — committed
+- `agent/packaging/aipet-agent-windows-1.0.0.zip` (139 KB) is the deployable bundle
+- Verify procedure documented in the Day 3 build report (a–i steps); harness on the Windows VM at `$env:TEMP\aipet`
+- To resume: re-serve the zip from WSL (`python3 -m http.server 8080` in `agent/packaging/`), pick up at step e (`sc query AipetAgent` after rebooting the VM)
 
 ### Cleanup/hygiene:
 - CLAUDE.md is 40.5k chars (over 40k recommended) — trim
@@ -231,13 +245,15 @@ Distinction realistic with this framing. ARIMA in Capability 11 is the strongest
    - Any new context since the handoff was written?
 4. Based on his answer, write either a recon prompt or a build prompt
 
-**If Binyam goes straight to "let's do capability 13 Day 2":**
-- Skip recon (the agent recon from session before is still valid)
-- Write the Day 2 build prompt directly (install package + systemd + watchdog ~4 hours)
+**If Binyam goes straight to "let's finish PLB-9 / Day 3 Windows live verify":**
+- Skip recon — the package and verify procedure are already in `agent/packaging/windows/` and the Day 3 final report
+- Re-serve `agent/packaging/aipet-agent-windows-1.0.0.zip` on `:8080` from WSL
+- Walk him through steps a–i (download, install, sc query, reboot, watchdog, uninstall) on the Windows VM
+- Each step gets a real-output paste — mark each ✅/🟡/❌ honestly
 
 **If Binyam goes for capability 14 onwards:**
-- Look up capability 14 in CLAUDE.md §6 capability roadmap
-- Write recon prompt first
+- Capability 14 = Exploit path mapping (attack chain visualisation) per CLAUDE.md §6
+- Write recon prompt first (existing `attackpath`, `mitre_attack`, `redteam`, `central_events` modules; React graph primitives; what's the smallest useful first slice)
 - Wait for recon report
 - Then write build prompt
 
@@ -277,7 +293,8 @@ Distinction realistic with this framing. ARIMA in Capability 11 is the strongest
 ## 13. Quick test he might use to verify your calibration
 
 If Binyam wants to test that the new session is working, he might ask:
-- "What's the latest commit?" → Answer: `e766195e` (Capability 13 Day 1)
+- "What's the latest commit?" → Answer: `348f89c0` (Capability 13 Day 3 — partial, code complete, Windows live verify pending PLB-9)
+- "What's PLB-9?" → Answer: Cap 13 Day 3 Windows live verify on real Windows VM (install + service start + reboot survival + watchdog detection + uninstall). ~1 hour. Tomorrow's first task.
 - "What's PLB-1?" → Answer: Alembic migration baseline
 - "What did we decide about going 100% autonomous?" → Answer: No, stay approval-required autonomy
 - "Why did we pick PWA instead of native React Native?" → Answer: Time-to-market, single codebase, real production use by Twitter/Spotify, native deferred to Cap 12b after customers exist
@@ -288,9 +305,11 @@ If your answers match these, you're calibrated.
 
 ## 14. Last words from the previous session
 
-We just shipped Capability 13 Day 1 with 17/17 acceptance items met (the cleanest report of the entire 2-day session). Then migrated WSL2 cleanly. Binyam is "behind on his time" and pushing forward into Cap 13 Day 2 onwards.
+We shipped Capability 13 Day 1 (`e766195e`), then Day 2 (`d690ce4f` — Linux .deb + systemd + watchdog + hybrid telemetry auth, live verified end-to-end), then Day 3 partial (`348f89c0` — Windows code complete, +51 cross-platform tests, PLB-9 filed for the actual Windows VM run-through). 447 backend tests, 0 regressions. ~38 hours focused work across two days.
 
-He's earned the right to work hard. Don't lecture him about pacing. Help him ship clean capabilities.
+Binyam stopped here at the right time — fatigue was real, the Windows VM live verify needs a fresh head and ~1 hour focused. PLB-9 is the first task tomorrow. Network plumbing is already verified; the package is on the VM; he just needs to run the installer and walk steps e–i.
+
+He's earned the right to work hard, and tonight he made the right call to stop. Don't lecture him about pacing.
 
 **Be the engineer he needs. Recon-first. Honest. Direct.**
 
