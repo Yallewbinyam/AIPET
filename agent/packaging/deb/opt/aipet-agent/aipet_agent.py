@@ -44,6 +44,43 @@ try:
 except ImportError:
     sys.exit("ERROR: requests not installed. Run: pip install requests")
 
+import pathlib
+
+# ── Platform detection ────────────────────────────────────
+IS_WINDOWS = platform.system() == "Windows"
+IS_LINUX   = platform.system() == "Linux"
+IS_MACOS   = platform.system() == "Darwin"
+
+
+def _resolve_config_path():
+    """OS-appropriate path for agent.conf. Returns a PureWindowsPath on
+    Windows and PurePosixPath on Linux/macOS, so tests can assert paths
+    correctly regardless of which OS pytest runs on. The agent does not
+    read this file directly (env vars from systemd EnvironmentFile / NSSM
+    AppEnvironmentExtra are the source of truth) — exposed for docs,
+    tests, and tooling."""
+    if IS_WINDOWS:
+        base = os.environ.get("PROGRAMDATA", r"C:\ProgramData")
+        return pathlib.PureWindowsPath(base) / "AIPET" / "agent.conf"
+    return pathlib.PurePosixPath("/etc/aipet-agent/agent.conf")
+
+
+def _resolve_log_dir():
+    """OS-appropriate log directory. See _resolve_config_path notes."""
+    if IS_WINDOWS:
+        base = os.environ.get("PROGRAMDATA", r"C:\ProgramData")
+        return pathlib.PureWindowsPath(base) / "AIPET" / "logs"
+    return pathlib.PurePosixPath("/var/log/aipet-agent")
+
+
+def _resolve_install_dir():
+    """OS-appropriate install directory."""
+    if IS_WINDOWS:
+        base = os.environ.get("PROGRAMFILES", r"C:\Program Files")
+        return pathlib.PureWindowsPath(base) / "AIPET"
+    return pathlib.PurePosixPath("/opt/aipet-agent")
+
+
 # ── Configuration ─────────────────────────────────────────
 API_BASE          = os.environ.get("AIPET_API",       "http://localhost:5001")
 AUTH_TOKEN        = os.environ.get("AIPET_TOKEN",     "")   # JWT (legacy)
@@ -364,21 +401,43 @@ def upload_scan_results(scan_data: dict, agent_key: str, target: str = "") -> bo
 
 # ── Main loop ─────────────────────────────────────────────
 
+def _netmask_to_prefix(netmask: str) -> int:
+    """Convert dotted-quad netmask (e.g. 255.255.255.0) to CIDR prefix (24)."""
+    try:
+        parts = [int(p) for p in netmask.split(".")]
+        binary = "".join(f"{p:08b}" for p in parts)
+        return binary.count("1")
+    except Exception:
+        return 24
+
+
 def _resolve_scan_target(raw: str) -> str:
-    """Translate 'auto' to the local subnet, or pass through a CIDR/IP."""
+    """
+    Translate 'auto' to the local subnet, or pass through a CIDR/IP.
+    Cross-platform: uses psutil.net_if_addrs (works on Linux + Windows + macOS)
+    instead of shelling out to `ip` (Linux-only) or `ipconfig` (Windows-only).
+    """
     if not raw or raw.strip().lower() != "auto":
         return raw.strip()
-    # Detect first global-scope IPv4 subnet
+
+    # Iterate interfaces, skip loopback, pick the first non-link-local IPv4
     try:
-        import subprocess
-        out = subprocess.check_output(["ip", "-o", "-f", "inet", "addr", "show"], timeout=5).decode()
-        for line in out.splitlines():
-            if "scope global" in line:
-                parts = line.split()
-                # field 4 is "x.x.x.x/n" in `ip -o` output
-                cidr = parts[3]
-                if "/" in cidr:
-                    return cidr
+        for iface, addrs in psutil.net_if_addrs().items():
+            if iface.lower().startswith(("lo", "loopback")):
+                continue
+            for a in addrs:
+                # AF_INET on all platforms
+                if a.family == socket.AF_INET and a.address and not a.address.startswith("169.254."):
+                    if a.address.startswith("127."):
+                        continue
+                    netmask = a.netmask or "255.255.255.0"
+                    prefix = _netmask_to_prefix(netmask)
+                    # Compute the network address from IP + prefix
+                    ip_int = int.from_bytes(socket.inet_aton(a.address), "big")
+                    mask_int = (0xFFFFFFFF << (32 - prefix)) & 0xFFFFFFFF
+                    net_int = ip_int & mask_int
+                    net_addr = socket.inet_ntoa(net_int.to_bytes(4, "big"))
+                    return f"{net_addr}/{prefix}"
     except Exception as exc:
         log.warning(f"Auto-detect failed ({exc}). Set AIPET_SCAN_TARGET to a CIDR explicitly.")
     return ""
@@ -389,7 +448,8 @@ def run(token: str, agent_key: str = ""):
     log.info(f"  Agent ID : {AGENT_ID}")
     log.info(f"  Host     : {socket.gethostname()}")
     log.info(f"  Label    : {AGENT_LABEL or '(none)'}")
-    log.info(f"  Platform : {platform.system()} {platform.release()}")
+    log.info(f"  Platform : {platform.system()} {platform.release()} "
+             f"({'Windows/NSSM' if IS_WINDOWS else 'Linux/systemd' if IS_LINUX else 'other'})")
     log.info(f"  API      : {API_BASE}")
     log.info(f"  Interval : {INTERVAL_SEC}s")
     log.info(f"  Auth     : {'agent-key' if agent_key else 'jwt'}")
@@ -491,14 +551,18 @@ def main():
         parser.error("Provide --agent-key, --token, or --email and --password")
 
     if args.daemon:
-        try:
-            pid = os.fork()
-            if pid > 0:
-                print(f"Agent daemonized — PID {pid}")
-                sys.exit(0)
-            os.setsid()
-        except (AttributeError, OSError):
-            log.warning("Daemon mode not supported on this platform — running in foreground")
+        if IS_WINDOWS:
+            log.info("--daemon ignored on Windows. Run as a service via NSSM (install_windows.bat) "
+                     "for production background operation.")
+        else:
+            try:
+                pid = os.fork()
+                if pid > 0:
+                    print(f"Agent daemonized — PID {pid}")
+                    sys.exit(0)
+                os.setsid()
+            except (AttributeError, OSError):
+                log.warning("Daemon mode not supported on this platform — running in foreground")
 
     run(token, agent_key=agent_key)
 

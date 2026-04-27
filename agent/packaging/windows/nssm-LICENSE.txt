@@ -1,0 +1,9 @@
+NSSM (the Non-Sucking Service Manager) is bundled at nssm.exe in this
+package. It is the work of Iain Patterson <nssm@iain.cx> and is in the
+public domain.
+
+The official source and documentation:
+  https://nssm.cc/
+
+The version shipped is NSSM 2.24 (win64), unmodified from the upstream
+release at https://nssm.cc/release/nssm-2.24.zip
