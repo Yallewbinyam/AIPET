@@ -213,3 +213,9 @@ packages.microsoft.gpg
 
 # ML model artifacts
 dashboard/backend/ml_anomaly/models_store/*.joblib
+
+# PLB-9 ephemeral secrets (never commit)
+verification/plb9/.agent_key
+verification/plb9/.agent_key_id
+verification/plb9/.jwt
+verification/plb9/.*.tmp

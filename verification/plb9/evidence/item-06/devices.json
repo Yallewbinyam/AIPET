@@ -1,0 +1,34 @@
+{
+    "devices":  [
+                    {
+                        "agent_version":  "1.0.0",
+                        "first_seen":  "2026-04-26T23:23:43.612205",
+                        "hostname":  "verify",
+                        "id":  "agent-hybridlive-001",
+                        "ip_address":  "127.0.0.1",
+                        "last_seen":  "2026-04-26T23:23:43.616139",
+                        "platform":  "linux",
+                        "status":  "offline"
+                    },
+                    {
+                        "agent_version":  "1.2.0",
+                        "first_seen":  "2026-04-26T23:27:18.198038",
+                        "hostname":  "Binyam",
+                        "id":  "agent-ff69df742c2f0027",
+                        "ip_address":  "127.0.0.1",
+                        "last_seen":  "2026-04-26T23:27:29.798410",
+                        "platform":  "Linux 6.6.87.2-microsoft-standard-WSL2",
+                        "status":  "offline"
+                    },
+                    {
+                        "agent_version":  "1.2.0",
+                        "first_seen":  "2026-04-27T20:45:27.963177",
+                        "hostname":  "Binyam",
+                        "id":  "agent-da772994116df971",
+                        "ip_address":  "127.0.0.1",
+                        "last_seen":  "2026-04-27T20:50:26.824194",
+                        "platform":  "Windows 11",
+                        "status":  "online"
+                    }
+                ]
+}

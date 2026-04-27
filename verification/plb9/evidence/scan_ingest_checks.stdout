@@ -1,0 +1,2 @@
+[ITEM-10] STATUS=PASS -- agent-key -> /api/agent/keys/me -> 200
+[ITEM-11] STATUS=PARTIAL -- subtestA={401} (PASS); subtestB requires WSL-side scope mismatch (handled by orchestrator)

@@ -1,17 +1,33 @@
 @echo off
-:: AIPET X Agent — Windows uninstaller
+:: AIPET X Agent -- Windows uninstaller
 :: Removes the AipetAgent service, install directory, ProgramData state,
 :: and the Add/Remove Programs registry entry.
 ::
 :: Triggered by:
 ::   * User runs uninstall_windows.bat directly
 ::   * Add/Remove Programs (uses UninstallString from registry)
+
 setlocal
 
 set "INSTALL_DIR=%ProgramFiles%\AIPET"
 set "DATA_DIR=%ProgramData%\AIPET"
 
-:: ── Administrator check ────────────────────────────────
+:: Self-relocate: if we're being run from %INSTALL_DIR% (the most common
+:: case -- user double-clicks uninstall_windows.bat or AppWiz invokes
+:: it via the registry's UninstallString), we cannot delete that
+:: directory while running OUT of a file inside it. Copy ourselves to
+:: %TEMP% and re-execute. PLB-9 found this: in-place execution leaves
+:: cmd.exe with its bat in a deleted dir; subsequent commands fail with
+:: "The system cannot find the path specified" and ProgramData +
+:: registry are left orphaned.
+if /i "%~dp0"=="%INSTALL_DIR%\" (
+    copy /Y "%~f0" "%TEMP%\aipet-uninstall.bat" >nul
+    cd /d "%TEMP%"
+    cmd /c ""%TEMP%\aipet-uninstall.bat" --relocated"
+    exit /b %ERRORLEVEL%
+)
+
+:: -- Administrator check --------------------------------
 net session >nul 2>&1
 if %errorlevel% neq 0 (
     echo.
@@ -39,6 +55,16 @@ if /i not "%CONFIRM%"=="YES" (
 )
 
 echo.
+
+:: CRITICAL: step out of the install dir before we touch anything inside it.
+:: If the user double-clicked uninstall_windows.bat from %INSTALL_DIR%, our
+:: working directory IS the directory we're about to delete. rmdir /S /Q
+:: succeeds against an in-use working directory but leaves the bat itself
+:: locked, and the script's subsequent steps run with a stale cwd that
+:: causes "The system cannot find the path specified" errors that abort
+:: the rest of cleanup. Move to %TEMP% before any destructive op.
+cd /d "%TEMP%"
+
 echo  [..] Stopping and removing AipetAgent service
 if exist "%INSTALL_DIR%\aipet-agent-service-uninstall.bat" (
     call "%INSTALL_DIR%\aipet-agent-service-uninstall.bat"
@@ -49,8 +75,12 @@ if exist "%INSTALL_DIR%\aipet-agent-service-uninstall.bat" (
 echo  [OK] Service removed
 
 echo  [..] Removing installation directory %INSTALL_DIR%
+if exist "%INSTALL_DIR%" rmdir /S /Q "%INSTALL_DIR%" 2>nul
 if exist "%INSTALL_DIR%" (
-    rmdir /S /Q "%INSTALL_DIR%"
+    :: Some files may be locked briefly by SCM after service removal --
+    :: wait 2s and retry once.
+    timeout /t 2 /nobreak >nul
+    rmdir /S /Q "%INSTALL_DIR%" 2>nul
 )
 echo  [OK] Install directory removed
 

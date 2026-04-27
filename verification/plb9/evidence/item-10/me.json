@@ -1,0 +1,4 @@
+{
+    "body":  "{\"created_at\":\"2026-04-27T21:06:32.339764+01:00\",\"enabled\":true,\"expires_at\":null,\"id\":9,\"key_prefix\":\"aipet_JHazDidA\",\"label\":\"plb9-verify\",\"last_used_at\":\"2026-04-27T21:59:13.322104+01:00\",\"permissions\":[\"scan:write\",\"telemetry:write\"],\"scope\":\"agent\"}\n",
+    "status_code":  200
+}

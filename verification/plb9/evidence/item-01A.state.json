@@ -1,0 +1,10 @@
+{
+    "timestamp":  "2026-04-27T21:15:42.5043228+01:00",
+    "exit_code":  1,
+    "install_dir_exists":  false,
+    "data_dir_exists":  false,
+    "aipet_agent_service_query":  "[SC] EnumQueryServicesStatus:OpenService FAILED 1060:\n\nThe specified service does not exist as an installed service.\n",
+    "nssm_processes_running":  false,
+    "aipet_firewall_rule_count":  0,
+    "add_remove_programs_reg_present":  false
+}

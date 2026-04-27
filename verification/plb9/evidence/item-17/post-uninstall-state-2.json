@@ -1,0 +1,6 @@
+{
+    "reg_present":  true,
+    "data_dir":  true,
+    "install_dir":  false,
+    "service":  "[SC] EnumQueryServicesStatus:OpenService FAILED 1060:\n\nThe specified service does not exist as an installed service.\n"
+}

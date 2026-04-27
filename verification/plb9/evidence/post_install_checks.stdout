@@ -1,0 +1,14 @@
+[ITEM-02] STATUS=PASS -- AipetAgent service registered
+[ITEM-03] STATUS=PASS -- START_TYPE = AUTO_START
+[ITEM-04] STATUS=PARTIAL -- LocalSystem (documented as expected for v1; revisit later)
+[ITEM-05] STATUS=PASS -- agent.conf marked redacted; no key leak in logs
+[ITEM-15] STATUS=PASS -- logs present; no JWT leakage
+[ITEM-16] STATUS=PASS -- avgCPU=0.0% peakWS=41MB (30s sample; orchestrator runs longer one)
+Cannot overwrite variable PID because it is read-only or constant.
+At C:\AIPET\verify\run_post_install_checks.ps1:157 char:20
++ ... if ($svc) { (Get-CimInstance Win32_Service -Filter "Name='AipetAgent' ...
++                 ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+    + CategoryInfo          : WriteError: (PID:String) [], SessionStateUnauthorizedAccessException
+    + FullyQualifiedErrorId : VariableNotWritable
+ 
+[ITEM-18] STATUS=PASS -- agent has 0 listening sockets, 0 inbound firewall rules (outbound only)

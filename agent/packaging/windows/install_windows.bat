@@ -1,5 +1,5 @@
 @echo off
-:: AIPET X Agent — Windows installer
+:: AIPET X Agent -- Windows installer
 :: Designed for non-technical IT staff. Asks 3 questions max.
 :: Self-tests the install. Plain-English errors only.
 ::
@@ -19,7 +19,7 @@ set "DATA_DIR=%ProgramData%\AIPET"
 set "DEFAULT_API=%AIPET_API_URL%"
 if "%DEFAULT_API%"=="" set "DEFAULT_API=https://api.aipet.io"
 
-:: ── 1. Administrator check ───────────────────────────────
+:: -- 1. Administrator check -------------------------------
 net session >nul 2>&1
 if %errorlevel% neq 0 (
     echo.
@@ -44,7 +44,7 @@ echo    Required:  Administrator, Python 3.8+, nmap
 echo    Time:      ~3 minutes
 echo.
 
-:: ── 2. Python check ──────────────────────────────────────
+:: -- 2. Python check --------------------------------------
 echo  [..] Checking for Python 3.8+...
 set "PYTHON_EXE="
 for %%P in (python.exe python3.exe py.exe) do (
@@ -70,7 +70,7 @@ exit /b 1
 :python_found
 echo  [OK] Python found: !PYTHON_EXE! ^(version !PYVER!^)
 
-:: ── 3. nmap check ────────────────────────────────────────
+:: -- 3. nmap check ----------------------------------------
 echo  [..] Checking for nmap...
 where nmap >nul 2>&1
 if %errorlevel% neq 0 (
@@ -85,7 +85,7 @@ if %errorlevel% neq 0 (
     echo  [OK] nmap found
 )
 
-:: ── 4. Three questions ───────────────────────────────────
+:: -- 4. Three questions -----------------------------------
 echo.
 echo  ---- Configuration ---------------------------------
 echo.
@@ -100,10 +100,15 @@ if "!AGENT_KEY!"=="" (
     echo  [!] Key cannot be empty.
     goto :ask_key
 )
-echo !AGENT_KEY! | findstr /R "^aipet_[A-Za-z0-9_-][A-Za-z0-9_-][A-Za-z0-9_-][A-Za-z0-9_-][A-Za-z0-9_-][A-Za-z0-9_-][A-Za-z0-9_-][A-Za-z0-9_-][A-Za-z0-9_-][A-Za-z0-9_-][A-Za-z0-9_-][A-Za-z0-9_-][A-Za-z0-9_-][A-Za-z0-9_-][A-Za-z0-9_-][A-Za-z0-9_-][A-Za-z0-9_-][A-Za-z0-9_-][A-Za-z0-9_-][A-Za-z0-9_-]" >nul
-if !errorlevel! neq 0 (
-    echo  [!] That doesn't look like a valid AIPET key. It must start with
-    echo      "aipet_" and be at least 26 characters long.
+:: Validate prefix + minimum length without findstr (its regex engine
+:: runs out of memory on the 20-char-class form we used originally).
+:: %var:~0,6% == "aipet_" checks the prefix; %var:~25,1% checks length>=26.
+if /i not "!AGENT_KEY:~0,6!"=="aipet_" (
+    echo  [!] That doesn't look like a valid AIPET key. It must start with "aipet_".
+    goto :ask_key
+)
+if "!AGENT_KEY:~25,1!"=="" (
+    echo  [!] Key looks too short -- must be at least 26 characters.
     goto :ask_key
 )
 
@@ -121,7 +126,7 @@ if "!SCAN_TARGET!"=="" set "SCAN_TARGET=auto"
 
 echo.
 
-:: ── 5. Create directories ────────────────────────────────
+:: -- 5. Create directories --------------------------------
 echo  [..] Creating install directories
 if not exist "%INSTALL_DIR%"      mkdir "%INSTALL_DIR%"
 if not exist "%DATA_DIR%"         mkdir "%DATA_DIR%"
@@ -129,7 +134,7 @@ if not exist "%DATA_DIR%\logs"    mkdir "%DATA_DIR%\logs"
 if not exist "%DATA_DIR%\state"   mkdir "%DATA_DIR%\state"
 echo  [OK] Directories ready
 
-:: ── 6. Copy files ────────────────────────────────────────
+:: -- 6. Copy files ----------------------------------------
 echo  [..] Copying agent files
 copy /Y "%SCRIPT_DIR%aipet_agent.py" "%INSTALL_DIR%\aipet_agent.py" >nul
 copy /Y "%SCRIPT_DIR%watchdog.py"    "%INSTALL_DIR%\watchdog.py"    >nul
@@ -140,7 +145,7 @@ copy /Y "%SCRIPT_DIR%uninstall_windows.bat"             "%INSTALL_DIR%\uninstall
 copy /Y "%SCRIPT_DIR%README-Windows.md"                 "%INSTALL_DIR%\README-Windows.md"                 >nul
 echo  [OK] Files installed under %INSTALL_DIR%
 
-:: ── 7. Install Python deps into a per-service site-dir ──
+:: -- 7. Install Python deps into a per-service site-dir --
 echo  [..] Installing Python dependencies (psutil, requests, defusedxml)
 "!PYTHON_EXE!" -m pip install --quiet --upgrade pip >nul 2>&1
 "!PYTHON_EXE!" -m pip install --quiet psutil requests defusedxml
@@ -152,7 +157,7 @@ if !errorlevel! neq 0 (
 )
 echo  [OK] Dependencies installed
 
-:: ── 8. Write config ──────────────────────────────────────
+:: -- 8. Write config --------------------------------------
 echo  [..] Writing %DATA_DIR%\agent.conf
 ^> "%DATA_DIR%\agent.conf" echo # AIPET X Agent Configuration ^(generated %DATE% %TIME%^)
 ^>^> "%DATA_DIR%\agent.conf" echo # This file documents the values used to install the service.
@@ -170,7 +175,7 @@ echo  [..] Writing %DATA_DIR%\agent.conf
 icacls "%DATA_DIR%\agent.conf" /inheritance:r /grant:r SYSTEM:F Administrators:F >nul 2>&1
 echo  [OK] Configuration saved (key value held in service env, NOT written to disk)
 
-:: ── 9. Install service ──────────────────────────────────
+:: -- 9. Install service ----------------------------------
 :: Export env vars for the service-install script
 set "AIPET_API=%DEFAULT_API%"
 set "AIPET_AGENT_KEY=!AGENT_KEY!"
@@ -190,9 +195,10 @@ if !errorlevel! neq 0 (
 
 echo  [..] Starting service
 sc start AipetAgent >nul 2>&1
+:: Brief settle window before the self-test begins its proper poll loop.
 timeout /t 4 /nobreak >nul
 
-:: ── 10. Add/Remove Programs registry entry ──────────────
+:: -- 10. Add/Remove Programs registry entry --------------
 echo  [..] Registering with Add/Remove Programs
 reg add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\AipetAgent" /v "DisplayName"     /t REG_SZ /d "AIPET X Agent"                     /f >nul
 reg add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\AipetAgent" /v "DisplayVersion"  /t REG_SZ /d "%VERSION%"                          /f >nul
@@ -203,15 +209,27 @@ reg add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\AipetAgent" /v
 reg add "HKLM\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\AipetAgent" /v "NoRepair"        /t REG_DWORD /d 1                                  /f >nul
 echo  [OK] Registered
 
-:: ── 11. Self-test ───────────────────────────────────────
+:: -- 11. Self-test ---------------------------------------
 echo.
 echo  ---- Self-test -----------------------------------
 echo.
 
-echo  [..] Verifying service is running
-sc query AipetAgent | findstr /C:"RUNNING" >nul
-if !errorlevel! neq 0 (
-    echo  [X] Service is not running. Recent log lines:
+echo  [..] Verifying service is running (waiting up to 30s for first start)
+:: First-start of a Python service can take 10-20s on cold caches.
+:: Poll every 3s up to 10 attempts before declaring failure.
+set SVC_OK=0
+for /L %%I in (1,1,10) do (
+    if !SVC_OK!==0 (
+        sc query AipetAgent | findstr /C:"RUNNING" >nul
+        if !errorlevel! equ 0 (
+            set SVC_OK=1
+        ) else (
+            timeout /t 3 /nobreak >nul
+        )
+    )
+)
+if !SVC_OK!==0 (
+    echo  [X] Service did not reach RUNNING within 30s. Recent error log:
     if exist "%DATA_DIR%\logs\agent-error.log" (
         type "%DATA_DIR%\logs\agent-error.log" 2>nul
     )
@@ -243,7 +261,7 @@ if exist "%DATA_DIR%\logs\agent.log" (
     echo  [!] Log file not yet created. Will appear at %DATA_DIR%\logs\agent.log
 )
 
-:: ── 12. Final ──────────────────────────────────────────
+:: -- 12. Final ------------------------------------------
 echo.
 echo  ====================================================
 echo    AIPET X Agent installed successfully.

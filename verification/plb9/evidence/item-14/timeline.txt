@@ -1,0 +1,9 @@
+gunicorn master PID=122469
+log size before: 51946
+2026-04-27T22:05:04Z STOPPING gunicorn
+[~] No Gunicorn PID file found
+[~] No Celery worker PID file found
+[~] No Celery Beat PID file found
+[+] Gunicorn (pkill)
+[+] Done
+2026-04-27T22:06:23Z RESTART

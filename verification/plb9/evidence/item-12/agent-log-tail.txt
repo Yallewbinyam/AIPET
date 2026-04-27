@@ -1,0 +1,15 @@
+2026-04-27 22:54:06 [INFO] AIPET Agent 1.2.0 starting
+2026-04-27 22:54:06 [INFO]   Agent ID : agent-da772994116df971
+2026-04-27 22:54:06 [INFO]   Host     : Binyam
+2026-04-27 22:54:06 [INFO]   Label    : plb9-windows-verify
+2026-04-27 22:54:06 [INFO]   Platform : Windows 11 (Windows/NSSM)
+2026-04-27 22:54:06 [INFO]   API      : http://10.0.3.2:5001
+2026-04-27 22:54:06 [INFO]   Interval : 60s
+2026-04-27 22:54:06 [INFO]   Auth     : agent-key
+2026-04-27 22:54:06 [INFO] Watchdog started (check every 300s, target http://10.0.3.2:5001)
+2026-04-27 22:54:06 [INFO]   Watchdog : every 300s
+2026-04-27 22:54:06 [INFO]   Scans    : 10.0.3.0/24 every 24h
+C:\Program Files\AIPET\aipet_agent.py:208: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  "collected_at":  datetime.datetime.utcnow().isoformat(),
+2026-04-27 22:54:09 [ERROR] Authentication failed (401). If using --agent-key, the key may be revoked.
+2026-04-27 22:54:09 [ERROR] Agent key auth: exiting - revoked or invalid key, no point retrying.

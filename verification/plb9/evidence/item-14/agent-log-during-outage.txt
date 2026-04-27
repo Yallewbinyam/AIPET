@@ -1,0 +1,40 @@
+    subprocess.run(
+  File "C:\Program Files\Python312\Lib\subprocess.py", line 550, in run
+    stdout, stderr = process.communicate(input, timeout=timeout)
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Program Files\Python312\Lib\subprocess.py", line 1209, in communicate
+    stdout, stderr = self._communicate(input, endtime, timeout)
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Program Files\Python312\Lib\subprocess.py", line 1628, in _communicate
+    self.stdout_thread.join(self._remaining_time(endtime))
+  File "C:\Program Files\Python312\Lib\threading.py", line 1153, in join
+    self._wait_for_tstate_lock(timeout=max(timeout, 0))
+  File "C:\Program Files\Python312\Lib\threading.py", line 1169, in _wait_for_tstate_lock
+    if lock.acquire(block, timeout):
+       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+KeyboardInterrupt
+2026-04-27 23:03:30 [INFO] Using agent API key authentication
+2026-04-27 23:03:30 [INFO] AIPET Agent 1.2.0 starting
+2026-04-27 23:03:30 [INFO]   Agent ID : agent-da772994116df971
+2026-04-27 23:03:30 [INFO]   Host     : Binyam
+2026-04-27 23:03:30 [INFO]   Label    : plb9-windows-verify
+2026-04-27 23:03:30 [INFO]   Platform : Windows 11 (Windows/NSSM)
+2026-04-27 23:03:30 [INFO]   API      : http://10.0.3.2:5001
+2026-04-27 23:03:30 [INFO]   Interval : 60s
+2026-04-27 23:03:30 [INFO]   Auth     : agent-key
+2026-04-27 23:03:30 [INFO] Watchdog started (check every 300s, target http://10.0.3.2:5001)
+2026-04-27 23:03:30 [INFO]   Watchdog : every 300s
+2026-04-27 23:03:30 [INFO]   Scans    : 10.0.3.0/24 every 24h
+C:\Program Files\AIPET\aipet_agent.py:208: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  "collected_at":  datetime.datetime.utcnow().isoformat(),
+2026-04-27 23:03:31 [INFO] Telemetry sent - snapshot ed1249cc  cpu=84.7%  mem=24.8%
+2026-04-27 23:03:31 [INFO] Periodic scan starting on 10.0.3.0/24
+2026-04-27 23:03:32 [INFO] Running nmap scan on 10.0.3.0/24 (subprocess) ...
+C:\Program Files\AIPET\aipet_agent.py:337: DeprecationWarning: Testing an element's truth value will always return True in future versions.  Use specific 'len(elem)' or 'elem is not None' test instead.
+  for port_el in (host_el.find("ports") or []):
+C:\Program Files\AIPET\aipet_agent.py:364: DeprecationWarning: datetime.datetime.utcnow() is deprecated and scheduled for removal in a future version. Use timezone-aware objects to represent datetimes in UTC: datetime.datetime.now(datetime.UTC).
+  now = datetime.datetime.utcnow().isoformat()
+2026-04-27 23:04:43 [INFO] Scan uploaded - real_scan_id=232b3ec6  hosts=4
+2026-04-27 23:06:04 [ERROR] Send failed: HTTPConnectionPool(host='10.0.3.2', port=5001): Max retries exceeded with url: /api/agent/telemetry (Caused by NewConnectionError("HTTPConnection(host='10.0.3.2', port=5001): Failed to establish a new connection: [WinError 10061] No connection could be made because the target machine actively refused it"))
+2026-04-27 23:07:07 [ERROR] Send failed: HTTPConnectionPool(host='10.0.3.2', port=5001): Read timed out. (read timeout=10)
+2026-04-27 23:08:23 [INFO] Telemetry sent - snapshot 647de356  cpu=17.4%  mem=46.2%
