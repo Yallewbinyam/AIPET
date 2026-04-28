@@ -14,7 +14,6 @@ flask==3.1.0
 flask-cors==6.0.0
 flask-jwt-extended==4.7.1
 flask-sqlalchemy==3.1.1
-flask-migrate==4.1.0
 flask-limiter==4.1.0
 
 # Database
@@ -52,7 +51,9 @@ statsmodels>=0.14.0
 # Web Push notifications (Capability 12)
 pywebpush>=2.0.0
 
-# PLB-1: Database migrations (used standalone via `alembic` CLI;
-# flask-migrate above brings alembic transitively but we pin
-# explicitly so removal of flask-migrate doesn't break us)
+# PLB-1: Database migrations -- alembic is the canonical migration
+# system, used standalone via the `alembic` CLI. flask-migrate was
+# removed in the 2026-04-28 PLB-1 follow-up cleanup; it had been
+# wired as a no-op (registered `flask db` CLI which nothing called)
+# and served only to confuse new contributors. See alembic/README.
 alembic>=1.13

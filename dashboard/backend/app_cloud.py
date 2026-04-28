@@ -32,7 +32,11 @@ from flask_cors import CORS
 from flask_jwt_extended import (
     JWTManager, jwt_required, get_jwt_identity
 )
-from flask_migrate import Migrate
+# flask-migrate removed 2026-04-28 in PLB-1 follow-up cleanup commit.
+# Alembic is the canonical migration system (see alembic/README and PLB-1
+# closure report). The previous `Migrate(app, db)` call was a no-op
+# at runtime -- it only registered the `flask db ...` CLI alias, which
+# nothing in this codebase calls. We use `alembic` directly via venv/bin.
 from flask_mail import Mail
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
@@ -216,7 +220,7 @@ def create_app(config_name="development"):
     # Bind extensions to this app instance before first DB use.
     db.init_app(app)
     JWTManager(app)
-    Migrate(app, db)
+    # Migrate(app, db) removed -- see header comment.
 
     # Flask-Mail — always read from env vars at startup so start_cloud.sh exports are picked up
     app.config["MAIL_SERVER"]         = os.environ.get("SMTP_HOST",     "smtp.gmail.com")

@@ -1,9 +1,10 @@
 # Database backup and restore -- runbook
 
 This runbook is the canonical procedure for taking, retaining, and
-verifying PostgreSQL backups of `aipet_db`. It is owned by ops; the
-in-app backup module under `dashboard/backend/monitoring/backup.py`
-is being deprecated in favour of the shell scripts documented here.
+verifying PostgreSQL backups of `aipet_db`. It is owned by ops. The
+shell scripts (`scripts/backup.sh` + `scripts/restore.sh`) are the
+single source of truth; the legacy in-app `monitoring/backup.py`
+module was retired 2026-04-28 (PLB-1 follow-up).
 
 ## TL;DR
 
@@ -58,10 +59,10 @@ Recommend a Grandfather-Father-Son rotation:
 | weekly | 4      | (keep the Sunday daily until rotation date) |
 | monthly| 3      | (keep the 1st-of-month daily until rotation) |
 
-The current `dashboard/backend/monitoring/backup.py` enforces only the
-7-daily tier. If you adopt the runbook in production, implement
-weekly/monthly via either a thin pruning script or a managed service
-(Restic / BorgBackup / ...).
+`scripts/backup.sh` itself does not prune -- it only writes new
+backups. Implement weekly/monthly retention via either a thin
+pruning script (cron + `find ... -mtime +N -delete`) or a managed
+backup service (Restic / BorgBackup / managed S3 lifecycle rules).
 
 ## Restore -- standard verification flow
 
@@ -154,5 +155,5 @@ Then bring the workers back up.
 * `alembic/README` -- the migrations workflow that lives alongside this
 * `verification/plb1/PLB-1-alembic-baseline-2026-04-28.md` -- the
   closure report that established the procedure
-* `dashboard/backend/monitoring/backup.py` -- legacy in-app backup
-  (still scheduled by Celery; will be retired in a follow-up commit)
+* `scripts/backup.sh` and `scripts/restore.sh` -- the canonical
+  implementation referenced throughout this runbook
