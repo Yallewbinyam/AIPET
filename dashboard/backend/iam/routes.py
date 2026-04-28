@@ -227,6 +227,149 @@ def list_members():
         'page':    pagination.page,
     })
 
+
+# ── Member detail / enable / disable ─────────────────────────
+# Helpers shared by GET /users/<id>, POST /users/<id>/disable,
+# POST /users/<id>/enable. Last-owner safety net is enforced in
+# the same db.session as the status toggle so a single request
+# can't disable the platform's only owner. (At higher concurrency
+# we'd add `with_for_update()` on the user_roles query; v1 row
+# counts make that overkill.)
+
+def _serialize_member(user):
+    """Canonical member-detail dict. Re-fetches roles per call;
+    callers that already have the role list in hand can pre-populate
+    it -- not needed at v1 scale."""
+    user_roles = UserRole.query.filter_by(user_id=user.id).all()
+    role_ids   = [ur.role_id for ur in user_roles]
+    roles      = (Role.query.filter(Role.id.in_(role_ids)).all()
+                  if role_ids else [])
+    return {
+        'id':           user.id,
+        'email':        user.email,
+        'name':         user.name,
+        'plan':         user.plan,
+        'organisation': user.organisation,
+        'created_at':   user.created_at.isoformat() if user.created_at else None,
+        'last_login':   user.last_login.isoformat() if user.last_login else None,
+        # The is_active column is nullable in the DB schema (no
+        # NOT NULL constraint); coalesce to True for any historical
+        # rows that may have NULL.
+        'is_active':    True if user.is_active is None else bool(user.is_active),
+        'roles':        [{'id': r.id, 'name': r.name} for r in roles],
+    }
+
+
+def _is_last_owner(target_user_id):
+    """True iff target is the only ACTIVE owner. We count active
+    owners (not all owners) because the safety net's purpose is
+    preventing platform lockout -- a disabled user retains their
+    owner role assignment but cannot use it without first being
+    re-enabled. With a literal "only user with the role" check we
+    once disabled both owners in sequence (each was non-last by
+    role-assignment count) and ended up with zero active owners
+    -- the exact failure mode this gate was meant to prevent.
+    Active = is_active True OR NULL (the column is nullable; NULL
+    is treated as active, matching the rest of the codebase)."""
+    owner_role = Role.query.filter_by(name='owner').first()
+    if owner_role is None:
+        return False  # 'owner' not seeded; nothing to protect
+
+    target_has_owner = UserRole.query.filter_by(
+        user_id=target_user_id, role_id=owner_role.id
+    ).first() is not None
+    if not target_has_owner:
+        return False
+
+    other_active_owners = (db.session.query(User.id)
+        .join(UserRole, UserRole.user_id == User.id)
+        .filter(
+            UserRole.role_id == owner_role.id,
+            User.id != target_user_id,
+            db.or_(User.is_active.is_(True), User.is_active.is_(None)),
+        )
+        .count())
+    return other_active_owners == 0
+
+
+@iam_bp.route('/users/<int:user_id>', methods=['GET'])
+@require_permission('iam:manage')
+def get_member_detail(user_id):
+    user = db.session.get(User, user_id)
+    if user is None:
+        return jsonify({'error': 'user_not_found',
+                        'message': f'No user with id={user_id}'}), 404
+    return jsonify(_serialize_member(user)), 200
+
+
+@iam_bp.route('/users/<int:user_id>/disable', methods=['POST'])
+@require_permission('iam:manage')
+def disable_user(user_id):
+    user = db.session.get(User, user_id)
+    if user is None:
+        return jsonify({'error': 'user_not_found',
+                        'message': f'No user with id={user_id}'}), 404
+
+    # Idempotent: already disabled -> 200, no audit row written.
+    # (`is_active` is nullable; treat NULL as True/active.)
+    currently_active = (True if user.is_active is None
+                        else bool(user.is_active))
+    if not currently_active:
+        return jsonify(_serialize_member(user)), 200
+
+    # Last-owner safety net.
+    if _is_last_owner(user_id):
+        return jsonify({
+            'error':   'last_owner',
+            'message': 'Cannot disable the last owner of the platform.',
+        }), 400
+
+    data = request.get_json(silent=True) or {}
+    reason = data.get('reason')
+
+    user.is_active = False
+    db.session.add(user)
+    db.session.commit()
+
+    log_action(
+        get_jwt_identity(),
+        'user.disabled',
+        resource=f'user:{user_id}',
+        details={'reason': reason} if reason else None,
+    )
+    return jsonify(_serialize_member(user)), 200
+
+
+@iam_bp.route('/users/<int:user_id>/enable', methods=['POST'])
+@require_permission('iam:manage')
+def enable_user(user_id):
+    user = db.session.get(User, user_id)
+    if user is None:
+        return jsonify({'error': 'user_not_found',
+                        'message': f'No user with id={user_id}'}), 404
+
+    currently_active = (True if user.is_active is None
+                        else bool(user.is_active))
+    if currently_active:
+        # Idempotent: already enabled -> 200, no audit row written.
+        return jsonify(_serialize_member(user)), 200
+
+    data = request.get_json(silent=True) or {}
+    reason = data.get('reason')
+
+    user.is_active = True
+    db.session.add(user)
+    db.session.commit()
+
+    log_action(
+        get_jwt_identity(),
+        'user.enabled',
+        resource=f'user:{user_id}',
+        details={'reason': reason} if reason else None,
+    )
+    return jsonify(_serialize_member(user)), 200
+
+
 # ── Audit log ────────────────────────────────────────────────
 # Phase B § 8 F5/F6: the JSON list and the CSV export share the
 # same filter parser + WHERE-clause builder so behaviour stays in

@@ -15,7 +15,7 @@ from dashboard.backend.iam.routes import (
     seed_default_roles,
     assign_role_to_user,
 )
-from dashboard.backend.iam.models import UserRole, AuditLog
+from dashboard.backend.iam.models import UserRole, AuditLog, Role
 from dashboard.backend.models import db
 
 
@@ -471,3 +471,283 @@ def test_audit_export_returns_401_without_jwt(client, flask_app):
     _reset_limiter(flask_app)
     r = client.get("/api/iam/audit/export")
     assert r.status_code == 401
+
+
+# =============================================================
+# Tier 1 v1 — member detail + enable/disable
+# Phase B § 6.1.2, § 6.1.3, § 6.1.4
+# =============================================================
+import bcrypt as _bcrypt
+import uuid as _uuid_iam
+from dashboard.backend.models import User as _User
+from dashboard.backend.iam.models import UserRole as _UR
+from dashboard.backend.iam.routes import _is_last_owner
+
+
+def _create_user(email_suffix, name="Member Test", plan="free"):
+    """Create a user in the test DB with a fresh email and a real
+    bcrypt hash. Returns the user. Caller is responsible for cleanup
+    via _delete_user."""
+    email = f"member-{email_suffix}-{_uuid_iam.uuid4().hex[:8]}@aipet.local"
+    pw_hash = _bcrypt.hashpw(b"PW", _bcrypt.gensalt()).decode("utf-8")
+    u = _User(email=email, password_hash=pw_hash, name=name, plan=plan)
+    db.session.add(u)
+    db.session.commit()
+    return u
+
+
+def _delete_user(u):
+    """Tear down a user + their role assignments + their audit rows."""
+    _UR.query.filter_by(user_id=u.id).delete()
+    AuditLog.query.filter_by(resource=f"user:{u.id}").delete()
+    db.session.delete(u)
+    db.session.commit()
+
+
+# --- GET /api/iam/users/<id> ---------------------------------------
+
+def test_member_detail_returns_200_for_owner(client, flask_app, test_user):
+    _reset_limiter(flask_app)
+    headers = _owner_headers(flask_app, test_user)
+
+    r = client.get(f"/api/iam/users/{test_user.id}", headers=headers)
+    assert r.status_code == 200, r.data
+    body = r.get_json()
+    assert body["id"] == test_user.id
+    assert body["email"] == test_user.email
+    for required in ("id", "email", "name", "plan", "is_active",
+                     "roles", "last_login", "created_at"):
+        assert required in body, f"missing {required} in {body}"
+    role_names = {r["name"] for r in body["roles"]}
+    assert "owner" in role_names
+
+
+def test_member_detail_returns_404_for_unknown_id(client, flask_app, test_user):
+    _reset_limiter(flask_app)
+    headers = _owner_headers(flask_app, test_user)
+    r = client.get("/api/iam/users/9999999", headers=headers)
+    assert r.status_code == 404
+    assert r.get_json()["error"] == "user_not_found"
+
+
+def test_member_detail_returns_401_without_jwt(client, flask_app, test_user):
+    _reset_limiter(flask_app)
+    r = client.get(f"/api/iam/users/{test_user.id}")
+    assert r.status_code == 401
+
+
+# --- POST /api/iam/users/<id>/disable ------------------------------
+
+def test_disable_user_happy_path(client, flask_app, test_user):
+    _reset_limiter(flask_app)
+    headers = _owner_headers(flask_app, test_user)
+
+    # Plant a non-owner second user we can safely disable.
+    target = _create_user("disable-happy")
+    try:
+        r = client.post(
+            f"/api/iam/users/{target.id}/disable",
+            headers=headers,
+            data=json.dumps({"reason": "happy-path test"}),
+        )
+        assert r.status_code == 200, r.data
+        body = r.get_json()
+        assert body["id"] == target.id
+        assert body["is_active"] is False
+
+        # Audit row written.
+        audit = AuditLog.query.filter_by(
+            resource=f"user:{target.id}",
+            action="user.disabled",
+        ).all()
+        assert len(audit) == 1
+        assert audit[0].node_meta == {"reason": "happy-path test"}
+    finally:
+        _delete_user(target)
+
+
+def test_disable_user_idempotent_no_extra_audit(client, flask_app, test_user):
+    """Calling disable twice -> 200 each time, exactly ONE audit row."""
+    _reset_limiter(flask_app)
+    headers = _owner_headers(flask_app, test_user)
+    target = _create_user("disable-idempotent")
+    try:
+        r1 = client.post(
+            f"/api/iam/users/{target.id}/disable",
+            headers=headers,
+            data=json.dumps({"reason": "first call"}),
+        )
+        assert r1.status_code == 200
+        r2 = client.post(
+            f"/api/iam/users/{target.id}/disable",
+            headers=headers,
+            data=json.dumps({"reason": "second call"}),
+        )
+        assert r2.status_code == 200
+
+        audit = AuditLog.query.filter_by(
+            resource=f"user:{target.id}",
+            action="user.disabled",
+        ).all()
+        assert len(audit) == 1, (
+            f"expected exactly 1 disable audit row; got {len(audit)} "
+            f"(idempotent path should not write an audit entry)"
+        )
+        assert audit[0].node_meta == {"reason": "first call"}
+    finally:
+        _delete_user(target)
+
+
+def test_disable_user_returns_404_for_unknown(client, flask_app, test_user):
+    _reset_limiter(flask_app)
+    headers = _owner_headers(flask_app, test_user)
+    r = client.post("/api/iam/users/9999999/disable", headers=headers,
+                    data=json.dumps({"reason": "nope"}))
+    assert r.status_code == 404
+
+
+def test_disable_blocks_last_active_owner(client, flask_app, test_user):
+    """test_user has owner. No other active owner exists. Disabling
+    test_user must return 400 last_owner."""
+    _reset_limiter(flask_app)
+    headers = _owner_headers(flask_app, test_user)
+
+    # Make sure no OTHER active owner is around. Demote any extra
+    # owners by removing their UserRole rows. (The session-scoped
+    # SQLite test DB only has test_user as the active owner, but
+    # other tests may have planted owners; clean defensively.)
+    owner_role = Role.query.filter_by(name='owner').first()
+    _UR.query.filter(
+        _UR.role_id == owner_role.id,
+        _UR.user_id != test_user.id,
+    ).delete()
+    db.session.commit()
+
+    assert _is_last_owner(test_user.id) is True
+
+    r = client.post(
+        f"/api/iam/users/{test_user.id}/disable",
+        headers=headers,
+        data=json.dumps({"reason": "should be blocked"}),
+    )
+    assert r.status_code == 400, r.data
+    body = r.get_json()
+    assert body["error"] == "last_owner"
+
+    # No audit row written for the blocked attempt.
+    audit = AuditLog.query.filter_by(
+        resource=f"user:{test_user.id}",
+        action="user.disabled",
+    ).count()
+    assert audit == 0
+
+
+def test_disable_allows_owner_when_other_active_owner_exists(
+    client, flask_app, test_user
+):
+    """A second active+owner user exists, so disabling test_user
+    is permitted (would not leave the platform without an owner)."""
+    _reset_limiter(flask_app)
+    headers = _owner_headers(flask_app, test_user)
+
+    # Plant a second active owner.
+    second = _create_user("disable-second-owner")
+    try:
+        from dashboard.backend.iam.routes import assign_role_to_user
+        assign_role_to_user(second.id, "owner",
+                            assigned_by=test_user.id,
+                            reason="test-second-owner",
+                            emit_audit=False)
+        db.session.commit()
+
+        # Now there are two active owners. Disabling test_user is OK.
+        r = client.post(
+            f"/api/iam/users/{test_user.id}/disable",
+            headers=headers,
+            data=json.dumps({"reason": "second-owner exists"}),
+        )
+        # NOTE: this revokes JWT-future for test_user but the current
+        # JWT is still valid until expiry; the response is the
+        # disabled-state body.
+        assert r.status_code == 200, r.data
+        body = r.get_json()
+        assert body["is_active"] is False
+    finally:
+        # Restore test_user's active state for other tests.
+        target = db.session.get(_User, test_user.id)
+        target.is_active = True
+        db.session.commit()
+        _delete_user(second)
+
+
+# --- POST /api/iam/users/<id>/enable -------------------------------
+
+def test_enable_user_happy_path(client, flask_app, test_user):
+    _reset_limiter(flask_app)
+    headers = _owner_headers(flask_app, test_user)
+    target = _create_user("enable-happy")
+    try:
+        # Disable first so enable has work to do.
+        client.post(
+            f"/api/iam/users/{target.id}/disable",
+            headers=headers,
+            data=json.dumps({"reason": "set up"}),
+        )
+
+        r = client.post(
+            f"/api/iam/users/{target.id}/enable",
+            headers=headers,
+            data=json.dumps({"reason": "happy-path enable"}),
+        )
+        assert r.status_code == 200, r.data
+        assert r.get_json()["is_active"] is True
+
+        audit = AuditLog.query.filter_by(
+            resource=f"user:{target.id}",
+            action="user.enabled",
+        ).all()
+        assert len(audit) == 1
+        assert audit[0].node_meta == {"reason": "happy-path enable"}
+    finally:
+        _delete_user(target)
+
+
+def test_enable_user_idempotent_no_extra_audit(client, flask_app, test_user):
+    """Calling enable twice on an already-active user -> 200 each
+    time, ZERO audit rows."""
+    _reset_limiter(flask_app)
+    headers = _owner_headers(flask_app, test_user)
+    target = _create_user("enable-idempotent")
+    try:
+        # Already active by default.
+        r1 = client.post(
+            f"/api/iam/users/{target.id}/enable",
+            headers=headers,
+            data=json.dumps({"reason": "first"}),
+        )
+        assert r1.status_code == 200
+        r2 = client.post(
+            f"/api/iam/users/{target.id}/enable",
+            headers=headers,
+            data=json.dumps({"reason": "second"}),
+        )
+        assert r2.status_code == 200
+
+        audit = AuditLog.query.filter_by(
+            resource=f"user:{target.id}",
+            action="user.enabled",
+        ).count()
+        assert audit == 0, (
+            f"expected zero enable audit rows; got {audit} "
+            f"(idempotent path on already-active should not write)"
+        )
+    finally:
+        _delete_user(target)
+
+
+def test_enable_user_returns_404_for_unknown(client, flask_app, test_user):
+    _reset_limiter(flask_app)
+    headers = _owner_headers(flask_app, test_user)
+    r = client.post("/api/iam/users/9999999/enable", headers=headers,
+                    data=json.dumps({}))
+    assert r.status_code == 404
