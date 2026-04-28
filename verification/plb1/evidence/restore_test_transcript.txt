@@ -1,0 +1,27 @@
+FRESH=/home/byall/AIPET/backups/aipet_db_2026-04-28_02-16-12_roundtrip.sql.gz
+=== PLB-1 Phase 5: backup -> restore round-trip evidence ===
+Date: 2026-04-28
+
+--- 1. Backup taken ---
+-rw-r--r-- 1 byall byall 227602 Apr 28 02:16 backups/aipet_db_2026-04-28_02-16-12_roundtrip.sql.gz
+
+--- 2. Restored into aipet_restore_test (separate DB) ---
+(restore.sh log preserved at the timestamp printed in [OK] line)
+
+--- 3. Authoritative count(*) per table, both DBs ---
+tables_total_aipet_db=167 tables_total_restored=167 diff_count=0
+
+--- 4. Schema diff between source and restored ---
+27
+(line count above; full diff in alembic/versions/PHASE3_evidence/diff_live_vs_test.txt-style report)
+
+--- 5. Typo guard verified ---
+data. If you really mean to restore prod (e.g. after a real outage),
+re-run with the explicit flag:
+
+  ./scripts/restore.sh "backups/aipet_db_2026-04-28_02-16-12_roundtrip.sql.gz" aipet_db --i-know-what-im-doing
+
+For verification / testing, restore into a different DB name:
+
+  ./scripts/restore.sh "backups/aipet_db_2026-04-28_02-16-12_roundtrip.sql.gz" aipet_restore_test
+(refused as expected; exit=1)
