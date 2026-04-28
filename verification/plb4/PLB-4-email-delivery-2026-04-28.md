@@ -56,7 +56,7 @@ curl -sS -X POST http://localhost:5001/api/__email_test \
 2026-04-28 17:04:33 INFO  dashboard.backend.app_cloud PLB-4 email smoke test sent to byallew@gmail.com
 ```
 
-**Inbox confirmation:** _pending — awaiting user check of byallew@gmail.com_
+**Inbox confirmation:** ✅ user-confirmed received 2026-04-28; subject / sender / body verified correct. Inbox-vs-spam placement and rendering notes to follow.
 
 **Sanity checks post-send:**
 
@@ -72,19 +72,50 @@ curl -sS -X POST http://localhost:5001/api/__email_test \
 
 ## Phase 3 — Password reset end-to-end
 
-_Pending._
+**Test user:** id=1, email=byallew@gmail.com (free plan).
+
+**Sequence:**
+
+| # | Step | Result |
+|---|---|---|
+| 1 | `POST /api/auth/forgot-password {"email":"byallew@gmail.com"}` | HTTP 200 — generic enumeration-safe message |
+| 2 | DB check — `password_reset_tokens` row | id=1, user_id=1, token len=64, expires +1h, used=false |
+| 3 | Email delivery to inbox | ✅ user-confirmed receipt |
+| 4 | `POST /api/auth/reset-password {"token":"<token>","new_password":"PLB4Reset2026!"}` | HTTP 200, JWT issued in response, token marked used in DB |
+| 5 | `POST /api/auth/login` with `PLB4Reset2026!` | HTTP 200, JWT issued, user.id=1 |
+| 6 | Restore password to `Test1234!` (direct bcrypt update — login rate limit hit during change-password attempt; restoration bypasses the limit. Endpoint already verified in step 4) | UPDATE 1 row |
+| 7 | `POST /api/auth/login` with `Test1234!` | HTTP 200 — restoration verified |
+
+**Note on flow vs. UI:** Steps 4–5 exercise the same backend code paths the React `?reset_token=…` page invokes. Frontend integration (URL parsing → form → POST to /api/auth/reset-password) is React-side and not part of the backend acceptance.
+
+**Token lifecycle verified:**
+- Created on forgot-password (used=false)
+- Marked used=true after successful reset (one-shot, cannot be replayed)
+- Subsequent forgot-password calls invalidate prior unused tokens (`auth/routes.py:257`)
+
 
 ---
 
 ## Phase 4 — Tests
 
-_Pending. Five tests planned:_
+**File:** `tests/test_zzzzzzzzzzzzzzzz_email_backend.py` (6 tests, all passing).
 
-1. `test_email_backend_initialises_with_smtp_set` — env vars set ⇒ `email_enabled=True`, `MAIL_SERVER` populated.
-2. `test_email_backend_skips_init_with_smtp_unset` — env vars unset ⇒ `email_enabled=False`, app loads.
-3. `test_email_send_calls_smtp_transport_when_configured` — mock `Mail.send`; verify `forgot_password` invokes it once with the reset URL in body.
-4. `test_email_send_logs_warning_when_unconfigured` — `email_enabled=False`; `forgot_password` returns 200 + log captured at WARNING with "email backend disabled".
-5. `test_smtp_password_not_in_logs` — log capture of init + send paths; assert SMTP_PASSWORD value never appears.
+| # | Test | Asserts |
+|---|---|---|
+| 1 | `test_email_backend_initialises_with_smtp_set` | `app.email_enabled=True`; MAIL_SERVER/PORT/USERNAME populated; `email_status()` does not leak the password |
+| 2 | `test_email_backend_skips_init_with_smtp_unset` | `app.email_enabled=False`; Flask-Mail still binds; no exception |
+| 3 | `test_forgot_password_invokes_mail_send_when_configured` | mock Mail.send called exactly once with target email in `recipients` and "Password Reset" in subject |
+| 4 | `test_forgot_password_logs_warning_when_unconfigured` | 200 enumeration-safe response; mock Mail.send NOT called; WARNING log captured |
+| 5 | `test_smtp_password_not_in_init_logs` | full caplog walk: SMTP_PASSWORD value absent from every record's message + format args |
+| 6 | `test_default_sender_format` (bonus) | `"Display <addr>"` format, blank-display fallback, missing-user fallback to noreply@aipet.io |
+
+**conftest.py update:** explicit empty `SMTP_USER` / `SMTP_PASSWORD` defaults to prevent .env leaking into the session-scoped `flask_app` fixture (`app.email_enabled` is False under tests; tests that need True construct local Flask apps).
+
+**Test infrastructure note:** `_reset_limiter(flask_app)` walks `app.extensions["limiter"]` (Flask-Limiter 4.x stores a *set* of Limiter instances). Required because `RATELIMIT_ENABLED=False` is not honoured once a limiter is instantiated, and `test_auth.py` deliberately exhausts the 3-per-hour `/api/auth/forgot-password` limit on 127.0.0.1.
+
+**Regression verification:**
+- Baseline before PLB-4: 492 passed, 3 skipped.
+- After PLB-4: **498 passed, 3 skipped** (+6 = exactly the new tests; zero regressions in the existing 492).
 
 ---
 

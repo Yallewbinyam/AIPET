@@ -20,6 +20,14 @@ os.environ.setdefault("GOOGLE_CLIENT_ID",       "placeholder")
 os.environ.setdefault("GOOGLE_CLIENT_SECRET",   "placeholder")
 os.environ.setdefault("MAIL_USERNAME",          "")
 os.environ.setdefault("MAIL_PASSWORD",          "")
+# PLB-4: ensure tests do NOT inherit real SMTP creds from a developer's
+# .env. The session flask_app boots with email_enabled=False; tests that
+# need email_enabled=True construct their own Flask app via init_email().
+os.environ["SMTP_USER"]      = ""
+os.environ["SMTP_PASSWORD"]  = ""
+os.environ["SMTP_HOST"]      = "smtp.gmail.com"
+os.environ["SMTP_PORT"]      = "587"
+os.environ["SMTP_FROM_NAME"] = "AIPET X Test Suite"
 
 import pytest
 from sqlalchemy.pool import StaticPool
