@@ -1,7 +1,7 @@
 import uuid
 from datetime import datetime
 from functools import wraps
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request, jsonify, Response
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from dashboard.backend.models import db, User
 from dashboard.backend.iam.models import Role, Permission, UserRole, AuditLog, SSOProvider
@@ -228,20 +228,103 @@ def list_members():
     })
 
 # ── Audit log ────────────────────────────────────────────────
+# Phase B § 8 F5/F6: the JSON list and the CSV export share the
+# same filter parser + WHERE-clause builder so behaviour stays in
+# lockstep across both surfaces. Index coverage for these columns
+# is currently nil (only the PK on id); at v1 row counts that's
+# fine, but a composite index on (timestamp DESC, action, user_id)
+# is tracked as a separate F-row for when scale justifies it.
+
+# Hard cap on a single CSV export. Larger downloads are not
+# silently truncated; the caller gets a 400 instructing them to
+# narrow filters.
+AUDIT_EXPORT_CAP = 10_000
+
+
+def _parse_audit_filters(args):
+    """Parse the audit-log query filters from a Flask `request.args`-
+    like mapping. Returns ``(filters_dict, error_response_or_none)``.
+
+    On invalid input (malformed datetime, non-integer actor),
+    returns ``(None, (json_response, 400))``. Caller short-circuits.
+    """
+    filters = {}
+
+    # since/until: ISO 8601, inclusive lower / exclusive upper.
+    # Accept the JS-friendly trailing-Z form by translating to +00:00.
+    for key in ('since', 'until'):
+        raw = args.get(key)
+        if raw:
+            try:
+                filters[key] = datetime.fromisoformat(raw.replace('Z', '+00:00'))
+            except ValueError:
+                return None, (jsonify({
+                    'error':   'invalid_filter',
+                    'field':   key,
+                    'message': f"'{key}' must be ISO 8601 datetime; got {raw!r}",
+                }), 400)
+
+    # actor: integer user id (matches audit_log.user_id).
+    actor_raw = args.get('actor')
+    if actor_raw is not None and actor_raw != '':
+        try:
+            filters['actor'] = int(actor_raw)
+        except ValueError:
+            return None, (jsonify({
+                'error':   'invalid_filter',
+                'field':   'actor',
+                'message': f"'actor' must be an integer user id; got {actor_raw!r}",
+            }), 400)
+
+    # action / status: exact match. resource: partial (ILIKE).
+    for key in ('action', 'resource', 'status'):
+        raw = args.get(key)
+        if raw:
+            filters[key] = raw
+
+    return filters, None
+
+
+def _apply_audit_filters(query, filters):
+    """Add WHERE clauses to a SQLAlchemy `query` based on parsed
+    filters. All present filters AND together; absent filters are
+    left out (no constraint)."""
+    if 'since' in filters:
+        query = query.filter(AuditLog.timestamp >= filters['since'])
+    if 'until' in filters:
+        query = query.filter(AuditLog.timestamp <  filters['until'])
+    if 'action' in filters:
+        query = query.filter(AuditLog.action == filters['action'])
+    if 'actor' in filters:
+        query = query.filter(AuditLog.user_id == filters['actor'])
+    if 'resource' in filters:
+        query = query.filter(
+            AuditLog.resource.ilike(f"%{filters['resource']}%")
+        )
+    if 'status' in filters:
+        query = query.filter(AuditLog.status == filters['status'])
+    return query
+
+
 @iam_bp.route('/audit', methods=['GET'])
 @require_permission('audit:read')
 def get_audit_log():
+    filters, error = _parse_audit_filters(request.args)
+    if error is not None:
+        return error
+
     page     = request.args.get('page', 1, type=int)
     per_page = request.args.get('per_page', 50, type=int)
-    logs     = AuditLog.query.order_by(AuditLog.timestamp.desc()).paginate(
-        page=page, per_page=per_page, error_out=False
-    )
+
+    base = AuditLog.query.order_by(AuditLog.timestamp.desc())
+    base = _apply_audit_filters(base, filters)
+
+    logs = base.paginate(page=page, per_page=per_page, error_out=False)
     return jsonify({
         # F2-discovered hardening: l.timestamp can be NULL for rows
         # inserted via raw SQL that bypassed the Python-level
-        # default (e.g. the F2 backfill before we patched it).
-        # Coalesce here so the handler doesn't crash; an Alembic
-        # migration adding DB-level DEFAULT NOW() is tracked
+        # default. Coalesce here so the handler doesn't crash; an
+        # Alembic migration adding DB-level DEFAULT NOW() is tracked
         # separately as Phase B § 8 F8.
         'logs': [{
             'id': l.id, 'user_id': l.user_id, 'action': l.action,
@@ -253,6 +336,64 @@ def get_audit_log():
         'pages': logs.pages,
         'page':  logs.page,
     })
+
+
+@iam_bp.route('/audit/export', methods=['GET'])
+@require_permission('iam:manage')
+def export_audit_log():
+    """CSV export of audit log entries matching the same filters as
+    /api/iam/audit. Hard cap at AUDIT_EXPORT_CAP rows -- callers
+    over-cap get a 400 with the count + cap so they can narrow."""
+    import io, csv, json as json_lib
+
+    filters, error = _parse_audit_filters(request.args)
+    if error is not None:
+        return error
+
+    base = AuditLog.query.order_by(AuditLog.timestamp.desc())
+    base = _apply_audit_filters(base, filters)
+
+    matching = base.count()
+    if matching > AUDIT_EXPORT_CAP:
+        return jsonify({
+            'error':         'export_too_large',
+            'matching_rows': matching,
+            'limit':         AUDIT_EXPORT_CAP,
+            'message': (
+                f'Export would return {matching} rows; cap is '
+                f'{AUDIT_EXPORT_CAP}. Narrow filters and try again.'
+            ),
+        }), 400
+
+    buf = io.StringIO()
+    writer = csv.writer(buf, quoting=csv.QUOTE_MINIMAL)
+    writer.writerow([
+        'timestamp', 'user_id', 'action', 'resource',
+        'status', 'ip_address', 'user_agent', 'node_meta_json',
+    ])
+    for row in base.all():
+        writer.writerow([
+            row.timestamp.isoformat() if row.timestamp else '',
+            row.user_id if row.user_id is not None else '',
+            row.action or '',
+            row.resource or '',
+            row.status or '',
+            row.ip_address or '',
+            row.user_agent or '',
+            json_lib.dumps(row.node_meta) if row.node_meta is not None else '',
+        ])
+
+    timestamp_str = datetime.utcnow().strftime('%Y-%m-%d_%H-%M-%S')
+    filename = f'audit_log_{timestamp_str}.csv'
+
+    return Response(
+        buf.getvalue(),
+        mimetype='text/csv',
+        headers={
+            'Content-Disposition': f'attachment; filename="{filename}"',
+            'Content-Type':        'text/csv; charset=utf-8',
+        },
+    )
 
 # ── SSO providers ────────────────────────────────────────────
 @iam_bp.route('/sso', methods=['GET'])
