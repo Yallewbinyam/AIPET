@@ -62,6 +62,61 @@ def require_permission(permission_name):
         return decorated
     return decorator
 
+# ── Role-assignment helper (Team-Access F2) ──────────────────
+def assign_role_to_user(user_id, role_name, assigned_by=None,
+                        reason='manual', emit_audit=True):
+    """
+    Idempotently assign a role to a user.
+
+    Returns the UserRole row (existing or newly-created). On a fresh
+    assignment, also adds an `audit_log` entry with structured detail
+    in `node_meta`: `{"role": <role_name>, "reason": <reason>}`.
+
+    Caller is responsible for `db.session.commit()` -- this helper
+    only stages rows on the session so the caller can bundle the
+    role assignment into an enclosing transaction (e.g. atomic with
+    user creation in `auth.register`).
+
+    Raises:
+      LookupError: when `role_name` does not exist in the `roles`
+                   table. Caller should catch + decide how to handle
+                   (registration shouldn't fail on this; the helper
+                   stays neutral).
+    """
+    role = Role.query.filter_by(name=role_name).first()
+    if role is None:
+        raise LookupError(f"Role not found: {role_name!r}")
+
+    existing = UserRole.query.filter_by(user_id=user_id,
+                                        role_id=role.id).first()
+    if existing is not None:
+        return existing  # idempotent no-op; no audit row written
+
+    ur = UserRole(
+        user_id     = user_id,
+        role_id     = role.id,
+        assigned_by = assigned_by,
+    )
+    db.session.add(ur)
+
+    if emit_audit:
+        # Inline AuditLog creation (NOT log_action -- that helper
+        # commits on its own, which would break the caller-commits
+        # contract of this helper).
+        db.session.add(AuditLog(
+            user_id    = assigned_by,
+            action     = 'role.assigned',
+            resource   = f'user:{user_id}',
+            ip_address = request.remote_addr if request else None,
+            user_agent = (request.headers.get('User-Agent', '')
+                          if request else ''),
+            status     = 'success',
+            node_meta  = {'role': role_name, 'reason': reason},
+        ))
+
+    return ur
+
+
 # ── Role endpoints ───────────────────────────────────────────
 @iam_bp.route('/roles', methods=['GET'])
 @jwt_required()

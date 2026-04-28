@@ -71,6 +71,8 @@ A full state-of-system inventory was performed on 2026-04-28 after the Team & Ac
 
 **Team & Access follow-up F1 closed (2026-04-28):** `seed_default_roles()` was imported at `app_cloud.py:66` but never invoked, leaving the DB with 1 of 4 roles and 0 of 10 permissions. Wired into the existing `with app.app_context()` startup block next to the MITRE seed; idempotent across restarts; pinned by 2 pytest cases (`tests/test_iam_seed.py`). DB now seeded 4 roles + 10 permissions on app boot. Endpoints still 403 by default until users are role-assigned (separate follow-up). Phase A backend audit + F1 closure: `verification/team-access/PHASE-A-backend-audit-2026-04-28.md`. Fourth wire-not-connected bug fixed this week (the others: TeamAccessPage, flask-migrate, PLB-9 NSSM AppExit).
 
+**Team & Access follow-up F2 closed (2026-04-28, commit `<F2_SHA>`):** role assignment on registration + backfill. New `assign_role_to_user()` helper in `iam/routes.py` (idempotent, audit-logging via `node_meta={"role": ..., "reason": ...}`). `auth/routes.py:register()` now auto-assigns `owner` to new users. One-off SQL backfill applied to byallew@gmail.com + test@aipet.io (NOT recurring code). All 6 IAM endpoints that 403'd in F1 verify now return non-403 for owner-assigned users. **Multi-tenancy in the data model remains an open foundation gap** — `tenant_id` is absent from User/UserRole/Role/AuditLog/SSOProvider, so the `owner` role is currently global. Documented as out-of-scope for F2; tracked as a separate larger task (1-2 days, schema migration touching every role-scoped query). 503 tests passing.
+
 **Headline counts** (across ~103 distinct claims):
 
 | Classification | Count | Meaning |

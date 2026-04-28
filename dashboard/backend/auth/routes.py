@@ -59,6 +59,26 @@ def register():
     db.session.add(user)
     db.session.commit()
 
+    # Team-Access F2: auto-assign 'owner' role to a freshly-registered
+    # user so they can manage their own tenant out of the box. The
+    # helper stages on the session; we commit explicitly. Tradeoff:
+    # we'd rather user-creation succeed than be reverted by a role-
+    # assignment failure, so the catch is broad and registration
+    # continues even if role assignment errors. A user without their
+    # owner role can be backfilled (a user that wasn't created can't).
+    try:
+        from dashboard.backend.iam.routes import assign_role_to_user
+        assign_role_to_user(user.id, 'owner',
+                            assigned_by=user.id,
+                            reason='auto-on-registration')
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+        current_app.logger.exception(
+            "Role assignment failed during registration for user_id=%s",
+            user.id,
+        )
+
     try:
         from dashboard.backend.central_events.adapter import emit_event
         emit_event(

@@ -490,3 +490,88 @@ Tightest viable backend slice for a usable Team & Access UI in Phase C v1:
 - ISN'T: an auto-grant of owner to existing users; tenant scoping; role-permission junction population (the `role_permissions` association table is still empty — owner bypass works because the decorator special-cases the role *name*, not because owner has permissions attached).
 
 **This is the fourth wire-not-connected bug fixed this week.** The other three: TeamAccessPage (component never written, twelve-day latent crash), `flask-migrate` `Migrate(app,db)` (no-op `flask db` CLI registration, lifetime), PLB-9 NSSM `AppExit 1 Stop` (silent fallback to Restart, 96-hour latent watchdog defeat). All four shared the same pattern: code that *referred to* the wired thing existed and looked correct, but the actual invocation was missing or syntactically invalid. The new "Tested vs Complete" rule (`d0d3bd81`) was adopted in response.
+
+---
+
+## F2 Closure — 2026-04-28
+
+**Commit:** `<F2_SHA>` (filled at push time)
+
+**Fix scope:** wired role-assignment-on-registration + applied one-off backfill for the two existing users.
+
+### What changed
+
+1. **New helper** `assign_role_to_user(user_id, role_name, assigned_by=None, reason='manual', emit_audit=True)` in `dashboard/backend/iam/routes.py` (between the `require_permission` decorator and the role endpoints). Idempotent (filter_by `(user_id, role_id)` guard); raises `LookupError` on missing role; stages on session without committing (caller commits).
+2. **Wired into `auth/routes.py:register()`** immediately after the `db.session.add(user); db.session.commit()` block. Defensive try/except follows the same shape as the surrounding `emit_event` block: rollback + `current_app.logger.exception` on failure, registration continues. Tradeoff documented in code comment: "we'd rather user-creation succeed than be reverted by a role-assignment failure."
+3. **Backfill applied as one-off SQL** for `byallew@gmail.com` and `test@aipet.io`. Idempotent via `NOT EXISTS` guard. **NOT committed as recurring code** — this is a documented one-off operation.
+
+### Before / after `user_roles` state
+
+| User | Before | After |
+|---|---|---|
+| byallew@gmail.com (id=1) | (no role) | **owner** |
+| test@aipet.io (id=2) | (no role) | **owner** |
+| `user_roles` total rows | 0 | 2 |
+
+### 6 previously-403 endpoints — live curl as test@aipet.io (owner)
+
+| # | Endpoint | F1 status | **F2 status** |
+|---|---|---|---|
+| 1 | GET `/api/iam/audit` | 403 | **200** ✅ (after backfill timestamp fix — see "Discovered gap" below) |
+| 2 | GET `/api/iam/sso` | 403 | **200** ✅ |
+| 3 | POST `/api/iam/sso` (valid body) | 403 | **201** ✅ |
+| 4 | POST `/api/iam/roles` (`f2_audit_test_role`) | 403 | **201** ✅ |
+| 5 | POST `/api/iam/users/1/roles` (`{"role":"viewer"}`) | 403 | **201** ✅ |
+| 6 | DELETE `/api/iam/users/1/roles/viewer` | 403 | **200** ✅ |
+
+**6/6 now non-403.** Authorisation gating is now data-driven correctly.
+
+### Registration flow live verify
+
+- `POST /api/auth/register {"email":"f2-test@aipet.local",...}` → **201**, JWT returned.
+- DB check: `f2-test@aipet.local` (id=3) has 1 user_role row pointing at `owner`. ✅
+- Audit log row created with `action='role.assigned'`, `resource='user:3'`, `node_meta={"role":"owner","reason":"auto-on-registration"}`. ✅
+- Re-register same email → **409** "Email already registered". `user_roles` count for that user remains **1** (no duplicate). ✅
+- Test user + role + audit + central_event row + SSO row + custom-role row cleaned up via single transaction.
+
+### Idempotency proofs
+
+- **Backfill SQL re-run** after first apply → `INSERT 0 0` (NOT EXISTS guard works).
+- **`assign_role_to_user` helper** unit test: two calls in succession → 1 UserRole row, second call returns the same row.
+- **Re-register same email** → 409 from email-uniqueness check; the role-assignment block never runs because user creation fails first.
+
+### Tests added
+
+`tests/test_iam_seed.py` extended with three new tests:
+
+- `test_assign_role_to_user_idempotent` — calls helper twice, asserts 1 UserRole row, asserts same id returned.
+- `test_assign_role_to_user_nonexistent_role_raises` — calls with bogus role name, asserts `LookupError` with role name in message.
+- `test_register_assigns_owner_role` — full register flow, asserts UserRole created, asserts AuditLog row with structured `node_meta`, cleans up.
+
+`_reset_limiter(flask_app)` helper added to walk `app.extensions["limiter"]` (set of Limiter instances; same pattern as `tests/test_zzzzzzzzzzzzzzzz_email_backend.py`) so the register-flow test isn't crushed by `test_auth.py`'s deliberate-exhaustion of the 3-per-minute register limit.
+
+**Pytest delta: 500 → 503** (3 new + zero regressions in existing 500). 3 skipped, unchanged.
+
+### Discovered gap (pre-existing, surfaced during F2 verify)
+
+`GET /api/iam/audit` crashed with `AttributeError: 'NoneType' object has no attribute 'isoformat'` on first attempt. Root cause: my F2 backfill SQL inserted `audit_log` rows without a `timestamp` value, and the `audit_log.timestamp` column has only a Python-level `default=datetime.utcnow` in the SQLAlchemy model — no DB-level default. PostgreSQL stored NULL.
+
+**Fix applied:** `UPDATE audit_log SET timestamp = NOW() WHERE timestamp IS NULL AND action = 'role.assigned';` — patched the two affected rows, audit endpoint now returns 200.
+
+**Pre-existing weakness flagged for follow-up (not fixed in F2 — out of scope per "do not touch unrelated code"):** the `get_audit_log` handler at `iam/routes.py:l.timestamp.isoformat()` does not null-check. Any future SQL-level audit insert without a timestamp (or any model migration that allows NULL) will crash the endpoint. **Recommended hardening (S, future task):** either add a DB-level default `DEFAULT NOW()` to `audit_log.timestamp` via Alembic, or null-check `l.timestamp` in the handler (`'timestamp': l.timestamp.isoformat() if l.timestamp else None`). Add to Phase B v1.1 hardening list.
+
+### Out of scope: multi-tenancy
+
+AIPET X's data model has **no `tenant_id` column** on `User`, `UserRole`, `Role`, `Permission`, `AuditLog`, or `SSOProvider`. This means:
+
+- The `owner` role is currently **global**: anyone with `owner` can manage any other user's roles. There is no tenant-scoped access control.
+- The new auto-assignment grants `owner` to **every** newly-registered user, which is correct *for the current single-tenant data model* but would be the wrong default once multi-tenancy lands (probably "first user of a fresh tenant gets owner; subsequent users get a default like `viewer` until invited up").
+- The Phase A audit (§ 1.3, § 7.1 F2) flagged this as a foundation gap. **F2 explicitly does not address it.** Multi-tenancy is tracked as a separate larger task — likely 1-2 days of model + migration + test churn touching every role/audit-scoped query in the codebase.
+
+F2 ships **honest single-tenant role assignment as the v1 baseline** so Phase B/C can proceed against working IAM endpoints.
+
+### Authorisation gating after F2
+
+- 6/8 IAM endpoints now respond non-403 for users with `owner` role assignment. ✅
+- 2/8 endpoints (`GET /api/iam/roles`, `GET /api/iam/users/<id>/roles`) were always non-403 (jwt-only, no permission gate); unchanged.
+- Future-registered users automatically get `owner` and inherit full IAM access — correct under v1 single-tenant assumptions; will need to be re-thought when multi-tenancy lands (see "Out of scope" above).
