@@ -9,15 +9,26 @@ from dashboard.backend.iam.models import Role, Permission, UserRole, AuditLog, S
 iam_bp = Blueprint('iam', __name__, url_prefix='/api/iam')
 
 # ── Audit helper ─────────────────────────────────────────────
-def log_action(user_id, action, resource=None, status='success'):
+def log_action(user_id, action, resource=None, status='success', details=None):
+    """
+    Append a row to audit_log. Backward-compatible signature: existing
+    callers that pass only the first 3-4 positional args keep working.
+
+    `details` (added with the soft-delete migration) populates the
+    optional `node_meta` JSON column for structured event detail
+    (e.g. soft-delete reason, denormalised hostname for posterity,
+    timestamps that survive even if the referenced row is later hard-
+    deleted).
+    """
     try:
         entry = AuditLog(
             user_id    = user_id,
             action     = action,
             resource   = resource,
-            ip_address = request.remote_addr,
-            user_agent = request.headers.get('User-Agent', ''),
-            status     = status
+            ip_address = request.remote_addr if request else None,
+            user_agent = (request.headers.get('User-Agent', '') if request else ''),
+            status     = status,
+            node_meta  = details,
         )
         db.session.add(entry)
         db.session.commit()
