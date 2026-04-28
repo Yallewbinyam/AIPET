@@ -35,6 +35,34 @@ AIPET X is an autonomous cybersecurity platform focused on IoT pentesting and en
 
 ---
 
+## Definition of "Complete"
+
+As of 2026-04-28, AIPET X uses the following rule for marking any
+capability, PLB, or feature as Complete:
+
+A capability is Complete only when ALL FOUR conditions hold:
+
+1. All acceptance tests pass.
+2. A human clicked every UI element exposed by the capability,
+   in a real browser, on a fresh page load, against the latest
+   commit. (For non-UI capabilities: live curl/CLI verification
+   of every endpoint, command, or job.)
+3. Live verification confirms every endpoint or behaviour
+   responds as documented (correct status codes, response shapes,
+   side effects).
+4. The verification report names the actor, date, commit SHA,
+   and lists every checked element.
+
+Tests passing alone = TESTED, not COMPLETE.
+
+Retroactive: any capability or PLB previously marked ✅/CLOSED
+that has not been verified against this rule must be re-audited
+or downgraded to TESTED until verified. The state-of-system
+inventory begun on 2026-04-28 (verification/state-of-system/)
+applies this rule to every existing claim.
+
+---
+
 ## 4. Current State
 
 - **93+ modules complete** — all backend blueprints registered and functional
