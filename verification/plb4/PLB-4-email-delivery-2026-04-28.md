@@ -121,7 +121,28 @@ curl -sS -X POST http://localhost:5001/api/__email_test \
 
 ## Phase 5 — Documentation + push
 
-_Pending._
-- `docs/runbooks/email-delivery.md` — operator runbook (creds, rotation, transactional-provider migration plan).
-- CLAUDE.md — close PLB-4 row; add "Email delivery" section under Architecture.
-- Pre-deploy checklist item: migrate from personal Gmail App Password to a transactional provider (Postmark / SES / Resend).
+✅ Complete.
+
+- `docs/runbooks/email-delivery.md` — full operator runbook covering: code locations, two-library convention rationale, naming convention (why we keep `SMTP_USER` not `SMTP_USERNAME`), `.env` keys, operational checks (`/api/__email_test`), Gmail App Password rotation procedure (Python heredoc, not shell-history-visible sed), pre-launch transactional-provider migration plan (Postmark / SES / Resend / Mailgun comparison + step-by-step DKIM/SPF/DMARC setup), customer-reports-no-email triage walkthrough, security pins.
+- CLAUDE.md updates:
+  - PLB-4 row marked Closed with the closure commit hash.
+  - New Architecture bullet "Email delivery" with the load-bearing details (two-library convention, naming convention pin, `app.email_enabled` gate, Sentry denylist coverage, dev-only `/api/__email_test` endpoint, runbook pointer).
+  - Deferred Production Tasks row added: "Migrate outbound email from personal Gmail to a transactional provider".
+
+---
+
+## Final Summary
+
+| Item | Status |
+|---|---|
+| Code + graceful degradation | ✅ committed `6f88ab8b` |
+| Dev-only `/api/__email_test` + live verify | ✅ committed `48cec1e3` |
+| Password reset end-to-end | ✅ committed `c96ed3b5` |
+| 6 backend tests (498 passed, 3 skipped, +6 new, 0 regressions) | ✅ committed `c96ed3b5` |
+| Runbook + CLAUDE.md + Deferred Tasks entry | ✅ Phase 5 commit (this) |
+| Fresh Gmail App Password rotated | ✅ verified not in logs |
+| Sentry `_BODY_KEY_DENYLIST` extended (smtp_password / mail_password / smtp_user / mail_username) | ✅ committed `6f88ab8b` |
+| .env gitignored | ✅ `.gitignore:142` |
+
+**Pre-launch follow-up (tracked in CLAUDE.md "Deferred Production Tasks"):** migrate from personal Gmail App Password to a verified-domain transactional provider (Postmark / SES / Resend / Mailgun). Two-library convention is provider-agnostic — only `.env` SMTP_* vars change.
+
