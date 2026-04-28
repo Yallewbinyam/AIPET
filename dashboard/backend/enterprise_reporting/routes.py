@@ -694,6 +694,15 @@ def email_pdf(report_id):
       </div>
     </div>"""
 
+    # PLB-4: pre-check the email gate. Enterprise PDF reports are
+    # explicitly user-initiated, so a silent skip would surprise the
+    # caller; fail loud with 503 instead of the previous 500.
+    if not getattr(current_app, "email_enabled", False):
+        return jsonify({
+            "error": "Email backend disabled",
+            "hint":  "Set SMTP_USER and SMTP_PASSWORD in .env. See docs/runbooks/email-delivery.md.",
+        }), 503
+
     try:
         mail = Mail(current_app)
         msg = Message(
@@ -706,8 +715,10 @@ def email_pdf(report_id):
         msg.attach(filename, "application/pdf", pdf_bytes)
         mail.send(msg)
     except Exception as e:
+        # We never put SMTP_PASSWORD into the error string; str(e) on
+        # SMTPAuthenticationError is safe (server-side message + code).
         return jsonify({"error": f"Mail send failed: {str(e)}",
-                        "hint":  "Set SMTP_HOST, SMTP_USER, SMTP_PASSWORD env vars"}), 500
+                        "hint":  "See docs/runbooks/email-delivery.md."}), 500
 
     return jsonify({"sent": True, "recipient": recipient,
                     "filename": filename, "sender_name": sender_name}), 200

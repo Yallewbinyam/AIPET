@@ -37,7 +37,9 @@ from flask_jwt_extended import (
 # closure report). The previous `Migrate(app, db)` call was a no-op
 # at runtime -- it only registered the `flask db ...` CLI alias, which
 # nothing in this codebase calls. We use `alembic` directly via venv/bin.
-from flask_mail import Mail
+# flask_mail.Mail is now imported only in observability/email_setup.py
+# (PLB-4). Kept out of the top-level imports so a missing flask-mail
+# install fails loudly only when init_email runs, not at module load.
 from flask_limiter import Limiter
 from flask_limiter.util import get_remote_address
 from dashboard.backend.validation import (
@@ -222,15 +224,12 @@ def create_app(config_name="development"):
     JWTManager(app)
     # Migrate(app, db) removed -- see header comment.
 
-    # Flask-Mail — always read from env vars at startup so start_cloud.sh exports are picked up
-    app.config["MAIL_SERVER"]         = os.environ.get("SMTP_HOST",     "smtp.gmail.com")
-    app.config["MAIL_PORT"]           = int(os.environ.get("SMTP_PORT", "587"))
-    app.config["MAIL_USE_TLS"]        = True
-    app.config["MAIL_USE_SSL"]        = False
-    app.config["MAIL_USERNAME"]       = os.environ.get("SMTP_USER",     "")
-    app.config["MAIL_PASSWORD"]       = os.environ.get("SMTP_PASSWORD", "")
-    app.config["MAIL_DEFAULT_SENDER"] = os.environ.get("SMTP_USER",     "noreply@aipet.io")
-    Mail(app)
+    # Email backend (PLB-4) -- Flask-Mail wired with graceful skip-if-no-creds.
+    # See dashboard/backend/observability/email_setup.py for the canonical
+    # SMTP_* env-var convention (SMTP_USER, NOT SMTP_USERNAME -- per
+    # CLAUDE.md). Sets `app.email_enabled` for callers to pre-check.
+    from dashboard.backend.observability.email_setup import init_email
+    init_email(app)
 
     # Extensions
     CORS(app, resources={

@@ -266,6 +266,19 @@ def forgot_password():
     frontend_url = os.environ.get("FRONTEND_URL", "http://localhost:3000")
     reset_url    = f"{frontend_url}?reset_token={token_str}"
 
+    # PLB-4: pre-check the email gate. If SMTP_USER/SMTP_PASSWORD are
+    # unset, log clearly and return the same 200 the success path returns
+    # (no user enumeration). This is cleaner than a send-and-catch which
+    # logs a confusing SMTPAuthenticationError on every dev attempt.
+    if not getattr(current_app, "email_enabled", False):
+        current_app.logger.warning(
+            "Password reset email NOT sent for user_id=%s -- email backend "
+            "disabled (SMTP_USER/SMTP_PASSWORD not configured). Token created "
+            "but caller cannot deliver the link.",
+            user.id,
+        )
+        return jsonify({"message": "If that email exists, a reset link has been sent."}), 200
+
     try:
         from flask_mail import Mail, Message
         mail    = Mail(current_app)

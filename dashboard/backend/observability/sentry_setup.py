@@ -69,6 +69,15 @@ _BODY_KEY_DENYLIST = frozenset(
         "refresh_token",
         "id_token",
         "session_key",
+        # PLB-4: SMTP credentials. Exact-match on these keys covers
+        # the common cases where an exception or breadcrumb stuffs
+        # MAIL_PASSWORD / SMTP_PASSWORD / etc. into the payload.
+        # smtp_user is also denylisted because exposing the username
+        # in error messages narrows an attacker's target list.
+        "smtp_password",
+        "mail_password",
+        "smtp_user",
+        "mail_username",
     )
 )
 
