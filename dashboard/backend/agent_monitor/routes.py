@@ -27,6 +27,12 @@ class AgentDevice(db.Model):
     first_seen  = Column(DateTime, default=datetime.datetime.utcnow)
     last_seen   = Column(DateTime, default=datetime.datetime.utcnow)
     status      = Column(String(16), default="online")           # online | offline | stale
+    # Soft-delete: NULL = active, non-NULL = deleted at this UTC instant.
+    # Indexed because every active-device query filters on `deleted_at IS NULL`.
+    # Naming note: project convention elsewhere uses `first_seen`/`last_seen`
+    # (no _at suffix), but `deleted_at` is the universal soft-delete idiom and
+    # consistent with what most SQLAlchemy ecosystem helpers expect.
+    deleted_at  = Column(DateTime, nullable=True, index=True)
 
     def to_dict(self):
         return {

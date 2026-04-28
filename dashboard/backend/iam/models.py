@@ -41,6 +41,15 @@ class AuditLog(db.Model):
     user_agent = db.Column(db.Text)
     timestamp  = db.Column(db.DateTime, default=datetime.utcnow)
     status     = db.Column(db.String(20), default='success')
+    # Structured detail for any audit event. Examples:
+    #   device.soft_deleted -> {"reason": "...", "device_hostname": "..."}
+    #   device.restored     -> {"reason": "...", "device_hostname": "...",
+    #                            "previously_deleted_at": "<iso>"}
+    #   device.telemetry_after_delete -> {"telemetry_at": "<iso>",
+    #                            "originally_deleted_at": "<iso>"}
+    # Nullable so all existing audit_log rows remain valid.
+    # Named `node_meta` per project convention -- never `metadata`.
+    node_meta  = db.Column(db.JSON, nullable=True)
 
 class SSOProvider(db.Model):
     __tablename__ = 'sso_providers'
