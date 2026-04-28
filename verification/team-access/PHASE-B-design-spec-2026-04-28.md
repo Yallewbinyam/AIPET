@@ -1596,3 +1596,932 @@ All under `src/components/team_access/`.
 
 Plus refactor of `Toast` (existing) into the new primitive. Plus the existing App.js routing block currently commented out (lines 30423-30430) gets replaced with the new `TeamAccessPage` import + route.
 
+
+---
+
+## 6. Data contracts
+
+This section is the contract between Phase C-I frontend code and the backend. Every endpoint the UI calls is specified here with: method + path, auth requirement, request schema, response schema, every error case with example bodies, and Phase A status (BACKEND-READY / PARTIAL / MISSING). Items marked PARTIAL or MISSING become the input to § 8.
+
+**Conventions:**
+- All endpoints prefix with the running base URL (currently `http://localhost:5001` in dev).
+- All authenticated endpoints require `Authorization: Bearer <jwt>` unless noted.
+- All POST/PUT/PATCH bodies are `Content-Type: application/json`.
+- Error response shape is consistent: `{"error": "<short-code>", "message": "<human readable>", "fields": {<optional per-field errors>}, "required": "<for 403, the missing permission>"}`. (The shape varies slightly across existing endpoints — Phase B-backend normalises new endpoints to this shape and deliberately leaves existing endpoints alone unless touched for another reason.)
+
+### 6.1 Members
+
+#### 6.1.1 `GET /api/iam/users` — list members
+
+**Phase A status:** BACKEND-MISSING. Phase B-backend item **F3**.
+
+**Auth:** JWT + permission `iam:read` (NEW permission, see § 8).
+
+**Query params:**
+- `search` (string, optional) — case-insensitive substring match on `email`, `name`.
+- `page` (int, default 1)
+- `per_page` (int, default 25, max 100)
+- `sort` (string, default `email_asc`) — one of `email_asc | email_desc | last_login_desc | last_login_asc | created_at_desc`.
+- `status` (string, default `all`) — `all | active | disabled | pending`.
+- `include_roles` (bool, default true) — when true, joins UserRole+Role and embeds role names per user.
+- `include_deleted` (bool, default false) — owner-only; surfaces soft-deleted users (consistent with AgentDevice soft-delete pattern).
+
+**200 response:**
+```json
+{
+  "members": [
+    {
+      "id": 1,
+      "email": "byallew@gmail.com",
+      "name": "Binyam Yallew",
+      "plan": "free",
+      "organisation": null,
+      "industry": null,
+      "created_at": "2026-04-26T20:07:45.657973Z",
+      "last_login": "2026-04-28T21:09:03.000000Z",
+      "is_active": true,
+      "deleted_at": null,
+      "roles": [{ "id": "<uuid>", "name": "owner" }],
+      "active_session_count": 1
+    }
+  ],
+  "total": 2,
+  "pages": 1,
+  "page": 1
+}
+```
+
+**Error responses:**
+- `401` — missing/expired JWT (existing axios interceptor handles).
+- `403` — `{"error":"insufficient_permissions","required":"iam:read"}`.
+
+**Side effects:** none.
+
+#### 6.1.2 `GET /api/iam/users/<id>` — member detail
+
+**Phase A status:** BACKEND-MISSING. Phase B-backend item **F3**.
+
+**Auth:** JWT + (`iam:read` OR caller-is-target-user). Caller can always view their own detail.
+
+**200 response:**
+```json
+{
+  "id": 1,
+  "email": "byallew@gmail.com",
+  "name": "Binyam Yallew",
+  "plan": "free",
+  "organisation": null,
+  "industry": null,
+  "created_at": "2026-04-26T20:07:45.657973Z",
+  "last_login": "2026-04-28T21:09:03Z",
+  "is_active": true,
+  "deleted_at": null,
+  "roles": [{ "id": "<uuid>", "name": "owner", "assigned_by": 1, "assigned_at": "2026-04-28T21:06:16Z" }],
+  "active_sessions": 1,
+  "recent_audit": [
+    { "id":"<uuid>","action":"role.assigned","timestamp":"2026-04-28T20:10:55Z","status":"success" }
+  ]
+}
+```
+
+**Error responses:** 401, 403, 404 (`{"error":"user_not_found"}`).
+
+#### 6.1.3 `POST /api/iam/users/<id>/disable` — disable a user
+
+**Phase A status:** BACKEND-MISSING. Phase B-backend item **F4**.
+
+**Auth:** `iam:manage`.
+
+**Request body:** `{"reason": "<optional free-text>"}`.
+
+**Side effects:**
+1. `User.is_active = False`.
+2. All `IssuedToken` rows for this user where `revoked_at IS NULL` and `expires_at > NOW()` get `revoked_at = NOW()` and `revoked_reason = "user_disabled"`. (Depends on § 8 item S1 IssuedToken model.)
+3. AuditLog row: `action='user.disabled'`, `resource='user:<id>'`, `node_meta={"reason":<text>,"sessions_revoked":N}`.
+
+**200 response:** `{"message":"User disabled","sessions_revoked": <N>}`.
+
+**Error responses:**
+- `403` — `iam:manage` missing.
+- `409` — `{"error":"already_disabled"}`.
+- `422` — `{"error":"last_owner","message":"Cannot disable the last platform owner."}`.
+- `422` — `{"error":"self_action","message":"Cannot disable your own account."}`.
+
+#### 6.1.4 `POST /api/iam/users/<id>/enable` — re-enable a disabled user
+
+**Phase A status:** BACKEND-MISSING. Phase B-backend item **F4** (companion to disable).
+
+**Auth:** `iam:manage`.
+
+**200 response:** `{"message":"User re-enabled"}`. Sets `is_active=true`. Does NOT auto-restore prior sessions (those stay revoked).
+
+**Audit:** `action='user.enabled'`, `node_meta={"reason":<optional>}`.
+
+#### 6.1.5 `POST /api/iam/users/<id>/remove` — soft-delete a user
+
+**Phase A status:** BACKEND-MISSING. Phase B-backend item **F7** (depends on S1 + S2 from § 8).
+
+**Auth:** `iam:manage`.
+
+**Request body:** `{"reason": "<optional>"}`. (Soft-delete; not destructive — symmetric with `AgentDevice.soft_delete`.)
+
+**Side effects:**
+1. `User.deleted_at = NOW()`.
+2. `User.is_active = False`.
+3. All active sessions revoked (same logic as disable).
+4. AuditLog: `action='user.removed'`, `resource='user:<id>'`, `node_meta={"reason":<text>,"email":<denormalised>,"sessions_revoked":N}`.
+
+**200 response:** `{"message":"User removed","sessions_revoked": <N>}`.
+
+**Error responses:** as disable, plus `404` for already-removed.
+
+**Note on terminology:** "Remove" in the UI = soft-delete in the model. We do not expose a hard-delete in v1.
+
+#### 6.1.6 `POST /api/iam/users/<id>/restore` — restore a soft-deleted user
+
+**Phase A status:** BACKEND-MISSING. Phase B-backend item **F7** (companion).
+
+**Auth:** `iam:manage` + `include_deleted=true` was used to find the user.
+
+**200 response:** `{"message":"User restored"}`.
+
+**Audit:** `action='user.restored'`, `node_meta={"previously_deleted_at":<iso>}`.
+
+### 6.2 Roles & permissions
+
+#### 6.2.1 `GET /api/iam/roles` — existing, list roles
+
+**Phase A status:** BACKEND-READY.
+
+(Already specified in Phase A § 1.1. No changes.)
+
+#### 6.2.2 `POST /api/iam/roles` — create role + permissions
+
+**Phase A status:** BACKEND-PARTIAL. Phase B-backend item **G1** (extends to accept `permissions` list).
+
+**Auth:** `iam:manage`.
+
+**Request body:**
+```json
+{
+  "name": "compliance_auditor",
+  "description": "Read-only across audit log + reports",
+  "permissions": ["audit:read", "findings:read", "reports:read", "iam:read"]
+}
+```
+
+**201 response:** `{"id":"<uuid>","message":"Role created"}`.
+
+**Error responses:**
+- `400` — name missing or fails regex `^[a-z][a-z0-9_]{2,49}$`.
+- `409` — name already exists.
+- `422` — name is reserved (`owner|admin|analyst|viewer`).
+- `422` — one or more permissions in the `permissions` list don't exist.
+
+**Audit:** `action='role.created'`, `resource='role:<name>'`, `node_meta={"permissions":[<list>]}`.
+
+#### 6.2.3 `PATCH /api/iam/roles/<id>/permissions` — add/remove permissions
+
+**Phase A status:** BACKEND-MISSING. Phase B-backend item **G1**.
+
+**Auth:** `iam:manage`.
+
+**Request body:** `{"add": ["scan:read"], "remove": ["billing:manage"]}`.
+
+**200 response:** `{"role":{...with updated permissions...}}`.
+
+**Error responses:**
+- `404` — role not found.
+- `422` — `{"error":"default_role_locked","message":"Default roles cannot be modified."}` if target is owner/admin/analyst/viewer.
+- `422` — unknown permission name.
+
+**Audit:** `action='role.permissions_changed'`, `node_meta={"added":[...],"removed":[...]}`.
+
+#### 6.2.4 `DELETE /api/iam/roles/<id>` — delete custom role
+
+**Phase A status:** BACKEND-MISSING. Phase B-backend item **G2**.
+
+**Auth:** `iam:manage`.
+
+**Side effects:** Deletes the role; cascades to delete all UserRole rows referencing it.
+
+**200 response:** `{"message":"Role deleted","users_unassigned": <N>}`.
+
+**Error responses:**
+- `422` — `{"error":"default_role_locked"}`.
+- `404`.
+
+**Audit:** `action='role.deleted'`, `resource='role:<name>'`, `node_meta={"users_unassigned":N}`.
+
+#### 6.2.5 `GET /api/iam/permission-matrix` — full role × permission grid
+
+**Phase A status:** BACKEND-MISSING. Phase B-backend item **H1** (formerly v1.1; promoted to v1 because it's the canonical view of "what can each role do").
+
+**Auth:** `iam:read`.
+
+**200 response:**
+```json
+{
+  "roles": [
+    { "id": "<uuid>", "name": "owner",   "is_default": true,  "owner_bypass": true },
+    { "id": "<uuid>", "name": "admin",   "is_default": true,  "owner_bypass": false },
+    ...
+  ],
+  "permissions": [
+    { "name": "scan:create",   "resource": "scan",   "action": "create", "description": "..." },
+    ...
+  ],
+  "grants": [
+    { "role_id": "<owner-uuid>",   "permission_name": "scan:create" },
+    ...
+  ]
+}
+```
+
+**Note:** the `owner_bypass` field surfaces the special-case in `iam/routes.py:53` so the UI can render the owner column with all-filled circles regardless of explicit grants.
+
+#### 6.2.6 Existing `/users/<user_id>/roles` endpoints
+
+**Phase A status:** BACKEND-READY (already verified in F2 closure as 200/201/200).
+
+Re-listed for completeness:
+- `GET /api/iam/users/<user_id>/roles` — list roles for a user.
+- `POST /api/iam/users/<user_id>/roles` — assign role to user (`{"role":"<name>"}`).
+- `DELETE /api/iam/users/<user_id>/roles/<role_name>` — revoke role.
+
+**Hardening note (Phase B-backend item F8):** the GET endpoint currently has no permission gate (just `@jwt_required`); any authenticated user can view any other user's role list. Phase B-backend adds `iam:read` gating. Backward-compatible: existing callers (only the dashboard frontend) are admin/owner so will pass the gate.
+
+### 6.3 Invitations
+
+#### 6.3.1 `POST /api/iam/invitations` — send invitation
+
+**Phase A status:** BACKEND-MISSING. Phase B-backend item **I2**.
+
+**Auth:** `iam:manage`.
+
+**Request body:**
+```json
+{
+  "email": "anna@acme.io",
+  "role": "analyst",
+  "message": "Welcome to the team!"
+}
+```
+
+**Validation:**
+- email valid format + lowercase
+- email not already in `users` table → 409 `{"error":"email_exists"}`
+- email not already in pending `invitations` → 409 with `{"error":"already_pending","invitation_id":"<id>"}` so UI can offer re-send
+- role exists → 422 if not
+
+**Side effects:**
+1. INSERT into `invitations` table (NEW; Phase B-backend item **I1**).
+2. Generates 64-char URL-safe token.
+3. Sends email via Flask-Mail (PLB-4 wiring) with link to `https://<host>/invite/<token>`.
+4. AuditLog: `action='invitation.created'`, `resource='invite:<token-prefix>'`, `node_meta={"email":<email>,"role":<role>}`.
+
+**201 response:**
+```json
+{
+  "id": "<uuid>",
+  "email": "anna@acme.io",
+  "role": "analyst",
+  "expires_at": "2026-05-05T20:11:00Z",
+  "delivery_status": "sent" | "smtp_disabled"
+}
+```
+
+**Special case:** when `app.email_enabled=False`, INSERT proceeds, `delivery_status="smtp_disabled"`, response **also** includes `"manual_link":"https://<host>/invite/<token>"` (owner-only — gated server-side) so an owner can copy it manually. UI shows a banner per F4.3.
+
+#### 6.3.2 `GET /api/iam/invitations/<token>` — fetch invitation (PUBLIC)
+
+**Phase A status:** BACKEND-MISSING. Phase B-backend item **I4**.
+
+**Auth:** none. Token is the auth.
+
+**200 response (sanitised):**
+```json
+{
+  "email": "anna@acme.io",
+  "role": "analyst",
+  "role_description": "Read, scan, and analyse — no admin settings",
+  "invited_by_name": "Binyam Yallew",
+  "organisation": "Acme Corp",
+  "message": "Welcome to the team!",
+  "expires_at": "2026-05-05T20:11:00Z"
+}
+```
+
+**Note:** does NOT expose `invited_by` user ID, the actual `created_at`, or any sensitive metadata. The recipient sees only what's needed to accept.
+
+**Error responses:**
+- `404` — `{"error":"invalid_token"}`.
+- `410` — `{"error":"expired"}`.
+- `410` — `{"error":"already_accepted"}`.
+
+#### 6.3.3 `POST /api/iam/invitations/<token>/accept` — accept invitation
+
+**Phase A status:** BACKEND-MISSING. Phase B-backend item **I3**.
+
+**Auth:** none. Token is the auth.
+
+**Request body:** `{"name": "Anna Q", "password": "..."}`.
+
+**Validation:**
+- token valid + not expired + not already accepted (via the same paths as 6.3.2)
+- password meets current tenant password policy (§ 4.22; v1 enforces only the 8-char minimum until 4.22's policy is set)
+- email collision: if another user registered with this email between invite and accept, return 409 `{"error":"email_collision_signin"}`.
+
+**Side effects:**
+1. INSERT new User with the invited email; `is_active=True`; password bcrypt-hashed.
+2. Mark invitation `accepted_at = NOW()`.
+3. Use `assign_role_to_user(user.id, <invited_role>, assigned_by=<inviter_id>, reason='invitation-accepted')` — F2's helper. **Critically, this bypasses F2's auto-on-registration `owner` grant** (see § 7.4 for why).
+4. Issue JWT.
+5. AuditLogs: `invitation.accepted` + `role.assigned`.
+
+**201 response:**
+```json
+{
+  "message": "Welcome to AIPET X",
+  "token": "<jwt>",
+  "user": { ... User.to_dict() ... }
+}
+```
+
+**Error responses:** 404/410 as above; 409 for email_collision_signin; 422 for password policy violation with field-level detail.
+
+#### 6.3.4 `GET /api/iam/invitations` — list pending invitations
+
+**Phase A status:** BACKEND-MISSING. Phase B-backend item **I4**.
+
+**Auth:** `iam:manage`.
+
+**Query params:** `status` (default `pending`; options `pending|accepted|expired|all`), `page`, `per_page`.
+
+**200 response:**
+```json
+{
+  "invitations": [
+    { "id":"<uuid>", "email":"anna@acme.io", "role":"analyst",
+      "invited_by":1, "created_at":"...","expires_at":"...",
+      "accepted_at":null }
+  ],
+  "total":1, "page":1, "pages":1
+}
+```
+
+#### 6.3.5 `DELETE /api/iam/invitations/<id>` — revoke pending
+
+**Phase A status:** BACKEND-MISSING. Phase B-backend item **I4**.
+
+**Auth:** `iam:manage`.
+
+**Side effects:** mark invitation `revoked_at = NOW()`. Token cannot be used afterwards (acceptance returns 404).
+
+**Audit:** `action='invitation.revoked'`.
+
+#### 6.3.6 `POST /api/iam/invitations/<id>/resend` — re-send + extend expiry
+
+**Phase A status:** BACKEND-MISSING. Phase B-backend item **I4**.
+
+**Auth:** `iam:manage`.
+
+**Side effects:** extends `expires_at` by 7 days; re-sends the same email.
+
+**Audit:** `action='invitation.resent'`.
+
+### 6.4 Audit log
+
+#### 6.4.1 `GET /api/iam/audit` — paginated audit (filters added)
+
+**Phase A status:** BACKEND-PARTIAL. Phase B-backend item **F5** (extends with filters) + **F8** (NULL timestamp hardening).
+
+**Auth:** `audit:read`.
+
+**Query params (all optional):**
+- `since` (ISO8601 datetime)
+- `until` (ISO8601 datetime)
+- `action` (string; comma-separated for multi-select; matches exactly)
+- `actor` (int user_id; or string email — server resolves)
+- `resource` (string contains)
+- `status` (success|blocked|error)
+- `page` (default 1)
+- `per_page` (default 50, max 200)
+
+**200 response:**
+```json
+{
+  "logs": [
+    {
+      "id":"<uuid>","user_id":1,"actor_email":"byallew@gmail.com",
+      "actor_name":"Binyam Yallew","action":"role.assigned",
+      "resource":"user:3","ip_address":"127.0.0.1",
+      "timestamp":"2026-04-28T20:10:55Z","status":"success",
+      "node_meta":{"role":"owner","reason":"auto-on-registration"}
+    }
+  ],
+  "total":13,"pages":1,"page":1
+}
+```
+
+**Important changes from existing endpoint:**
+1. Response now includes `node_meta` (existing endpoint omits it).
+2. Response now includes `actor_email` and `actor_name` (joined from users table; null when actor was deleted).
+3. Filter params are added (existing ignores them).
+4. Handler null-coalesces `timestamp.isoformat() if timestamp else null` — fixes the F2-discovered weakness.
+
+#### 6.4.2 `GET /api/iam/audit/actions` — distinct action list (for filter dropdown)
+
+**Phase A status:** BACKEND-MISSING. Phase B-backend item **F5**.
+
+**Auth:** `audit:read`.
+
+**200 response:** `{"actions":["role.assigned","role.revoked","sso.configured","user.disabled",...]}` (deduped, sorted, cached server-side 5 min).
+
+#### 6.4.3 `GET /api/iam/audit/export` — CSV export (streaming)
+
+**Phase A status:** BACKEND-MISSING. Phase B-backend item **F6**.
+
+**Auth:** `audit:read`.
+
+**Query params:** same as 6.4.1.
+
+**Response headers:**
+```
+Content-Type: text/csv; charset=utf-8
+Content-Disposition: attachment; filename="aipet-audit-2026-04-28.csv"
+Transfer-Encoding: chunked
+```
+
+**Response body (streamed):**
+```
+timestamp_iso,actor_id,actor_email,action,resource,status,ip_address,user_agent,node_meta_json
+2026-04-28T20:10:55Z,1,byallew@gmail.com,role.assigned,user:3,success,127.0.0.1,Mozilla/5.0...,"{\"role\":\"owner\",\"reason\":\"auto-on-registration\"}"
+...
+```
+
+**204 response** when 0 rows match (with no body and `Content-Disposition` omitted).
+
+**Audit:** `action='audit.exported'`, written **after** the stream closes, with `node_meta={"filter":<serialised>,"rows_exported":N}`. (Written post-stream so the count is accurate.)
+
+### 6.5 Sessions (depends on IssuedToken model — § 8 item S1)
+
+#### 6.5.1 `GET /api/iam/sessions` — list sessions
+
+**Phase A status:** BACKEND-MISSING. Phase B-backend item **S3**.
+
+**Auth:** JWT. Default scope: caller's own sessions. Param `user_id=<id>` requires `iam:manage` (cross-user). Param `all_users=true` requires `iam:manage`.
+
+**Query params:** `user_id`, `all_users`, `active=true|false|all` (default `active`), `page`, `per_page`.
+
+**200 response:**
+```json
+{
+  "sessions": [
+    {
+      "jti": "<jwt-id>",
+      "user_id": 2,
+      "user_email": "test@aipet.io",
+      "ip_address": "127.0.0.1",
+      "user_agent": "Mozilla/5.0 (X11; Linux x86_64)...",
+      "device_label": "Chrome 121 / Linux",
+      "issued_at": "2026-04-28T21:09:03Z",
+      "last_seen_at": "2026-04-28T21:11:20Z",
+      "expires_at": "2026-04-28T21:24:03Z",
+      "revoked_at": null,
+      "is_current": true
+    }
+  ],
+  "total": 1, "pages": 1, "page": 1
+}
+```
+
+**Note:** `device_label` is server-derived from `user_agent` (simple regex parse; `ua-parser-js` not used to avoid dependency creep — Phase B-backend includes a 60-line parser).
+
+#### 6.5.2 `POST /api/iam/sessions/<jti>/revoke` — revoke single session
+
+**Phase A status:** BACKEND-MISSING. Phase B-backend item **S3**.
+
+**Auth:** caller is the session owner OR `iam:manage`.
+
+**200 response:** `{"message":"Session revoked"}`.
+
+**Audit:** `action='session.revoked'`, `resource='session:<jti>'`, `node_meta={"target_user_id":<id>,"reason":"manual"}`.
+
+#### 6.5.3 `POST /api/iam/users/<id>/sessions/revoke_all` — bulk revoke
+
+**Phase A status:** BACKEND-MISSING. Phase B-backend item **S3**.
+
+**Auth:** caller is the user OR `iam:manage`.
+
+**Request body:** `{"except_current": true|false}` — when self-revoking and `true`, current session stays alive; UI default for "Sign out all other sessions" button.
+
+**200 response:** `{"sessions_revoked": <N>}`.
+
+**Audit:** `action='session.revoked_all'`, `node_meta={"sessions_revoked":N,"except_current":<bool>}`.
+
+### 6.6 SSO
+
+#### 6.6.1 `GET /api/iam/sso` — list providers
+
+**Phase A status:** BACKEND-PARTIAL (existing endpoint omits provider_type and never returns secrets). Phase B-backend item **SSO1** extends.
+
+**Auth:** `sso:manage`.
+
+**200 response:**
+```json
+{
+  "providers": [
+    {
+      "id":"<uuid>","name":"Acme Okta","provider_type":"saml",
+      "tenant_id":"<idp-tenant>","metadata_url":"https://...",
+      "enabled":false,"created_at":"...",
+      "last_test_at":"...","last_test_status":"success" | "failure" | null,
+      "last_test_failure_step": null
+    }
+  ]
+}
+```
+
+**Note:** `client_id` and `client_secret` are NEVER in the response. Only the existence is implied by `provider_type`.
+
+#### 6.6.2 `POST /api/iam/sso` — create provider
+
+**Phase A status:** BACKEND-PARTIAL. Phase B-backend item **SSO1** (provider_type, encrypted secret).
+
+**Auth:** `sso:manage`.
+
+**Request body:**
+```json
+{
+  "name": "Acme Okta",
+  "provider_type": "saml",
+  "metadata_url": "https://acme.okta.com/app/.../sso/saml/metadata",
+  "metadata_xml": null,
+  "client_id": null,
+  "client_secret": null,
+  "enabled": false
+}
+```
+
+(For OIDC v1.1 the client_id and client_secret become required and metadata_xml stays null.)
+
+**Validation:**
+- `name` required + length ≤ 50
+- `provider_type` in `["saml","oidc"]` (only "saml" accepted in v1)
+- exactly one of `metadata_url` or `metadata_xml` provided for SAML
+- `client_secret` if provided: encrypted at rest using app-level secret (env var `IAM_SECRET_KEY`)
+
+**201 response:** `{"id":"<uuid>","message":"SSO provider created"}`.
+
+**Audit:** `action='sso.configured'`, `resource='sso:<id>'`, `node_meta={"name":<name>,"type":"saml","enabled":<bool>}`. **Never** logs client_secret or metadata XML body.
+
+#### 6.6.3 `PATCH /api/iam/sso/<id>` — update provider
+
+**Phase A status:** BACKEND-MISSING. Phase B-backend item **SSO1**.
+
+**Auth:** `sso:manage`.
+
+**Request body:** any subset of the create fields. `enabled` toggle is the most common case.
+
+**Audit:** `action='sso.updated'` or `'sso.enabled'`/`'sso.disabled'` (when only `enabled` changes), `node_meta={"changed_fields":[...]}` (without sensitive values).
+
+#### 6.6.4 `DELETE /api/iam/sso/<id>` — delete provider
+
+**Phase A status:** BACKEND-MISSING. Phase B-backend item **SSO1**.
+
+**Auth:** `sso:manage`.
+
+**Audit:** `action='sso.deleted'`.
+
+#### 6.6.5 `POST /api/iam/sso/<id>/test` — test connection
+
+**Phase A status:** BACKEND-MISSING. Phase B-backend item **SSO3**.
+
+**Auth:** `sso:manage`.
+
+**Side effects:** server fetches metadata_url, parses XML, validates signing cert, attempts AuthnRequest construction (no actual user redirect). Persists `last_test_at` + `last_test_status` + `last_test_failure_step` on the provider row.
+
+**200 response:**
+```json
+{
+  "result": "success" | "failure",
+  "steps": [
+    { "name":"metadata_fetch","status":"ok","detail":"158 ms","duration_ms":158 },
+    { "name":"xml_parse","status":"ok" },
+    { "name":"signing_cert","status":"failure","detail":"Expired 2026-01-15" },
+    { "name":"authn_construction","status":"skipped" }
+  ],
+  "failure_step": "signing_cert"
+}
+```
+
+**Audit:** `action='sso.tested'`, `node_meta={"result":<result>,"failure_step":<step or null>}`.
+
+### 6.7 Security policy
+
+The policy endpoints back the Security Policy tab (F4.17, F4.21, F4.22). All read from / write to a single `tenant_policy` row (Phase B-backend item **P0** — a one-row config table; multi-tenancy migration scopes this per-tenant, see § 7).
+
+#### 6.7.1 `GET /api/iam/policy` — read full policy
+
+**Phase A status:** BACKEND-MISSING. Phase B-backend item **P0**.
+
+**Auth:** `policy:read` (NEW permission, granted to all four default roles by Phase B-backend seed extension).
+
+**200 response:**
+```json
+{
+  "two_factor": {
+    "mode":"optional" | "off" | "required",
+    "grace_period_days":7,
+    "recovery_codes_per_user":10
+  },
+  "ip_allowlist": {
+    "enabled":false,
+    "cidrs":[],
+    "applies_to":["dashboard_login","api_endpoints"]
+  },
+  "password": {
+    "min_length":12,
+    "require_uppercase":true,
+    "require_digit":true,
+    "require_special":true,
+    "max_age_days":90,
+    "history_prevent_reuse":5
+  },
+  "updated_at":"...","updated_by":1
+}
+```
+
+#### 6.7.2 `PUT /api/iam/policy/2fa` / `PUT /api/iam/policy/ip_allowlist` / `PUT /api/iam/policy/password`
+
+**Phase A status:** BACKEND-MISSING. Phase B-backend items **P1**, **P2**, **P3**.
+
+**Auth:** `policy:manage`.
+
+**Side effects:**
+- Update fields in `tenant_policy` row.
+- AuditLog: `action='policy.<area>_changed'`, `node_meta` includes `old` and `new` snapshots.
+- For IP allowlist: server validates **caller's current IP** is still allowed; returns 422 if not, with `current_ip` echo so UI can offer one-click "Add my IP".
+
+**200 response:** `{"message":"Policy updated"}`.
+
+**Error responses (IP allowlist specifically):**
+- `422` — `{"error":"would_lock_out","current_ip":"1.2.3.4","message":"The new allowlist would block your current IP."}`.
+
+### 6.8 Existing IAM endpoints (BACKEND-READY, no changes)
+
+For completeness:
+
+- `GET /api/iam/roles` ✅
+- `GET /api/iam/audit` (gets extended in § 6.4.1, but the existing 200 path is BACKEND-READY)
+- `GET /api/iam/sso` (gets extended; existing 200 path is BACKEND-READY)
+- `POST /api/iam/users/<id>/roles` ✅ (verified 201 in F2)
+- `DELETE /api/iam/users/<id>/roles/<role_name>` ✅ (verified 200 in F2)
+
+### 6.9 Endpoints summary
+
+| Endpoint | Phase A status | Phase B-backend item | Phase that needs it |
+|---|---|---|---|
+| `GET /api/iam/users` | MISSING | F3 | C |
+| `GET /api/iam/users/<id>` | MISSING | F3 | C |
+| `POST /api/iam/users/<id>/disable` | MISSING | F4 | E |
+| `POST /api/iam/users/<id>/enable` | MISSING | F4 | E |
+| `POST /api/iam/users/<id>/remove` | MISSING | F7 | E |
+| `POST /api/iam/users/<id>/restore` | MISSING | F7 | E |
+| `POST /api/iam/users/<id>/sessions/revoke_all` | MISSING | S3 | E |
+| `GET /api/iam/users/<id>/roles` | READY (gating) | F8 | C |
+| `POST /api/iam/users/<id>/roles` | READY | — | C |
+| `DELETE /api/iam/users/<id>/roles/<r>` | READY | — | C |
+| `GET /api/iam/roles` | READY | — | C |
+| `POST /api/iam/roles` | PARTIAL | G1 | G |
+| `PATCH /api/iam/roles/<id>/permissions` | MISSING | G1 | G |
+| `DELETE /api/iam/roles/<id>` | MISSING | G2 | G |
+| `GET /api/iam/permission-matrix` | MISSING | H1 | G |
+| `POST /api/iam/invitations` | MISSING | I2 | D |
+| `GET /api/iam/invitations` | MISSING | I4 | D |
+| `GET /api/iam/invitations/<token>` (PUBLIC) | MISSING | I4 | D |
+| `POST /api/iam/invitations/<token>/accept` | MISSING | I3 | D |
+| `DELETE /api/iam/invitations/<id>` | MISSING | I4 | D |
+| `POST /api/iam/invitations/<id>/resend` | MISSING | I4 | D |
+| `GET /api/iam/audit` | PARTIAL | F5 + F8 | F |
+| `GET /api/iam/audit/actions` | MISSING | F5 | F |
+| `GET /api/iam/audit/export` | MISSING | F6 | F |
+| `GET /api/iam/sessions` | MISSING | S3 | E |
+| `POST /api/iam/sessions/<jti>/revoke` | MISSING | S3 | E |
+| `GET /api/iam/sso` | PARTIAL | SSO1 | H |
+| `POST /api/iam/sso` | PARTIAL | SSO1 | H |
+| `PATCH /api/iam/sso/<id>` | MISSING | SSO1 | H |
+| `DELETE /api/iam/sso/<id>` | MISSING | SSO1 | H |
+| `POST /api/iam/sso/<id>/test` | MISSING | SSO3 | H |
+| `GET /api/iam/policy` | MISSING | P0 | I |
+| `PUT /api/iam/policy/2fa` | MISSING | P1 | I |
+| `PUT /api/iam/policy/ip_allowlist` | MISSING | P2 | I |
+| `PUT /api/iam/policy/password` | MISSING | P3 | I |
+
+**Total: 36 endpoints. 5 BACKEND-READY, 5 BACKEND-PARTIAL, 26 BACKEND-MISSING.**
+
+---
+
+## 7. Multi-tenancy migration path
+
+v1 ships single-tenant honestly (current data model). This section is the documented migration path the multi-tenancy work follows once it's prioritised. Every component, query, and flow specified above has explicit multi-tenant notes here.
+
+### 7.1 Per-table changes
+
+| Table | New column(s) | Index | Default | Migration strategy |
+|---|---|---|---|---|
+| `tenants` (NEW) | id (uuid PK), name, slug (unique), created_at, owner_user_id | (slug) | n/a | Bootstrap with one tenant `default`; assign all existing User+Role rows to it. |
+| `users` | tenant_id (uuid FK NOT NULL) | (tenant_id, email unique) | `default` tenant uuid | UPDATE existing rows in migration; tighten NOT NULL after backfill. |
+| `roles` | tenant_id (uuid FK NULL ALLOWED for default roles) | (tenant_id, name unique) | NULL for owner/admin/analyst/viewer (system roles); per-tenant for custom | System roles stay tenant_id=NULL; custom roles get a tenant_id. |
+| `user_roles` | (no new columns; transitively scoped via users + roles tenant_ids) | (user_id, role_id) unique | n/a | No migration; integrity is the join's responsibility. |
+| `permissions` | (no change — permissions are global) | n/a | n/a | n/a |
+| `audit_log` | tenant_id (uuid FK) | (tenant_id, timestamp DESC) | derived from user_id at insert | Backfill via JOIN on users; tighten NOT NULL post-backfill. |
+| `sso_providers` | tenant_id (uuid FK NOT NULL) | (tenant_id) | `default` | Migration UPDATE; NOT NULL. |
+| `invitations` (NEW from § 6.3.1) | tenant_id from creation; no migration needed | (tenant_id, status) | n/a | Born tenant-scoped. |
+| `issued_tokens` (NEW from § 8 S1) | tenant_id from creation | (tenant_id, jti) | n/a | Born tenant-scoped. |
+| `tenant_policy` | tenant_id is the PK (one row per tenant) | n/a | n/a | INSERT one default row per tenant on tenant creation. |
+
+### 7.2 Per-query changes
+
+Every IAM query gets a `WHERE tenant_id = <caller's tenant>` clause. The `require_permission` decorator gets a companion `@require_tenant_scope` decorator that:
+
+1. Reads `caller.tenant_id` from the User row.
+2. Sets `g.tenant_id` for the request lifetime.
+3. Adds an automatic filter to all SQLAlchemy queries via a session-level event listener (similar to soft-delete's `Query.filter()` pattern).
+
+**Performance note:** the (tenant_id, *) composite indexes above are essential — without them, a multi-tenant audit log gets slow above ~100k rows.
+
+### 7.3 Per-flow changes for multi-tenant
+
+| Flow | What changes |
+|---|---|
+| F4.1 List members | Query scoped to `users.tenant_id = caller.tenant_id`. `?all_tenants=true` requires a new `platform_admin` role (super-admin across tenants); not exposed to customers in v1.1+. |
+| F4.2 Member detail | Same — scoped. |
+| F4.3 Invite member | Invitation row gets `tenant_id = caller.tenant_id`. Recipient's resulting User gets the same tenant_id. |
+| F4.4 Accept invitation | New User created in invitation's tenant. |
+| F4.5 Change role | Role lookup scoped to `(tenant_id IS NULL OR tenant_id = caller.tenant)`. Default roles (system) are global. Custom roles are per-tenant. |
+| F4.6 / F4.7 Disable / Remove | Scoped lookup. Cannot disable/remove cross-tenant. |
+| F4.8 Audit log | Scoped to `audit_log.tenant_id = caller.tenant_id`. Cross-tenant audit visibility is `platform_admin` only. |
+| F4.9 CSV export | Same — scoped. |
+| F4.10 Permission matrix | Default roles always shown; custom roles only those in caller's tenant. |
+| F4.11/12/13 Custom role CRUD | Tenant-scoped; cannot affect default roles or other tenants' custom roles. |
+| F4.14 Configure SSO | Tenant-scoped; one tenant's SSO has zero impact on others. |
+| F4.15/16 Test / enable SSO | Tenant-scoped. |
+| F4.17 2FA policy | Tenant-scoped (one `tenant_policy` row per tenant). |
+| F4.18 / F4.19 / F4.20 Sessions | Tenant-scoped via user_id transitively. |
+| F4.21 IP allowlist | Tenant-scoped. Important: enforcement at the `before_request` hook reads policy by the caller's tenant_id (which it derives from the JWT `sub` → User → tenant_id, before the request even reaches the route — pre-auth tenant resolution is the trickier piece). |
+| F4.22 Password policy | Tenant-scoped — different tenants can have different policies. The accept-invitation flow reads the policy by invitation's tenant_id. |
+
+### 7.4 First-user-of-fresh-tenant gets owner; others default lower
+
+This is **the key behavioural change** that lands with multi-tenancy. F2's current rule is "every new register gets owner" — works for single-tenant. Multi-tenant rule:
+
+- **Tenant creation flow** (Phase B-multi-tenant): a new tenant is created when:
+  - A user signs up via `/register` with no invitation → creates a fresh tenant + assigns owner (current F2 behaviour, refactored).
+  - A user accepts an invitation → joins the inviter's tenant + gets the invited role (NOT owner). **This is why F4.4 explicitly bypasses F2's auto-grant.**
+  - (Future: an admin creates a sub-tenant from the parent tenant — out of scope.)
+- The seed catalog (F1) is global; runs once at app start; not per-tenant.
+- The `tenant_policy` row is created with defaults at tenant-creation time.
+
+### 7.5 Cross-tenant access (admins viewing other tenants' data)
+
+Out of scope for the user-facing UI. Internal `platform_admin` role would use a separate admin console (not part of Team & Access). The audit log captures every cross-tenant access for accountability.
+
+### 7.6 Estimated effort for multi-tenancy migration
+
+| Item | Hours | Confidence |
+|---|---|---|
+| Schema migration: tenants table + tenant_id columns + indexes + Alembic revision | 2 | high |
+| Backfill SQL: assign all existing rows to a `default` tenant | 1 | high |
+| `@require_tenant_scope` decorator + SQLAlchemy session event listener | 2 | medium |
+| Refactor every IAM endpoint to consult `g.tenant_id` | 3 | medium |
+| Refactor F2 register flow: tenant creation + first-user-owner; invitation flow: join-existing-tenant | 2 | high |
+| `tenant_policy` table + per-tenant policy load + IP allowlist `before_request` hook | 2 | medium |
+| Tests: 30+ new tests covering tenant isolation; ~3 days for ~30 tests but parallelisable | 4 | medium |
+| Click-through verification: full Team & Access flow with two tenants | 2 | medium |
+
+**Total: ~16 hours ±6, medium confidence.** Roughly 2 backend-engineer-days.
+
+**Critical sequencing note:** multi-tenancy migration MUST land before the first paying multi-customer deploy. v1 (single-tenant) is fine for a solo dev account or a single-customer staging environment; it leaks data across tenants if multiple customers share an instance.
+
+---
+
+## 8. Backend additions required (Phase B-backend)
+
+This is the build-readiness gate for Phase C-I. Every backend addition needed before Phase C can begin a UI flow is listed here. Estimates given as `<hours> ±<range>, <confidence>`.
+
+### 8.1 Foundational (must ship before Phase C starts)
+
+| ID | Addition | Hours | Schema | Blocks |
+|---|---|---|---|---|
+| **F0** | Extend `seed_default_roles()` to add 2 new permissions (`iam:read`, `policy:read`, `policy:manage`) and grant them appropriately to defaults. Idempotent extension of F1's seed. | 0.5 ±0.2, high | none | C, all |
+| **F3** | `GET /api/iam/users` (list, with search/sort/pagination) + `GET /api/iam/users/<id>` (detail with joined roles + active_session_count). Permission `iam:read`. | 3 ±1, high | none | C |
+| **F5** | Extend `GET /api/iam/audit` with filter query params (since/until/action/actor/resource/status). Add `GET /api/iam/audit/actions` (distinct list, cached). Include `node_meta`, `actor_email`, `actor_name` in response. | 2 ±0.5, high | none | F |
+| **F6** | `GET /api/iam/audit/export?format=csv` streaming response. | 1.5 ±0.5, high | none | F |
+| **F8** | Permission gate on `GET /api/iam/users/<id>/roles` (currently jwt-only). Null-coalesce on `audit_log.timestamp` in `get_audit_log` handler (F2-discovered weakness) AND add DB-level default `DEFAULT NOW()` to the timestamp column via Alembic. | 1 ±0.3, high | yes (Alembic) | C, F |
+| **G1** | Extend `POST /api/iam/roles` to accept `permissions` list. Add `PATCH /api/iam/roles/<id>/permissions`. Validate permissions exist; default-role lock; reserved-name check. | 2 ±0.5, high | none | G |
+| **G2** | `DELETE /api/iam/roles/<id>` with cascade-unassign. Default-role lock. | 1 ±0.3, high | none | G |
+| **H1** | `GET /api/iam/permission-matrix` returning roles × permissions with grants list. | 1 ±0.3, high | none | G |
+
+**Foundational subtotal: ~12 hours ±3, high confidence.** This is the minimum backend work before Phase C-I can run.
+
+### 8.2 Members lifecycle (Phase E)
+
+| ID | Addition | Hours | Schema | Blocks |
+|---|---|---|---|---|
+| **F4** | `POST /api/iam/users/<id>/disable` + `POST /api/iam/users/<id>/enable`. Last-owner-safety + self-action protections. Triggers session revocation (depends on S2). | 1.5 ±0.5, medium | none (uses existing `is_active`) | E |
+| **F7** | `POST /api/iam/users/<id>/remove` + `POST /api/iam/users/<id>/restore`. User soft-delete (new `deleted_at` column, mirrors AgentDevice pattern). Last-owner safety. | 2 ±0.5, medium | yes (Alembic: User.deleted_at) | E |
+
+**Members lifecycle subtotal: ~3.5 hours ±1, medium confidence.** Depends on S* for full session-revoke behaviour.
+
+### 8.3 Sessions / token blocklist (Phase E prerequisite)
+
+| ID | Addition | Hours | Schema | Blocks |
+|---|---|---|---|---|
+| **S1** | `IssuedToken` model: jti, user_id, ip, user_agent, issued_at, last_seen_at, expires_at, revoked_at, revoked_reason. Hook into JWT issuance (login + register + reset-password + accept-invitation). | 2 ±0.5, medium | yes (new table) | E, F4, F7 |
+| **S2** | `flask_jwt_extended.token_in_blocklist_loader` consulting `IssuedToken.revoked_at IS NOT NULL`. Hook into `@jwt_required` so revoked tokens 401. | 1 ±0.3, medium | none | E, F4, F7 |
+| **S3** | `GET /api/iam/sessions` + `POST /api/iam/sessions/<jti>/revoke` + `POST /api/iam/users/<id>/sessions/revoke_all`. Includes a 60-line user-agent parser (no new dependency). | 2.5 ±0.5, medium | none | E |
+
+**Sessions subtotal: ~5.5 hours ±1.3, medium confidence.** S1+S2 land first; S3 depends on them.
+
+### 8.4 Invitations (Phase D)
+
+| ID | Addition | Hours | Schema | Blocks |
+|---|---|---|---|---|
+| **I1** | `Invitation` model: id, email, role_name, token (unique, 64 chars), invited_by, message, created_at, expires_at, accepted_at, revoked_at. Alembic migration. | 1 ±0.3, high | yes | D |
+| **I2** | `POST /api/iam/invitations` — generate token, INSERT, send email via Flask-Mail. Handle `app.email_enabled=False` per F4.3 spec. | 1.5 ±0.5, medium | none | D |
+| **I3** | `POST /api/iam/invitations/<token>/accept` — atomic User creation + role assignment via F2's `assign_role_to_user` helper, bypassing F2's auto-grant. Email collision handling. | 2 ±0.5, medium | none | D |
+| **I4** | `GET /api/iam/invitations` (list pending) + `GET /api/iam/invitations/<token>` (PUBLIC fetch) + `DELETE /api/iam/invitations/<id>` (revoke) + `POST /api/iam/invitations/<id>/resend`. | 2 ±0.5, medium | none | D |
+
+**Invitations subtotal: ~6.5 hours ±1.8, medium confidence.**
+
+### 8.5 SSO (Phase H)
+
+| ID | Addition | Hours | Schema | Blocks |
+|---|---|---|---|---|
+| **SSO1** | Extend `SSOProvider` model with `provider_type` (enum), `client_secret` (encrypted at rest using app-level `IAM_SECRET_KEY` env var), `last_test_at`, `last_test_status`, `last_test_failure_step`. Add `PATCH /api/iam/sso/<id>` and `DELETE /api/iam/sso/<id>` endpoints. Extend POST/GET to handle the new fields without leaking secrets. | 3 ±1, medium | yes (Alembic, with at-rest encryption helper) | H |
+| **SSO3** | `POST /api/iam/sso/<id>/test` — fetch metadata URL, parse XML (use `defusedxml` to be safe), validate signing cert (`cryptography`), construct AuthnRequest stub, return diagnostic JSON. ~120-line implementation. | 4 ±2, low | none (consumes secret env var) | H |
+
+**SSO subtotal: ~7 hours ±3, medium confidence.** Note SSO1 and SSO3 depend on `cryptography` dependency (already in requirements via bcrypt's transitive, but check). `defusedxml` would be a new dep — small.
+
+### 8.6 Security policy (Phase I)
+
+| ID | Addition | Hours | Schema | Blocks |
+|---|---|---|---|---|
+| **P0** | `tenant_policy` model: single-row table in v1 (one row scoped per-tenant in v1.1). Fields per § 6.7.1. Default row inserted at app boot (idempotent) by extending the seed function. `GET /api/iam/policy`. | 2 ±0.5, medium | yes (new table) | I |
+| **P1** | `PUT /api/iam/policy/2fa` — write 2FA mode + grace_period_days. Optionally trigger banner-on-next-login for affected users (banner display is frontend; backend just stores). | 1 ±0.3, medium | none | I |
+| **P2** | `PUT /api/iam/policy/ip_allowlist` — CIDR validation + caller-IP-still-included safety net + `before_request` hook to enforce on subsequent requests. | 2.5 ±1, low | none (uses P0 row) | I |
+| **P3** | `PUT /api/iam/policy/password` — store policy. Apply to register / reset-password / accept-invitation handlers (3 call sites). | 2 ±0.5, medium | none | I |
+
+**Policy subtotal: ~7.5 hours ±2.3, medium-low confidence.** P2 has the most uncertainty — IP allowlist enforcement order-of-operations interacts with rate limiting and Sentry, and the lockout safety net needs careful testing.
+
+### 8.7 Aggregate Phase B-backend totals
+
+| Subgroup | Hours | Confidence |
+|---|---|---|
+| Foundational (F0/F3/F5/F6/F8/G1/G2/H1) | 12 ±3 | high |
+| Members lifecycle (F4/F7) | 3.5 ±1 | medium |
+| Sessions (S1/S2/S3) | 5.5 ±1.3 | medium |
+| Invitations (I1-I4) | 6.5 ±1.8 | medium |
+| SSO (SSO1/SSO3) | 7 ±3 | medium-low |
+| Policy (P0-P3) | 7.5 ±2.3 | medium-low |
+| **Total Phase B-backend** | **42 hours ±13, medium confidence** | |
+
+**Plus 30-50 % testing overhead** (tests written alongside each item) → **~55-65 hours total backend work** before all Phase C-I UI work can begin.
+
+**However**, the foundational subgroup (12 hours) is enough to start Phase C. The other subgroups gate later phases: Phase D blocks on invitations (I1-I4), Phase E blocks on sessions (S1-S3) + members lifecycle (F4/F7), etc.
+
+### 8.8 Phase B-backend critical path
+
+The fastest path to "everything green" with maximum parallelism:
+
+```
+Week 1
+  Mon: F0, F3 (members list+detail), F5 (audit filters), F6 (audit CSV)
+  Tue: F8 (gating + null hardening), G1+G2 (role CRUD), H1 (matrix)
+       -> Phase C unblocked, Phase F unblocked, Phase G unblocked
+
+Week 2
+  Wed: I1 (Invitation model), I2 (send invitation)
+  Thu: I3 (accept), I4 (list/revoke/resend)
+       -> Phase D unblocked
+
+  Fri: S1 (IssuedToken model), S2 (blocklist hook)
+       -> Foundation for sessions
+
+Week 3
+  Mon: S3 (sessions endpoints), F4 (disable/enable), F7 (remove/restore)
+       -> Phase E unblocked
+
+  Tue: SSO1 (provider model + CRUD)
+  Wed: SSO3 (test connection)
+       -> Phase H unblocked
+
+  Thu: P0 (tenant_policy + GET), P1 (2fa PUT), P3 (password PUT)
+  Fri: P2 (IP allowlist + before_request hook)
+       -> Phase I unblocked
+```
+
+**~3 calendar weeks** of focused backend work to fully unblock Phase C-I. **~1 day** to unblock just Phase C.
+
