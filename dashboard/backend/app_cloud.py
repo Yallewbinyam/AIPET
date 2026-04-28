@@ -576,6 +576,40 @@ def create_app(config_name="development"):
             # response to the caller.
             raise ValueError("PLB-5 sentry test")
 
+        # PLB-4: dev-only end-to-end SMTP smoke test. POST a target
+        # email; the handler builds a tiny HTML message and ships it
+        # through Flask-Mail. Returns 503 when email_enabled is False
+        # (so dev can confirm graceful degradation without a real send).
+        # NEVER register in production -- it's an open relay otherwise.
+        @app.route("/api/__email_test", methods=["POST"])
+        def email_test():
+            from flask_mail import Message
+            from flask import current_app, request as _req
+            payload = _req.get_json(silent=True) or {}
+            to_addr = (payload.get("to") or "").strip()
+            if not to_addr or "@" not in to_addr:
+                return jsonify({"error": "Provide JSON {\"to\": \"<email>\"}"}), 400
+            if not getattr(current_app, "email_enabled", False):
+                return jsonify({
+                    "error": "Email backend disabled",
+                    "hint":  "SMTP_USER / SMTP_PASSWORD not set. See docs/runbooks/email-delivery.md.",
+                }), 503
+            mail = current_app.extensions.get("mail")
+            if mail is None:
+                return jsonify({"error": "Flask-Mail not bound"}), 500
+            msg = Message(
+                subject="AIPET X — SMTP smoke test",
+                recipients=[to_addr],
+                body=("This is a PLB-4 smoke test from the AIPET X dev environment. "
+                      "If you received this, Flask-Mail is correctly wired."),
+                html=("<p>This is a <b>PLB-4 smoke test</b> from the AIPET X dev environment.</p>"
+                      "<p>If you received this, Flask-Mail is correctly wired.</p>"),
+            )
+            mail.send(msg)
+            current_app.logger.info("PLB-4 email smoke test sent to %s", to_addr)
+            return jsonify({"status": "sent", "to": to_addr,
+                            "from": app.config.get("MAIL_DEFAULT_SENDER")}), 200
+
     @app.route("/api/plans", methods=["GET"])
     def get_plans():
         return jsonify({
