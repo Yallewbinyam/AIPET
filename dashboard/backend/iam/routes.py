@@ -180,6 +180,53 @@ def revoke_role(user_id, role_name):
     log_action(get_jwt_identity(), 'role_revoked', resource=f'{user_id}:{role_name}')
     return jsonify({'message': 'Role revoked successfully'})
 
+# ── Members list ─────────────────────────────────────────────
+# Phase B § 6.1.1 v1 minimum: list users with their roles. Basic
+# pagination, no filters yet (search/sort/status come in a follow-
+# up). Permission gate is `iam:manage` for now -- when F0 lands an
+# `iam:read` permission, this is the place that gets relaxed so
+# admin/analyst/viewer can read the team list without being able
+# to mutate it. Today, owner-role users pass via the role-name
+# bypass in require_permission().
+@iam_bp.route('/members', methods=['GET'])
+@require_permission('iam:manage')
+def list_members():
+    from dashboard.backend.models import User
+    page     = request.args.get('page', 1, type=int)
+    per_page = min(request.args.get('per_page', 25, type=int), 100)
+
+    pagination = User.query.order_by(User.email.asc()).paginate(
+        page=page, per_page=per_page, error_out=False
+    )
+
+    # Per-user role lookup. N+1 in shape; acceptable at v1 scale
+    # (typical tenant ~ tens of users per page). When member counts
+    # justify it, this becomes a single joined query loaded eagerly.
+    members = []
+    for u in pagination.items:
+        user_roles = UserRole.query.filter_by(user_id=u.id).all()
+        role_ids   = [ur.role_id for ur in user_roles]
+        roles      = (Role.query.filter(Role.id.in_(role_ids)).all()
+                      if role_ids else [])
+        members.append({
+            'id':            u.id,
+            'email':         u.email,
+            'name':          u.name,
+            'plan':          u.plan,
+            'organisation':  u.organisation,
+            'created_at':    u.created_at.isoformat() if u.created_at else None,
+            'last_login':    u.last_login.isoformat() if u.last_login else None,
+            'is_active':     bool(u.is_active),
+            'roles':         [{'id': r.id, 'name': r.name} for r in roles],
+        })
+
+    return jsonify({
+        'members': members,
+        'total':   pagination.total,
+        'pages':   pagination.pages,
+        'page':    pagination.page,
+    })
+
 # ── Audit log ────────────────────────────────────────────────
 @iam_bp.route('/audit', methods=['GET'])
 @require_permission('audit:read')
@@ -190,14 +237,21 @@ def get_audit_log():
         page=page, per_page=per_page, error_out=False
     )
     return jsonify({
+        # F2-discovered hardening: l.timestamp can be NULL for rows
+        # inserted via raw SQL that bypassed the Python-level
+        # default (e.g. the F2 backfill before we patched it).
+        # Coalesce here so the handler doesn't crash; an Alembic
+        # migration adding DB-level DEFAULT NOW() is tracked
+        # separately as Phase B § 8 F8.
         'logs': [{
             'id': l.id, 'user_id': l.user_id, 'action': l.action,
             'resource': l.resource, 'ip_address': l.ip_address,
-            'timestamp': l.timestamp.isoformat(), 'status': l.status
+            'timestamp': l.timestamp.isoformat() if l.timestamp else None,
+            'status': l.status,
         } for l in logs.items],
         'total': logs.total,
         'pages': logs.pages,
-        'page':  logs.page
+        'page':  logs.page,
     })
 
 # ── SSO providers ────────────────────────────────────────────
