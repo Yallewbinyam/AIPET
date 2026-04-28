@@ -51,3 +51,8 @@ statsmodels>=0.14.0
 
 # Web Push notifications (Capability 12)
 pywebpush>=2.0.0
+
+# PLB-1: Database migrations (used standalone via `alembic` CLI;
+# flask-migrate above brings alembic transitively but we pin
+# explicitly so removal of flask-migrate doesn't break us)
+alembic>=1.13
