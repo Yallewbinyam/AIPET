@@ -1,0 +1,48 @@
+PLB-5 -- Sentry events fired during closure verification
+=========================================================
+Date: 2026-04-28
+Backend: gunicorn @ port 5001 with SENTRY_DSN loaded from .env
+
+Three events were sent to Sentry to exercise both the auto-capture path
+(unhandled exception via Flask integration) and the scrubber path
+(events containing secret-shaped strings + denylisted body keys).
+
+Event 1 + 2 -- /api/sentry-test endpoint, hit twice
+  curl http://localhost:5001/api/sentry-test
+  -> HTTP 500
+  -> Flask integration auto-captures the ValueError("PLB-5 sentry test")
+     raised at dashboard/backend/app_cloud.py:574
+
+Event 3 -- in-process sentry_sdk.capture_message
+  event_id = b3bedbb84d8a457e818376e4bcb80a11
+  message  = "PLB-5 verification: in-process synthetic event"
+  level    = info
+
+Event 4 -- scrubbing verification with fake secrets
+  event_id = b37982f312c44c9d883ccc3bc570eee9
+  message  = "PLB-5 scrubbing verification: aipet_LEAKED_IN_MESSAGE_..."
+  level    = warning
+  scope.extras included:
+    fake_agent_key     -- expect [Filtered]    (denylist body key)
+    fake_jwt           -- expect [Filtered]    (denylist body key 'jwt' via partial match)
+    fake_stripe        -- expect [Filtered:stripe_sk] (regex)
+    fake_postgres_uri  -- expect postgresql://user:[Filtered:db_password]@localhost/db
+    password           -- expect [Filtered]    (denylist body key)
+    client_secret      -- expect [Filtered]    (denylist body key)
+  scope.message free-form text:
+    aipet_LEAKED_IN_MESSAGE_xxxxxxxxxxxxxxxxxxxxxx -> [Filtered:aipet_key]
+    eyJabcdef0123456789.eyJlmno0987654321.signaturepart_xxxxxxxxxxxxxx -> [Filtered:jwt]
+
+SDK runtime introspection:
+  client.transport         = HttpTransport (real network transport)
+  client.options.dsn       = (configured -- redacted)
+  client.options.environment = development
+  client.options.release   = a31b66e5
+  client.options.traces_sample_rate = 0.1
+  client.options.profiles_sample_rate = 0.0
+  client.options.send_default_pii = False
+  client.options.before_send = set
+  active integrations include: flask, sqlalchemy, celery
+  client.flush(timeout=5)  = returned cleanly (no timeout, no error)
+
+User confirmation in Sentry UI -- pending visual verification.

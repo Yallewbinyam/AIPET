@@ -19,17 +19,15 @@ import threading
 from datetime import datetime, timedelta
 from flask import Flask, jsonify, request, send_file, redirect
 
-import sentry_sdk
-from sentry_sdk.integrations.flask import FlaskIntegration
-
-_sentry_dsn = os.environ.get("SENTRY_DSN", "")
-if _sentry_dsn:
-    sentry_sdk.init(
-        dsn=_sentry_dsn,
-        integrations=[FlaskIntegration()],
-        traces_sample_rate=1.0,
-        send_default_pii=False,
-    )
+# Sentry init -- must run BEFORE any framework code (Flask, SQLAlchemy,
+# Celery) so the integrations can hook properly. See
+# dashboard/backend/observability/sentry_setup.py for the spec
+# (PLB-5: PII scrubbing, env+release tagging, traces_sample_rate=0.1,
+# profiles_sample_rate=0.0, send_default_pii=False, denylisted headers
+# and body keys, regex-based secret scrubbing).
+from dashboard.backend.observability.sentry_setup import init_sentry as _init_sentry
+_init_sentry()
+import sentry_sdk  # re-imported below; needed by error-handler imports
 from flask_cors import CORS
 from flask_jwt_extended import (
     JWTManager, jwt_required, get_jwt_identity
@@ -518,7 +516,10 @@ def create_app(config_name="development"):
         }), 405
     @app.errorhandler(500)
     def internal_error_handler(e):
-        sentry_sdk.capture_exception(e)
+        # FlaskIntegration auto-captures unhandled exceptions, so an
+        # explicit sentry_sdk.capture_exception(e) here would double-
+        # report (one event for the framework, one for the handler).
+        # Removed the manual capture in PLB-5 closure 2026-04-29.
         from dashboard.backend.monitoring.alerting import alert_unhandled_exception
         try:
             user_id = get_jwt_identity()
@@ -560,10 +561,17 @@ def create_app(config_name="development"):
     def ping():
         return jsonify({"status": "ok", "timestamp": datetime.utcnow().isoformat() + "Z"})
 
-    @app.route("/api/sentry-test", methods=["GET"])
-    def sentry_test():
-        division_by_zero = 1 / 0
-        return jsonify({"status": "unreachable"})
+    # PLB-5: dev-only endpoint that triggers an unhandled exception
+    # so we can confirm Sentry is wired end-to-end. NEVER register in
+    # production -- a /api/sentry-test that returns 500 is a small
+    # but real DoS vector.
+    if os.environ.get("FLASK_ENV", "development").strip().lower() != "production":
+        @app.route("/api/sentry-test", methods=["GET"])
+        def sentry_test():
+            # Intentional unhandled exception. Will appear in the Sentry
+            # Issues dashboard; the 500 handler below returns a generic
+            # response to the caller.
+            raise ValueError("PLB-5 sentry test")
 
     @app.route("/api/plans", methods=["GET"])
     def get_plans():
