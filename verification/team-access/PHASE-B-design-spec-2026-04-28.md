@@ -498,3 +498,1101 @@ Detailed mobile screens specified per flow in § 4.
 ---
 
 *[End of Sections 1-3. Sections 4-12 follow in subsequent commits.]*
+
+---
+
+## 4. User flows
+
+This section is the build-time contract. Phase C-I implementations follow these flows verbatim. Every flow lists trigger, steps, success path, error paths, audit log entries, backend endpoints called, and edge cases. ASCII wireframes are included for screens with non-trivial layout.
+
+**Convention:** [+] = button, [□] = checkbox, [○] / [●] = radio, ▼ = dropdown, ↻ = refresh, … = ellipsis menu.
+
+### F4.1 — List team members
+
+**Trigger:** user clicks `Team & Access` in sidebar; default tab is `Members`.
+
+**Steps:**
+
+1. Page mounts, sets `loading=true`, fires `GET /api/iam/users?include_roles=true&search=&page=1&per_page=25`. Skeleton renders (3 rows).
+2. Response arrives within ~200 ms typical. Render members table.
+3. User can search (debounced, 250 ms), paginate (24/50/100 per page), and sort (email asc/desc, last_login asc/desc).
+4. Each row shows: avatar (initials), name, email, role pill, last_login (relative time or "Never"), `…` menu.
+5. Sticky header with primary action `[+ Invite member]` (if `iam:manage`) and a search input.
+
+**Wireframe (desktop, ≥1024px):**
+
+```
+┌─ Team & Access › Members ──────────── [+ Invite member] ──┐
+│  ┌─────────────────────────────────────────────────────┐  │
+│  │ 🔎 Search by name or email...        Status: All ▼  │  │
+│  └─────────────────────────────────────────────────────┘  │
+│                                                           │
+│  ┌────────────────────────────────────────────────────┐   │
+│  │ MEMBER          ROLE     LAST LOGIN     STATUS  …  │   │
+│  ├────────────────────────────────────────────────────┤   │
+│  │ ┌──┐ Binyam     [owner]  2 minutes ago   ●Active ⋮ │   │
+│  │ │BY│ byallew@…                                     │   │
+│  │ └──┘                                               │   │
+│  ├────────────────────────────────────────────────────┤   │
+│  │ ┌──┐ PyTest     [admin]  yesterday       ●Active ⋮ │   │
+│  │ │PT│ test@…                                        │   │
+│  │ └──┘                                               │   │
+│  ├────────────────────────────────────────────────────┤   │
+│  │ ┌──┐ Anna Q     (no role)  Never        ⊝Pending⋮  │   │
+│  │ │AQ│ anna@acme.io                                  │   │
+│  │ └──┘                                               │   │
+│  └────────────────────────────────────────────────────┘   │
+│                                                           │
+│  Showing 3 of 3 members.    25 per page ▼                 │
+└───────────────────────────────────────────────────────────┘
+```
+
+**Wireframe (mobile, <640px):**
+
+Each member is a card stack:
+
+```
+┌─────────────────────────────────────────┐
+│ Members                  [+ Invite]     │
+│ 🔎 Search...                            │
+├─────────────────────────────────────────┤
+│ ┌─────────────────────────────────────┐ │
+│ │ ┌──┐ Binyam              ⋮          │ │
+│ │ │BY│ byallew@gmail.com              │ │
+│ │ └──┘ [owner]  • 2 minutes ago       │ │
+│ └─────────────────────────────────────┘ │
+│ ┌─────────────────────────────────────┐ │
+│ │ ┌──┐ PyTest               ⋮         │ │
+│ │ │PT│ test@aipet.io                  │ │
+│ │ └──┘ [admin] • yesterday            │ │
+│ └─────────────────────────────────────┘ │
+└─────────────────────────────────────────┘
+```
+
+**Success path:** member rows render. Pagination + search + sort all client-driven against the server's response (server handles search/sort; client renders).
+
+**Error paths:**
+- Network error: row of toast "Failed to load members. Try again." + inline retry button. Existing data (if any) stays visible — no blanking.
+- 401: axios interceptor wipes token + reloads (existing pattern at App.js:60-65).
+- 403 (`iam:read`): the page itself is gated server-side; if reached, show `<EmptyState>` with "You don't have permission to view team members. Contact your administrator." No retry.
+- Empty response: `<EmptyState>` with copy "No team members yet." + `[+ Invite member]` action.
+
+**Audit log entries written:** none (read-only).
+
+**Backend endpoints called:**
+- `GET /api/iam/users?search=&page=&per_page=&include_roles=true` (NEW — Phase B-backend, see § 8 item F3)
+
+**Edge cases:**
+- Members with > 1 role assigned: render the highest-priority role + "+1" indicator on hover.
+- Members with email > 50 chars: truncate with ellipsis, full email in tooltip.
+- Members whose `is_active=false` (disabled): row dimmed (opacity 0.5), `Disabled` pill in red, action menu still allows Re-enable.
+- Race: search-typing while pagination loads; cancel previous request via AbortController.
+
+---
+
+### F4.2 — View team member detail
+
+**Trigger:** user clicks a member row OR clicks `View detail` in the row's `…` menu.
+
+**Steps:**
+
+1. Right-edge slide-in drawer opens (480px wide, full-height; mobile: full-screen sheet from bottom).
+2. Drawer header shows member avatar + name + email + close button.
+3. Body sections (top → bottom):
+   - **Overview**: name, email, plan, organisation, industry, created_at, last_login, is_active.
+   - **Roles**: pill list of assigned roles. `[Change roles]` button (if `iam:manage`).
+   - **Active sessions**: count + link to Sessions tab filtered by this user.
+   - **Recent audit events**: 5 most recent `audit_log` entries where `user_id = this user`, mini-list with `View all` link to Audit tab filtered.
+   - **Actions footer** (sticky bottom): `[Disable]` `[Remove]` `[Resend invitation]` (last only if pending invitation). All gated by `iam:manage`.
+4. ESC closes drawer; click outside closes drawer; URL does not change.
+
+**Wireframe (drawer):**
+
+```
+              ┌──────────────────────────────────┐
+              │ ┌──┐ Binyam Yallew         ✕    │
+              │ │BY│ byallew@gmail.com           │
+              │ └──┘                             │
+              ├──────────────────────────────────┤
+              │ Overview                          │
+              │   Plan         Free               │
+              │   Organisation —                  │
+              │   Industry     —                  │
+              │   Joined       2 days ago         │
+              │   Last login   2 minutes ago      │
+              │   Status       ● Active           │
+              │                                  │
+              │ Roles                  [Change]  │
+              │   [owner]                        │
+              │                                  │
+              │ Active sessions          1       │
+              │   View in Sessions tab →         │
+              │                                  │
+              │ Recent audit events              │
+              │   • role.assigned   1h ago       │
+              │   • user.login      2m ago       │
+              │   View all →                     │
+              ├──────────────────────────────────┤
+              │ [Disable]  [Remove]              │
+              └──────────────────────────────────┘
+```
+
+**Success path:** drawer renders within 300 ms (no skeleton needed if data already cached from members list).
+
+**Error paths:**
+- 404 (member deleted between list-load and detail-click): toast "Member no longer exists" + close drawer.
+- 403 (caller lost permission since list-load): drawer shows the member overview (read-only), action buttons hidden.
+
+**Audit log entries written:** none.
+
+**Backend endpoints called:**
+- `GET /api/iam/users/<id>` (NEW — § 8 item F3)
+- `GET /api/iam/audit?actor=<id>&per_page=5` (existing, with new `actor` filter from § 8 item F5)
+- `GET /api/iam/sessions?user_id=<id>&active=true` (NEW — § 8 item S3)
+
+**Edge cases:**
+- Caller views their own detail: actions footer shows "[Sign out all other sessions]" instead of `[Disable]/[Remove]`. Cannot disable / remove self.
+- Caller is the last owner: `[Disable]/[Remove]` are present but disabled (greyed out) with tooltip "Cannot remove the last platform owner. Promote another user to owner first."
+
+---
+
+### F4.3 — Invite new member
+
+**Trigger:** Members tab → `[+ Invite member]` button (in header bar).
+
+**Steps:**
+
+1. `Invite Member` modal opens.
+2. Form fields:
+   - Email (required, validated client + server)
+   - Role (dropdown, defaults to `viewer`, options: viewer / analyst / admin / owner / +custom roles)
+   - Optional: Welcome message (textarea, 240 char limit)
+3. Submit button labelled `[Send invitation]` (primary). `[Cancel]` (secondary).
+4. On submit: button loads (spinner replaces label, disabled state).
+5. On success: toast "Invitation sent to <email>", modal closes, members list refreshes (the new pending row appears with `(no role)` and "Pending" pill).
+
+**Wireframe (modal, 480px desktop):**
+
+```
+            ┌──────────────────────────────────────┐
+            │ Invite Member                    ✕   │
+            ├──────────────────────────────────────┤
+            │ Email                                │
+            │ ┌──────────────────────────────────┐ │
+            │ │ name@company.com                 │ │
+            │ └──────────────────────────────────┘ │
+            │                                      │
+            │ Role                                 │
+            │ ┌──────────────────────────────────┐ │
+            │ │ Viewer                         ▼ │ │
+            │ └──────────────────────────────────┘ │
+            │ Read-only access to findings &       │
+            │ reports.                             │
+            │                                      │
+            │ Welcome message (optional)           │
+            │ ┌──────────────────────────────────┐ │
+            │ │                                  │ │
+            │ │                                  │ │
+            │ └──────────────────────────────────┘ │
+            ├──────────────────────────────────────┤
+            │            [Cancel]  [Send invite]   │
+            └──────────────────────────────────────┘
+```
+
+**Success path:** invitation row created in DB (`invitations` table — NEW, see § 8 item I1); email sent via Flask-Mail; modal closes; member list refreshes.
+
+**Error paths:**
+- Email already registered (existing user): inline error on the email field "This person is already a team member. Open their detail to change their role." Submit disabled.
+- Email already pending invitation: inline warning "An invitation is already pending for this email. <Re-send>?". Submit becomes `[Re-send invitation]` (extends expiry, doesn't duplicate).
+- SMTP failure (`app.email_enabled=False`): banner at top of modal "Email backend is not configured. The invitation token has been created but cannot be delivered automatically. Copy the link below and send it manually." with the invitation URL shown for owner-only.
+- 403: shouldn't reach here since the button was hidden, but if it does, modal shows "You no longer have permission to invite members." + close.
+- Invalid email format (client-side): inline `email` field error "Enter a valid email address." Submit disabled.
+- Network error: modal stays open, toast "Failed to send invitation. Retry?", form values preserved.
+
+**Audit log entries written:**
+- `action='invitation.created'`, `resource='invite:<token-prefix>'`, `node_meta={'email': <email>, 'role': <role>}`. (Email logged once on creation, never on subsequent reads.)
+
+**Backend endpoints called:**
+- `POST /api/iam/invitations` (NEW — § 8 item I2): body `{email, role, message?}`; returns `{id, expires_at}`.
+
+**Edge cases:**
+- Inviting an email that matches a previously-disabled user: error "This email belongs to a disabled account. Re-enable the account instead." (We don't allow re-creating a disabled user via invitation; preserves audit history.)
+- Sending bulk invites: out of scope for v1; one-at-a-time is the v1 contract.
+- Custom role from the dropdown: roles created via Roles tab appear here automatically (no extra UI work).
+
+---
+
+### F4.4 — Accept invitation (recipient experience)
+
+**Trigger:** recipient clicks the invitation link in their email. URL: `https://<host>/invite/<token>`. **NO authentication required** — the token is the auth.
+
+**Steps:**
+
+1. Page loads (standalone route `/invite/<token>`, NOT inside `/team`). Page mounts, fires `GET /api/iam/invitations/<token>` to validate the token.
+2. **Valid token, not yet accepted:** show acceptance form.
+   - Read-only fields: invited email, organisation, role being assigned, who invited them, optional welcome message.
+   - Editable fields: full name (required), password (required, must satisfy current password policy if any — § F4.22).
+   - Submit `[Accept invitation & create account]`.
+3. On submit: `POST /api/iam/invitations/<token>/accept` with `{name, password}`. Creates User, assigns role, marks invitation accepted, returns JWT.
+4. Auto-login: token stored, user redirected to `/?tab=dashboard`. Toast "Welcome to <organisation>".
+
+**Wireframe (centred card, 480px wide):**
+
+```
+                    ┌────────────────────────────────┐
+                    │                                │
+                    │    ┌──────────────────────┐    │
+                    │    │     AIPET X          │    │
+                    │    └──────────────────────┘    │
+                    │                                │
+                    │  You've been invited to        │
+                    │  Acme Corp on AIPET X.         │
+                    │                                │
+                    │  Invited by: Jane Smith        │
+                    │  Email:      anna@acme.io      │
+                    │  Role:       Analyst           │
+                    │                                │
+                    │  ┌──────────────────────────┐  │
+                    │  │ "Welcome to the team!"   │  │
+                    │  │              — Jane      │  │
+                    │  └──────────────────────────┘  │
+                    │                                │
+                    │  Full name                     │
+                    │  [ ___________________ ]       │
+                    │                                │
+                    │  Choose password               │
+                    │  [ ___________________ ]       │
+                    │  • 8+ chars                    │
+                    │  • 1 uppercase, 1 number       │
+                    │                                │
+                    │  [Accept invitation & sign in] │
+                    │                                │
+                    └────────────────────────────────┘
+```
+
+**Success path:** account created; owner role NOT auto-assigned (this is the corner of F2's auto-grant rule — accept-invitation must NOT use F2's auto-grant; see § 7.4). Invitation marked `accepted_at`. Toast on landing.
+
+**Error paths:**
+- **Invalid token** (404 from server): page shows full-bleed error "This invitation link is invalid or has been revoked. Contact your administrator." No form. No retry.
+- **Expired token** (token row found but `expires_at < NOW()`): same message but specifically "This invitation expired on <date>. Ask <inviter email> to send a new one."
+- **Already accepted** (token marked accepted_at): "This invitation has already been used. Sign in below." + login link.
+- **Password fails policy** (§ 4.22 enforcement): inline error listing which rules failed; submit disabled until satisfied.
+- **Email collision** (a user with that email registered through `/register` between invite-send and accept): collision is detected server-side; server returns 409 "An account already exists for this email. Sign in to claim your invitation." Token remains valid; once they sign in, banner appears in dashboard offering to "Apply <role> from invitation by <inviter>".
+
+**Audit log entries written:**
+- `action='invitation.accepted'`, `resource='user:<new-user-id>'`, `node_meta={'invited_by': <inviter_id>, 'role': <role>}`.
+- `action='role.assigned'`, `resource='user:<new-user-id>'`, `node_meta={'role': <role>, 'reason': 'invitation-accepted'}` (uses F2's `assign_role_to_user` helper).
+
+**Backend endpoints called:**
+- `GET /api/iam/invitations/<token>` (NEW — § 8 item I4 includes a fetch-public sub-route): returns sanitised invitation detail (no sensitive metadata).
+- `POST /api/iam/invitations/<token>/accept` (NEW — § 8 item I3).
+
+**Edge cases:**
+- The recipient has the AIPET X dashboard open in another tab logged in as a different user when they click: the `/invite/<token>` page is auth-agnostic but the dashboard re-auth confuses; flow handles it by ignoring local JWT on the invite page.
+- The invitation token URL is in the recipient's browser history. After accept, the URL responds 410 Gone (consumed). Bookmarking is a non-issue.
+
+---
+
+### F4.5 — Change member role
+
+**Trigger:** Member detail drawer → `[Change roles]` OR Members table row → `…` menu → `Change role`.
+
+**Steps:**
+
+1. `Change Role` modal opens, listing the member's current role(s) with checkboxes for available roles.
+2. User checks/unchecks roles.
+3. Submit `[Save changes]`.
+4. On success: toast "Roles updated", modal closes, member detail drawer refreshes the role pills.
+
+**Wireframe:**
+
+```
+            ┌──────────────────────────────────────┐
+            │ Change Role for Anna Q           ✕   │
+            │ anna@acme.io                          │
+            ├──────────────────────────────────────┤
+            │ Default roles                        │
+            │  [□] Owner    Full platform access   │
+            │  [□] Admin    Full security access   │
+            │  [●] Analyst  Read, scan, analyse    │
+            │  [□] Viewer   Read-only              │
+            │                                      │
+            │ Custom roles                         │
+            │  [□] Compliance auditor              │
+            │  [□] Incident responder              │
+            ├──────────────────────────────────────┤
+            │            [Cancel]  [Save changes]  │
+            └──────────────────────────────────────┘
+```
+
+**Success path:** for each role checked-and-not-currently-assigned, call `POST /api/iam/users/<id>/roles {"role": ...}`. For each unchecked-and-currently-assigned, call `DELETE /api/iam/users/<id>/roles/<role-name>`. Operations sent in parallel via `Promise.all`. UI shows partial-success on partial-failure.
+
+**Error paths:**
+- Trying to remove the last owner role from the last owner: server returns 422 with `{error: "Cannot remove last owner role"}`. UI shows banner in modal "At least one user must have the Owner role." Cancel modal; no changes applied.
+- Race: another admin changes the same user concurrently; latest write wins (no optimistic locking in v1). Audit log captures both writes; no data loss.
+- Network error mid-batch: each role op is independent; UI shows which succeeded and which failed in a per-row indicator inside the modal; failed ops can be retried individually.
+
+**Audit log entries written:**
+- One `role.assigned` row per added role (existing endpoint).
+- One `role.revoked` row per removed role (existing endpoint).
+
+**Backend endpoints called:**
+- `POST /api/iam/users/<id>/roles` (existing, BACKEND-READY).
+- `DELETE /api/iam/users/<id>/roles/<role-name>` (existing, BACKEND-READY).
+
+**Edge cases:**
+- Custom roles deleted between modal open and submit: silently dropped from the to-add list; toast "Some custom roles were deleted by another admin and were not assigned."
+- User has >5 roles: scroll inside the role list (modal max-height 70 vh).
+
+---
+
+### F4.6 — Disable member
+
+**Trigger:** Member detail drawer → `[Disable]` OR row `…` menu → `Disable`.
+
+**Steps:**
+
+1. Confirmation dialog: "Disable Anna Q?" with copy "They won't be able to sign in. Their data and audit history are preserved. You can re-enable them at any time."
+2. `[Cancel]` `[Disable]` (danger variant).
+3. On confirm: `POST /api/iam/users/<id>/disable` (NEW — § 8 item F4).
+4. Active sessions for this user are revoked server-side (depends on F4.20 infra; see § 8 item S2).
+5. Member row updates: `is_active=false`, "Disabled" pill in red, action menu shows `[Re-enable]`.
+
+**Wireframe:**
+
+```
+            ┌──────────────────────────────────────┐
+            │ Disable Anna Q?                      │
+            ├──────────────────────────────────────┤
+            │ They won't be able to sign in.       │
+            │ Their data and audit history are     │
+            │ preserved. You can re-enable them    │
+            │ at any time.                         │
+            │                                      │
+            │ All active sessions will be revoked. │
+            ├──────────────────────────────────────┤
+            │            [Cancel]   [Disable]      │
+            └──────────────────────────────────────┘
+```
+
+**Error paths:**
+- Last owner attempt: server 422 "Cannot disable the last platform owner."
+- Self-disable attempt: server 422 "You cannot disable your own account." (UI hides the button when `target_id == current_user_id`.)
+
+**Audit log entries written:** `action='user.disabled'`, `resource='user:<id>'`, `node_meta={'reason': <optional>, 'sessions_revoked': N}`.
+
+**Backend endpoints called:**
+- `POST /api/iam/users/<id>/disable` (NEW — § 8 F4)
+- internally: `IssuedToken.revoked_at = NOW()` for all live tokens of this user (S2 dep).
+
+---
+
+### F4.7 — Remove member (soft-delete + session revoke)
+
+**Trigger:** Member detail drawer → `[Remove]`. NOT in the row `…` menu (Remove is a destructive action; require detail-drawer context).
+
+**Steps:**
+
+1. Confirmation dialog with `Type the member's email to confirm` input. Submit disabled until typed correctly. (Pattern: GitHub/Stripe destructive-action.)
+2. `[Cancel]` `[Remove member]` (danger).
+3. On confirm: `POST /api/iam/users/<id>/remove` (NEW — § 8 item F7).
+4. User soft-deleted (`User.deleted_at = NOW()`); all sessions revoked; row vanishes from default Members list.
+5. Toast "Anna Q removed."
+
+**Wireframe:**
+
+```
+            ┌──────────────────────────────────────┐
+            │ Remove Anna Q                        │
+            ├──────────────────────────────────────┤
+            │ This action removes Anna's access    │
+            │ permanently. Audit history and       │
+            │ records they created stay intact     │
+            │ but are attributed to "(deleted      │
+            │ user)".                              │
+            │                                      │
+            │ Type their email to confirm:         │
+            │ [ anna@acme.io                ]      │
+            ├──────────────────────────────────────┤
+            │            [Cancel]   [Remove]       │
+            └──────────────────────────────────────┘
+```
+
+**Error paths:**
+- Last owner attempt: 422 "Cannot remove the last platform owner."
+- Self-remove attempt: 422 "Cannot remove your own account. Ask another owner."
+- Email mismatch: client-side, submit disabled until match.
+- Session revocation partial failure (rare): user is removed; toast warning "Removed Anna Q. <X> active sessions could not be force-expired and will expire naturally within 15 minutes."
+
+**Audit log entries written:** `action='user.removed'`, `resource='user:<id>'`, `node_meta={'email': <denormalised email for posterity>, 'sessions_revoked': N}`.
+
+**Backend endpoints called:**
+- `POST /api/iam/users/<id>/remove` (NEW — § 8 item F7).
+
+**Edge cases:**
+- Admin views Members list with `?include_deleted=true`: soft-deleted users appear with "(removed)" pill and `[Restore]` action. Symmetric with AgentDevice soft-delete pattern (CLAUDE.md § Architecture / Soft-delete).
+
+---
+
+### F4.8 — View audit log (filters + pagination)
+
+**Trigger:** Audit tab.
+
+**Steps:**
+
+1. Tab mounts, fires `GET /api/iam/audit?per_page=50&page=1` (current default; filters empty).
+2. Filter row above table: Date range (since/until), Action (multi-select), Actor (user search-by-email), Resource (text contains), Status (success/blocked).
+3. URL updates with filter params (deep-linkable).
+4. Table renders with: Time (relative), Actor, Action (pill), Resource, Status (pill), Detail (`view` link).
+5. Pagination footer.
+
+**Wireframe (desktop):**
+
+```
+┌─ Team & Access › Audit log ──────────────[⬇ Export CSV]──┐
+│ Filters                                                  │
+│ Date  [Last 7 days ▼]   Action  [All actions ▼]          │
+│ Actor [search by email] Status  [All ▼]                  │
+│ Resource [contains...]                              ↻    │
+├──────────────────────────────────────────────────────────┤
+│ TIME       ACTOR        ACTION            RESOURCE  STAT │
+├──────────────────────────────────────────────────────────┤
+│ 2 min ago  Binyam Y     role.assigned      user:3   ●OK  │
+│ 1 hr ago   PyTest       sso.configured    f2-test… ●OK  │
+│ 3 hr ago   System       seed.ran           —       ●OK  │
+│ 4 hr ago   Anna Q       login.failed       —       ⊘blk │
+│ ...                                                      │
+├──────────────────────────────────────────────────────────┤
+│ Showing 1-50 of 127.    [<] 1 2 3 [>]    50 per page ▼   │
+└──────────────────────────────────────────────────────────┘
+```
+
+**Click a row → Audit Event Detail drawer opens** (§ 4.8.1):
+
+```
+              ┌──────────────────────────────────┐
+              │ Event detail                  ✕  │
+              ├──────────────────────────────────┤
+              │ Action      role.assigned        │
+              │ Actor       Binyam Y (id=1)      │
+              │ Resource    user:3               │
+              │ Status      success              │
+              │ Time        2026-04-28 21:11 UTC │
+              │ IP          127.0.0.1            │
+              │ User Agent  Mozilla/5.0 (X11; …) │
+              │                                  │
+              │ Structured detail (node_meta)    │
+              │ ┌──────────────────────────────┐ │
+              │ │ {                            │ │
+              │ │   "role": "owner",           │ │
+              │ │   "reason": "auto-on-        │ │
+              │ │              registration"   │ │
+              │ │ }                            │ │
+              │ └──────────────────────────────┘ │
+              │                                  │
+              │ Related events (same actor)      │
+              │  • user.login   2 min ago        │
+              │  • role.assigned 1 hr ago        │
+              └──────────────────────────────────┘
+```
+
+**Success path:** rows render. Filters update URL + refetch + maintain scroll position when paging.
+
+**Error paths:**
+- Network error: existing rows stay; toast retry.
+- 403 (`audit:read`): tab is gated server-side; if reached, EmptyState "You don't have permission to view audit logs."
+- Empty results given filter combo: EmptyState "No audit events match your filters." + `[Clear filters]`.
+
+**Audit log entries written:** none (read-only).
+
+**Backend endpoints called:**
+- `GET /api/iam/audit?since=&until=&action=&actor=&resource=&status=&page=&per_page=` (existing endpoint **extended** in § 8 item F5 to accept the filter params).
+
+**Edge cases:**
+- Result set > 10 000 rows: server caps `per_page` at 200; page count computed from `total / per_page`.
+- Action enum drift: the `action` filter dropdown is populated dynamically from a server-provided list of distinct action strings seen in the table (cached 5 min).
+- `node_meta` is `null`: detail drawer shows "No structured detail" instead of an empty `{}`.
+- Pre-existing weakness (F2 finding): a row with `timestamp = NULL` would crash the existing handler. Phase B-backend hardens this (§ 8).
+
+---
+
+### F4.9 — Export audit log to CSV
+
+**Trigger:** Audit tab → `[⬇ Export CSV]` button (with current filter set applied).
+
+**Steps:**
+
+1. Click triggers `GET /api/iam/audit/export?<current filter params>`. Browser receives `Content-Type: text/csv; charset=utf-8` with `Content-Disposition: attachment; filename="aipet-audit-2026-04-28.csv"`.
+2. CSV columns: timestamp_iso, actor_id, actor_email, action, resource, status, ip_address, user_agent, node_meta (JSON-encoded string).
+3. Server streams the response (StreamingResponse pattern) so 100k-row exports don't spike memory.
+4. Toast "Audit log export started" on click; "Audit log export complete (N rows)" on response close.
+
+**Error paths:**
+- Filter set returns 0 rows: server returns 204 + toast "No rows match — nothing to export."
+- Network error mid-stream: browser shows partial download; UI toast "Export interrupted. Try again with a smaller date range."
+
+**Audit log entries written:** `action='audit.exported'`, `resource='audit-log'`, `node_meta={'filter': <serialised filter>, 'rows_exported': N}` (written **after** stream completes, so the count is accurate).
+
+**Backend endpoints called:**
+- `GET /api/iam/audit/export?...&format=csv` (NEW — § 8 item F6).
+
+**Edge cases:**
+- Browser blocks pop-up if click was synthetic: link uses standard `<a download>` with `target="_self"` to avoid this.
+- Mobile Safari "open in iCloud Drive" idiosyncrasy: just works; we test on iOS in click-through (§ 10).
+
+---
+
+### F4.10 — View permissions matrix
+
+**Trigger:** Roles tab → header link `View permission matrix`.
+
+**Steps:**
+
+1. Renders a sticky-header table: rows = permissions (10 + custom), cols = roles (4 default + custom).
+2. Cells are read-only filled circles for granted, hollow circles for not granted. Owner column is special-cased: every cell is filled (because owner bypass).
+
+**Wireframe:**
+
+```
+┌─ Roles › Permission matrix ──────────────────────────────┐
+│  PERMISSION       OWNER  ADMIN  ANALYST  VIEWER  AUDITOR │
+├──────────────────────────────────────────────────────────┤
+│  scan:create        ●      ●      ●        ○      ○     │
+│  scan:read          ●      ●      ●        ●      ●     │
+│  findings:read      ●      ●      ●        ●      ●     │
+│  reports:read       ●      ●      ●        ●      ●     │
+│  reports:create     ●      ●      ●        ○      ○     │
+│  billing:manage     ●      ○      ○        ○      ○     │
+│  iam:manage         ●      ●      ○        ○      ○     │
+│  iam:read           ●      ●      ●        ●      ●     │
+│  audit:read         ●      ●      ○        ○      ●     │
+│  sso:manage         ●      ○      ○        ○      ○     │
+│  policy:manage      ●      ○      ○        ○      ○     │
+│  terminal:use       ●      ●      ●        ○      ○     │
+└──────────────────────────────────────────────────────────┘
+   ●  granted     ○  not granted
+   Owner is granted everything by role-name bypass.
+```
+
+**Success path:** read-only matrix. To edit, click a role column → opens Edit Role modal (§ 4.12).
+
+**Error paths:** 403 if missing `iam:read`; 401.
+
+**Backend endpoints called:**
+- `GET /api/iam/permission-matrix` (NEW — § 8 item H1) returns `{roles: [...], permissions: [...], grants: [{role_id, permission_id}]}`.
+
+**Edge cases:**
+- Custom role with 0 permissions: column shows all hollow circles. Distinct visual cue prompts to edit.
+- Permission rows scroll horizontally on mobile.
+
+---
+
+### F4.11 — Create custom role
+
+**Trigger:** Roles tab → `[+ Create role]`.
+
+**Steps:**
+
+1. Modal: name (required, lowercase + underscores, regex-validated), description (optional), permission grid (10 default + room for future).
+2. Submit `[Create role]`.
+3. On success: toast "Role <name> created", role appears in the list + matrix.
+
+**Wireframe:**
+
+```
+            ┌──────────────────────────────────────┐
+            │ Create custom role               ✕   │
+            ├──────────────────────────────────────┤
+            │ Name (lowercase, no spaces)          │
+            │ [ compliance_auditor          ]      │
+            │                                      │
+            │ Description (optional)               │
+            │ [                              ]     │
+            │ [                              ]     │
+            │                                      │
+            │ Permissions                          │
+            │ [□] scan:create     [□] iam:manage   │
+            │ [□] scan:read       [□] iam:read     │
+            │ [□] findings:read   [●] audit:read   │
+            │ [□] reports:read    [□] sso:manage   │
+            │ [□] reports:create  [□] policy:manage│
+            │ [□] billing:manage  [□] terminal:use │
+            ├──────────────────────────────────────┤
+            │            [Cancel]   [Create role]  │
+            └──────────────────────────────────────┘
+```
+
+**Error paths:**
+- Name already exists: 409 "A role named '<name>' already exists." Inline error.
+- Reserved name (`owner` / `admin` / `analyst` / `viewer`): 422 "Role name is reserved." Inline error.
+- Name regex fail: client-side error.
+
+**Audit log entries written:** `action='role.created'`, `resource='role:<name>'`, `node_meta={'permissions': [<list>]}`.
+
+**Backend endpoints called:**
+- `POST /api/iam/roles` (existing, BACKEND-READY) — but `permissions` association is **not currently exposed** in this endpoint. **Needs extension** (§ 8 item G1).
+
+---
+
+### F4.12 — Edit custom role permissions
+
+**Trigger:** Roles list → row → `Edit` (only available on custom roles; defaults are locked).
+
+**Steps:**
+
+1. Modal pre-filled with current permissions.
+2. User toggles permissions.
+3. Submit `[Save changes]`.
+
+**Error paths:**
+- Default-role edit attempt: 422 "Default roles cannot be modified." (UI prevents this by hiding the Edit button.)
+- Concurrency: optimistic last-write-wins.
+
+**Audit log entries written:** `action='role.permissions_changed'`, `resource='role:<name>'`, `node_meta={'added': [...], 'removed': [...]}`.
+
+**Backend endpoints called:**
+- `PATCH /api/iam/roles/<role_id>/permissions` (NEW — § 8 item G1) with `{add: [perm_names], remove: [perm_names]}`.
+
+---
+
+### F4.13 — Delete custom role
+
+**Trigger:** Roles list → row → `Delete` (custom only).
+
+**Steps:**
+
+1. Confirmation dialog: "Delete role 'compliance_auditor'? Users with this role will lose its permissions immediately." `[Cancel]` `[Delete]` (danger).
+2. On confirm: `DELETE /api/iam/roles/<role_id>`.
+
+**Error paths:**
+- Default-role delete attempt: 422 (UI hides the button).
+- Role in use: server returns 200 with `{users_unassigned: N}`; toast "Role deleted. <N> users had this role and were unassigned."
+
+**Audit log entries written:** `action='role.deleted'`, `resource='role:<name>'`, `node_meta={'users_unassigned': N}`.
+
+**Backend endpoints called:**
+- `DELETE /api/iam/roles/<role_id>` (NEW — § 8 item G2). Cascades to delete associated UserRole rows.
+
+---
+
+### F4.14 — Configure SSO SAML provider
+
+**Trigger:** SSO tab → `[+ Add SSO provider]`.
+
+**Steps:**
+
+1. Modal: provider type (radio: SAML / OIDC — OIDC disabled in v1 with "v1.1 coming soon" tag), name (required, friendly label), entity ID (SAML metadata URL or upload XML), client_id (OIDC; hidden in SAML), client_secret (encrypted at rest), enabled toggle.
+2. Submit `[Save & test]` (primary), `[Save without testing]` (secondary).
+3. On `[Save & test]`: server saves config + immediately runs test-connection (§ 4.15) and shows result inline.
+
+**Wireframe:**
+
+```
+            ┌──────────────────────────────────────┐
+            │ Add SSO provider                 ✕   │
+            ├──────────────────────────────────────┤
+            │ Provider type                        │
+            │  [●] SAML 2.0    [○] OIDC (v1.1)     │
+            │                                      │
+            │ Name (label users will see)          │
+            │ [ Acme Okta                  ]       │
+            │                                      │
+            │ SAML Metadata URL                    │
+            │ [ https://acme.okta.com/app/…  ]     │
+            │                                      │
+            │ ↑ Or paste metadata XML directly:    │
+            │ ┌──────────────────────────────────┐ │
+            │ │                                  │ │
+            │ │                                  │ │
+            │ └──────────────────────────────────┘ │
+            │                                      │
+            │ [□] Enable for tenant after save     │
+            ├──────────────────────────────────────┤
+            │            [Cancel]  [Save & test]   │
+            └──────────────────────────────────────┘
+```
+
+**Success path:** config saved (`SSOProvider` row, with `client_secret` encrypted-at-rest — § 8 item SSO1); test-connection runs; on success the inline test result shows ✓ and `[Enable for tenant]` becomes available.
+
+**Error paths:**
+- Metadata URL unreachable: test-connection returns failure with detail "Could not fetch metadata from <URL>: timed out / DNS failed / 404."
+- Invalid SAML XML: "Metadata XML is malformed. Check the provider's IdP metadata export."
+- Cert validation failure: "Signing certificate failed validation. Verify the IdP's signing certificate is current."
+
+**Audit log entries written:** `action='sso.configured'`, `resource='sso:<provider-id>'`, `node_meta={'name': <name>, 'type': 'saml', 'enabled': <bool>}`. **Never** logs the client_secret.
+
+**Backend endpoints called:**
+- `POST /api/iam/sso` (existing, BACKEND-PARTIAL): extended to accept `provider_type`, `client_secret` (§ 8 item SSO1).
+
+---
+
+### F4.15 — Test SSO connection
+
+**Trigger:** Save & test (§ 4.14) OR existing provider row → `Test connection`.
+
+**Steps:**
+
+1. Server fetches the metadata URL, parses XML, validates signing cert, attempts a synthetic AuthnRequest construction (no actual user redirect). Returns diagnostic JSON.
+2. UI shows a result dialog with check-mark or error per step.
+
+**Wireframe (test result dialog):**
+
+```
+            ┌──────────────────────────────────────┐
+            │ Test connection: Acme Okta       ✕   │
+            ├──────────────────────────────────────┤
+            │ ✓ Metadata fetched (158 ms)          │
+            │ ✓ XML parsed                         │
+            │ ✓ Signing certificate valid          │
+            │   Expires 2027-09-12                 │
+            │ ✓ AuthnRequest construction OK       │
+            │                                      │
+            │ Connection healthy.                  │
+            ├──────────────────────────────────────┤
+            │                       [Close]        │
+            └──────────────────────────────────────┘
+```
+
+**Error case wireframe:**
+
+```
+            ┌──────────────────────────────────────┐
+            │ Test connection: Acme Okta       ✕   │
+            ├──────────────────────────────────────┤
+            │ ✓ Metadata fetched                   │
+            │ ✓ XML parsed                         │
+            │ ✗ Signing certificate                │
+            │   Cert expired 2026-01-15.           │
+            │   Ask the IdP admin to rotate.       │
+            │ — AuthnRequest skipped               │
+            │                                      │
+            │ Connection failed at step 3 of 4.    │
+            ├──────────────────────────────────────┤
+            │                       [Close]        │
+            └──────────────────────────────────────┘
+```
+
+**Backend endpoints called:**
+- `POST /api/iam/sso/<id>/test` (NEW — § 8 item SSO3).
+
+**Audit log entries written:** `action='sso.tested'`, `resource='sso:<id>'`, `node_meta={'result': 'success'|'failure', 'failure_step': <step>}`.
+
+---
+
+### F4.16 — Enable / disable SSO per tenant
+
+**Trigger:** SSO tab → provider row → toggle in the "Enabled" column.
+
+**Steps:** click toggle → confirm dialog (since this affects login for the entire tenant) → `PATCH /api/iam/sso/<id>` `{enabled: bool}`. Tenant-wide enabled SSO providers appear on the login page (v1.1 — until then, the toggle is informational; it does not yet route users).
+
+**Audit log entries written:** `action='sso.enabled'` / `'sso.disabled'`, `resource='sso:<id>'`.
+
+**Backend endpoints called:**
+- `PATCH /api/iam/sso/<id>` (NEW — § 8 item SSO1 covers this in the SSO PATCH/DELETE addition).
+
+---
+
+### F4.17 — Set tenant 2FA enforcement policy
+
+**Trigger:** Security policy tab → 2FA section → policy radio group.
+
+**Steps:**
+
+1. Three radio options: Off (no 2FA), Optional (users can enrol), Required (users must enrol within N days).
+2. If Required: input field for grace period (days, default 7).
+3. Submit `[Save policy]`.
+4. On success: banner appears for affected users on next login: "Your administrator requires 2FA. Enrol within <N> days." (Banner only; enrolment screen ships in v1.1.)
+
+**Wireframe:**
+
+```
+┌─ Security policy › Two-factor authentication (2FA) ──────┐
+│                                                          │
+│  Tenant policy                                           │
+│   [○] Off                                                │
+│       2FA is not available for users.                    │
+│                                                          │
+│   [●] Optional                                           │
+│       Users can enrol if they want to.                   │
+│                                                          │
+│   [○] Required                                           │
+│       Users must enrol within 7 days of next sign-in.    │
+│       Grace period [ 7 ] days                            │
+│                                                          │
+│  Recovery codes per user [ 10 ]                          │
+│                                                          │
+│                                  [Save policy]           │
+└──────────────────────────────────────────────────────────┘
+```
+
+**Audit log entries written:** `action='policy.2fa_changed'`, `resource='tenant'`, `node_meta={'old': <old>, 'new': <new>, 'grace_period_days': N}`.
+
+**Backend endpoints called:**
+- `PUT /api/iam/policy/2fa` (NEW — § 8 item P1).
+
+**v1 reality:** banner shown to non-enrolled users when policy is Required. The actual enrolment flow + TOTP secret management ships v1.1 (§ 1.2 deferred items). This is honest — Phase B says so explicitly in the Save banner: "Enrolment is coming in the next release. Until then, this policy will warn users without enforcing block."
+
+---
+
+### F4.18 — View own active sessions
+
+**Trigger:** Sessions tab. Default view: caller's own sessions. Toggle "Show all users' sessions" (admin only).
+
+**Steps:**
+
+1. List rows: device label (browser/OS extracted from User-Agent), IP (with geo lookup if available), issued, last_seen, expires_at, this-session indicator.
+2. Each row has `[Revoke]` button (current session shows `(this session)` + `[Sign out]`).
+
+**Wireframe:**
+
+```
+┌─ Team & Access › Sessions ────────[Show all users ▼]─────┐
+│                                                          │
+│  Your active sessions                                    │
+│  ┌────────────────────────────────────────────────────┐  │
+│  │ DEVICE              IP          ISSUED    EXPIRES… │  │
+│  ├────────────────────────────────────────────────────┤  │
+│  │ Chrome 121 / macOS  127.0.0.1   2 min ago  in 13m  │  │
+│  │  ●This session                          [Sign out] │  │
+│  ├────────────────────────────────────────────────────┤  │
+│  │ Safari 17 / iOS     1.2.3.4     3 hr ago   in 0m   │  │
+│  │                                          [Revoke]  │  │
+│  ├────────────────────────────────────────────────────┤  │
+│  │ Chrome 119 / Win    81.2.69.4   2 days ago expired │  │
+│  │                                              ─     │  │
+│  └────────────────────────────────────────────────────┘  │
+│                                                          │
+│  [Revoke all other sessions]                             │
+└──────────────────────────────────────────────────────────┘
+```
+
+**Backend endpoints called:**
+- `GET /api/iam/sessions?user_id=<id>&active=true` (NEW — § 8 item S3).
+
+---
+
+### F4.19 — Revoke a specific session
+
+**Trigger:** session row → `[Revoke]`.
+
+**Steps:** confirm dialog "Revoke this session? The user will be signed out on their next request." → `POST /api/iam/sessions/<jti>/revoke` → row updates to "Revoked just now".
+
+**Audit log entries written:** `action='session.revoked'`, `resource='session:<jti>'`, `node_meta={'target_user_id': <user_id>, 'reason': 'manual'}`.
+
+**Backend endpoints called:**
+- `POST /api/iam/sessions/<jti>/revoke` (NEW — § 8 item S3).
+
+---
+
+### F4.20 — Revoke all sessions for a user
+
+**Trigger:** Member detail drawer → `[Sign out all sessions]` (own user) OR `[Revoke all sessions]` (admin viewing another user).
+
+**Steps:** confirm dialog "Revoke all <N> active sessions?" → `POST /api/iam/users/<id>/sessions/revoke_all` → toast "Revoked <N> sessions for <user>."
+
+**Audit log entries written:** `action='session.revoked_all'`, `resource='user:<id>'`, `node_meta={'sessions_revoked': N, 'reason': 'manual'}`.
+
+**Backend endpoints called:**
+- `POST /api/iam/users/<id>/sessions/revoke_all` (NEW — § 8 item S3).
+
+---
+
+### F4.21 — Set IP allowlist for tenant
+
+**Trigger:** Security policy tab → IP Allowlist section.
+
+**Steps:**
+
+1. Toggle: "Restrict access to specific IP ranges" (default off).
+2. If on: textarea for CIDR list, one per line (e.g. `10.0.0.0/8`, `192.168.1.0/24`, `203.0.113.5/32`). Validation: each line must be a valid CIDR.
+3. Optional: "Apply to" — checkboxes for "Dashboard logins" / "API endpoints" / "Both" (default Both).
+4. Submit `[Save allowlist]`.
+5. **Safety net** before save: server validates the **caller's current IP** matches the new allowlist. If it doesn't, modal "You'd lock yourself out. Add your current IP (1.2.3.4) to the allowlist first." with one-click "Add my IP".
+
+**Wireframe:**
+
+```
+┌─ Security policy › IP Allowlist ─────────────────────────┐
+│                                                          │
+│  [●] Restrict access to specific IP ranges               │
+│                                                          │
+│  Allowed CIDRs (one per line)                            │
+│  ┌──────────────────────────────────────────────────┐    │
+│  │ 10.0.0.0/8                                       │    │
+│  │ 203.0.113.0/24                                   │    │
+│  │                                                  │    │
+│  └──────────────────────────────────────────────────┘    │
+│  All ranges valid ✓                                      │
+│                                                          │
+│  Apply to                                                │
+│  [☑] Dashboard logins   [☑] API endpoints                │
+│                                                          │
+│                                          [Save policy]   │
+└──────────────────────────────────────────────────────────┘
+```
+
+**Audit log entries written:** `action='policy.ip_allowlist_changed'`, `resource='tenant'`, `node_meta={'cidrs_old': [...], 'cidrs_new': [...], 'applies_to': [...]}`.
+
+**Backend endpoints called:**
+- `PUT /api/iam/policy/ip_allowlist` (NEW — § 8 item P2).
+
+**Edge cases:**
+- Caller is on a non-routable IP (e.g. ::1 in localhost dev): allowlist enforcement skips for IPv6 link-local addresses. Documented as known limitation.
+- Allowlist shrinks below the caller's current IP: blocked at the safety-net step above.
+
+---
+
+### F4.22 — Set password policy
+
+**Trigger:** Security policy tab → Password Policy section.
+
+**Steps:**
+
+1. Form: minimum length (slider 8-32, default 12), require uppercase (toggle), require digit (toggle), require special (toggle), max age days (number, default 90 — applies to password rotation), history-prevent-reuse (last N passwords, default 5).
+2. Submit `[Save policy]`.
+
+**Wireframe:**
+
+```
+┌─ Security policy › Password ─────────────────────────────┐
+│                                                          │
+│  Minimum length            [────●──── 12]    8 — 32      │
+│                                                          │
+│  [☑] Require an uppercase letter                         │
+│  [☑] Require a digit                                     │
+│  [☑] Require a special character                         │
+│                                                          │
+│  Maximum password age      [ 90 ] days                   │
+│  Prevent reuse of last     [  5 ] passwords              │
+│                                                          │
+│  Effect                                                  │
+│   • New users will see these requirements at signup.     │
+│   • Existing users will be prompted at next sign-in if   │
+│     their current password no longer meets the policy.   │
+│                                                          │
+│                                          [Save policy]   │
+└──────────────────────────────────────────────────────────┘
+```
+
+**Audit log entries written:** `action='policy.password_changed'`, `resource='tenant'`, `node_meta={<full policy snapshot>}`.
+
+**Backend endpoints called:**
+- `PUT /api/iam/policy/password` (NEW — § 8 item P3).
+
+**Edge cases:**
+- Tightening the policy after-the-fact: existing users keep their current password until next change; the new policy applies on **next** password change. The "prompt at next sign-in" copy above is the v1 contract; enforcement-block at sign-in is v1.1 (deferred per § 1.2).
+
+---
+
+## 5. Component inventory
+
+This section lists every React component the build creates or modifies. Components live under `dashboard/frontend/aipet-dashboard/src/components/team_access/` (new directory) unless noted otherwise.
+
+### 5.1 New shared primitives (used across Team & Access AND new modules going forward)
+
+These live under `src/components/ui/` (new directory). They become the canonical AIPET X UI primitives — Polish Pass 1 will migrate other modules to them over time.
+
+| Name | Path | Props | State | Children | Consumes API | Loading/Empty/Error |
+|---|---|---|---|---|---|---|
+| `Card` | `ui/Card.jsx` | `{ children, padding?, hover?, onClick?, className? }` | none | any | no | no |
+| `Button` | `ui/Button.jsx` | `{ variant: "primary" \| "secondary" \| "danger", size?, loading?, disabled?, onClick, children, leadingIcon?, trailingIcon? }` | none | inline | no | shows spinner replacing icon when `loading=true` |
+| `IconButton` | `ui/IconButton.jsx` | `{ icon, label (a11y), variant?, size?, onClick }` | none | none | no | no |
+| `Modal` | `ui/Modal.jsx` | `{ open, onClose, title, children, primaryAction?, secondaryAction?, closeOnScrim?, size? }` | none | header / body / footer | no | renders via Portal; focus trap; ESC to close |
+| `Drawer` | `ui/Drawer.jsx` | `{ open, onClose, side?, width?, children, title? }` | none | header / body | no | mobile fullscreen sheet, desktop side-slide |
+| `Table` | `ui/Table.jsx` | `{ columns, rows, loading?, error?, emptyState?, onRowClick?, sortBy?, onSortChange?, mobileCardKey? }` | sort/scroll | row cells | no | skeleton when `loading`, EmptyState when 0 rows, error banner |
+| `EmptyState` | `ui/EmptyState.jsx` | `{ icon, title, description, action? }` | none | none | no | no |
+| `Toast` | `ui/Toast.jsx` (refactor) | `{ message, level, onDismiss }` | timer | none | no | self-dismissing |
+| `Toggle` | `ui/Toggle.jsx` | `{ checked, onChange, disabled?, label?, description? }` | none | none | no | no |
+| `Pill` | `ui/Pill.jsx` | `{ label, variant: "neutral" \| "info" \| "success" \| "warning" \| "danger", size? }` | none | none | no | no |
+| `Avatar` | `ui/Avatar.jsx` | `{ name, email?, size?, src? }` | none | none | no | renders initials if no `src` |
+| `Spinner` | `ui/Spinner.jsx` | `{ size? }` | none | none | no | no |
+| `RelativeTime` | `ui/RelativeTime.jsx` | `{ datetime, threshold? }` | re-renders every 60s | none | no | no |
+| `CodeBlock` | `ui/CodeBlock.jsx` | `{ code, language?, copyable? }` | copy state | none | no | no — used for node_meta JSON view |
+| `ConfirmDialog` | `ui/ConfirmDialog.jsx` | `{ open, title, message, confirmLabel, confirmVariant?, requireTypedConfirmation?, onConfirm, onCancel }` | typed-text state | none | no | confirm-button disabled until typed match if `requireTypedConfirmation` |
+| `useApi` (hook) | `hooks/useApi.js` | `(method, path, options) => {data, loading, error, refetch, mutate}` | internal | n/a | yes | wraps axios + AbortController + token from context |
+| `ToastContext` | `contexts/ToastContext.jsx` | `<ToastProvider>` + `useToast()` | toast queue | Toast | no | replaces prop-drilling |
+
+**Decision:** `useApi` and `ToastContext` are introduced now (Phase C) because every Team & Access page uses them. Existing pages keep using prop-drilled `showToast` until Polish Pass 1 picks them up.
+
+### 5.2 Team & Access page components
+
+All under `src/components/team_access/`.
+
+| Name | Path | Props | State | Children | Consumes API |
+|---|---|---|---|---|---|
+| `TeamAccessPage` | `TeamAccessPage.jsx` | `{ token }` | activeTab | `Tabs` + tab content | no (children fetch) |
+| `TeamAccessTabs` | `TeamAccessTabs.jsx` | `{ active, onChange, visibleTabs }` | none | tab buttons | no |
+
+#### 5.2.1 Members tab (F4.1, F4.2, F4.3, F4.5, F4.6, F4.7)
+
+| Name | Path | Props | State | Children | Consumes API |
+|---|---|---|---|---|---|
+| `MembersTab` | `members/MembersTab.jsx` | `{ token }` | search, page, sort, drawerMember, modalState | `MembersToolbar`, `MembersTable`, `MemberDetailDrawer`, `InviteMemberModal`, `ChangeRoleModal`, `ConfirmDialog` (×2 disable/remove) | yes — `useApi('GET','/api/iam/users')` |
+| `MembersToolbar` | `members/MembersToolbar.jsx` | `{ search, onSearch, statusFilter, onStatusFilter, onInvite }` | none | inputs | no |
+| `MembersTable` | `members/MembersTable.jsx` | `{ rows, loading, error, onRowClick, onAction, sortBy, onSort, mobile }` | none | `Table` + per-row `MemberRowActions` | no |
+| `MemberRowActions` | `members/MemberRowActions.jsx` | `{ member, onAction }` | menu open | `IconButton` + dropdown items | no |
+| `MemberDetailDrawer` | `members/MemberDetailDrawer.jsx` | `{ member, open, onClose, onAction }` | sub-data (sessions count, audit) | `Drawer` body w/ sections | yes — sessions + audit fetches |
+| `InviteMemberModal` | `members/InviteMemberModal.jsx` | `{ open, onClose, onInvited }` | form fields, submitting | `Modal`, role dropdown | yes — `POST /api/iam/invitations` |
+| `ChangeRoleModal` | `members/ChangeRoleModal.jsx` | `{ member, open, onClose, onSaved }` | role checkbox state | `Modal`, role list | yes — POST/DELETE role assignments |
+
+#### 5.2.2 Roles tab (F4.10, F4.11, F4.12, F4.13)
+
+| Name | Path | Props | State | Children | Consumes API |
+|---|---|---|---|---|---|
+| `RolesTab` | `roles/RolesTab.jsx` | `{ token }` | view (list / matrix), modalState | `RolesList`, `PermissionMatrix`, `CreateRoleModal`, `EditRoleModal`, `ConfirmDialog` (delete) | yes — `GET /api/iam/roles`, `GET /api/iam/permission-matrix` |
+| `RolesList` | `roles/RolesList.jsx` | `{ roles, onSelect, onCreate, onEdit, onDelete }` | none | `Table` | no |
+| `PermissionMatrix` | `roles/PermissionMatrix.jsx` | `{ roles, permissions, grants }` | none | grid cells | no |
+| `CreateRoleModal` | `roles/CreateRoleModal.jsx` | `{ open, onClose, onCreated }` | name, description, permission set | `Modal`, name input, permission grid | yes — `POST /api/iam/roles` (extended for permissions) |
+| `EditRoleModal` | `roles/EditRoleModal.jsx` | `{ role, open, onClose, onSaved }` | permission diff | `Modal` | yes — `PATCH /api/iam/roles/<id>/permissions` |
+
+#### 5.2.3 Audit tab (F4.8, F4.9)
+
+| Name | Path | Props | State | Children | Consumes API |
+|---|---|---|---|---|---|
+| `AuditTab` | `audit/AuditTab.jsx` | `{ token }` | filters, page, perPage, drawerEvent | `AuditFilters`, `AuditTable`, `AuditEventDrawer`, export trigger | yes — `GET /api/iam/audit` |
+| `AuditFilters` | `audit/AuditFilters.jsx` | `{ filters, onChange, onClear }` | local input state | date range, action multi-select, actor input, status select | yes — `GET /api/iam/audit/actions` (distinct list) |
+| `AuditTable` | `audit/AuditTable.jsx` | `{ rows, loading, onRowClick }` | none | `Table` | no |
+| `AuditEventDrawer` | `audit/AuditEventDrawer.jsx` | `{ event, open, onClose }` | none | `Drawer` body, `CodeBlock` for node_meta | yes — fetches related events |
+| `ExportCsvButton` | `audit/ExportCsvButton.jsx` | `{ filters }` | downloading | `Button` | yes — triggers `GET /api/iam/audit/export?format=csv` |
+
+#### 5.2.4 Sessions tab (F4.18, F4.19, F4.20)
+
+| Name | Path | Props | State | Children | Consumes API |
+|---|---|---|---|---|---|
+| `SessionsTab` | `sessions/SessionsTab.jsx` | `{ token }` | viewSelf vs all, drawerSession | `SessionsList`, `RevokeSessionDialog` | yes — `GET /api/iam/sessions` |
+| `SessionsList` | `sessions/SessionsList.jsx` | `{ sessions, onRevoke, onRevokeAll }` | none | `Table` w/ device extraction | no |
+| `RevokeSessionDialog` | `sessions/RevokeSessionDialog.jsx` | `{ session, open, onClose, onRevoked }` | none | `ConfirmDialog` | yes — `POST /api/iam/sessions/<jti>/revoke` |
+
+#### 5.2.5 SSO tab (F4.14, F4.15, F4.16)
+
+| Name | Path | Props | State | Children | Consumes API |
+|---|---|---|---|---|---|
+| `SsoTab` | `sso/SsoTab.jsx` | `{ token }` | providers, modalState | `SsoProvidersList`, `ConfigureSsoModal`, `TestConnectionDialog` | yes — `GET /api/iam/sso` |
+| `SsoProvidersList` | `sso/SsoProvidersList.jsx` | `{ providers, onEdit, onTest, onToggleEnabled }` | none | `Table` | no |
+| `ConfigureSsoModal` | `sso/ConfigureSsoModal.jsx` | `{ provider?, open, onClose, onSaved }` | form | `Modal`, type radio, fields | yes — `POST/PATCH /api/iam/sso` |
+| `TestConnectionDialog` | `sso/TestConnectionDialog.jsx` | `{ providerId, open, onClose, result }` | none | `Modal`, step list | yes — `POST /api/iam/sso/<id>/test` |
+
+#### 5.2.6 Security policy tab (F4.17, F4.21, F4.22)
+
+| Name | Path | Props | State | Children | Consumes API |
+|---|---|---|---|---|---|
+| `PolicyTab` | `policy/PolicyTab.jsx` | `{ token }` | sub-section | `TwoFactorPolicy`, `IpAllowlistPolicy`, `PasswordPolicyPanel` | yes — `GET /api/iam/policy` |
+| `TwoFactorPolicy` | `policy/TwoFactorPolicy.jsx` | `{ value, onSave }` | form state | `Card`, radio | yes — `PUT /api/iam/policy/2fa` |
+| `IpAllowlistPolicy` | `policy/IpAllowlistPolicy.jsx` | `{ value, onSave }` | textarea, validation | `Card`, textarea, lock-out warning | yes — `PUT /api/iam/policy/ip_allowlist` |
+| `PasswordPolicyPanel` | `policy/PasswordPolicyPanel.jsx` | `{ value, onSave }` | form state | `Card`, slider, toggles | yes — `PUT /api/iam/policy/password` |
+
+### 5.3 Standalone pages (NOT inside `/team`)
+
+| Name | Path | Props | State | Children | Consumes API |
+|---|---|---|---|---|---|
+| `AcceptInvitePage` | `pages/AcceptInvitePage.jsx` | `{ token (URL param) }` | loaded invitation, form | `Card`, form, password validator | yes — `GET /api/iam/invitations/<token>`, `POST /api/iam/invitations/<token>/accept` |
+
+### 5.4 Component count summary
+
+- Shared primitives: **15** (incl. 1 hook + 1 context)
+- Team & Access page components: **22**
+- Standalone page components: **1**
+- **Total new components: 38**
+
+Plus refactor of `Toast` (existing) into the new primitive. Plus the existing App.js routing block currently commented out (lines 30423-30430) gets replaced with the new `TeamAccessPage` import + route.
+
