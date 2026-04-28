@@ -28559,17 +28559,23 @@ function AgentMonitorPage({ token, showToast }) {
   const [history, setHistory]     = useState([]);     // sparkline data
   const [procFilter, setProcFilter] = useState("");
   const [tab, setTab]             = useState("overview");
+  // Soft-delete state
+  const [includeDeleted, setIncludeDeleted] = useState(false);
+  const [deleteTarget, setDeleteTarget]     = useState(null);   // device pending delete
+  const [deleteReason, setDeleteReason]     = useState("");
+  const [deleting, setDeleting]             = useState(false);
   const pollRef = useRef(null);
 
   const STATUS_COLOR = { online:"#00ff88", offline:"#ff2d55", stale:"#ffd60a" };
   const barColor = v => v >= 85 ? "#ff2d55" : v >= 65 ? "#ffd60a" : "#00e5ff";
 
-  // Refresh device list every 5s
+  // Refresh device list every 5s. Include-deleted mode also refreshes
+  // on the same cadence so a restore action shows up immediately.
   useEffect(() => {
     fetchDevices();
     const iv = setInterval(fetchDevices, 5000);
     return () => clearInterval(iv);
-  }, []);
+  }, [includeDeleted]);
 
   // Poll selected device every 3s
   useEffect(() => {
@@ -28586,10 +28592,70 @@ function AgentMonitorPage({ token, showToast }) {
 
   async function fetchDevices() {
     try {
-      const r = await fetch(`${API}/api/agent/devices`, { headers:{ Authorization:`Bearer ${token}` } });
+      const url = `${API}/api/agent/devices${includeDeleted ? "?include_deleted=true" : ""}`;
+      const r = await fetch(url, { headers:{ Authorization:`Bearer ${token}` } });
+      if (r.status === 403) {
+        // The backend rejected the include_deleted request -- caller
+        // doesn't have audit:read. Fall back to active-only view and
+        // tell the user. Don't keep retrying with a 403.
+        showToast?.("Insufficient permissions to view deleted devices (audit:read required)", "error");
+        setIncludeDeleted(false);
+        return;
+      }
       const d = await r.json();
       setDevices(d.devices || []);
     } catch {}
+  }
+
+  // PLB / soft-delete: confirm modal is open with a target device.
+  async function confirmDelete() {
+    if (!deleteTarget) return;
+    setDeleting(true);
+    try {
+      const r = await fetch(`${API}/api/agent/devices/${deleteTarget.id}`, {
+        method: "DELETE",
+        headers: { "Authorization": `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ reason: deleteReason || null }),
+      });
+      const d = await r.json().catch(() => ({}));
+      if (!r.ok) {
+        showToast?.(d.error || "Delete failed", "error");
+        return;
+      }
+      showToast?.(d.already_deleted ? "Device was already deleted" : "Device deleted", "success");
+      // Optimistic update: drop from active view, or refetch if showing deleted
+      if (selected?.id === deleteTarget.id) setSelected(null);
+      if (includeDeleted) {
+        fetchDevices();
+      } else {
+        setDevices(prev => prev.filter(d => d.id !== deleteTarget.id));
+      }
+    } catch (e) {
+      showToast?.("Delete failed: " + (e.message || "network error"), "error");
+    } finally {
+      setDeleting(false);
+      setDeleteTarget(null);
+      setDeleteReason("");
+    }
+  }
+
+  async function restoreDevice(d) {
+    try {
+      const r = await fetch(`${API}/api/agent/devices/${d.id}/restore`, {
+        method: "POST",
+        headers: { "Authorization": `Bearer ${token}`, "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+      });
+      const body = await r.json().catch(() => ({}));
+      if (!r.ok) {
+        showToast?.(body.error || "Restore failed", "error");
+        return;
+      }
+      showToast?.(body.already_active ? "Device was already active" : "Device restored", "success");
+      fetchDevices();
+    } catch (e) {
+      showToast?.("Restore failed: " + (e.message || "network error"), "error");
+    }
   }
 
   async function fetchLatest(id) {
@@ -28652,26 +28718,73 @@ function AgentMonitorPage({ token, showToast }) {
 
         {/* ── Device list ── */}
         <div>
-          <div style={{ color:"#00e5ff", fontSize:"11px", fontWeight:"700", letterSpacing:"0.08em", marginBottom:"10px" }}>DEVICES</div>
+          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:"10px" }}>
+            <div style={{ color:"#00e5ff", fontSize:"11px", fontWeight:"700", letterSpacing:"0.08em" }}>DEVICES</div>
+            {/* Admin-only toggle: backend gates ?include_deleted=true on
+                audit:read permission. We optimistically show the toggle
+                and let the backend reject if the user lacks the perm
+                (handled in fetchDevices: 403 -> toast + auto-untoggle). */}
+            <label style={{ display:"flex", alignItems:"center", gap:"5px", color:"#445", fontSize:"10px", cursor:"pointer", userSelect:"none" }}>
+              <input type="checkbox" checked={includeDeleted}
+                onChange={e => setIncludeDeleted(e.target.checked)}
+                style={{ accentColor:"#00e5ff" }} />
+              <span>View deleted</span>
+            </label>
+          </div>
           {devices.length === 0 && (
             <div style={{ background:"#0d1526", border:"1px dashed #1e3a5f", borderRadius:"10px", padding:"20px", textAlign:"center" }}>
               <div style={{ fontSize:"24px", marginBottom:"8px" }}>📡</div>
-              <div style={{ color:"#445", fontSize:"12px" }}>No agents connected</div>
-              <div style={{ color:"#333", fontSize:"11px", marginTop:"6px" }}>Run aipet_agent.py on target devices</div>
+              <div style={{ color:"#445", fontSize:"12px" }}>{includeDeleted ? "No devices in this view" : "No agents connected"}</div>
+              <div style={{ color:"#333", fontSize:"11px", marginTop:"6px" }}>{includeDeleted ? "Toggle off 'View deleted' to see active devices" : "Run aipet_agent.py on target devices"}</div>
             </div>
           )}
-          {devices.map((d, i) => (
-            <div key={i} onClick={() => { setSelected(d); setTab("overview"); }}
-              style={{ background:"#0d1526", border:`1px solid ${selected?.id===d.id?"#00e5ff":STATUS_COLOR[d.status]+"33"}`, borderRadius:"10px", padding:"12px 14px", marginBottom:"8px", cursor:"pointer" }}>
+          {devices.map((d, i) => {
+            const isDeleted = !!d.deleted_at;
+            return (
+            <div key={d.id || i}
+              onClick={() => { if (!isDeleted) { setSelected(d); setTab("overview"); } }}
+              style={{
+                background: isDeleted ? "#0a1220" : "#0d1526",
+                border: `1px solid ${selected?.id===d.id ? "#00e5ff" : (isDeleted ? "#3a3a3a" : STATUS_COLOR[d.status]+"33")}`,
+                borderRadius:"10px", padding:"12px 14px", marginBottom:"8px",
+                cursor: isDeleted ? "default" : "pointer",
+                opacity: isDeleted ? 0.55 : 1,
+                position:"relative",
+              }}>
               <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center" }}>
-                <div style={{ color:"#e0e0e0", fontWeight:"700", fontSize:"13px", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", maxWidth:"150px" }}>{d.hostname || d.id}</div>
-                <span style={{ width:"8px", height:"8px", borderRadius:"50%", background:STATUS_COLOR[d.status], display:"inline-block", flexShrink:0 }} />
+                <div style={{ color: isDeleted ? "#888" : "#e0e0e0", fontWeight:"700", fontSize:"13px", overflow:"hidden", textOverflow:"ellipsis", whiteSpace:"nowrap", maxWidth:"120px" }}>{d.hostname || d.id}</div>
+                <div style={{ display:"flex", alignItems:"center", gap:"6px" }}>
+                  {isDeleted && (
+                    <span style={{ background:"#3a1a1a", color:"#ff6b6b", fontSize:"9px", fontWeight:"700", padding:"2px 5px", borderRadius:"3px", letterSpacing:"0.05em" }}>DELETED</span>
+                  )}
+                  {!isDeleted && (
+                    <span style={{ width:"8px", height:"8px", borderRadius:"50%", background:STATUS_COLOR[d.status], display:"inline-block", flexShrink:0 }} />
+                  )}
+                  {!isDeleted ? (
+                    <button
+                      onClick={e => { e.stopPropagation(); setDeleteTarget(d); setDeleteReason(""); }}
+                      title="Delete device (soft-delete; data retained)"
+                      style={{ background:"none", border:"none", color:"#445", cursor:"pointer", fontSize:"14px", padding:"0 2px", lineHeight:1 }}>
+                      ×
+                    </button>
+                  ) : (
+                    <button
+                      onClick={e => { e.stopPropagation(); restoreDevice(d); }}
+                      title="Restore device"
+                      style={{ background:"none", border:"1px solid #00e5ff44", color:"#00e5ff", cursor:"pointer", fontSize:"9px", padding:"2px 6px", borderRadius:"3px", lineHeight:1 }}>
+                      restore
+                    </button>
+                  )}
+                </div>
               </div>
-              <div style={{ color:"#445", fontSize:"10px", marginTop:"3px" }}>{d.platform}</div>
-              <div style={{ color:"#445", fontSize:"10px" }}>{d.ip_address}</div>
-              <div style={{ color:STATUS_COLOR[d.status], fontSize:"10px", marginTop:"2px" }}>{d.status}</div>
+              <div style={{ color: isDeleted ? "#333" : "#445", fontSize:"10px", marginTop:"3px" }}>{d.platform}</div>
+              <div style={{ color: isDeleted ? "#333" : "#445", fontSize:"10px" }}>{d.ip_address}</div>
+              <div style={{ color: isDeleted ? "#666" : STATUS_COLOR[d.status], fontSize:"10px", marginTop:"2px" }}>
+                {isDeleted ? `deleted ${d.deleted_at?.slice(0,10)}` : d.status}
+              </div>
             </div>
-          ))}
+            );
+          })}
 
           <div style={{ marginTop:"20px", background:"#0d1526", border:"1px solid #1e3a5f", borderRadius:"10px", padding:"14px" }}>
             <div style={{ color:"#00e5ff", fontSize:"11px", fontWeight:"700", marginBottom:"10px" }}>INSTALL AGENT</div>
@@ -28893,6 +29006,44 @@ function AgentMonitorPage({ token, showToast }) {
           )}
         </div>
       </div>
+
+      {/* Soft-delete confirmation modal */}
+      {deleteTarget && (
+        <div onClick={() => !deleting && setDeleteTarget(null)}
+          style={{ position:"fixed", inset:0, background:"rgba(0,0,0,0.7)", backdropFilter:"blur(4px)", display:"flex", alignItems:"center", justifyContent:"center", zIndex:1000 }}>
+          <div onClick={e => e.stopPropagation()}
+            style={{ background:"#0d1526", border:"1px solid #1e3a5f", borderRadius:"12px", padding:"24px", width:"480px", maxWidth:"90vw", color:"#e0e0e0", fontFamily:"JetBrains Mono, monospace" }}>
+            <h3 style={{ color:"#00e5ff", fontSize:"16px", margin:"0 0 12px", fontWeight:"700" }}>Delete device?</h3>
+            <div style={{ background:"#0a1628", borderRadius:"8px", padding:"12px", marginBottom:"14px" }}>
+              <div style={{ color:"#e0e0e0", fontSize:"13px", fontWeight:"700" }}>{deleteTarget.hostname || deleteTarget.id}</div>
+              <div style={{ color:"#445", fontSize:"11px", marginTop:"2px" }}>{deleteTarget.platform} · {deleteTarget.ip_address}</div>
+            </div>
+            <p style={{ color:"#888", fontSize:"12px", lineHeight:1.5, margin:"0 0 14px" }}>
+              The device will be hidden from the dashboard but its history (telemetry, scans, audit trail) is retained for forensics and compliance. Toggle <span style={{ color:"#00e5ff" }}>View deleted</span> to find and restore it later.
+            </p>
+            <label style={{ display:"block", color:"#445", fontSize:"10px", letterSpacing:"0.05em", marginBottom:"6px" }}>
+              REASON (optional)
+            </label>
+            <textarea value={deleteReason} onChange={e => setDeleteReason(e.target.value)}
+              placeholder="e.g. decommissioned laptop, replaced with new agent"
+              maxLength={500}
+              rows={2}
+              style={{ width:"100%", background:"#0a1628", color:"#e0e0e0", border:"1px solid #1e3a5f", borderRadius:"6px", padding:"8px 10px", fontSize:"12px", fontFamily:"inherit", resize:"vertical", boxSizing:"border-box", marginBottom:"16px" }}
+              disabled={deleting}
+            />
+            <div style={{ display:"flex", gap:"10px", justifyContent:"flex-end" }}>
+              <button onClick={() => { setDeleteTarget(null); setDeleteReason(""); }} disabled={deleting}
+                style={{ background:"transparent", border:"1px solid #1e3a5f", color:"#888", padding:"8px 16px", borderRadius:"6px", fontSize:"12px", fontFamily:"inherit", cursor: deleting ? "wait" : "pointer" }}>
+                Cancel
+              </button>
+              <button onClick={confirmDelete} disabled={deleting}
+                style={{ background:"#ff2d55", border:"none", color:"#fff", padding:"8px 16px", borderRadius:"6px", fontSize:"12px", fontWeight:"700", fontFamily:"inherit", cursor: deleting ? "wait" : "pointer", opacity: deleting ? 0.7 : 1 }}>
+                {deleting ? "Deleting..." : "Delete"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
