@@ -63,9 +63,55 @@ applies this rule to every existing claim.
 
 ---
 
+## State-of-System Audit, 2026-04-28
+
+A full state-of-system inventory was performed on 2026-04-28 after the Team & Access UI bug was discovered (TeamAccessPage component never built; routing crashes on click; twelve days latent). This was the third feature this week found to be partially or fully broken despite being declared Complete (PLB-9 NSSM AppExit watchdog, flask-migrate Migrate(app,db) latent crash, Team & Access UI). Three is a pattern. The audit re-classifies every existing ✅/Complete/Closed claim against the new "Tested vs Complete" rule above.
+
+**Evidence:** `verification/state-of-system/01-claims-manifest.md`, `verification/state-of-system/02-verification-results.md`, `verification/state-of-system/REPORT-2026-04-28.md`.
+
+**Headline counts** (across ~103 distinct claims):
+
+| Classification | Count | Meaning |
+|---|---|---|
+| **VERIFIED** (mechanically — backend blueprint registered + frontend Page present + sample endpoint live) | ~63 | Wired and reachable. NOT yet "Complete" per the new rule (no human click-through verification) — these are TESTED-AND-WIRED. |
+| **PARTIAL** | 7 | Wiring exists; specific gap (path-uncertain, install-missing, or naming-misleading). |
+| **NOT-PRESENT, KNOWN-BAD** | 11 | Claim has no working implementation (1 + 10). |
+| **NOT-PRESENT, correctly deferred** | 22 | Roadmap rows correctly marked Pending. |
+| **UNCERTAIN** | 0 | None hit the 30-min cap. |
+
+### Mis-claimed Features (Audit 2026-04-28)
+
+These items were declared Complete in commit messages or CLAUDE.md but do **not** have working end-to-end implementations:
+
+1. **Team & Access UI** (Prompt 2 frontend, commit `4ebecdcf`, 2026-04-16) — `TeamAccessPage` component **never built**. App.js routing block (lines 30423-30430 in commit `f7b42659`) references a component that does not exist anywhere in the codebase. User commented out the routing block 2026-04-28 as a stop-gap; the `team` sidebar entry remains visible but the click target is now hidden behind a comment. **Backend IAM is functional** (`iam/` module, 8 routes at `/api/iam/*`, two of which are admin-gated and correctly return 403 to non-owner users). Building the frontend page is ~2 hours of work. Sidebar entry should be hidden until built.
+
+2. **The "10 new modules" of commit `89662f40`** (2026-04-23) — frontend-only ghost modules. 1,364 lines added to App.js with **zero backend implementation**. Each Page calls non-existent endpoints (`/api/prd/generate`, `/api/issuetracking*`, etc.) and returns 404 on any user action. They are also **not security capabilities** — they are SaaS-platform / dev-tooling features (Issue Tracking, AI PRD Generator, AI Sprint Planner, Dev Workflow, Team Collaboration, Edge Deployment, AI SDK, Zero-Config Deploy, AI UI Generator, CDN+Edge). They occupy nav real estate but do nothing. **Recommended: remove these 10 nav entries and the corresponding Page components from App.js.** They are out of scope for an IoT cybersecurity platform.
+
+3. **Capability #30: "Enterprise RBAC + SSO"** (legacy numbering, commit `ceed5759`) — **mis-named**. Backend `enterprise_rbac/` module has only 4 routes (`/api/enterprise-rbac/assess|roles|history|health`) and is an *RBAC posture assessment* module, not a real RBAC system. The real RBAC lives in `iam/` (Prompt 2 backend). The sidebar label "RBAC + SSO" overstates what this module does. **Recommended: rename module to `enterprise_rbac_assessment/` and re-label sidebar to "RBAC Assessment" to disambiguate from `iam/`.**
+
+### Module-overlap debt (audit observations)
+
+The codebase has accumulated significant overlap between modules with similar names:
+
+- **6 IAM-ish dirs**: `iam/`, `enterprise_rbac/`, `iam_exposure/`, `identity_guardian/`, `identitygraph/`, `itdr/`. Only `iam/` is the real auth/RBAC; the rest address adjacent concerns. The naming makes it hard for a new contributor to know which file owns which behaviour.
+- **4 Compliance dirs**: `compliance/`, `complianceauto/`, `compliance_automation/`, `compliance_fabric/`.
+- **3 Threat-Intel dirs**: `threatintel/`, `threat_intel_ingest/`, `threat_radar/`.
+- **2 Defense, 2 Multi-Cloud, 2 Digital-Twin, 2 SOC, 2 SIEM, 2 Timeline, 3 Network-Map dirs.**
+
+**Not in scope for this audit to fix.** Documented for future consolidation passes.
+
+### Limitations of this audit
+
+- **No click-through performed.** VERIFIED here means mechanically wired (backend blueprint registered, frontend Page present, representative endpoint returns 200 to curl). It does not satisfy the new "Tested vs Complete" rule's requirement of a human clicking every UI element. A separate click-through pass is needed to upgrade VERIFIED → Complete for any item where Complete actually matters (production capabilities, customer-visible claims).
+- **Endpoint coverage was sample-based**, not exhaustive. ~26 endpoints curled across capabilities; full enumeration of all 89 registered blueprints' routes is left to a future audit.
+- **Six false-positive 404s** during breadth-curl were due to me guessing wrong endpoint paths (e.g. `/api/digitaltwin/snapshots`); the blueprint exists, just the path differs. These are classified PARTIAL pending exact-path confirmation, not NOT-PRESENT.
+- **No frontend-route exhaustion test.** The 102 `activeTab === "<id>"` branches in App.js were not all individually click-rendered against the latest commit.
+
+---
+
 ## 4. Current State
 
-- **93+ modules complete** — all backend blueprints registered and functional
+- **89 backend blueprints registered** (verified 2026-04-28: `grep -c register_blueprint app_cloud.py` = 89) — most respond 200 to representative endpoint curls. The "93+ modules complete" headline used pre-audit was looser; the audit-verified count of registered blueprints is 89, and "complete" was a presentation-level claim, not an end-to-end click-tested guarantee. See state-of-system audit (above) for detail.
 - **Production hardening done** — Flask-Talisman CSP/HSTS, per-user rate limiting (100 req/min), input validation on all POST endpoints
 - **Real Nmap scanner** integrated with NVD CVE matching
 - **Celery worker + Beat running** via `start_cloud.sh` (as of D3 / 2026-04-24). NVD sync schedule first observed firing on 2026-04-24, adding 474 CVEs to `live_cves`. Previously Celery was wired but never launched.
@@ -79,7 +125,7 @@ applies this rule to every existing claim.
 - **Load tested** — Locust, 100 concurrent virtual users, 4 task types
 - **Sentry error monitoring** live (PLB-5 closed). Real DSN configured in `.env`; three layers of PII scrubbing in `before_send`; 24 unit tests; live events confirmed shipped to the real Sentry project. Runbook: `docs/runbooks/sentry.md`.
 - **UptimeRobot** `/api/ping` endpoint ready; monitor creation deferred to launch day (PLB-6 PARTIAL — UptimeRobot probes the public internet and aipet.io is not yet deployed). Runbook + launch-day handover ready: `docs/runbooks/uptime-monitoring.md`.
-- **Last commit tag:** `Pre-Month1: all fixes complete, ready for depth phase`
+- **Last commit tag:** `Pre-Month1: all fixes complete, ready for depth phase` (legacy; out-of-date — most recent meaningful waves are PLB-1 through PLB-9 closure 2026-04-25..28, PLB-4 email delivery 2026-04-28, and the state-of-system audit 2026-04-28)
 
 ---
 
@@ -190,6 +236,8 @@ All modules live under `dashboard/backend/<module_name>/` as a Blueprint with `_
 ## 6. Capability Roadmap — 33 Capabilities
 
 **Current status:** Capabilities 1–12 ✅ + Capability 13 (Days 1+2+3) ✅. **13 of 33 capabilities (39%).** 20 remaining (14–33).
+
+> **Audit caveat (2026-04-28):** The ✅ marks below were originally applied without per-row click-through verification. After the state-of-system audit, all are confirmed mechanically VERIFIED (backend blueprint registered + frontend Page present + representative endpoint returns 200), but per the new "Tested vs Complete" rule none have been re-stamped under the human-clicks-every-UI-element bar. Treat ✅ here as TESTED-AND-WIRED until a click-through pass upgrades them. See `verification/state-of-system/02-verification-results.md` § A for the per-row evidence.
 
 ### Month 1 — Intelligence Core (Capabilities 1–12)
 
