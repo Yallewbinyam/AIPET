@@ -106,3 +106,125 @@ def test_forgot_password_rate_limit_returns_429_after_3_attempts(client):
         )
 
     assert responses[3] == 429, f"Expected 429 on call 4, got responses: {responses}"
+
+
+# =============================================================
+# is_active enforcement at login (closes the gap discovered
+# during the members-detail/disable session at bfedf250). A
+# disabled user must not be able to sign in even with the
+# correct password.
+# =============================================================
+import json as _json_login
+import bcrypt as _bcrypt_login
+import uuid as _uuid_login
+
+from dashboard.backend.models import User as _User_login, db as _db_login
+from dashboard.backend.iam.models import AuditLog as _AuditLog_login
+
+
+def _create_login_user(email_suffix, password="LoginTest123!", is_active=True):
+    """Create a user with a real bcrypt hash and the requested
+    is_active state. Returns the user."""
+    email = f"login-{email_suffix}-{_uuid_login.uuid4().hex[:8]}@aipet.local"
+    pw_hash = _bcrypt_login.hashpw(password.encode("utf-8"),
+                                   _bcrypt_login.gensalt()).decode("utf-8")
+    u = _User_login(
+        email         = email,
+        password_hash = pw_hash,
+        name          = "Login Gate Test",
+        plan          = "free",
+        is_active     = is_active,
+    )
+    _db_login.session.add(u)
+    _db_login.session.commit()
+    return u
+
+
+def _delete_login_user(u):
+    _AuditLog_login.query.filter_by(resource=f"user:{u.id}").delete()
+    _db_login.session.delete(u)
+    _db_login.session.commit()
+
+
+def test_login_refuses_disabled_user(client, flask_app):
+    """A user with is_active=False cannot sign in even with the
+    correct password. Response is 403, no JWT, audit row written."""
+    # The login endpoint runs through Flask-Limiter even with
+    # RATELIMIT_ENABLED=False; nuke counters via the same helper
+    # pattern used elsewhere.
+    entry = flask_app.extensions.get("limiter")
+    items = entry if isinstance(entry, (set, list, tuple)) else (entry,) if entry else ()
+    for lim in items:
+        try:
+            lim.reset()
+        except Exception:
+            pass
+
+    target = _create_login_user("disabled", password="DisabledPW123!", is_active=False)
+    try:
+        r = client.post(
+            "/api/auth/login",
+            data=_json_login.dumps({
+                "email":    target.email,
+                "password": "DisabledPW123!",
+            }),
+            headers={
+                "Content-Type":    "application/json",
+                "X-Forwarded-For": "10.42.7.1",  # unique IP per test
+            },
+        )
+        assert r.status_code == 403, r.data
+        body = r.get_json()
+        assert "disabled" in body.get("error", "").lower()
+        # Critically: no token issued.
+        assert "token" not in body
+
+        # Audit row written.
+        audit = _AuditLog_login.query.filter_by(
+            resource=f"user:{target.id}",
+            action="login.denied_disabled",
+        ).all()
+        assert len(audit) == 1
+        assert audit[0].node_meta == {"reason": "is_active=False"}
+    finally:
+        _delete_login_user(target)
+
+
+def test_login_still_succeeds_for_active_user(client, flask_app):
+    """Sanity guard: the is_active gate has not broken the active-
+    user happy path."""
+    entry = flask_app.extensions.get("limiter")
+    items = entry if isinstance(entry, (set, list, tuple)) else (entry,) if entry else ()
+    for lim in items:
+        try:
+            lim.reset()
+        except Exception:
+            pass
+
+    target = _create_login_user("active", password="ActivePW123!", is_active=True)
+    try:
+        r = client.post(
+            "/api/auth/login",
+            data=_json_login.dumps({
+                "email":    target.email,
+                "password": "ActivePW123!",
+            }),
+            headers={
+                "Content-Type":    "application/json",
+                "X-Forwarded-For": "10.42.7.2",
+            },
+        )
+        assert r.status_code == 200, r.data
+        body = r.get_json()
+        assert body.get("message") == "Login successful"
+        assert body.get("token")  # JWT issued
+        assert "error" not in body
+
+        # No denied-disabled audit row for an active login.
+        audit = _AuditLog_login.query.filter_by(
+            resource=f"user:{target.id}",
+            action="login.denied_disabled",
+        ).count()
+        assert audit == 0
+    finally:
+        _delete_login_user(target)

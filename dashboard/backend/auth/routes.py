@@ -192,6 +192,33 @@ def login():
             "error": f"Invalid email or password. {remaining_attempts} attempt(s) remaining."
         }), 401
 
+    # is_active gate: a user disabled via /api/iam/users/<id>/disable
+    # must not be able to sign in, even with the correct password.
+    # Positioned deliberately AFTER password verification so this
+    # endpoint cannot be used to enumerate which accounts are
+    # disabled -- an attacker has to know the password first, and at
+    # that point the response indistinguishability matters less than
+    # giving the user a clear "your account is disabled" message
+    # they can act on. is_active is nullable in the schema; only
+    # explicit False blocks (NULL is treated as active, matching
+    # the rest of the codebase).
+    if user.is_active is False:
+        try:
+            from dashboard.backend.iam.routes import log_action
+            log_action(
+                user.id,
+                'login.denied_disabled',
+                resource=f'user:{user.id}',
+                details={'reason': 'is_active=False'},
+            )
+        except Exception:
+            current_app.logger.exception(
+                "audit log_action failed for disabled-user login attempt"
+            )
+        return jsonify({
+            "error": "Account disabled. Contact your administrator."
+        }), 403
+
     # Successful login — reset failure counter
     _login_attempts.pop(email, None)
 
