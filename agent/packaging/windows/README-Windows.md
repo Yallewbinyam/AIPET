@@ -61,7 +61,7 @@ To change configuration (different key, label, scan target), re-run
 The agent calls `GET /api/agent/keys/me` every 5 minutes
 (`AIPET_WATCHDOG_INTERVAL=300`). If the cloud responds 401 (key revoked),
 the agent exits with code **1**. NSSM is configured with
-`AppExit 1 Stop`, so the service stops and is **not** restarted. This is
+`AppExit 1 Exit`, so the service stops and is **not** restarted. This is
 the security guarantee — revoking a key in the dashboard genuinely takes
 the agent off the network within the watchdog window.
 

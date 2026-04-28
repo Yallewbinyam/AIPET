@@ -286,11 +286,22 @@ class TestInstallBat:
 # ═══════════════════════════════════════════════════════════
 
 class TestNssmServiceConfig:
-    def test_appexit_1_is_stop(self):
-        """SECURITY: revoked-key exit (code 1) must NOT be auto-restarted."""
+    def test_appexit_1_is_exit(self):
+        """SECURITY: revoked-key exit (code 1) must NOT be auto-restarted.
+        PLB-9 found that 'AppExit 1 Stop' is invalid NSSM syntax (the action
+        set is Restart / Ignore / Exit / Suicide -- 'Stop' silently falls
+        back to Restart and breaks the watchdog security guarantee). The
+        canonical value is 'AppExit 1 Exit' which makes NSSM exit and SCM
+        transition the service to STOPPED.
+        """
         text = SERVICE_INSTALL.read_text()
-        assert re.search(r"AppExit\s+1\s+Stop", text), \
-            "missing AppExit 1 Stop — revoked agents will be auto-restarted"
+        assert re.search(r"AppExit\s+1\s+Exit", text), \
+            "missing AppExit 1 Exit -- revoked agents will be auto-restarted"
+        # Belt-and-braces: catch a future regression where someone reverts
+        # to the broken 'Stop' value.
+        assert not re.search(r'^\s*"%NSSM%"\s+set\s+%SERVICE_NAME%\s+AppExit\s+1\s+Stop',
+                             text, re.MULTILINE), \
+            "AppExit 1 Stop is INVALID NSSM syntax (silently falls back to Restart)"
 
     def test_appexit_default_is_restart(self):
         """Crashes (any exit code other than 1) should be auto-recovered."""
@@ -399,6 +410,7 @@ class TestReadmeWindows:
     def test_documents_watchdog_security_guarantee(self):
         text = README_WIN.read_text()
         # The README must explain that revoking a key takes the agent
-        # off the network — that's the user-visible security promise.
-        assert "AppExit 1 Stop" in text
+        # off the network -- that's the user-visible security promise.
+        # 'Exit' (not 'Stop') is the correct NSSM action; see PLB-9.
+        assert "AppExit 1 Exit" in text
         assert "revok" in text.lower()
