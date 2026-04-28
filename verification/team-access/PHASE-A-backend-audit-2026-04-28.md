@@ -495,7 +495,7 @@ Tightest viable backend slice for a usable Team & Access UI in Phase C v1:
 
 ## F2 Closure — 2026-04-28
 
-**Commit:** `<F2_SHA>` (filled at push time)
+**Commit:** `f2e9174e` (filled at push time)
 
 **Fix scope:** wired role-assignment-on-registration + applied one-off backfill for the two existing users.
 
