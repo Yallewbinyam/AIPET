@@ -466,7 +466,7 @@ Tightest viable backend slice for a usable Team & Access UI in Phase C v1:
 
 ## F1 Closure — 2026-04-28
 
-**Commit:** `<F1_SHA>` (filled at push time)
+**Commit:** `464b720d` (filled at push time)
 
 **Fix:** `seed_default_roles()` invocation added inside the existing `with app.app_context()` block in `dashboard/backend/app_cloud.py`, immediately after the MITRE seed try/except, mirroring its pattern (try/except + warning log; same indentation).
 
