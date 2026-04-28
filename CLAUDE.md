@@ -49,8 +49,8 @@ AIPET X is an autonomous cybersecurity platform focused on IoT pentesting and en
 - **User onboarding wizard** and password reset flow
 - **Python device agent** — live CPU/mem/disk/process/network telemetry every 30 s. Capability 13 Day 2 ships a `.deb` install package (`agent/packaging/`), `curl|sudo bash` installer, security-hardened systemd unit, and a token-revocation watchdog. Linux: live-verified end-to-end (install → start → telemetry → revoke → exit (no restart) → purge). Windows (Day 3): NSSM service, batch installer, AppExit 1 Exit (was Stop — silently invalid; PLB-9 caught it). **Live-verified end-to-end on Windows 11 VM 2026-04-28 (PLB-9): 17/19 PASS, 2/19 PARTIAL.** Final installer SHA256 `84977e61beefacfa87116c03ade24f226d77eecba586671032759ae973f5e6ef`.
 - **Load tested** — Locust, 100 concurrent virtual users, 4 task types
-- **Sentry error monitoring** wired (DSN not yet set — see PLB-5)
-- **UptimeRobot** `/api/ping` endpoint in place (monitor not yet configured — see PLB-6)
+- **Sentry error monitoring** live (PLB-5 closed). Real DSN configured in `.env`; three layers of PII scrubbing in `before_send`; 24 unit tests; live events confirmed shipped to the real Sentry project. Runbook: `docs/runbooks/sentry.md`.
+- **UptimeRobot** `/api/ping` endpoint ready; monitor creation deferred to launch day (PLB-6 PARTIAL — UptimeRobot probes the public internet and aipet.io is not yet deployed). Runbook + launch-day handover ready: `docs/runbooks/uptime-monitoring.md`.
 - **Last commit tag:** `Pre-Month1: all fixes complete, ready for depth phase`
 
 ---
