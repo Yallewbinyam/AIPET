@@ -219,3 +219,6 @@ verification/plb9/.agent_key
 verification/plb9/.agent_key_id
 verification/plb9/.jwt
 verification/plb9/.*.tmp
+
+# Database dumps and local backups
+backups/
