@@ -1,0 +1,9 @@
+         ts          | user_id |       action        |        resource        | status  | hostname |                            reason                            
+---------------------+---------+---------------------+------------------------+---------+----------+--------------------------------------------------------------
+ 2026-04-28 12:29:51 |       2 | device.soft_deleted | agent-hybridlive-001   | success | verify   | early test agent — PLB-9 verification artefact
+ 2026-04-28 12:30:32 |       2 | device.soft_deleted | agent-ff69df742c2f0027 | success | Binyam   | WSL development device — replaced by Windows agent
+ 2026-04-28 12:30:57 |       2 | device.soft_deleted | agent-da772994116df971 | success | Binyam   | PLB-9 Windows VM verification — agent uninstalled 2026-04-28
+ 2026-04-28 13:42:40 |       2 | device.restored     | agent-hybridlive-001   | success | verify   | <no reason>
+ 2026-04-28 13:42:53 |       2 | device.soft_deleted | agent-hybridlive-001   | success | verify   | test
+(5 rows)
+

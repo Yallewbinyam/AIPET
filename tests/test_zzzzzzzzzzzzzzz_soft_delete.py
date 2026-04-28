@@ -273,22 +273,86 @@ class TestListEndpointFiltering:
         assert "agent-soft-test-301-deleted" not in ids
         assert body["include_deleted"] is False
 
-    def test_list_include_deleted_requires_audit_read_permission(
-        self, client, flask_app, test_user, auth_headers
-    ):
-        # test_user has no roles by default in the test fixture.
-        # ?include_deleted=true should be rejected with 403.
+    # =====================================================================
+    # Pattern A (2026-04-28): owner-implicit access to OWN deleted devices
+    # =====================================================================
+    # Pre-Pattern A this endpoint required audit:read for ?include_deleted.
+    # That broke tenant self-service: a regular user who soft-deleted their
+    # own device by accident had no UI path to recover it. Pattern A
+    # opens the per-tenant include_deleted view to anyone authenticated;
+    # cross-tenant viewing now sits behind a separate ?all_tenants=true
+    # flag that retains the audit:read gate.
+
+    def test_user_can_view_own_deleted_devices(self, client, flask_app,
+                                                test_user, auth_headers):
+        # Pattern A positive case: regular user (no roles), can see their
+        # OWN soft-deleted device with ?include_deleted=true.
+        with flask_app.app_context():
+            _mk_device(test_user, "agent-soft-test-301-active")
+            _mk_device(test_user, "agent-soft-test-301-deleted",
+                       deleted_at=datetime.datetime.utcnow())
         r = client.get("/api/agent/devices?include_deleted=true",
                        headers=auth_headers)
-        assert r.status_code == 403
+        assert r.status_code == 200
         body = r.get_json()
-        assert body["required"] == "audit:read"
+        ids = [d["id"] for d in body["devices"]]
+        assert "agent-soft-test-301-active" in ids
+        assert "agent-soft-test-301-deleted" in ids
+        assert body["include_deleted"] is True
+        assert body["all_tenants"] is False
 
-    def test_list_include_deleted_with_owner_role_returns_deleted(
+    def test_user_cannot_view_other_users_deleted_devices(
         self, client, flask_app, test_user, auth_headers
     ):
-        # Grant the test user the 'owner' role -- per the canonical
-        # require_permission decorator, owner bypasses all checks.
+        # Pattern A negative case: insert a device owned by a different
+        # user_id, soft-delete it. The current authenticated user
+        # (test_user) must NOT see it via ?include_deleted=true. Per-
+        # tenant scope (filter_by(user_id=uid)) is the safety net even
+        # when the include_deleted gate is open.
+        with flask_app.app_context():
+            other_dev = AgentDevice(
+                id="agent-soft-test-302-other-tenant",
+                user_id=test_user.id + 9999,    # different tenant
+                hostname="not-mine",
+                first_seen=datetime.datetime.utcnow(),
+                last_seen=datetime.datetime.utcnow(),
+                deleted_at=datetime.datetime.utcnow(),
+            )
+            db.session.add(other_dev)
+            db.session.commit()
+        r = client.get("/api/agent/devices?include_deleted=true",
+                       headers=auth_headers)
+        assert r.status_code == 200
+        body = r.get_json()
+        ids = [d["id"] for d in body["devices"]]
+        assert "agent-soft-test-302-other-tenant" not in ids
+
+    def test_user_can_restore_own_deleted_device(self, client, flask_app,
+                                                  test_user, auth_headers):
+        # Pattern A: full UI round-trip. User soft-deletes -> sees row in
+        # include_deleted view -> restores -> row back to active.
+        with flask_app.app_context():
+            _mk_device(test_user, "agent-soft-test-303-roundtrip",
+                       deleted_at=datetime.datetime.utcnow())
+        r = client.post(
+            "/api/agent/devices/agent-soft-test-303-roundtrip/restore",
+            json={"reason": "Pattern A self-service restore"},
+            headers=auth_headers,
+        )
+        assert r.status_code == 200
+        assert r.get_json()["restored"] is True
+        with flask_app.app_context():
+            dev = (AgentDevice.with_deleted()
+                   .filter_by(id="agent-soft-test-303-roundtrip").first())
+            assert dev.deleted_at is None
+
+    def test_admin_can_view_cross_tenant_with_explicit_flag(
+        self, client, flask_app, test_user, auth_headers
+    ):
+        # Cross-tenant path: ?include_deleted=true&all_tenants=true.
+        # Requires owner role or audit:read permission. Grant owner
+        # (canonical bypass) for this test, insert another tenant's
+        # deleted device, confirm the admin sees both.
         with flask_app.app_context():
             from dashboard.backend.iam.models import Role, UserRole
             owner_role = Role.query.filter_by(name="owner").first()
@@ -303,14 +367,64 @@ class TestListEndpointFiltering:
                 db.session.add(UserRole(user_id=test_user.id,
                                         role_id=owner_role.id))
                 db.session.commit()
-            _mk_device(test_user, "agent-soft-test-302-active")
-            _mk_device(test_user, "agent-soft-test-302-deleted",
+            _mk_device(test_user, "agent-soft-test-304-mine",
                        deleted_at=datetime.datetime.utcnow())
-        r = client.get("/api/agent/devices?include_deleted=true",
+            other_dev = AgentDevice(
+                id="agent-soft-test-304-other",
+                user_id=test_user.id + 9999,
+                hostname="other-tenant-deleted",
+                first_seen=datetime.datetime.utcnow(),
+                last_seen=datetime.datetime.utcnow(),
+                deleted_at=datetime.datetime.utcnow(),
+            )
+            db.session.add(other_dev)
+            db.session.commit()
+        try:
+            r = client.get(
+                "/api/agent/devices?include_deleted=true&all_tenants=true",
+                headers=auth_headers,
+            )
+            assert r.status_code == 200
+            body = r.get_json()
+            ids = [d["id"] for d in body["devices"]]
+            assert "agent-soft-test-304-mine" in ids
+            assert "agent-soft-test-304-other" in ids   # cross-tenant
+            assert body["all_tenants"] is True
+        finally:
+            # Clean up the role assignment so subsequent tests run with
+            # a no-roles user (matching Pattern A's primary use case).
+            # Re-query Role inside this app_context -- the role row from
+            # the earlier context is detached and would raise
+            # DetachedInstanceError when SQLAlchemy tries to refresh it.
+            with flask_app.app_context():
+                from dashboard.backend.iam.models import Role as _Role
+                fresh_owner = _Role.query.filter_by(name="owner").first()
+                if fresh_owner:
+                    UserRole.query.filter_by(
+                        user_id=test_user.id, role_id=fresh_owner.id
+                    ).delete()
+                    db.session.commit()
+
+    def test_all_tenants_without_include_deleted_rejected(
+        self, client, flask_app, test_user, auth_headers
+    ):
+        # Defensive: all_tenants=true without include_deleted is not a
+        # supported feature today (cross-tenant active-device snooping
+        # is a separate conversation). Endpoint must reject 400.
+        r = client.get("/api/agent/devices?all_tenants=true",
                        headers=auth_headers)
-        assert r.status_code == 200
+        assert r.status_code == 400
+
+    def test_all_tenants_without_admin_role_rejected(
+        self, client, flask_app, test_user, auth_headers
+    ):
+        # Negative: a no-roles user trying to use ?all_tenants=true (with
+        # include_deleted=true) is rejected with 403. The cross-tenant
+        # gate did NOT regress when we opened the per-tenant gate.
+        r = client.get(
+            "/api/agent/devices?include_deleted=true&all_tenants=true",
+            headers=auth_headers,
+        )
+        assert r.status_code == 403
         body = r.get_json()
-        ids = [d["id"] for d in body["devices"]]
-        assert "agent-soft-test-302-active" in ids
-        assert "agent-soft-test-302-deleted" in ids
-        assert body["include_deleted"] is True
+        assert body["required"] == "audit:read"

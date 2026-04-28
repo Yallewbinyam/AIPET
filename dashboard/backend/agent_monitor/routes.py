@@ -276,20 +276,51 @@ def receive_telemetry():
 @agent_monitor_bp.route("/api/agent/devices", methods=["GET"])
 @jwt_required()
 def list_devices():
-    uid = get_jwt_identity()
+    """
+    List devices. Three access modes (Pattern A, 2026-04-28):
 
-    # ?include_deleted=true is admin-only: gates on the canonical
-    # `audit:read` permission (the same permission name the IAM
-    # blueprint uses for "view audit-grade data"). Tenant scope
-    # (filter_by(user_id=uid)) is enforced regardless -- even an
-    # admin only sees deleted rows for their own user_id.
+      1. Default: returns the caller's OWN ACTIVE devices.
+
+      2. ?include_deleted=true: returns the caller's own devices
+         INCLUDING soft-deleted. Per-tenant scope
+         (filter_by(user_id=uid)) is the safety net -- a user
+         always sees only their own data, deleted or not. NO admin
+         permission required: a user must always be able to see and
+         restore the devices they themselves deleted by accident.
+
+      3. ?include_deleted=true&all_tenants=true: returns deleted
+         devices ACROSS ALL TENANTS. Requires owner role OR
+         audit:read permission (same canonical pattern as IAM
+         module). Without the all_tenants flag, audit:read users
+         get the same per-tenant view everyone else does.
+
+    The cross-tenant view (mode 3) is the only path that bypasses
+    the user_id filter. The auth check is mode-3-specific so mode 2
+    cannot accidentally leak cross-tenant data.
+    """
+    uid = int(get_jwt_identity())
+
     include_deleted = (request.args.get("include_deleted", "").lower()
                        in ("1", "true", "yes"))
+    all_tenants     = (request.args.get("all_tenants", "").lower()
+                       in ("1", "true", "yes"))
 
-    if include_deleted:
+    # all_tenants=true ONLY makes sense alongside include_deleted -- a
+    # cross-tenant view of active devices is not a feature we want yet
+    # (admins legitimately need to know about deleted-but-recovering
+    # devices for forensics; cross-tenant active-device snooping is a
+    # different conversation). Reject the unsupported combination
+    # explicitly so future use cases declare themselves clearly.
+    if all_tenants and not include_deleted:
+        return jsonify({
+            "error": "all_tenants=true requires include_deleted=true",
+        }), 400
+
+    if all_tenants:
+        # Mode 3: cross-tenant. Gate on owner role / audit:read.
         from dashboard.backend.iam.models import UserRole, Role
         from dashboard.backend.models import User
-        user = db.session.get(User, int(uid))
+        user = db.session.get(User, uid)
         has_perm = False
         if user:
             user_roles = UserRole.query.filter_by(user_id=user.id).all()
@@ -309,12 +340,14 @@ def list_devices():
                 "required": "audit:read",
             }), 403
 
-    # CALLSITE 2/3 (soft-delete audit): list endpoint. Default path
-    # uses .active() (excludes soft-deleted). The admin
-    # ?include_deleted=true path uses .with_deleted() -- still scoped
-    # to user_id so we never leak across tenants.
+    # CALLSITE 2/3 (soft-delete audit): list endpoint.
+    # Default path:                       .active()  + user_id filter
+    # ?include_deleted=true:              .with_deleted() + user_id filter (Pattern A)
+    # ?include_deleted=true&all_tenants:  .with_deleted(), NO user_id filter (admin)
     base_q = AgentDevice.with_deleted() if include_deleted else AgentDevice.active()
-    devices = base_q.filter_by(user_id=uid).all()
+    if not all_tenants:
+        base_q = base_q.filter_by(user_id=uid)
+    devices = base_q.all()
 
     # Mark devices stale if not seen in 90 seconds (skip for soft-
     # deleted rows -- their status display is irrelevant).
@@ -324,8 +357,9 @@ def list_devices():
             d.status = "offline"
     db.session.commit()
     return jsonify({
-        "devices": [d.to_dict() for d in devices],
+        "devices":         [d.to_dict() for d in devices],
         "include_deleted": include_deleted,
+        "all_tenants":     all_tenants,
     }), 200
 
 
