@@ -43,12 +43,25 @@ if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
 # ---------------------------------------------------------------
-# Build the SQLAlchemy URL the same way the app does.
+# Build the SQLAlchemy URL.
+#
+# Two-role least-privilege convention (set up during PLB-1):
+#   * aipet_user  -- application role; connects to aipet_db with the
+#                    privileges the running Flask app needs. NO CREATEDB.
+#                    Used in DATABASE_URL.
+#   * aipet_admin -- migration role; LOGIN + CREATEDB; inherits from
+#                    aipet_user for schema access. Used in
+#                    ALEMBIC_DATABASE_URL.
+#
 # Priority order:
-#   1. ALEMBIC_DATABASE_URL    -- explicit alembic-only override
-#                                 (used by Phase 3 throwaway DB tests)
-#   2. DATABASE_URL            -- the value the Flask app uses
-#   3. Fall back to alembic.ini's placeholder, which will fail loudly
+#   1. ALEMBIC_DATABASE_URL  -- the migration-role URL (preferred)
+#   2. DATABASE_URL          -- fall back to the app role (works for
+#                               upgrade/stamp; fails on CREATE DATABASE)
+#   3. alembic.ini placeholder -- will fail loudly
+#
+# In dev:
+#   ALEMBIC_DATABASE_URL=postgresql://aipet_admin:aipet_admin_password@localhost:5433/aipet_db
+# Production: replace the placeholder password with a real secret.
 # ---------------------------------------------------------------
 db_url = (
     os.environ.get("ALEMBIC_DATABASE_URL")

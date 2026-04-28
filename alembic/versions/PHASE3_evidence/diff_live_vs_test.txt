@@ -1,0 +1,27 @@
+5c5
+< \restrict 90W5CAvUeNwrwNMwCOsv0XMzbFGWAaOBGArAk6u0mqtJvnsUdfYs7cRGt1o16O4
+---
+> \restrict hVxxbJ88431bMvbN34eObOQIRYAweWOrUaYP5j1xGyUw7nfhcRy87uCrgrTPKWB
+167a168,176
+> -- Name: alembic_version; Type: TABLE; Schema: public; Owner: -
+> --
+> 
+> CREATE TABLE public.alembic_version (
+>     version_num character varying(32) NOT NULL
+> );
+> 
+> 
+> --
+5704a5714,5721
+> -- Name: alembic_version alembic_version_pkc; Type: CONSTRAINT; Schema: public; Owner: -
+> --
+> 
+> ALTER TABLE ONLY public.alembic_version
+>     ADD CONSTRAINT alembic_version_pkc PRIMARY KEY (version_num);
+> 
+> 
+> --
+8470c8487
+< \unrestrict 90W5CAvUeNwrwNMwCOsv0XMzbFGWAaOBGArAk6u0mqtJvnsUdfYs7cRGt1o16O4
+---
+> \unrestrict hVxxbJ88431bMvbN34eObOQIRYAweWOrUaYP5j1xGyUw7nfhcRy87uCrgrTPKWB
