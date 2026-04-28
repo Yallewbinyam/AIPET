@@ -2525,3 +2525,580 @@ Week 3
 
 **~3 calendar weeks** of focused backend work to fully unblock Phase C-I. **~1 day** to unblock just Phase C.
 
+
+---
+
+## 9. Accessibility specification
+
+Team & Access is the v1 baseline for accessibility — Polish Pass 1 will bring other modules up to match. Targets: **WCAG 2.1 AA** across the entire flow; **AAA where reasonable** (notably for body-text contrast, which the existing dark palette already meets).
+
+### 9.1 Keyboard navigation
+
+| Surface | Tab order | Notes |
+|---|---|---|
+| Members table | search → status filter → invite button → table header (sort), then each row → row's `…` menu → pagination → per-page dropdown | Up/Down arrows navigate between table rows when focused; Enter on a row opens detail drawer; Space on a row toggles selection (when bulk select implemented v1.1+). |
+| Modals | first focusable element on open (always an input or primary button) → … → footer actions; tab loops within modal (focus trap) | Esc closes; Tab/Shift+Tab cycles; clicking scrim closes (unless `closeOnScrim={false}`); focus returns to the trigger element on close. |
+| Drawer | same as modal but closes on Esc only (clicking outside does **not** close — drawer behaviour differs from modal) | Focus returns to the triggering row on close. |
+| Tabs | left/right arrow keys cycle tabs; Home/End jump to first/last; Tab moves out of tab-list to tab-panel | active tab announced via `aria-selected="true"`. |
+| Filter row (audit) | each filter focusable left-to-right; Enter on date input opens the picker; Esc on the picker reverts | Date picker keyboard nav: arrow keys move day, PgUp/PgDn move month. |
+| Confirm dialog (Disable/Remove) | the destructive button is **NOT** auto-focused — Cancel is auto-focused; user must Tab to confirm to prevent accidental Enter-on-modal-open destruction | Type-to-confirm input (Remove flow) auto-focuses; Enter submits only when text matches. |
+
+**No mouse-only interactions.** Every action achievable with keyboard alone.
+
+**Skip links:** "Skip to main content" link available at top of page (hidden until focus). Already a pattern AIPET X has globally; Team & Access reuses.
+
+### 9.2 ARIA labels for non-trivial elements
+
+| Element | ARIA | Why |
+|---|---|---|
+| Table | `role="table"` (most browsers infer; explicit for clarity), `aria-label="Team members"` (or relevant table title) | Screen readers announce table title before navigating cells. |
+| Sortable column header | `role="columnheader" aria-sort="ascending|descending|none"` | Announces sort state on focus + change. |
+| Member status pill | aria-label includes status text + the member's name (e.g. `aria-label="Disabled, Anna Q"`) | Pill icon alone is not announced by screen readers without label. |
+| Row `…` menu trigger | `aria-label="Actions for Anna Q"`, `aria-haspopup="menu"`, `aria-expanded="true|false"` | Otherwise SR announces "button" with no context. |
+| Row menu items | `role="menuitem"`, container `role="menu"` | |
+| Tab list | `role="tablist"`, each tab `role="tab" aria-selected="true|false" aria-controls="<panel-id>"`; panel `role="tabpanel" aria-labelledby="<tab-id>"` | Standard ARIA tabs pattern. |
+| Modal | `role="dialog" aria-modal="true" aria-labelledby="<modal-title-id>" aria-describedby="<modal-desc-id>"` | `aria-modal="true"` instructs SR to ignore content outside the modal. |
+| Drawer | same as modal | |
+| Toast | `role="status" aria-live="polite"` for success/info; `role="alert" aria-live="assertive"` for errors | Errors interrupt the SR; successes do not. |
+| Permission matrix cells | each cell `aria-label="<permission> for <role>: granted|not granted"` | Cell visual is a circle — pure decoration. |
+| Severity pills (audit log status) | `aria-label="<status>"` text equivalent | The colour conveys meaning that must also be textual. |
+| Form fields | every input has `<label>` (visible) or `aria-label` (icon-only); errors via `aria-describedby` linking to error message id; `aria-invalid="true"` when invalid | |
+| Loading skeleton | `role="status" aria-label="Loading members"` + `aria-busy="true"` on the parent table | Announces "Loading members" once, doesn't repeat each frame. |
+| Spinner inside a button | the button itself gets `aria-busy="true"`; the visible text changes to "Sending..." or similar (SR reads the new text) | |
+| Empty state | container `role="region" aria-label="<region name>"`; the action button focusable | |
+| Search input (debounced) | `role="searchbox"` + `aria-label`; `aria-describedby` linking to result count for live announcements | After debounce settles, an `aria-live="polite"` region announces "12 members found". |
+
+### 9.3 Screen reader announcements for state changes
+
+A central `aria-live` region in the page (visually hidden) catches dynamic announcements. Pattern: a `<div role="status" aria-live="polite" id="sr-announcer">` rendered once per page; mutating its `textContent` triggers SR re-read.
+
+| Event | Announcement | Politeness |
+|---|---|---|
+| Members loaded after filter change | `"<N> members"` | polite |
+| Invite sent | `"Invitation sent to anna@acme.io"` | polite |
+| Role changed | `"Roles updated"` | polite |
+| Member disabled | `"Anna Q disabled"` | polite |
+| Member removed | `"Anna Q removed"` | polite |
+| API error | `"<error message>. Press R to retry."` | assertive |
+| Loading start (after 320 ms hold to avoid flicker noise) | `"Loading"` | polite |
+| Loading end (when transitioning from skeleton to data) | `"<N> rows loaded"` | polite |
+| Modal opened | nothing (modal `aria-modal` handles focus context) | n/a |
+| Modal closed | nothing — focus return is the cue | n/a |
+| Filter applied | `"<N> events match"` | polite |
+| Pagination change | `"Showing page <N> of <M>"` | polite |
+
+### 9.4 Mobile responsive breakpoints
+
+Every screen tested at exactly **375 px** (iPhone SE), **768 px** (tablet portrait), **1024 px** (tablet landscape / small laptop), **1440 px** (desktop). Behaviour:
+
+| Breakpoint | Layout change |
+|---|---|
+| **< 640 px** | Sidebar overlays (hamburger). Tabs become horizontal scroller with snap. Tables become card stacks (one card per row). Modals become bottom-sheets at 100% width, slide up from bottom. Drawer becomes full-screen sheet. Action menus become bottom action sheets. |
+| **640-768 px** | Tabs stay horizontal but may scroll. Tables stay tabular but reduce non-essential columns (e.g. last_login hidden, accessible from row detail). Modals become 90% width centred. |
+| **768-1024 px** | Sidebar persistent. Tabs full-width inline. Tables full. Modal at fixed 480 px. Drawer at fixed 480 px (overlay; doesn't push content). |
+| **≥ 1024 px** | All columns visible. Drawer pushes content (content area shrinks); modal stays overlay. Hover states active. |
+| **≥ 1440 px** | Same as 1024-1440 with table max-width 1280 px centred (as specified in § 3.4). |
+
+**Touch target sizing.** All interactive elements ≥ 44×44 px on touch devices (WCAG 2.5.5). Row `…` menu triggers, in particular, are 44×44 (not the desktop default 32×32) when matched by a `(pointer: coarse)` media query.
+
+### 9.5 Colour contrast targets
+
+Verified against the v2 design tokens (§ 2.2.1):
+
+| Pair | Ratio | WCAG |
+|---|---|---|
+| `textPrimary #e6edf3` on `surface #0d1117` | 14.0:1 | AAA body |
+| `textSecondary #94a3b8` on `surface #0d1117` | 6.6:1 | AAA body, AA UI |
+| `textMuted #7d8590` on `surface #0d1117` | 4.7:1 | AA body — borderline; **promoted to `#94a3b8` (textSecondary) for any text that conveys meaning, e.g. timestamps in row data**. `#7d8590` reserved for decorative captions where context is clear. |
+| `brand #00d4ff` on `surface #0d1117` (link / focus) | 9.5:1 | AAA |
+| `brand` text on `bg #080c10` (button on page) | 9.9:1 | AAA |
+| `#000814` text on `brand #00d4ff` (button text) | 9.5:1 | AAA |
+| `success #00ff88` on `surface #0d1117` | 13.3:1 | AAA |
+| `danger #ff4444` on `surface #0d1117` | 5.4:1 | AA body — fine for pill text + icons; for button labels we use white-on-`#ff4444` instead (10.2:1 AAA). |
+| `warning #f5c518` on `surface #0d1117` | 11.0:1 | AAA |
+
+**Audit pass:** the existing severity palette (critical/high/medium/low/info from App.js:73) is also AAA-safe on `surface`; no changes needed there.
+
+**Focus indicator.** 2 px solid `borderFocus #00d4ff` + 2 px `surface` outer ring (gives the lift) on every focusable element. Not removed by `:focus-visible` — Team & Access deliberately shows focus on **all** focus events, including mouse, because the threat-model assumes admins use keyboard for sensitive actions.
+
+### 9.6 Reduced-motion and other prefs
+
+| User pref | Behaviour |
+|---|---|
+| `prefers-reduced-motion: reduce` | All `TIMINGS.*` durations halved; modal/drawer slide animations replaced with crossfade (opacity only). |
+| `prefers-contrast: more` | `surface` drops to `#000`; `border` raised to `#9aa0a6`; focus ring grows to 3 px. (Implementation deferred — flagged for v1.1.) |
+| `forced-colors: active` (Windows High Contrast) | Tested: lucide icons render via `currentColor`, visible. Pills with explicit colour need `forced-color-adjust: none` on the colour layer + an icon fallback. (Implementation deferred — flagged for v1.1.) |
+
+### 9.7 Accessibility verification per phase
+
+Each Phase C-I deliverable closes only when its specific surfaces pass:
+
+1. Manual keyboard-only walkthrough of the new flow (no mouse).
+2. axe-core automated run via `@axe-core/react` in dev mode — zero "serious" or "critical" findings.
+3. VoiceOver (macOS) **OR** NVDA (Windows) walkthrough of the new flow — every announcement makes sense out of context.
+
+These three checks become the per-phase a11y entry in the closure report (§ 10).
+
+---
+
+## 10. Tested-vs-Complete plan
+
+Per the new "Definition of Complete" rule (CLAUDE.md, commit `d0d3bd81`). Each Phase C-I deliverable closes only when **all four conditions** hold for that phase. This section provides the per-phase test list, click-through scenario, live verification commands, and closure report template.
+
+### 10.1 The four conditions, phase-aware
+
+| Condition | What it means for a UI phase | What it means for a backend-only phase |
+|---|---|---|
+| 1. All acceptance tests pass | New pytest cases for new endpoints + Jest/RTL tests for new components | New pytest cases only |
+| 2. Human clicked every UI element | Specific click-through scenario per phase (below) | n/a — replaced with curl walkthrough |
+| 3. Live verification | curl every new endpoint with valid JWT; document status codes + response shapes | Same |
+| 4. Closure report | Markdown file under `verification/team-access/` naming actor + date + commit SHA + all clicks/curls + a11y axe run output | Same minus axe |
+
+### 10.2 Per-phase acceptance tests (Phase B-backend tests)
+
+For each backend addition in § 8, the matching pytest test set:
+
+| Backend item | Tests |
+|---|---|
+| F0 (seed extension) | (1) seed_default_roles after the F0 change creates 13 permissions (was 10 + 3 new); (2) idempotent on second call; (3) default roles get `iam:read`/`policy:read` granted, only owner gets `policy:manage` |
+| F3 (users list+detail) | (1) GET list returns paginated array with roles joined; (2) sort+search work; (3) 403 without `iam:read`; (4) caller sees own detail without `iam:read`; (5) non-existent user → 404 |
+| F4 (disable/enable) | (1) disable sets `is_active=false` + revokes sessions; (2) cannot disable last owner; (3) cannot disable self; (4) re-enable does NOT auto-restore sessions; (5) audit row written for each |
+| F5 (audit filters + actions list) | (1) since/until filters narrow results; (2) action multi-select; (3) actor by email or id; (4) status filter; (5) empty filter combo returns 200 with empty `logs`; (6) actions list endpoint returns deduped sorted strings |
+| F6 (CSV export) | (1) Content-Type and filename header correct; (2) row count matches filter; (3) 0-row case returns 204; (4) audit row written post-stream |
+| F7 (remove/restore) | (1) remove sets `deleted_at` + revokes sessions + cannot remove last owner + cannot remove self; (2) restore clears `deleted_at`; (3) `?include_deleted=true` returns soft-deleted; (4) audit rows for both |
+| F8 (gating + null timestamp) | (1) GET `/api/iam/users/<id>/roles` returns 403 without `iam:read`; (2) get_audit_log handles null timestamp without crashing; (3) Alembic migration applies + downgrades cleanly |
+| G1+G2 (role CRUD) | (1) create role with permissions list works; (2) PATCH adds and removes; (3) DELETE cascade-unassigns; (4) default roles locked from edit/delete; (5) reserved-name check; (6) audit rows |
+| H1 (matrix) | (1) returns roles + permissions + grants in expected shape; (2) `owner_bypass: true` flagged for owner |
+| I1-I4 (invitations) | (1) POST creates row + sends email when enabled; (2) `app.email_enabled=False` returns `delivery_status=smtp_disabled` + `manual_link` (owner-only); (3) GET token returns sanitised; (4) accept creates user + assigns role + uses F2 helper bypassing auto-grant; (5) expired/already-accepted/revoked tokens return correct error codes; (6) email collision returns 409 with sign-in path; (7) password fails policy → 422 |
+| S1+S2+S3 (sessions) | (1) IssuedToken row written on every JWT issuance; (2) revoking marks row + token_in_blocklist callback returns true; (3) revoked token → 401; (4) GET /sessions returns own by default; (5) all_users requires `iam:manage`; (6) revoke_all bulk reduces to N revoked |
+| SSO1+SSO3 | (1) POST stores client_secret encrypted; (2) GET never returns secret; (3) PATCH partial update; (4) DELETE; (5) test endpoint walks 4 steps; (6) failure step recorded on provider row |
+| P0-P3 | (1) GET returns full policy; (2) PUT each section updates and audits; (3) IP allowlist would-lock-out check returns 422 with `current_ip`; (4) password policy applies on register/reset/accept |
+
+**Total new pytest cases across Phase B-backend: ~70-80.** Adds ~7 hours of test-writing time on top of the 42 hour estimate (already factored into the 30-50 % overhead in § 8.7).
+
+### 10.3 Per-phase click-through scenarios
+
+These are the specific scripts a human follows in a fresh browser (incognito tab, latest commit, dev server running) to verify each phase. Every step is observable; if any step fails to render or behaves wrong, the phase does not close.
+
+#### Phase C — Foundation (Members list/detail/role-change + visual upgrade)
+
+**Pre-requisites:** Phase B-backend foundational subgroup deployed.
+
+**Script:**
+
+1. Open `http://localhost:3000` in fresh incognito; sign in as test@aipet.io / Test1234!.
+2. Click `Team & Access` in sidebar. Confirm:
+   - Page renders without console errors.
+   - Default tab is Members, with a `Members` underline.
+   - Header bar shows breadcrumb `Team & Access › Members` and `[+ Invite member]` button (since user is owner).
+3. Confirm members table shows ≥ 2 rows (test@ + byallew@). Each row: avatar with initials; name; email; role pill ("owner"); last_login relative time; "● Active" status; `…` menu.
+4. Click on `test@aipet.io` row anywhere except the `…` menu. Confirm Member Detail drawer slides in from the right at 480 px.
+5. In the drawer, scroll through and confirm all five sections render: Overview, Roles, Active sessions, Recent audit events, Actions footer.
+6. Click `[Change roles]`. Modal opens. Uncheck `owner` — confirm `[Save changes]` button stays enabled (the safety net is server-side).
+7. Cancel the modal. Drawer remains open with role pills unchanged.
+8. Press Escape. Drawer closes. Focus returns to the row in the members table.
+9. Type `byall` in the search box. Confirm members list filters to one row after debounce settles. Screen-reader announcement (heard via VoiceOver) "1 member found".
+10. Clear the search. Click the column header `Last login`. Confirm sort by descending most-recent. Click again — ascending.
+11. Resize browser to 375 px width. Confirm sidebar collapses; tabs become scroller; rows become cards. Tap (in DevTools touch-emulation mode) on a card — drawer opens as bottom sheet.
+12. Open DevTools → Lighthouse, run accessibility audit on the Members tab. Confirm score ≥ 95 with zero "serious" findings.
+
+#### Phase D — Invitations
+
+**Script:**
+
+1. Members tab → `[+ Invite member]`.
+2. Modal opens. Confirm fields render: email, role dropdown (default Viewer), welcome message textarea.
+3. Submit blank → inline `email is required`.
+4. Submit `not-an-email` → inline `Enter a valid email address`.
+5. Submit `test@aipet.io` (existing user) → 409 → inline `This person is already a team member`.
+6. Submit `f2-test-phase-d@aipet.local` with role Analyst → 201. Toast "Invitation sent to f2-test-phase-d@aipet.local". Modal closes.
+7. Members tab refreshes — new row appears with `(no role)` and `Pending` pill (until accepted).
+8. Open a private window. Visit the invitation URL from the email (or DB if SMTP off). Confirm the recipient page renders the centred card from § F4.4 with all fields read-only and form fields editable.
+9. Submit accept with weak password → inline policy errors.
+10. Submit accept with strong password → 201, redirected to dashboard, toast "Welcome to AIPET X".
+11. Sign back in as test@aipet.io. Members tab now shows the new user with `analyst` role.
+12. Members tab → click on the new user → audit log section shows `invitation.accepted` + `role.assigned` events.
+13. Cleanup: remove the test user (Phase E click-through depends on this not being there).
+
+#### Phase E — Disable + Remove with session revocation
+
+**Script:**
+
+1. Sign in as test@aipet.io. Sessions tab. Open a second window in incognito → sign in as the same user. Sessions tab now shows 2 sessions for self.
+2. Members tab. Click the second user (byallew@gmail.com). Drawer opens.
+3. Click `[Disable]`. Confirmation dialog. Click `[Disable]` (danger button). Toast "Disabled".
+4. Sessions tab in the second window: refresh; should redirect to login (token revoked). Sign-in attempt returns 401 "User disabled".
+5. Members tab → click byallew → confirm `Disabled` pill, action footer shows `[Re-enable]` instead of `[Disable]`.
+6. Click `[Re-enable]`. Confirm pill returns to Active. Sign-in is again possible (but with the token already revoked, sign-in is required first — re-enable does NOT auto-restore).
+7. Sign in as second user → success.
+8. Sign back in as test@aipet.io → Members tab → byallew detail → click `[Remove]`.
+9. Confirm dialog requires typing email. Type a wrong email → submit disabled. Type correct email → submit enabled. Click `[Remove]`. Toast "Removed byallew@gmail.com".
+10. Members default list no longer shows byallew. Toggle "Show removed" (admin-only with `?include_deleted=true`) — byallew shown with `(removed)` pill and `[Restore]`.
+11. Click `[Restore]`. Confirm pill clears to `Disabled` (not Active — restore is data-restore, not session-restore).
+12. Cleanup: re-enable byallew so further phases work.
+
+#### Phase F — Audit log
+
+**Script:**
+
+1. Audit tab. Confirm at least 50 rows (cumulative from Phases C-E).
+2. Filter `Action: role.assigned`. Confirm only rows with that action show.
+3. Filter `Date: Last 7 days`. Confirm narrowed.
+4. Click on a `role.assigned` row → Audit Event Detail drawer opens. Confirm `node_meta` JSON shows `{"role":"...","reason":"..."}` rendered in CodeBlock.
+5. Click `[⬇ Export CSV]`. Browser downloads `aipet-audit-2026-04-28.csv`. Open the file — confirm columns and rows match.
+6. Filter to a combo with 0 results. Confirm EmptyState renders + CSV button is disabled or returns 204 + toast "No rows match".
+
+#### Phase G — Roles & Permissions
+
+**Script:**
+
+1. Roles tab. Confirm 4 default roles + any custom from prior phases.
+2. Click `[+ Create role]`. Modal opens. Submit `compliance_auditor` with `audit:read` + `findings:read` + `reports:read`. 201. Toast.
+3. Roles list refreshes to include `compliance_auditor`.
+4. Click `View permission matrix`. Confirm matrix renders with rows = permissions, cols = roles. Owner column all filled. Compliance_auditor column has 3 filled.
+5. Click on `compliance_auditor` column → Edit Role modal opens. Add `iam:read`. Save. Matrix refreshes.
+6. Try to edit `owner` → Edit button hidden / locked.
+7. Roles list → click `…` menu on `compliance_auditor` → Delete. Confirm dialog. Confirm. Toast `Role deleted. 0 users had this role.`
+8. Cleanup: nothing left to clean.
+
+#### Phase H — SSO
+
+**Script:**
+
+1. SSO tab. Confirm 0 providers (or any from earlier curl-based testing — clean DB before this phase).
+2. Click `[+ Add SSO provider]`. Modal opens.
+3. Confirm `OIDC` radio is disabled with "v1.1 coming soon" tag.
+4. Submit with invalid metadata URL `https://example.invalid/saml`. Click `[Save & test]`. Inline test result shows ✗ at metadata fetch step.
+5. Submit with a real test SAML metadata URL (use `https://samltest.id/saml/idp` for verification). Click `[Save & test]`. Test dialog shows 4 ✓ steps. Provider appears in the list.
+6. Toggle Enabled on. Confirmation dialog (changing tenant SSO). Confirm. Toast.
+7. Click `Test connection` row action → diagnostic dialog opens.
+8. Cleanup: delete the test provider.
+
+#### Phase I — Security policy
+
+**Script:**
+
+1. Policy tab. Confirm 3 sub-sections render: 2FA, IP allowlist, Password.
+2. **2FA:** change to Required, set grace = 14 days. Save. Toast. Refresh — value persists.
+3. **IP allowlist:** toggle on. Paste `203.0.113.0/24` (a non-routable test range that doesn't include localhost). Save. Confirm 422 dialog "You'd lock yourself out. Add your current IP (1.2.3.4)?" Click `[Add my IP]`. Save again. Success.
+4. Test enforcement: open a new incognito window from a different (not-allowlisted) network. Sign-in attempt → 403 with allowlist message. (If no second network available, simulate via curl with `-H 'X-Forwarded-For: 198.51.100.5'`.)
+5. **Password policy:** drag min-length slider to 16. Toggle uppercase/digit/special on. Set max age 60 days. Save. Toast.
+6. Sign out. Try to register a new user with weak password — inline errors per the policy.
+7. Cleanup: revert 2FA to Optional, IP allowlist off, password to defaults.
+
+### 10.4 Closure report template
+
+Each phase ships its own closure report named `verification/team-access/PHASE-<X>-<scope>-2026-MM-DD.md`. Template:
+
+```markdown
+# Team & Access Phase <X> — <Scope>
+
+**Date:** YYYY-MM-DD
+**Actor:** <human name + role>
+**Commit SHA at verification time:** <full SHA>
+
+---
+
+## Acceptance tests
+
+- pytest delta: <before count> → <after count>
+- New tests added (file:test_name): <list>
+- All tests passing: ✅ / ❌ <if no, what failed>
+- a11y axe-core run: 0 serious, 0 critical findings (or list)
+
+## Click-through scenario
+
+For each step in the Phase <X> click-through scenario in the
+Phase B design spec § 10.3:
+
+- [ ] Step 1: <expected> → <observed> ✅ / ❌
+- [ ] Step 2: ...
+- ...
+
+Browser tested: <Chrome 121 / Safari 17 / Firefox 122>
+Resolution tested: <1440 / 1024 / 768 / 375>
+Mobile touch-emulation tested: ✅ / ❌
+
+## Live verification (curl)
+
+For each backend endpoint touched by Phase <X>:
+```
+$ curl -sS -X <METHOD> http://localhost:5001<PATH> -H "Authorization: Bearer ..." [body]
+HTTP <code>
+<short response excerpt>
+```
+
+## Discovered gaps / surprises
+
+- <anything not in the spec>
+- <pre-existing bugs surfaced>
+
+## What this phase is and isn't
+
+- IS: <list>
+- ISN'T: <list, with pointer to v1.1 or follow-up>
+
+## Sign-off
+
+- All four "Tested vs Complete" conditions met: ✅
+- This phase is COMPLETE per CLAUDE.md d0d3bd81 rule.
+```
+
+This template enforces honesty: every checkbox is observable, every curl is reproducible, every gap is named.
+
+---
+
+## 11. Build phasing recommendation
+
+Phases C-I were placeholders in the brief. Based on dependency analysis surfaced during design (notably § 6.9 endpoint matrix and § 8.8 critical path), the recommended phase breakdown is:
+
+### Phase C — Foundation + Members core
+
+**Scope:** visual upgrade (tokens.js + 15 shared UI primitives), TeamAccessPage shell, Members tab (list/detail/role-change). Replaces the broken App.js routing reference (currently commented out by user stop-gap at App.js:30423-30430).
+
+**Hours:** 14 ±3, high confidence.
+
+**Dependencies:** Phase B-backend foundational subgroup (12 hr from § 8.1). Specifically: F0, F3, F8, G1+G2, H1.
+
+**Backend additions needed:** F0, F3, F5 (audit), F6 (CSV; needed only for the "recent audit events" sub-section in member detail), F8, G1+G2 (needed for the role-change modal's role list with permissions), H1 (matrix view; deferred-render but specced).
+
+**Click-through verification:** § 10.3 Phase C scenario.
+
+### Phase D — Invitations
+
+**Scope:** Invite Member modal (`InviteMemberModal`), AcceptInvitePage (standalone route), pending-invitations list in Members tab, resend/revoke.
+
+**Hours:** 10 ±3, medium confidence.
+
+**Dependencies:** Phase C complete. Phase B-backend invitation subgroup (I1-I4, 6.5 hr).
+
+**Backend additions needed:** I1, I2, I3, I4. Reuses PLB-4 SMTP wiring.
+
+**Click-through verification:** § 10.3 Phase D scenario.
+
+### Phase E — Disable + Remove with session revocation
+
+**Scope:** session revocation infrastructure (`IssuedToken` everywhere), Sessions tab, Disable + Remove confirm dialogs, last-owner safety net visualisation, restore for soft-deleted users.
+
+**Hours:** 8 ±2, medium confidence.
+
+**Dependencies:** Phase C complete. Phase B-backend members lifecycle (F4, F7) AND sessions (S1, S2, S3) subgroups (~9 hr combined).
+
+**Backend additions needed:** F4, F7, S1, S2, S3.
+
+**Click-through verification:** § 10.3 Phase E scenario.
+
+### Phase F — Audit log filters + CSV export
+
+**Scope:** AuditTab full implementation with filters, AuditEventDrawer with `node_meta` JSON viewer, ExportCsvButton.
+
+**Hours:** 8 ±2, high confidence.
+
+**Dependencies:** Phase C complete. Phase B-backend F5 + F6 + F8 (3.5 hr).
+
+**Backend additions needed:** F5, F6, F8.
+
+**Click-through verification:** § 10.3 Phase F scenario.
+
+### Phase G — Roles & Permissions matrix
+
+**Scope:** RolesTab full implementation with permission matrix, custom role create/edit/delete.
+
+**Hours:** 10 ±3, medium confidence.
+
+**Dependencies:** Phase C complete (the role-change modal is already built in C).
+
+**Backend additions needed:** G1, G2, H1 (already covered if shipped in B-backend).
+
+**Click-through verification:** § 10.3 Phase G scenario.
+
+### Phase H — SSO
+
+**Scope:** SsoTab full implementation, ConfigureSsoModal (SAML only in v1), TestConnectionDialog, enable/disable toggle.
+
+**Hours:** 10 ±3, medium confidence.
+
+**Dependencies:** Phase C complete. Phase B-backend SSO subgroup (SSO1 + SSO3, 7 hr).
+
+**Backend additions needed:** SSO1, SSO3.
+
+**Click-through verification:** § 10.3 Phase H scenario.
+
+### Phase I — Security policy
+
+**Scope:** PolicyTab full implementation across 2FA, IP allowlist, password policy.
+
+**Hours:** 10 ±4, low confidence (the IP allowlist enforcement order-of-operations + the 2FA banner without enrolment have moving parts).
+
+**Dependencies:** Phase C complete. Phase B-backend policy subgroup (P0-P3, 7.5 hr).
+
+**Backend additions needed:** P0, P1, P2, P3.
+
+**Click-through verification:** § 10.3 Phase I scenario.
+
+### 11.1 Recommended sequencing
+
+```
+Phase B-backend foundational  (12 hr)  ──► Phase C   ─► Phase G (parallel after C)
+                                          │
+                                          ├──► Phase F (parallel after C-foundation)
+                                          │
+                                          └──► Phase D (after C; needs invitations)
+                                                       │
+                                                       └──► Phase E (after D + sessions backend)
+                                                                    │
+                                                                    └──► Phase H (after C; sessions optional but cleaner)
+                                                                                  │
+                                                                                  └──► Phase I
+
+Total v1: ~88 frontend hours + ~42 backend hours + ~7 backend test hours
+        = ~137 hours = ~17 engineer-days end-to-end if sequenced.
+        With aggressive parallelism (D + F + G after C + B-foundation done):
+        ~12-14 engineer-days.
+```
+
+### 11.2 The minimum viable demo
+
+If "shippable Team & Access" matters more than full v1, **the minimum useful slice is Phase B-backend-foundational + Phase C + Phase F**:
+
+- Members list / detail / role-change works end-to-end.
+- Audit log with filters + CSV export works end-to-end.
+- ~25 hours frontend + ~14 hours backend + ~3 hours tests = ~42 hours total = ~5 engineer-days.
+
+This is the **demo-able state** — closes the Team & Access ghost-feature gap from the state-of-system audit (commit `f135aba9`) and gives an Enterprise customer 80 % of what they need.
+
+Phases D-I are then incremental ships.
+
+---
+
+## 12. Risks + assumptions
+
+This section names what could go wrong, what we're assuming that might not hold, and where the design has weak points worth revisiting after Phase C delivers something concrete.
+
+### 12.1 Top 5 risks (ranked by likelihood × impact)
+
+#### R1 — Multi-tenancy migration is harder than 16 hours
+
+**Likelihood:** medium. **Impact:** high (delays first multi-customer launch).
+
+§ 7.6 estimates 16 hours ±6. That estimate assumes:
+- The `@require_tenant_scope` SQLAlchemy session event listener works as specified without surprising perf regressions on every query.
+- IP allowlist `before_request` hook ordering with rate limiter / Sentry scrubber doesn't conflict.
+- All ~60 IAM-related queries can be located via grep + each updated independently.
+
+Realistically the `default` tenant backfill is fine but the code-path refactor through every IAM endpoint can surface concurrency, transaction-boundary, and test-isolation issues that double the estimate. **Mitigation:** treat the 16 hr as P50; budget 2 days, plan for 3.
+
+#### R2 — Session blocklist hot path performance
+
+**Likelihood:** medium. **Impact:** medium.
+
+The `token_in_blocklist_loader` callback runs on every authenticated request. A naive implementation does a `SELECT 1 FROM issued_tokens WHERE jti = ? AND revoked_at IS NOT NULL` per request. With 10 Gunicorn workers + 100 RPS that's 1000 queries/sec on a small column.
+
+**Mitigation:** materialised in-memory cache (LRU, TTL 60 s) keyed on jti, populated on first miss. PLB-3 already proved Redis is in scope for shared state; the same Redis can host the blocklist cache cleanly. **Phase E click-through MUST include load-perf check** — sustained 50 RPS for 30 s with no p95 latency regression.
+
+#### R3 — SSO test connection takes longer than 4 hours
+
+**Likelihood:** high. **Impact:** medium (delays Phase H, not v1 overall).
+
+§ 8.5 estimates SSO3 at 4 hours ±2 with low confidence. SAML cert validation in particular has a tail of edge cases (algorithm support, intermediate cert chains, time-skew tolerance). The realistic scenario is:
+
+- 4 hours for the happy path (well-formed metadata, valid cert).
+- + 4 hours for "real-world" edge cases the click-through surfaces.
+- + 2 hours for documentation of which IdPs are explicitly supported vs untested.
+
+**Mitigation:** ship Phase H with SAML test-connection that explicitly lists "Tested with: Okta, OneLogin" and adds others on demand. Don't try to be exhaustive in v1.
+
+#### R4 — Polish Pass 1 never happens
+
+**Likelihood:** medium-high. **Impact:** low (affects polish, not function).
+
+The visual upgrade (§ 2.2) introduces tokens.js + new primitives. Other modules opt-in over time. Realistically, "over time" can mean "never" without a forcing function — every existing page works, so there's no urgency.
+
+**Mitigation:** schedule Polish Pass 1 as a fixed calendar slot (e.g. 2 days at end of Phase I) rather than open-ended. Concretely, within Phase I close, list 5 highest-traffic pages (Findings, Devices, Risk Score, Events Feed, Settings) for migration. Settings is highest priority because it shares visual real estate with Team & Access.
+
+#### R5 — Click-through verification fatigue
+
+**Likelihood:** medium. **Impact:** medium (rule erosion).
+
+The new "Tested vs Complete" rule requires a human to click every UI element on every phase. § 10.3 has 7 click-through scenarios with 50+ steps total. A solo developer (the user) doing this through 7 phases over 2-3 weeks will face the temptation to skip steps or merge phases.
+
+**Mitigation:** the closure report template in § 10.4 makes skipped steps visible. If a phase ships without a click-through report, treat as TESTED, not COMPLETE. The state-of-system audit (`verification/state-of-system/REPORT-2026-04-28.md`) should be re-run after v1 ships to verify nothing regressed under fatigue.
+
+**Secondary mitigation:** consider Playwright/Cypress E2E tests for the click-through scripts in § 10.3. Estimated: 2-3 hours per phase = 14-21 hours total to fully automate the click-throughs. Not in v1 scope; flagged for Polish Pass 1 / v1.1.
+
+### 12.2 Lower-risk concerns
+
+#### R6 — Audit log explosion at scale
+
+The audit log writes one row per state-changing action. For an Enterprise tenant with 100 admins and 1000s of role changes / scans / events per day, the table grows fast. After 12 months it could be 10M+ rows.
+
+**Current state:** no retention policy. **Phase B does not address retention.** Recommendation: ship a follow-up task post-v1 to add a `retention_days` field on `tenant_policy` (default 365) + a Celery task that deletes audit rows older than retention. Most compliance frameworks accept 1-7 year retention; default 1 year is reasonable.
+
+#### R7 — Email delivery from invitations cycles
+
+If SMTP is configured but the recipient mail server greylists or bounces, the invitation looks "sent" to the inviter but never arrives. AIPET X today has no delivery-confirmation mechanism.
+
+**Phase B does not address delivery confirmation.** Mitigation: the `delivery_status` field on the response (per § 6.3.1) covers the local `app.email_enabled=False` case but not remote bounce. Flag for v1.1 to add a webhook / status-checker / retry queue.
+
+#### R8 — Default role lock can be too rigid
+
+The spec locks owner/admin/analyst/viewer from editing or deleting (§ 6.2.3, § 6.2.4). An Enterprise customer might legitimately want to remove `terminal:use` from `analyst` because their org policy forbids in-browser shells.
+
+**Mitigation:** v1 stance is intentional rigidity. v1.1 could ship "tenant-overrides default-role permissions" — a per-tenant overrides table. Flag for v1.1.
+
+#### R9 — Email and `User.organisation` confusion
+
+`User.organisation` is a free-text string today (per Phase A § 2). Users register with an empty organisation; some have `Acme Corp`. When multi-tenancy lands, the `organisation` field becomes the candidate tenant slug — but it's currently nullable + unique-string and customer-controlled.
+
+**Mitigation:** during multi-tenancy migration (§ 7), map `User.organisation` → existing tenant via a `tenants(slug)` lookup; users with NULL organisation get assigned to a `default` tenant; users with the same `organisation` string get assigned to the same tenant. **There is a corner case** where two users typed `acme corp` and `Acme Corp` (case mismatch) and now share a tenant ambiguously. Migration script must normalise + dedupe + present operator with collision report before applying.
+
+#### R10 — Backwards compat on existing API consumers
+
+Phase A surfaced that `enterprise_rbac/` exists as a separate module (4 routes at `/api/enterprise-rbac/*`). Phase B does NOT touch it. Customers who happen to be using `enterprise_rbac/` think they're using "Enterprise RBAC + SSO" (the misleading name). They aren't — they're using a posture assessment module that is unrelated to actual RBAC.
+
+**Phase B does not consolidate or rename.** Tracked in CLAUDE.md "Mis-claimed Features". The risk is that a future customer who relies on `/api/enterprise-rbac/*` notices when we eventually rename. Mitigation: mark the rename as a v2 task with a 6-month deprecation notice when it happens; v1 leaves the surface alone.
+
+### 12.3 Assumptions that might not hold
+
+| Assumption | If wrong, what changes |
+|---|---|
+| Solo developer pace remains ~6 productive hours/day | Total v1 timeline shifts (~17 days at 6 hr/day = ~3 weeks calendar) |
+| The PLB-4 SMTP wiring stays functional | Invitations break; UI displays the `app.email_enabled=False` banner; copy-link fallback works |
+| `cryptography` is available without new package install (currently transitive via bcrypt) | SSO1 client_secret encryption needs explicit dependency add; +1 hour |
+| `defusedxml` is acceptable as a new dep | SSO3 either uses the dep or vendors a 50-line XML parser inline; +2 hours if vendoring |
+| The 22 user flows in § 4 cover every UI-visible behaviour | Some tab-switching / modal-cascading edge case surfaces during click-through; design revision required |
+| The user has access to a real SAML IdP for Phase H click-through | Use samltest.id (free public test IdP); flagged in § 10.3 |
+| A second user account can be created for click-through (different from test@aipet.io / byallew@gmail.com) | Phase D click-through creates one and removes it; if cleanup fails, the third account is permanent in dev DB |
+| 2FA enrolment can ship in v1.1 without invalidating v1 banner | The v1 banner says "Enrol within N days" but enrolment doesn't exist; if v1.1 slips beyond N days, users see a banner that nothing can resolve |
+| Click-through verification is the user's responsibility | If the user delegates click-through, the closure report needs to identify the actor explicitly (template § 10.4 includes this field) |
+
+### 12.4 Where the design has weak points worth revisiting after Phase C
+
+**Re-examine after Phase C ships and we learn:**
+
+1. The `useApi` hook + `ToastContext` patterns. § 5.1 introduces them. They might be over-engineered for AIPET X's prop-drilling-but-works status quo. If Phase C feels heavy, consider keeping prop drilling for v1 and migrating in v1.1.
+
+2. The Drawer-vs-Modal choice for member detail. § 4.2 says Drawer; some users find drawers disorienting on small laptops. After Phase C, if click-through reveals usability issues, consider Modal-instead.
+
+3. The "type the email to confirm" pattern for Remove (§ 4.7). This is a strong industry pattern (GitHub, Stripe) but adds friction. If admins complain in click-through, consider making it optional (e.g. one-click remove for non-owner members; type-to-confirm only for owners).
+
+4. The default role grants for `iam:read` and `policy:read`. § 3.3 grants these to all four default roles. After Phase C, if customers say "viewers shouldn't see the audit log button at all", make the gate stricter and demote the permission grants.
+
+5. The decision to put 2FA enforcement behind a "warns but doesn't enforce" v1 flag. § 4.17 makes this explicit. If customers in v1 expect actual enforcement, the v1.1 timeline becomes urgent.
+
+### 12.5 Risk-adjusted v1 timeline
+
+| Estimate | Hours |
+|---|---|
+| Optimistic (no risk mitigations triggered) | 88 frontend + 42 backend = **130 hours** |
+| Realistic (R1 doubles, R2 + R3 land their P75, R5 fatigue costs 5 hr) | **~155 hours** |
+| Pessimistic (R1 worst case + R3 worst case + R5 forces re-runs) | **~190 hours** |
+
+**Recommended budget for v1: 160 hours / 20 engineer-days at a 6 hr/day solo pace = ~4 calendar weeks.**
+
+The MVP demo path (§ 11.2 — B-foundational + Phase C + Phase F) is **42 hours / ~7 days** and is recommended as the first ship target so a working Team & Access exists end-to-end before the long tail of D-E-G-H-I phases.
+
+---
+
+*[End of Phase B design specification.]*
+
