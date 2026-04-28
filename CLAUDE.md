@@ -69,6 +69,8 @@ A full state-of-system inventory was performed on 2026-04-28 after the Team & Ac
 
 **Evidence:** `verification/state-of-system/01-claims-manifest.md`, `verification/state-of-system/02-verification-results.md`, `verification/state-of-system/REPORT-2026-04-28.md`.
 
+**Team & Access follow-up F1 closed (2026-04-28):** `seed_default_roles()` was imported at `app_cloud.py:66` but never invoked, leaving the DB with 1 of 4 roles and 0 of 10 permissions. Wired into the existing `with app.app_context()` startup block next to the MITRE seed; idempotent across restarts; pinned by 2 pytest cases (`tests/test_iam_seed.py`). DB now seeded 4 roles + 10 permissions on app boot. Endpoints still 403 by default until users are role-assigned (separate follow-up). Phase A backend audit + F1 closure: `verification/team-access/PHASE-A-backend-audit-2026-04-28.md`. Fourth wire-not-connected bug fixed this week (the others: TeamAccessPage, flask-migrate, PLB-9 NSSM AppExit).
+
 **Headline counts** (across ~103 distinct claims):
 
 | Classification | Count | Meaning |

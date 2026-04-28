@@ -460,3 +460,33 @@ Tightest viable backend slice for a usable Team & Access UI in Phase C v1:
 | Recommended Phase B v1 backend additions | **9 items** (F1, F2, F3, F4, F5, F6, I1, I2, I3) |
 | Estimated Phase B v1 effort | ~12-16 hours backend + 4-6 hours tests |
 | Recommended Phase B v1.1 backend additions | **8 items** (S1, S2, S3, F7, SSO1, H1, H2, H3, H4 — see § 7) |
+
+
+---
+
+## F1 Closure — 2026-04-28
+
+**Commit:** `<F1_SHA>` (filled at push time)
+
+**Fix:** `seed_default_roles()` invocation added inside the existing `with app.app_context()` block in `dashboard/backend/app_cloud.py`, immediately after the MITRE seed try/except, mirroring its pattern (try/except + warning log; same indentation).
+
+**Before/after counts (live PostgreSQL):**
+
+| Table | Before | After |
+|---|---|---|
+| `roles` | 1 (owner only) | **4** (owner, admin, analyst, viewer) |
+| `permissions` | 0 | **10** (scan:create, scan:read, findings:read, reports:read, reports:create, billing:manage, iam:manage, audit:read, sso:manage, terminal:use) |
+| `user_roles` | 0 | 0 (unchanged — F1 does not auto-assign; that decision is F-followup) |
+
+**Idempotency confirmed:** Gunicorn HUP-reloaded twice. Counts after second restart identical (4 / 10), no duplicate-key errors, no warning logged. The function's `filter_by(name=...).first()` guards before each insert do their job.
+
+**Tests added:** `tests/test_iam_seed.py` — 2 tests (fresh-seed shape, idempotency). Pytest delta: 498 → **500** (2 new + zero regressions in existing 498). 3 skipped, unchanged.
+
+**Authorisation behaviour after F1:** the 6/8 IAM endpoints that returned 403 in Phase A still return 403 for the existing two users (byallew@gmail.com, test@aipet.io) — **by design**. They have no `user_roles` row. Assigning the `owner` role to either user (out of scope for F1; tracked as a follow-up) would unblock all six endpoints via the `if 'owner' in role_names` bypass at `iam/routes.py:53`. The wire from `seed_default_roles` is now connected; the wire from `register/onboarding → first-user-gets-owner` is the next link.
+
+**What this fix is and isn't:**
+
+- IS: the one-line wire that F1 was scoped to. Function defined ✅, function imported ✅, function now invoked ✅, idempotency proven ✅, test pinned ✅.
+- ISN'T: an auto-grant of owner to existing users; tenant scoping; role-permission junction population (the `role_permissions` association table is still empty — owner bypass works because the decorator special-cases the role *name*, not because owner has permissions attached).
+
+**This is the fourth wire-not-connected bug fixed this week.** The other three: TeamAccessPage (component never written, twelve-day latent crash), `flask-migrate` `Migrate(app,db)` (no-op `flask db` CLI registration, lifetime), PLB-9 NSSM `AppExit 1 Stop` (silent fallback to Restart, 96-hour latent watchdog defeat). All four shared the same pattern: code that *referred to* the wired thing existed and looked correct, but the actual invocation was missing or syntactically invalid. The new "Tested vs Complete" rule (`d0d3bd81`) was adopted in response.

@@ -488,6 +488,11 @@ def create_app(config_name="development"):
         except Exception as _seed_exc:
             app.logger.warning("MITRE catalog seed skipped: %s", _seed_exc)
 
+        try:
+            seed_default_roles()
+        except Exception as _iam_seed_exc:
+            app.logger.warning("IAM default roles seed skipped: %s", _iam_seed_exc)
+
     # ── Error handlers ────────────────────────────────────
     @app.errorhandler(429)
     def ratelimit_handler(e):
