@@ -1,0 +1,72 @@
+=== Phase 3: clean slate ===
+DROP DATABASE
+CREATE DATABASE
+
+=== upgrade head (round 1) ===
+/home/byall/AIPET/venv/lib/python3.12/site-packages/authlib/_joserfc_helpers.py:8: AuthlibDeprecationWarning: authlib.jose module is deprecated, please use joserfc instead.
+It will be compatible before version 2.0.0.
+  from authlib.jose import ECKey
+2026-04-28 01:53:25 INFO     alembic.runtime.migration Context impl PostgresqlImpl.
+2026-04-28 01:53:25 INFO     alembic.runtime.migration Will assume transactional DDL.
+2026-04-28 01:53:25 INFO     alembic.runtime.migration Running upgrade  -> 68d67bfc6697, baseline schema
+
+=== Confirm 166 tables + alembic_version ===
+ tables 
+--------
+    167
+(1 row)
+
+ version_num  
+--------------
+ 68d67bfc6697
+(1 row)
+
+
+=== Diff vs live (should be 27 lines, all alembic-only) ===
+27 /tmp/p3_diff.txt
+
+=== downgrade base ===
+/home/byall/AIPET/venv/lib/python3.12/site-packages/authlib/_joserfc_helpers.py:8: AuthlibDeprecationWarning: authlib.jose module is deprecated, please use joserfc instead.
+It will be compatible before version 2.0.0.
+  from authlib.jose import ECKey
+2026-04-28 01:54:23 INFO     alembic.runtime.migration Context impl PostgresqlImpl.
+2026-04-28 01:54:23 INFO     alembic.runtime.migration Will assume transactional DDL.
+2026-04-28 01:54:23 INFO     alembic.runtime.migration Running downgrade 68d67bfc6697 -> , baseline schema
+
+=== Confirm DB is empty (should be 0 user tables; alembic_version may remain depending on alembic version) ===
+               List of relations
+ Schema |      Name       | Type  |    Owner    
+--------+-----------------+-------+-------------
+ public | alembic_version | table | aipet_admin
+(1 row)
+
+ version_num 
+-------------
+(0 rows)
+
+
+=== upgrade head (round 2 — idempotency check) ===
+/home/byall/AIPET/venv/lib/python3.12/site-packages/authlib/_joserfc_helpers.py:8: AuthlibDeprecationWarning: authlib.jose module is deprecated, please use joserfc instead.
+It will be compatible before version 2.0.0.
+  from authlib.jose import ECKey
+2026-04-28 01:55:39 INFO     alembic.runtime.migration Context impl PostgresqlImpl.
+2026-04-28 01:55:39 INFO     alembic.runtime.migration Will assume transactional DDL.
+2026-04-28 01:55:39 INFO     alembic.runtime.migration Running upgrade  -> 68d67bfc6697, baseline schema
+
+=== Confirm 167 tables again (166 + alembic_version) ===
+ count 
+-------
+   167
+(1 row)
+
+ version_num  
+--------------
+ 68d67bfc6697
+(1 row)
+
+
+=== Diff vs live again (should still be 27 lines) ===
+27 /tmp/p3_diff_round2.txt
+
+=== Drop the test DB ===
+DROP DATABASE
