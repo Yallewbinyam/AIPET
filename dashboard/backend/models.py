@@ -18,6 +18,11 @@ class User(db.Model):
     created_at             = db.Column(db.DateTime,    default=lambda: datetime.now(timezone.utc))
     last_login             = db.Column(db.DateTime,    nullable=True)
     is_active              = db.Column(db.Boolean,     default=True)
+    # Soft-remove timestamp (Phase B § 6.1.5). NULL = active or
+    # disabled-but-present; non-NULL = removed via /api/iam/users/
+    # <id>/remove. Removed users keep their audit history; their
+    # outstanding JWTs are revoked atomically with the soft-remove.
+    removed_at             = db.Column(db.DateTime,    nullable=True, index=True)
     stripe_customer_id     = db.Column(db.String(100), unique=True, nullable=True)
     stripe_subscription_id = db.Column(db.String(100), unique=True, nullable=True)
     plan_expires_at        = db.Column(db.DateTime,    nullable=True)

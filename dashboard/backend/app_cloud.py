@@ -221,8 +221,40 @@ def create_app(config_name="development"):
 
     # Bind extensions to this app instance before first DB use.
     db.init_app(app)
-    JWTManager(app)
+    jwt_mgr = JWTManager(app)
     # Migrate(app, db) removed -- see header comment.
+
+    # JWT blocklist (Tier 1 v1 sessions infra). On every authenticated
+    # request flask-jwt-extended consults this callback; revoked
+    # tokens flip to 401 even before their expiry. A token with no
+    # row in `issued_tokens` is treated as VALID -- this is the
+    # graceful upgrade path for tokens that were issued before the
+    # blocklist existed (we don't kill live sessions on deploy).
+    #
+    # Performance: indexed lookup on issued_tokens.jti (unique).
+    # Phase B R2 calls out a Redis-backed cache as v2 hardening; at
+    # v1 row counts the per-request Postgres hit is acceptable.
+    @jwt_mgr.token_in_blocklist_loader
+    def _check_if_token_revoked(jwt_header, jwt_payload):
+        try:
+            from dashboard.backend.iam.models import IssuedToken
+            jti = jwt_payload.get("jti")
+            if not jti:
+                return False  # malformed token -- let JWT lib decide
+            row = IssuedToken.query.filter_by(jti=jti).first()
+            if row is None:
+                # Pre-blocklist token (or test-issued via
+                # create_access_token without going through login).
+                # Treat as valid -- graceful upgrade path.
+                return False
+            return bool(row.revoked)
+        except Exception:
+            # Belt-and-braces: any DB hiccup must NOT block auth
+            # everywhere. Fail open -- the auth path stays reachable;
+            # an attacker with a revoked token gets one extra
+            # request before the next attempt.
+            app.logger.exception("JWT blocklist check raised; failing open")
+            return False
 
     # Email backend (PLB-4) -- Flask-Mail wired with graceful skip-if-no-creds.
     # See dashboard/backend/observability/email_setup.py for the canonical
@@ -479,19 +511,31 @@ def create_app(config_name="development"):
         log_level=os.environ.get("LOG_LEVEL", "INFO")
     )
 
-    # Create tables and seed MITRE ATT&CK catalog
-    with app.app_context():
-        db.create_all()
-        try:
-            from dashboard.backend.mitre_attack.models import seed_catalog_from_dict
-            seed_catalog_from_dict()
-        except Exception as _seed_exc:
-            app.logger.warning("MITRE catalog seed skipped: %s", _seed_exc)
+    # Create tables and seed MITRE ATT&CK catalog.
+    #
+    # When alembic loads env.py it imports create_app for its
+    # side effect of registering all blueprints (so target_metadata
+    # sees every model). We do NOT want create_all() to fire in
+    # that path -- alembic owns schema. env.py sets the
+    # RUNNING_UNDER_ALEMBIC env var; honour it here. Also, when
+    # alembic targets a non-default DB via ALEMBIC_DATABASE_URL,
+    # create_all would otherwise hit DATABASE_URL (the live DB)
+    # and create tables there outside alembic's tracking -- a
+    # silent drift trap caught while shipping the issued_tokens
+    # migration (DuplicateTable error on the subsequent upgrade).
+    if os.environ.get("RUNNING_UNDER_ALEMBIC") != "1":
+        with app.app_context():
+            db.create_all()
+            try:
+                from dashboard.backend.mitre_attack.models import seed_catalog_from_dict
+                seed_catalog_from_dict()
+            except Exception as _seed_exc:
+                app.logger.warning("MITRE catalog seed skipped: %s", _seed_exc)
 
-        try:
-            seed_default_roles()
-        except Exception as _iam_seed_exc:
-            app.logger.warning("IAM default roles seed skipped: %s", _iam_seed_exc)
+            try:
+                seed_default_roles()
+            except Exception as _iam_seed_exc:
+                app.logger.warning("IAM default roles seed skipped: %s", _iam_seed_exc)
 
     # ── Error handlers ────────────────────────────────────
     @app.errorhandler(429)

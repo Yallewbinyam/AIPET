@@ -60,3 +60,31 @@ class SSOProvider(db.Model):
     metadata_url = db.Column(db.Text)
     enabled      = db.Column(db.Boolean, default=False)
     created_at   = db.Column(db.DateTime, default=datetime.utcnow)
+
+
+class IssuedToken(db.Model):
+    """JWT blocklist row written on every successful login. The
+    `token_in_blocklist_loader` callback in app_cloud.py consults
+    this table on every authenticated request -- a row with
+    revoked=True flips the JWT to invalid even if its expiry hasn't
+    elapsed. Tokens issued before this table existed (graceful
+    upgrade path) are absent from the table; the loader treats
+    "no row" as "valid" so live in-flight sessions are not killed
+    by deploy."""
+    __tablename__ = 'issued_tokens'
+    id            = db.Column(db.String(36), primary_key=True,
+                              default=lambda: str(uuid.uuid4()))
+    jti           = db.Column(db.String(36), unique=True,
+                              nullable=False, index=True)
+    user_id       = db.Column(db.Integer, db.ForeignKey('users.id'),
+                              nullable=False, index=True)
+    issued_at     = db.Column(db.DateTime,
+                              default=datetime.utcnow, nullable=False)
+    expires_at    = db.Column(db.DateTime, nullable=False)
+    revoked       = db.Column(db.Boolean, default=False, nullable=False)
+    revoked_at    = db.Column(db.DateTime, nullable=True)
+    revoked_by    = db.Column(db.Integer, db.ForeignKey('users.id'),
+                              nullable=True)
+    revoke_reason = db.Column(db.String(50), nullable=True)
+    # 'user.removed' | 'user.disabled' | 'manual.revoke' |
+    # 'session.bulk_revoke' | 'logout'

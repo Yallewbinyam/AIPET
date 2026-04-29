@@ -751,3 +751,390 @@ def test_enable_user_returns_404_for_unknown(client, flask_app, test_user):
     r = client.post("/api/iam/users/9999999/enable", headers=headers,
                     data=json.dumps({}))
     assert r.status_code == 404
+
+
+# =============================================================
+# Tier 1 v1 — sessions infra (IssuedToken blocklist) + remove +
+# restore. Phase B § 6.1.5/6.1.6 + § 8 S1/S2/S3.
+# =============================================================
+from datetime import datetime as _dt, timezone as _tz, timedelta as _td
+from flask_jwt_extended import create_access_token as _cat, decode_token as _decode
+from dashboard.backend.iam.models import IssuedToken as _IssuedToken
+from dashboard.backend.iam.routes import (
+    cleanup_expired_tokens as _cleanup_expired,
+)
+
+
+def _record_token_for(user, expires_in_minutes=15):
+    """Make a real JWT and an IssuedToken row pointing at it.
+    Returns (token_str, jti). Mirrors what auth.login does in
+    production but without going through HTTP. Conftest sets
+    JWT_ACCESS_TOKEN_EXPIRES=False so created tokens have no `exp`
+    claim; we synthesise expires_at locally to match the production
+    helper's far-future placeholder."""
+    token = _cat(identity=str(user.id),
+                 expires_delta=_td(minutes=expires_in_minutes))
+    decoded = _decode(token)
+    jti = decoded["jti"]
+    exp = decoded.get("exp")
+    if exp:
+        expires_at = _dt.fromtimestamp(exp, tz=_tz.utc)
+    else:
+        expires_at = _dt.now(_tz.utc) + _td(minutes=expires_in_minutes)
+    db.session.add(_IssuedToken(
+        jti        = jti,
+        user_id    = user.id,
+        issued_at  = _dt.now(_tz.utc),
+        expires_at = expires_at,
+        revoked    = False,
+    ))
+    db.session.commit()
+    return token, jti
+
+
+# --- IssuedToken model basic ---------------------------------------
+
+def test_issued_token_model_round_trip(flask_app, test_user):
+    """Insert + fetch + revoke + fetch again."""
+    _IssuedToken.query.filter_by(user_id=test_user.id).delete()
+    db.session.commit()
+
+    token, jti = _record_token_for(test_user, expires_in_minutes=15)
+    fetched = _IssuedToken.query.filter_by(jti=jti).first()
+    assert fetched is not None
+    assert fetched.user_id == test_user.id
+    assert fetched.revoked is False
+
+    fetched.revoked       = True
+    fetched.revoked_at    = _dt.now(_tz.utc)
+    fetched.revoke_reason = "manual.revoke"
+    db.session.commit()
+
+    re = _IssuedToken.query.filter_by(jti=jti).first()
+    assert re.revoked is True
+    assert re.revoke_reason == "manual.revoke"
+
+
+# --- Login records IssuedToken --------------------------------------
+
+def test_login_records_issued_token(client, flask_app, test_user):
+    """A successful POST /api/auth/login writes an IssuedToken
+    row whose jti matches the returned access token."""
+    _reset_limiter(flask_app)
+
+    # Ensure test_user has a known password we can log in with.
+    import bcrypt as _b
+    target = _create_user("login-records", plan="free")
+    target.password_hash = _b.hashpw(b"LoginRec123!",
+                                     _b.gensalt()).decode("utf-8")
+    db.session.commit()
+    try:
+        before = _IssuedToken.query.filter_by(user_id=target.id).count()
+        r = client.post(
+            "/api/auth/login",
+            data=json.dumps({"email": target.email,
+                             "password": "LoginRec123!"}),
+            headers={"Content-Type":    "application/json",
+                     "X-Forwarded-For": "10.42.8.1"},
+        )
+        assert r.status_code == 200, r.data
+        body = r.get_json()
+        token = body["token"]
+        decoded = _decode(token)
+        jti = decoded["jti"]
+
+        after = _IssuedToken.query.filter_by(user_id=target.id).count()
+        assert after == before + 1
+        row = _IssuedToken.query.filter_by(jti=jti).first()
+        assert row is not None
+        assert row.user_id == target.id
+        assert row.revoked is False
+    finally:
+        _delete_user(target)
+
+
+# --- Blocklist callback rejects revoked tokens ---------------------
+
+def test_blocklist_callback_rejects_revoked_token(client, flask_app, test_user):
+    """A token with IssuedToken.revoked=True returns 401 from any
+    @jwt_required endpoint. Pre-blocklist tokens (no row) keep
+    working -- that's the graceful upgrade path."""
+    _reset_limiter(flask_app)
+
+    target = _create_user("blocklist", plan="free")
+    try:
+        token, jti = _record_token_for(target)
+
+        # Token works now.
+        r1 = client.get(
+            "/api/iam/users/" + str(target.id),
+            headers={"Authorization": f"Bearer {token}"},
+        )
+        # Caller is target user; iam:manage required by detail
+        # handler. Without the owner role assignment, expect 403,
+        # NOT 401. That tells us the JWT was accepted (not blocklisted).
+        assert r1.status_code in (200, 403), r1.data
+
+        # Mark revoked.
+        row = _IssuedToken.query.filter_by(jti=jti).first()
+        row.revoked    = True
+        row.revoked_at = _dt.now(_tz.utc)
+        row.revoke_reason = "manual.revoke"
+        db.session.commit()
+
+        # Same endpoint, same token, now MUST be 401.
+        r2 = client.get(
+            "/api/iam/users/" + str(target.id),
+            headers={"Authorization": f"Bearer {token}"},
+        )
+        assert r2.status_code == 401, (
+            f"revoked token must 401, got {r2.status_code}: {r2.data}"
+        )
+    finally:
+        _IssuedToken.query.filter_by(user_id=target.id).delete()
+        db.session.commit()
+        _delete_user(target)
+
+
+def test_blocklist_callback_allows_pre_blocklist_token(client, flask_app, test_user):
+    """A token issued via create_access_token without an IssuedToken
+    row (the "pre-blocklist" case the graceful upgrade path
+    protects) is accepted by the blocklist callback as valid."""
+    _reset_limiter(flask_app)
+    target = _create_user("pre-blocklist", plan="free")
+    try:
+        token = _cat(identity=str(target.id))
+        # Crucially: NO IssuedToken row written.
+        r = client.get(
+            "/api/iam/users/" + str(target.id),
+            headers={"Authorization": f"Bearer {token}"},
+        )
+        # 200 (owner) or 403 (no role) both prove the JWT was
+        # accepted by the blocklist callback. We only fail on 401.
+        assert r.status_code != 401, r.data
+    finally:
+        _delete_user(target)
+
+
+# --- Remove: revokes tokens, audit, last-owner safety --------------
+
+def test_remove_user_revokes_all_tokens(client, flask_app, test_user):
+    """POST /remove flips removed_at + is_active AND mass-revokes
+    every outstanding IssuedToken row for the target."""
+    _reset_limiter(flask_app)
+    headers = _owner_headers(flask_app, test_user)
+
+    target = _create_user("remove-revoke", plan="free")
+    try:
+        # Plant 3 tokens for this user.
+        jtis = []
+        for _ in range(3):
+            _, jti = _record_token_for(target)
+            jtis.append(jti)
+
+        r = client.post(
+            f"/api/iam/users/{target.id}/remove",
+            headers=headers,
+            data=json.dumps({"reason": "test-revoke"}),
+        )
+        assert r.status_code == 200, r.data
+        body = r.get_json()
+        assert body["removed_at"] is not None
+        assert body["is_active"] is False
+
+        # All three tokens must now be revoked.
+        for jti in jtis:
+            row = _IssuedToken.query.filter_by(jti=jti).first()
+            assert row.revoked is True
+            assert row.revoke_reason == "user.removed"
+            assert row.revoked_at is not None
+
+        # Audit row written with sessions_revoked count.
+        audit = AuditLog.query.filter_by(
+            resource=f"user:{target.id}",
+            action="user.removed",
+        ).first()
+        assert audit is not None
+        assert audit.node_meta.get("sessions_revoked") == 3
+    finally:
+        _IssuedToken.query.filter_by(user_id=target.id).delete()
+        db.session.commit()
+        _delete_user(target)
+
+
+def test_remove_user_idempotent(client, flask_app, test_user):
+    """Calling remove twice -> 200 each time, exactly ONE audit row,
+    no second mass-revoke pass."""
+    _reset_limiter(flask_app)
+    headers = _owner_headers(flask_app, test_user)
+    target = _create_user("remove-idemp", plan="free")
+    try:
+        r1 = client.post(
+            f"/api/iam/users/{target.id}/remove",
+            headers=headers,
+            data=json.dumps({"reason": "first"}),
+        )
+        assert r1.status_code == 200
+        r2 = client.post(
+            f"/api/iam/users/{target.id}/remove",
+            headers=headers,
+            data=json.dumps({"reason": "second"}),
+        )
+        assert r2.status_code == 200
+
+        audit = AuditLog.query.filter_by(
+            resource=f"user:{target.id}",
+            action="user.removed",
+        ).all()
+        assert len(audit) == 1, (
+            f"expected 1 user.removed audit row across 2 calls; "
+            f"got {len(audit)}"
+        )
+    finally:
+        _IssuedToken.query.filter_by(user_id=target.id).delete()
+        db.session.commit()
+        _delete_user(target)
+
+
+def test_remove_blocks_last_active_owner(client, flask_app, test_user):
+    """test_user is the only active+present owner. /remove must 400."""
+    _reset_limiter(flask_app)
+    headers = _owner_headers(flask_app, test_user)
+
+    # Sweep any other owners away.
+    owner_role = Role.query.filter_by(name="owner").first()
+    UserRole.query.filter(
+        UserRole.role_id  == owner_role.id,
+        UserRole.user_id  != test_user.id,
+    ).delete()
+    db.session.commit()
+
+    r = client.post(
+        f"/api/iam/users/{test_user.id}/remove",
+        headers=headers,
+        data=json.dumps({"reason": "should be blocked"}),
+    )
+    assert r.status_code == 400, r.data
+    body = r.get_json()
+    assert body["error"] == "last_owner"
+
+
+def test_remove_user_returns_404_for_unknown(client, flask_app, test_user):
+    _reset_limiter(flask_app)
+    headers = _owner_headers(flask_app, test_user)
+    r = client.post("/api/iam/users/9999999/remove",
+                    headers=headers, data=json.dumps({}))
+    assert r.status_code == 404
+
+
+# --- Restore -------------------------------------------------------
+
+def test_restore_user_happy_path(client, flask_app, test_user):
+    """A removed user can be restored. removed_at -> NULL,
+    is_active -> True, audit row written. Pre-existing IssuedToken
+    rows stay revoked (secure default; restored user must log in
+    fresh)."""
+    _reset_limiter(flask_app)
+    headers = _owner_headers(flask_app, test_user)
+
+    target = _create_user("restore-happy", plan="free")
+    try:
+        # Plant a token, remove the user, capture the token jti.
+        _, jti = _record_token_for(target)
+        client.post(
+            f"/api/iam/users/{target.id}/remove",
+            headers=headers,
+            data=json.dumps({"reason": "set up"}),
+        )
+        # Confirm token is revoked.
+        assert _IssuedToken.query.filter_by(jti=jti).first().revoked is True
+
+        # Restore.
+        r = client.post(
+            f"/api/iam/users/{target.id}/restore",
+            headers=headers,
+            data=json.dumps({"reason": "happy-path restore"}),
+        )
+        assert r.status_code == 200, r.data
+        body = r.get_json()
+        assert body["removed_at"] is None
+        assert body["is_active"] is True
+
+        # The old token MUST stay revoked -- secure default.
+        assert _IssuedToken.query.filter_by(jti=jti).first().revoked is True
+
+        # Audit row written.
+        audit = AuditLog.query.filter_by(
+            resource=f"user:{target.id}",
+            action="user.restored",
+        ).first()
+        assert audit is not None
+        assert audit.node_meta == {"reason": "happy-path restore"}
+    finally:
+        _IssuedToken.query.filter_by(user_id=target.id).delete()
+        db.session.commit()
+        _delete_user(target)
+
+
+def test_restore_already_active_returns_400(client, flask_app, test_user):
+    """Calling /restore on a non-removed user returns 400."""
+    _reset_limiter(flask_app)
+    headers = _owner_headers(flask_app, test_user)
+    target = _create_user("restore-no-op", plan="free")
+    try:
+        r = client.post(
+            f"/api/iam/users/{target.id}/restore",
+            headers=headers,
+            data=json.dumps({"reason": "no-op safety"}),
+        )
+        assert r.status_code == 400, r.data
+        body = r.get_json()
+        assert body["error"] == "not_removed"
+    finally:
+        _delete_user(target)
+
+
+def test_restore_user_returns_404_for_unknown(client, flask_app, test_user):
+    _reset_limiter(flask_app)
+    headers = _owner_headers(flask_app, test_user)
+    r = client.post("/api/iam/users/9999999/restore",
+                    headers=headers, data=json.dumps({}))
+    assert r.status_code == 404
+
+
+# --- cleanup_expired_tokens helper ---------------------------------
+
+def test_cleanup_expired_tokens(flask_app, test_user):
+    """Helper deletes expired non-revoked rows; keeps revoked rows."""
+    _IssuedToken.query.filter_by(user_id=test_user.id).delete()
+    db.session.commit()
+
+    now = _dt.now(_tz.utc)
+
+    # Three rows: one active (not expired), one expired+not-revoked
+    # (should be deleted), one expired+revoked (kept).
+    db.session.add(_IssuedToken(
+        jti="cleanup-active-" + _uuid_iam.uuid4().hex[:8],
+        user_id=test_user.id, issued_at=now,
+        expires_at=now + _td(minutes=15), revoked=False,
+    ))
+    db.session.add(_IssuedToken(
+        jti="cleanup-expired-noerev-" + _uuid_iam.uuid4().hex[:8],
+        user_id=test_user.id, issued_at=now - _td(hours=2),
+        expires_at=now - _td(hours=1), revoked=False,
+    ))
+    db.session.add(_IssuedToken(
+        jti="cleanup-expired-revoked-" + _uuid_iam.uuid4().hex[:8],
+        user_id=test_user.id, issued_at=now - _td(hours=2),
+        expires_at=now - _td(hours=1), revoked=True,
+        revoked_at=now - _td(hours=1, minutes=30),
+        revoke_reason="manual.revoke",
+    ))
+    db.session.commit()
+
+    deleted = _cleanup_expired()
+    assert deleted >= 1
+    remaining = _IssuedToken.query.filter_by(user_id=test_user.id).all()
+    # Active + revoked-expired remain. Non-revoked-expired gone.
+    revoke_states = sorted(r.revoked for r in remaining)
+    assert revoke_states == [False, True], remaining

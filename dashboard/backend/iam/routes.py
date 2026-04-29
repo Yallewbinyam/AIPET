@@ -1,10 +1,12 @@
 import uuid
-from datetime import datetime
+from datetime import datetime, timezone
 from functools import wraps
 from flask import Blueprint, request, jsonify, Response
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from dashboard.backend.models import db, User
-from dashboard.backend.iam.models import Role, Permission, UserRole, AuditLog, SSOProvider
+from dashboard.backend.iam.models import (
+    Role, Permission, UserRole, AuditLog, SSOProvider, IssuedToken,
+)
 
 iam_bp = Blueprint('iam', __name__, url_prefix='/api/iam')
 
@@ -256,21 +258,25 @@ def _serialize_member(user):
         # NOT NULL constraint); coalesce to True for any historical
         # rows that may have NULL.
         'is_active':    True if user.is_active is None else bool(user.is_active),
+        'removed_at':   user.removed_at.isoformat() if user.removed_at else None,
         'roles':        [{'id': r.id, 'name': r.name} for r in roles],
     }
 
 
 def _is_last_owner(target_user_id):
-    """True iff target is the only ACTIVE owner. We count active
-    owners (not all owners) because the safety net's purpose is
-    preventing platform lockout -- a disabled user retains their
-    owner role assignment but cannot use it without first being
-    re-enabled. With a literal "only user with the role" check we
-    once disabled both owners in sequence (each was non-last by
-    role-assignment count) and ended up with zero active owners
-    -- the exact failure mode this gate was meant to prevent.
-    Active = is_active True OR NULL (the column is nullable; NULL
-    is treated as active, matching the rest of the codebase)."""
+    """True iff target is the only owner who is BOTH active AND
+    not soft-removed. We count active+present owners (not all
+    role-assigned owners) because the safety net's purpose is
+    preventing platform lockout -- a disabled or removed user
+    retains their owner role assignment but cannot use it without
+    first being re-enabled / restored. A literal "only user with
+    the role" check would let admins disable both owners in
+    sequence and end up with zero active owners; this widened
+    check protects against that.
+
+    Active = is_active True OR NULL (the column is nullable;
+    NULL is treated as active, matching the rest of the codebase).
+    Present = removed_at IS NULL (soft-removed users are excluded)."""
     owner_role = Role.query.filter_by(name='owner').first()
     if owner_role is None:
         return False  # 'owner' not seeded; nothing to protect
@@ -287,9 +293,28 @@ def _is_last_owner(target_user_id):
             UserRole.role_id == owner_role.id,
             User.id != target_user_id,
             db.or_(User.is_active.is_(True), User.is_active.is_(None)),
+            User.removed_at.is_(None),
         )
         .count())
     return other_active_owners == 0
+
+
+def cleanup_expired_tokens():
+    """Delete IssuedToken rows whose JWT has already expired AND
+    were never explicitly revoked. Revoked rows stay so the
+    blocklist can keep saying "no" past the natural expiry until
+    the JWT signature itself stops being trusted.
+
+    Not auto-scheduled in v1 -- run manually or wire a Celery beat
+    job in v2. Returns the deletion row count for caller-side
+    logging."""
+    now = datetime.now(timezone.utc)
+    deleted = (IssuedToken.query
+               .filter(IssuedToken.expires_at < now,
+                       IssuedToken.revoked.is_(False))
+               .delete(synchronize_session=False))
+    db.session.commit()
+    return deleted
 
 
 @iam_bp.route('/users/<int:user_id>', methods=['GET'])
@@ -364,6 +389,104 @@ def enable_user(user_id):
     log_action(
         get_jwt_identity(),
         'user.enabled',
+        resource=f'user:{user_id}',
+        details={'reason': reason} if reason else None,
+    )
+    return jsonify(_serialize_member(user)), 200
+
+
+@iam_bp.route('/users/<int:user_id>/remove', methods=['POST'])
+@require_permission('iam:manage')
+def remove_user(user_id):
+    """Soft-remove a user. is_active flips to False, removed_at
+    stamped, and ALL outstanding IssuedToken rows for the user
+    are revoked atomically with revoke_reason='user.removed' so
+    the user's access cuts immediately rather than on JWT expiry.
+    Audit row is written. Idempotent: if already removed, 200 +
+    no extra side effects. Last-owner safety net per
+    _is_last_owner."""
+    user = db.session.get(User, user_id)
+    if user is None:
+        return jsonify({'error': 'user_not_found',
+                        'message': f'No user with id={user_id}'}), 404
+
+    # Idempotent: already removed.
+    if user.removed_at is not None:
+        return jsonify(_serialize_member(user)), 200
+
+    if _is_last_owner(user_id):
+        return jsonify({
+            'error':   'last_owner',
+            'message': 'Cannot remove the last owner of the platform.',
+        }), 400
+
+    data       = request.get_json(silent=True) or {}
+    reason     = data.get('reason')
+    actor_id   = get_jwt_identity()
+    now        = datetime.now(timezone.utc)
+
+    # Single transaction: flip flags + mass-revoke tokens.
+    user.is_active  = False
+    user.removed_at = now
+    db.session.add(user)
+
+    sessions_revoked = (
+        IssuedToken.query
+        .filter(IssuedToken.user_id == user_id,
+                IssuedToken.revoked.is_(False))
+        .update({
+            'revoked':       True,
+            'revoked_at':    now,
+            'revoked_by':    int(actor_id) if actor_id is not None else None,
+            'revoke_reason': 'user.removed',
+        }, synchronize_session=False)
+    )
+    db.session.commit()
+
+    log_action(
+        actor_id,
+        'user.removed',
+        resource=f'user:{user_id}',
+        details={
+            'reason':           reason,
+            'sessions_revoked': sessions_revoked,
+            'email':            user.email,    # denormalised for posterity
+        },
+    )
+    return jsonify(_serialize_member(user)), 200
+
+
+@iam_bp.route('/users/<int:user_id>/restore', methods=['POST'])
+@require_permission('iam:manage')
+def restore_user(user_id):
+    """Undo a soft-remove. Sets removed_at to NULL and is_active
+    to True. Does NOT un-revoke the user's pre-existing
+    IssuedToken rows; they must log in again to get a fresh
+    token. This is the secure default -- restored access starts
+    a new session, not a resurrected old one. Returns 400 if the
+    target is not currently removed (no-op safety)."""
+    user = db.session.get(User, user_id)
+    if user is None:
+        return jsonify({'error': 'user_not_found',
+                        'message': f'No user with id={user_id}'}), 404
+
+    if user.removed_at is None:
+        return jsonify({
+            'error':   'not_removed',
+            'message': 'Cannot restore a user that has not been removed.',
+        }), 400
+
+    data   = request.get_json(silent=True) or {}
+    reason = data.get('reason')
+
+    user.removed_at = None
+    user.is_active  = True
+    db.session.add(user)
+    db.session.commit()
+
+    log_action(
+        get_jwt_identity(),
+        'user.restored',
         resource=f'user:{user_id}',
         details={'reason': reason} if reason else None,
     )
