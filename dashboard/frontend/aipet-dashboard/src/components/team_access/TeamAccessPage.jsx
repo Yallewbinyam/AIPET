@@ -1,17 +1,20 @@
 import React, { useState } from "react";
-import { Users, Shield, FileText, Mail } from "lucide-react";
+import { Users, Shield, FileText, Mail, KeyRound } from "lucide-react";
 import { COLORS, TYPO, SPACE, RADIUS, MOTION } from "../../design/tokens";
 import MembersTab from "./MembersTab";
 import RolesTab from "./RolesTab";
 import AuditTab from "./AuditTab";
 import InvitationsTab from "./InvitationsTab";
+import PermissionsTab from "./PermissionsTab";
 
 // Tab id -> { label, Icon, Component }. Matters in two places:
 // the tab bar's render order and the TeamAccessPage state's
-// default. Members ships first; the rest are placeholders.
+// default. Members + Invitations are write surfaces; Roles,
+// Audit, and Permissions are read-only.
 const TABS = [
   { id: "members",     label: "Members",     Icon: Users,    Component: MembersTab },
   { id: "roles",       label: "Roles",       Icon: Shield,   Component: RolesTab },
+  { id: "permissions", label: "Permissions", Icon: KeyRound, Component: PermissionsTab },
   { id: "audit",       label: "Audit",       Icon: FileText, Component: AuditTab },
   { id: "invitations", label: "Invitations", Icon: Mail,     Component: InvitationsTab },
 ];
