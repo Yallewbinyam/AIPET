@@ -53,13 +53,16 @@ const AUTH_API = "http://localhost:5001/api/auth";
 const PAY_API  = "http://localhost:5001/payments";
 
 // Axios interceptor — automatically logs out user if token expires.
-// This runs globally on every API response. If we get a 401 (Unauthorized),
-// it means the token has expired. We clear localStorage and reload the page
-// which sends the user back to the login screen.
+// This runs globally on every API response. If we get a 401 (Unauthorized)
+// OR a 422 (flask-jwt-extended's "Signature verification failed" / blocklist
+// hit / malformed token, fired when the backend restarts and the previous
+// JWT is no longer trusted), the token is no longer usable. Clear
+// localStorage and reload the page so the user lands on the login screen
+// instead of looping retries against a permanently-rejected token (PLB-11).
 axios.interceptors.response.use(
   response => response,
   error => {
-    if (error.response?.status === 401) {
+    if (error.response?.status === 401 || error.response?.status === 422) {
       localStorage.removeItem("aipet_token");
       window.location.reload();
     }
@@ -29491,40 +29494,111 @@ export default function App() {
     setUsage(null);
   };
   
+  // PLB-14: trimmed from 7 endpoints to 2. The dashboard chrome
+  // and the polled "Scanning…" badge are the only consumers that
+  // truly need data on mount; the rest are tab-specific and now
+  // hydrate lazily via the per-tab effects below. Functional
+  // setData so per-tab fetches that hydrate `devices`, `findings`,
+  // `scans` are not clobbered by the polling refresh.
   const fetchAll = useCallback(async () => {
     const headers = { Authorization: `Bearer ${token}` };
     try {
-      const [s, d, f, a, r, sc, scans] = await Promise.all([
+      const [s, sc] = await Promise.all([
         axios.get(`${API}/summary`,     { headers }),
-        axios.get(`${API}/devices`,     { headers }),
-        axios.get(`${API}/findings`,    { headers }),
-        axios.get(`${API}/ai`,          { headers }),
-        axios.get(`${API}/reports`,     { headers }),
         axios.get(`${API}/scan/status`, { headers }),
-        axios.get(`${API}/scans`,       { headers }),
       ]);
-      setData({
+      setData(prev => ({
+        ...prev,
         summary:    s.data,
-        devices:    Array.isArray(d.data) ? d.data : [],
-        findings:   Array.isArray(f.data) ? f.data : [],
-        aiResults:  Array.isArray(a.data) ? a.data : [],
-        reports:    Array.isArray(r.data) ? r.data : [],
         scanStatus: sc.data,
-        scans:      Array.isArray(scans.data) ? scans.data : [],
-      });;
+      }));
       setScanning(sc.data?.running || false);
     } catch (e) {
-      console.error(e);
+      // PLB-11 belt-and-suspenders: the global interceptor above
+      // already handles 401/422 by reloading. This branch is defensive
+      // for the (theoretical) case where the interceptor path is
+      // bypassed -- it routes through the canonical handleLogout()
+      // helper rather than duplicating the localStorage call.
+      if (e.response?.status === 422 || e.response?.status === 401) {
+        handleLogout();
+      } else {
+        console.error(e);
+      }
     } finally {
       setLoading(false);
     }
   }, [token]);
 
- useEffect(() => {
+  useEffect(() => {
     fetchAll();
+    // 2 calls/min after PLB-14, down from 7 calls/min. The poll
+    // keeps the Scanning… badge live and refreshes summary stats.
     const interval = setInterval(fetchAll, 60000);
     return () => clearInterval(interval);
   }, [fetchAll]);
+
+  // PLB-14 lazy fetches. Each effect is gated on (a) the active
+  // tab being a consumer of the slice and (b) the slice being
+  // unhydrated. `cancelled` flag protects against late responses
+  // arriving after the user has tabbed away. Errors log silently;
+  // tab-local empty states already cover the no-data render path,
+  // so a global toast would be noisy.
+  //
+  // /api/ai and /api/reports are NOT lazy-loaded -- the data was
+  // dead (destructured but never read by any consumer in App()).
+  // Removing the fetches is the simplest correct fix; the
+  // destructure defaults `aiResults=[]` / `reports=[]` keep
+  // existing references safe for future re-introduction.
+  useEffect(() => {
+    if (activeTab !== "devices") return undefined;
+    if (data.devices !== undefined) return undefined;
+    let cancelled = false;
+    axios.get(`${API}/devices`, {
+      headers: { Authorization: `Bearer ${token}` },
+    }).then(r => {
+      if (cancelled) return;
+      setData(prev => ({
+        ...prev,
+        devices: Array.isArray(r.data) ? r.data : [],
+      }));
+    }).catch(e => console.error("Lazy /devices fetch failed:", e));
+    return () => { cancelled = true; };
+  }, [activeTab, data.devices, token]);
+
+  useEffect(() => {
+    if (activeTab !== "findings") return undefined;
+    if (data.findings !== undefined) return undefined;
+    let cancelled = false;
+    axios.get(`${API}/findings`, {
+      headers: { Authorization: `Bearer ${token}` },
+    }).then(r => {
+      if (cancelled) return;
+      setData(prev => ({
+        ...prev,
+        findings: Array.isArray(r.data) ? r.data : [],
+      }));
+    }).catch(e => console.error("Lazy /findings fetch failed:", e));
+    return () => { cancelled = true; };
+  }, [activeTab, data.findings, token]);
+
+  // /api/scans is consumed by three tabs (findings, map, predict).
+  // The first activation hydrates the cache; the other two reuse it.
+  useEffect(() => {
+    const SCANS_TABS = new Set(["findings", "map", "predict"]);
+    if (!SCANS_TABS.has(activeTab)) return undefined;
+    if (data.scans !== undefined) return undefined;
+    let cancelled = false;
+    axios.get(`${API}/scans`, {
+      headers: { Authorization: `Bearer ${token}` },
+    }).then(r => {
+      if (cancelled) return;
+      setData(prev => ({
+        ...prev,
+        scans: Array.isArray(r.data) ? r.data : [],
+      }));
+    }).catch(e => console.error("Lazy /scans fetch failed:", e));
+    return () => { cancelled = true; };
+  }, [activeTab, data.scans, token]);
 
   const fetchUsage = useCallback(async () => {
     if (!token) return;
@@ -29920,7 +29994,12 @@ export default function App() {
                     >
                       <Icon size={15} />
                       <span style={{ flex: 1 }}>{label}</span>
-                      {id === "findings" && findings.length > 0 && (
+                      {/* PLB-14: read the Critical count from the summary
+                          response (already in the always-fetched chrome
+                          payload) rather than filtering the lazy `findings`
+                          array. Without this, the badge would be invisible
+                          until the user activated the Findings tab. */}
+                      {id === "findings" && (summary?.findings?.critical || 0) > 0 && (
                         <span style={{
                           fontSize: "10px",
                           padding: "1px 6px",
@@ -29930,7 +30009,7 @@ export default function App() {
                           fontFamily: "'JetBrains Mono', monospace",
                           fontWeight: 700,
                         }}>
-                          {findings.filter(f => f.severity === "Critical").length}
+                          {summary.findings.critical}
                         </span>
                       )}
                       {id === "predict" && (
