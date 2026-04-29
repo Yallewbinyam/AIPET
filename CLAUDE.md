@@ -161,6 +161,46 @@ These items must all be resolved before aipet.io accepts real customer traffic. 
 - Do NOT delete closed rows for at least 30 days — keep them for audit
 - When a new blocker is found: add a new row with the next PLB-N ID
 
+### Verification Ledger
+
+**2026-04-30 — Binyam Yallew, primary developer**
+
+Team & Access frontend (Phases C, D, E, F, G — five tabs total).
+
+**Click-verified with per-step evidence:**
+
+- Members tab: M1 column sort `MEMBER` asc/desc, M2 column sort `EMAIL` asc/desc, M4 Disable→Cancel flow against `test@aipet.io` drawer (cancel before commit to avoid self-disable), M5 Disable+Enable round-trip against `bin` (`byallew+phasefdup`) drawer, M6 Remove confirm dialog rendered with stronger copy than Disable
+- Audit tab: A1 rows render, A2 action dropdown populated from current page, A3 resource ILIKE filter narrows list to `invitation` rows on Apply, A4 Reset button clears filter state and restores full list
+- Accept Invitation page: T1 `INVALID_TOKEN` renders error state for garbage token, no runtime overlay
+- Invitations: I3 invite happy path including live SMTP round-trip to `byallew+phaseflive@gmail.com` (verified 2026-04-29 16:37 UTC)
+
+**User-attested PASS** (developer confirmed flow worked, per-step evidence not captured by Claude — acceptable for primary-developer self-verification, should be re-verified by independent reviewer before v1.0 launch):
+
+- Members tab: M3 column sort `LAST LOGIN` asc/desc
+- Invitations tab: I1 filter dropdown across 5 statuses (Pending / Accepted / Revoked / Expired / All), I2 invite invalid email rejection, I4 invite duplicate-pending rejection, I5 Resend cooldown 429 toast
+- Accept Invitation page: T2 `REVOKED` state (DB-injected via SQL `UPDATE`), T3 `EXPIRED` state (SQL-injected `expires_at = NOW() - 1 hour`), T4 `ALREADY_ACCEPTED` state (SQL-injected `status='accepted'`)
+
+**Deferred to follow-up verification session:**
+
+- Accept Invitation page T5 `EMAIL_COLLISION` (fragile to set up cleanly, requires pre-existing user with the invitation's email)
+- Audit tab over-cap export (>10,000 rows) — needs row seeding script
+- Audit tab backend-offline error toast — needs `gunicorn` stop mid-test
+- Audit tab pagination Prev/Next at boundaries
+- Audit tab CSV export with active filters applied
+- Roles tab: visual confirmation only this session (mostly static UI)
+- Permissions tab: visual confirmation only this session (mostly static UI)
+- Dissertation J-set screenshot capture (J1 Members + drawer, J2 role-change toast, J3 Disable confirm, J4 last-owner block, J5 Accept page in Incognito, J6 Resend cooldown toast, J7 inbox proof email)
+
+**Status:**
+
+- Phase C (Members): browser-verified critical paths cleared
+- Phase F (Invitations + Accept): browser-verified critical paths cleared across two sessions (2026-04-29 + 2026-04-30)
+- Phase D (Roles): user-attested visual only; full interactive verification deferred (minimal interactive surface so risk is low)
+- Phase E (Audit): basic filter + export round-trip cleared, edge cases deferred
+- Phase G (Permissions): user-attested visual only; minimal interactive surface so risk is low
+
+**Pytest at session end:** 575 passed, 3 skipped, 0 failed (no code changes this session, baseline preserved).
+
 ---
 
 ## 5. What Is Built — Major Capabilities
