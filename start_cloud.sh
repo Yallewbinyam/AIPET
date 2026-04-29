@@ -28,7 +28,7 @@ set -e
 export DATABASE_URL="postgresql://aipet_user:aipet_password@localhost:5433/aipet_db"
 export REDIS_URL="redis://localhost:6379/0"
 
-PROJECT_DIR="/home/binyam/AIPET"
+PROJECT_DIR="/home/byall/AIPET"
 VENV="$PROJECT_DIR/venv/bin"
 
 mkdir -p "$PROJECT_DIR/logs" "$PROJECT_DIR/pids"

@@ -185,6 +185,81 @@ def revoke_role(user_id, role_name):
     log_action(get_jwt_identity(), 'role_revoked', resource=f'{user_id}:{role_name}')
     return jsonify({'message': 'Role revoked successfully'})
 
+
+# ── Atomic role replacement (Phase C) ────────────────────────
+# `assign_role` + `revoke_role` are additive primitives over a
+# many-to-many UserRole table. The frontend's "Change role"
+# action wants single-role replacement -- doing that as
+# DELETE-then-POST from the client opens a window where a user
+# has zero roles if the second request fails. PUT does both
+# under one transaction. Schema stays many-to-many; this
+# endpoint is just the "make this user have exactly this one
+# role" specialisation.
+@iam_bp.route('/users/<int:user_id>/role', methods=['PUT'])
+@require_permission('iam:manage')
+def replace_user_role(user_id):
+    user = db.session.get(User, user_id)
+    if user is None:
+        return jsonify({'error':   'user_not_found',
+                        'message': f'No user with id={user_id}'}), 404
+
+    data = request.get_json(silent=True) or {}
+    new_role_name = data.get('role')
+    if not new_role_name:
+        return jsonify({'error':   'missing_role',
+                        'message': 'Body must include {"role": "<name>"}.'}), 400
+
+    new_role = Role.query.filter_by(name=new_role_name).first()
+    if new_role is None:
+        return jsonify({'error':   'role_not_found',
+                        'message': f'No role named {new_role_name!r}.'}), 400
+
+    # Capture current roles BEFORE the delete -- audit needs the
+    # before-state, and the last-owner check below reads through
+    # the same UserRole rows.
+    current_user_roles = UserRole.query.filter_by(user_id=user_id).all()
+    current_role_ids   = [ur.role_id for ur in current_user_roles]
+    current_roles      = (Role.query.filter(Role.id.in_(current_role_ids)).all()
+                          if current_role_ids else [])
+    old_role_names     = sorted(r.name for r in current_roles)
+
+    # Last-owner safety. Only relevant if the user currently
+    # holds the owner role AND the replacement is anything other
+    # than owner (PUT owner -> owner is a no-op for safety).
+    if 'owner' in old_role_names and new_role_name != 'owner':
+        if _is_last_owner(user_id):
+            return jsonify({
+                'error':   'last_owner',
+                'message': 'Cannot change role of the last owner.',
+            }), 400
+
+    # Idempotent shortcut: if the user already has exactly this
+    # one role, don't churn the DB or write an audit row. The
+    # set-equality (not just membership) matters because the
+    # current schema allows multi-role users; PUT collapses to a
+    # single role, so old=[owner,admin] PUT owner is NOT a no-op.
+    if old_role_names == [new_role_name]:
+        return jsonify(_serialize_member(user)), 200
+
+    # Atomic replacement: delete then insert in one transaction.
+    UserRole.query.filter_by(user_id=user_id).delete()
+    db.session.add(UserRole(
+        user_id     = user_id,
+        role_id     = new_role.id,
+        assigned_by = get_jwt_identity(),
+    ))
+    db.session.commit()
+
+    log_action(
+        get_jwt_identity(),
+        'user.role_changed',
+        resource=f'user:{user_id}',
+        details={'old_roles': old_role_names,
+                 'new_role':  new_role_name},
+    )
+    return jsonify(_serialize_member(user)), 200
+
+
 # ── Members list ─────────────────────────────────────────────
 # Phase B § 6.1.1 v1 minimum: list users with their roles. Basic
 # pagination, no filters yet (search/sort/status come in a follow-

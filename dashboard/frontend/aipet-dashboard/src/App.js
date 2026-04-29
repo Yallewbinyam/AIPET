@@ -11,6 +11,7 @@ import EventsFeedPanel      from "./components/events/EventsFeedPanel";
 import RiskScoreDashboard       from "./components/risk/RiskScoreDashboard";
 import AutomatedResponsePanel   from "./components/automated_response/AutomatedResponsePanel";
 import RiskForecastPanel        from "./components/forecast/RiskForecastPanel";
+import TeamAccessPage           from "./components/team_access/TeamAccessPage";
 import {
   isPushSupported, getCurrentPermission,
   requestPermissionAndSubscribe, sendTestPush,
@@ -30420,15 +30421,9 @@ export default function App() {
             <ProtocolsPage token={token} showToast={showToast} currentPlan={usage?.plan} />
           )}
           
-          {/* TODO: TeamAccessPage component not implemented.
-              Routing reference added 2026-04-16 (commit 4ebecdcf5) but the
-              frontend component was never written. Backend IAM is functional
-              (roles, permissions, audit_log, SSO endpoints) -- only the UI
-              is missing. Tracked as a follow-up: build TeamAccessPage to
-              expose IAM management, ~2 hours of work.
           {activeTab === "team" && (
             <TeamAccessPage token={token} showToast={showToast} />
-          )} */}
+          )}
           {activeTab === "timeline_enhanced" && (
             <TimelineEnhancedPage token={token} showToast={showToast} />
           )}

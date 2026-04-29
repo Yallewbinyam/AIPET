@@ -316,7 +316,7 @@ All modules live under `dashboard/backend/<module_name>/` as a Blueprint with `_
 ## 7. Startup Command
 
 ```bash
-sudo pg_ctlcluster 17 main start && cd /home/binyam/AIPET && source venv/bin/activate && bash start_cloud.sh
+sudo pg_ctlcluster 17 main start && cd /home/byall/AIPET && source venv/bin/activate && bash start_cloud.sh
 ```
 
 - Frontend dev server: `cd dashboard/frontend/aipet-dashboard && npm start`
