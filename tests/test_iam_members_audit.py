@@ -1138,3 +1138,558 @@ def test_cleanup_expired_tokens(flask_app, test_user):
     # Active + revoked-expired remain. Non-revoked-expired gone.
     revoke_states = sorted(r.revoked for r in remaining)
     assert revoke_states == [False, True], remaining
+
+
+# =============================================================
+# Tier 1 v1 — invitations (Phase B § 8 I1-I4)
+# =============================================================
+from unittest.mock import patch as _patch
+from dashboard.backend.iam.models import Invitation as _Invitation
+from dashboard.backend.iam.routes import (
+    expire_pending_invitations as _expire_pending,
+    INVITATION_RESEND_MAX as _RESEND_MAX,
+)
+
+
+def _create_test_role(name="viewer"):
+    """Ensure a role exists in the test DB; return it."""
+    seed_default_roles()
+    return Role.query.filter_by(name=name).first()
+
+
+def _make_invitation(test_user, email_suffix, role_name="viewer",
+                     status="pending", expires_in_days=7):
+    """Insert an invitation row directly (bypassing the API). Used
+    for tests that need a known starting state."""
+    role = _create_test_role(role_name)
+    inv = _Invitation(
+        email      = f"inv-{email_suffix}-{_uuid_iam.uuid4().hex[:6]}@aipet.local",
+        token      = "test-token-" + _uuid_iam.uuid4().hex,
+        role_id    = role.id,
+        invited_by = test_user.id,
+        invited_at = _dt.now(_tz.utc),
+        expires_at = _dt.now(_tz.utc) + _td(days=expires_in_days),
+        status     = status,
+    )
+    db.session.add(inv)
+    db.session.commit()
+    return inv
+
+
+def _delete_invitation(inv):
+    db.session.delete(inv)
+    db.session.commit()
+
+
+# --- Invitation model ---------------------------------------------
+
+def test_invitation_model_round_trip(flask_app, test_user):
+    inv = _make_invitation(test_user, "model-rt")
+    try:
+        re = _Invitation.query.filter_by(id=inv.id).first()
+        assert re is not None
+        assert re.email == inv.email
+        assert re.status == "pending"
+        assert re.resend_count == 0
+        assert re.role_id == inv.role_id
+        # Token unique constraint via DB index.
+        assert _Invitation.query.filter_by(token=inv.token).count() == 1
+    finally:
+        _delete_invitation(inv)
+
+
+# --- POST /api/iam/invitations -------------------------------------
+
+def test_invite_happy_path(client, flask_app, test_user):
+    _reset_limiter(flask_app)
+    headers = _owner_headers(flask_app, test_user)
+    _create_test_role("viewer")
+
+    test_email = f"invite-happy-{_uuid_iam.uuid4().hex[:6]}@aipet.local"
+    # Patch the email sender so tests don't try real SMTP.
+    with _patch("dashboard.backend.iam.routes._send_invitation_email",
+                return_value=True) as mock_send:
+        r = client.post(
+            "/api/iam/invitations",
+            headers=headers,
+            data=json.dumps({"email": test_email, "role_name": "viewer"}),
+        )
+    assert r.status_code == 201, r.data
+    body = r.get_json()
+    # Token MUST NOT appear in any response field.
+    assert "token" not in body, "token leaked in API response"
+    assert body["email"] == test_email
+    assert body["role"] == "viewer"
+    assert body["status"] == "pending"
+    assert body["email_delivered"] is True
+    assert mock_send.called
+
+    # Audit row written.
+    audit = AuditLog.query.filter_by(
+        resource=f"invitation:{body['id']}",
+        action="invitation.created",
+    ).first()
+    assert audit is not None
+    assert audit.node_meta["email"] == test_email
+    assert audit.node_meta["role"] == "viewer"
+
+    # Cleanup.
+    _Invitation.query.filter_by(id=body["id"]).delete()
+    AuditLog.query.filter_by(resource=f"invitation:{body['id']}").delete()
+    db.session.commit()
+
+
+def test_invite_rejects_existing_user_email(client, flask_app, test_user):
+    _reset_limiter(flask_app)
+    headers = _owner_headers(flask_app, test_user)
+    _create_test_role("viewer")
+
+    with _patch("dashboard.backend.iam.routes._send_invitation_email",
+                return_value=True):
+        r = client.post(
+            "/api/iam/invitations",
+            headers=headers,
+            data=json.dumps({"email": test_user.email, "role_name": "viewer"}),
+        )
+    assert r.status_code == 400
+    assert r.get_json()["error"] == "user_exists"
+
+
+def test_invite_rejects_duplicate_pending(client, flask_app, test_user):
+    _reset_limiter(flask_app)
+    headers = _owner_headers(flask_app, test_user)
+    _create_test_role("viewer")
+
+    test_email = f"invite-dup-{_uuid_iam.uuid4().hex[:6]}@aipet.local"
+    with _patch("dashboard.backend.iam.routes._send_invitation_email",
+                return_value=True):
+        r1 = client.post(
+            "/api/iam/invitations",
+            headers=headers,
+            data=json.dumps({"email": test_email, "role_name": "viewer"}),
+        )
+        assert r1.status_code == 201
+        r2 = client.post(
+            "/api/iam/invitations",
+            headers=headers,
+            data=json.dumps({"email": test_email, "role_name": "viewer"}),
+        )
+    assert r2.status_code == 400
+    body = r2.get_json()
+    assert body["error"] == "duplicate_pending"
+    assert body["invitation_id"]
+
+    # Cleanup the one we created.
+    inv_id = r1.get_json()["id"]
+    _Invitation.query.filter_by(id=inv_id).delete()
+    AuditLog.query.filter_by(resource=f"invitation:{inv_id}").delete()
+    db.session.commit()
+
+
+def test_invite_rejects_invalid_role(client, flask_app, test_user):
+    _reset_limiter(flask_app)
+    headers = _owner_headers(flask_app, test_user)
+    test_email = f"invite-badrole-{_uuid_iam.uuid4().hex[:6]}@aipet.local"
+    r = client.post(
+        "/api/iam/invitations",
+        headers=headers,
+        data=json.dumps({"email": test_email, "role_name": "nope"}),
+    )
+    assert r.status_code == 400
+    assert r.get_json()["error"] == "role_not_found"
+
+
+def test_invite_rejects_invalid_email(client, flask_app, test_user):
+    _reset_limiter(flask_app)
+    headers = _owner_headers(flask_app, test_user)
+    r = client.post(
+        "/api/iam/invitations",
+        headers=headers,
+        data=json.dumps({"email": "not-an-email", "role_name": "viewer"}),
+    )
+    assert r.status_code == 400
+    assert r.get_json()["error"] == "invalid_email"
+
+
+def test_invite_email_send_failure_persists_invitation(client, flask_app, test_user):
+    """Best-effort email delivery: if SMTP fails, the invitation row
+    persists (status=pending, can be resent), the API returns 201
+    with email_delivered=false."""
+    _reset_limiter(flask_app)
+    headers = _owner_headers(flask_app, test_user)
+    _create_test_role("viewer")
+
+    test_email = f"invite-smtpfail-{_uuid_iam.uuid4().hex[:6]}@aipet.local"
+    with _patch("dashboard.backend.iam.routes._send_invitation_email",
+                return_value=False) as mock_send:
+        r = client.post(
+            "/api/iam/invitations",
+            headers=headers,
+            data=json.dumps({"email": test_email, "role_name": "viewer"}),
+        )
+    assert r.status_code == 201
+    body = r.get_json()
+    assert body["email_delivered"] is False
+    assert mock_send.called
+    # Row persists.
+    assert _Invitation.query.filter_by(id=body["id"]).first() is not None
+    _Invitation.query.filter_by(id=body["id"]).delete()
+    AuditLog.query.filter_by(resource=f"invitation:{body['id']}").delete()
+    db.session.commit()
+
+
+# --- GET /api/iam/invitations --------------------------------------
+
+def test_invitations_list_default_status_pending(client, flask_app, test_user):
+    _reset_limiter(flask_app)
+    headers = _owner_headers(flask_app, test_user)
+    inv_p = _make_invitation(test_user, "list-pending", status="pending")
+    inv_a = _make_invitation(test_user, "list-accepted", status="accepted")
+    try:
+        r = client.get("/api/iam/invitations", headers=headers)
+        assert r.status_code == 200
+        body = r.get_json()
+        ids = [i["id"] for i in body["invitations"]]
+        assert inv_p.id in ids
+        assert inv_a.id not in ids
+        # Token NEVER returned.
+        for inv in body["invitations"]:
+            assert "token" not in inv
+
+        # status=all returns both.
+        r2 = client.get("/api/iam/invitations?status=all", headers=headers)
+        body2 = r2.get_json()
+        ids2 = [i["id"] for i in body2["invitations"]]
+        assert inv_p.id in ids2
+        assert inv_a.id in ids2
+    finally:
+        _delete_invitation(inv_p)
+        _delete_invitation(inv_a)
+
+
+# --- POST /api/iam/invitations/<id>/resend ------------------------
+
+def test_resend_happy_path(client, flask_app, test_user):
+    _reset_limiter(flask_app)
+    headers = _owner_headers(flask_app, test_user)
+    inv = _make_invitation(test_user, "resend-happy")
+    try:
+        with _patch("dashboard.backend.iam.routes._send_invitation_email",
+                    return_value=True):
+            r = client.post(
+                f"/api/iam/invitations/{inv.id}/resend",
+                headers=headers,
+                data=json.dumps({}),
+            )
+        assert r.status_code == 200, r.data
+        body = r.get_json()
+        assert body["resend_count"] == 1
+        assert body["last_resent_at"] is not None
+    finally:
+        _delete_invitation(inv)
+
+
+def test_resend_max_count_returns_429(client, flask_app, test_user):
+    _reset_limiter(flask_app)
+    headers = _owner_headers(flask_app, test_user)
+    inv = _make_invitation(test_user, "resend-max")
+    # Pre-set resend_count to the cap so the next call exceeds.
+    inv.resend_count = _RESEND_MAX
+    inv.last_resent_at = _dt.now(_tz.utc) - _td(hours=2)  # past cooldown
+    db.session.commit()
+    try:
+        with _patch("dashboard.backend.iam.routes._send_invitation_email",
+                    return_value=True):
+            r = client.post(
+                f"/api/iam/invitations/{inv.id}/resend",
+                headers=headers,
+                data=json.dumps({}),
+            )
+        assert r.status_code == 429
+        assert r.get_json()["error"] == "resend_limit_exceeded"
+    finally:
+        _delete_invitation(inv)
+
+
+def test_resend_cooldown_returns_429(client, flask_app, test_user):
+    _reset_limiter(flask_app)
+    headers = _owner_headers(flask_app, test_user)
+    inv = _make_invitation(test_user, "resend-cool")
+    inv.resend_count = 1
+    inv.last_resent_at = _dt.now(_tz.utc)  # just now
+    db.session.commit()
+    try:
+        with _patch("dashboard.backend.iam.routes._send_invitation_email",
+                    return_value=True):
+            r = client.post(
+                f"/api/iam/invitations/{inv.id}/resend",
+                headers=headers,
+                data=json.dumps({}),
+            )
+        assert r.status_code == 429
+        assert r.get_json()["error"] == "resend_cooldown"
+    finally:
+        _delete_invitation(inv)
+
+
+def test_resend_rejects_non_pending(client, flask_app, test_user):
+    _reset_limiter(flask_app)
+    headers = _owner_headers(flask_app, test_user)
+    inv = _make_invitation(test_user, "resend-nonpend", status="accepted")
+    try:
+        r = client.post(
+            f"/api/iam/invitations/{inv.id}/resend",
+            headers=headers,
+            data=json.dumps({}),
+        )
+        assert r.status_code == 400
+        assert r.get_json()["error"] == "not_pending"
+    finally:
+        _delete_invitation(inv)
+
+
+# --- POST /api/iam/invitations/<id>/revoke ------------------------
+
+def test_revoke_happy_path(client, flask_app, test_user):
+    _reset_limiter(flask_app)
+    headers = _owner_headers(flask_app, test_user)
+    inv = _make_invitation(test_user, "revoke-happy")
+    try:
+        r = client.post(
+            f"/api/iam/invitations/{inv.id}/revoke",
+            headers=headers,
+            data=json.dumps({"reason": "no longer needed"}),
+        )
+        assert r.status_code == 200
+        body = r.get_json()
+        assert body["status"] == "revoked"
+        assert body["revoked_at"] is not None
+
+        # Audit row written.
+        audit = AuditLog.query.filter_by(
+            resource=f"invitation:{inv.id}",
+            action="invitation.revoked",
+        ).first()
+        assert audit is not None
+        assert audit.node_meta == {"reason": "no longer needed"}
+    finally:
+        AuditLog.query.filter_by(resource=f"invitation:{inv.id}").delete()
+        _delete_invitation(inv)
+
+
+def test_revoke_rejects_accepted_invitation(client, flask_app, test_user):
+    _reset_limiter(flask_app)
+    headers = _owner_headers(flask_app, test_user)
+    inv = _make_invitation(test_user, "revoke-accept", status="accepted")
+    try:
+        r = client.post(
+            f"/api/iam/invitations/{inv.id}/revoke",
+            headers=headers,
+            data=json.dumps({}),
+        )
+        assert r.status_code == 400
+        assert r.get_json()["error"] == "already_accepted"
+    finally:
+        _delete_invitation(inv)
+
+
+# --- POST /api/auth/accept-invitation -----------------------------
+
+def test_accept_invitation_happy_path(client, flask_app, test_user):
+    _reset_limiter(flask_app)
+    inv = _make_invitation(test_user, "accept-happy")
+    try:
+        r = client.post(
+            "/api/auth/accept-invitation",
+            headers={"Content-Type": "application/json",
+                     "X-Forwarded-For": "10.42.9.1"},
+            data=json.dumps({
+                "token":    inv.token,
+                "name":     "Accept Test User",
+                "password": "AcceptTest123!",
+            }),
+        )
+        assert r.status_code == 201, r.data
+        body = r.get_json()
+        assert body["token"]  # JWT issued
+        assert body["role"] == "viewer"
+        new_user_id = body["user"]["id"]
+
+        # New user exists with viewer role.
+        u = db.session.get(_User, new_user_id)
+        assert u is not None
+        assert u.email == inv.email
+        roles = (db.session.query(Role)
+                 .join(UserRole, UserRole.role_id == Role.id)
+                 .filter(UserRole.user_id == new_user_id).all())
+        assert "viewer" in {r.name for r in roles}
+
+        # Invitation marked accepted.
+        re = _Invitation.query.filter_by(id=inv.id).first()
+        assert re.status == "accepted"
+        assert re.accepted_by == new_user_id
+
+        # Cleanup. AuditLog rows for the new user span THREE
+        # distinct shapes:
+        #   (a) user_id = new_user_id (events the user authored)
+        #   (b) resource = f"invitation:{inv.id}" (the invitation
+        #       events themselves)
+        #   (c) resource = f"user:{new_user_id}" (the role.assigned
+        #       written by assign_role_to_user, whose user_id field
+        #       is the inviter, NOT the new user) -- this is the
+        #       row that bleeds into test_iam_seed.py if missed,
+        #       because SQLite reuses the deleted user's id.
+        UserRole.query.filter_by(user_id=new_user_id).delete()
+        AuditLog.query.filter(
+            (AuditLog.user_id == new_user_id) |
+            (AuditLog.resource == f"invitation:{inv.id}") |
+            (AuditLog.resource == f"user:{new_user_id}")
+        ).delete(synchronize_session=False)
+        _IssuedToken.query.filter_by(user_id=new_user_id).delete()
+        db.session.delete(u)
+        db.session.commit()
+    finally:
+        _delete_invitation(inv)
+
+
+def test_accept_invitation_expired(client, flask_app, test_user):
+    _reset_limiter(flask_app)
+    inv = _make_invitation(test_user, "accept-expired")
+    inv.expires_at = _dt.now(_tz.utc) - _td(hours=1)
+    db.session.commit()
+    try:
+        r = client.post(
+            "/api/auth/accept-invitation",
+            headers={"Content-Type": "application/json",
+                     "X-Forwarded-For": "10.42.9.2"},
+            data=json.dumps({
+                "token":    inv.token,
+                "name":     "Expired Test",
+                "password": "ExpiredTest123!",
+            }),
+        )
+        assert r.status_code == 400
+        assert r.get_json()["error"] == "expired"
+        # Status now 'expired' (lazy transition).
+        re = _Invitation.query.filter_by(id=inv.id).first()
+        assert re.status == "expired"
+    finally:
+        _delete_invitation(inv)
+
+
+def test_accept_invitation_already_used(client, flask_app, test_user):
+    _reset_limiter(flask_app)
+    inv = _make_invitation(test_user, "accept-used", status="accepted")
+    try:
+        r = client.post(
+            "/api/auth/accept-invitation",
+            headers={"Content-Type": "application/json",
+                     "X-Forwarded-For": "10.42.9.3"},
+            data=json.dumps({
+                "token":    inv.token,
+                "name":     "Replay Test",
+                "password": "ReplayTest123!",
+            }),
+        )
+        assert r.status_code == 400
+        assert r.get_json()["error"] == "already_accepted"
+    finally:
+        _delete_invitation(inv)
+
+
+def test_accept_invitation_email_collision(client, flask_app, test_user):
+    """Race: a user registers with the invitation's email between
+    invite and accept. The accept endpoint must 409 with a
+    distinguishable error code."""
+    _reset_limiter(flask_app)
+    inv = _make_invitation(test_user, "accept-collide")
+
+    # Plant a User with the SAME email.
+    collision_user = _User(
+        email         = inv.email,
+        password_hash = _bcrypt.hashpw(
+            b"Collide123!", _bcrypt.gensalt()).decode("utf-8"),
+        name          = "Collision",
+        plan          = "free",
+        is_active     = True,
+    )
+    db.session.add(collision_user)
+    db.session.commit()
+    try:
+        r = client.post(
+            "/api/auth/accept-invitation",
+            headers={"Content-Type": "application/json",
+                     "X-Forwarded-For": "10.42.9.4"},
+            data=json.dumps({
+                "token":    inv.token,
+                "name":     "Collision Test",
+                "password": "CollisionTest123!",
+            }),
+        )
+        assert r.status_code == 409
+        assert r.get_json()["error"] == "email_collision"
+    finally:
+        AuditLog.query.filter_by(user_id=collision_user.id).delete()
+        db.session.delete(collision_user)
+        _delete_invitation(inv)
+
+
+def test_accept_invitation_invalid_token(client, flask_app):
+    _reset_limiter(flask_app)
+    r = client.post(
+        "/api/auth/accept-invitation",
+        headers={"Content-Type": "application/json",
+                 "X-Forwarded-For": "10.42.9.5"},
+        data=json.dumps({
+            "token":    "nope-this-token-does-not-exist",
+            "name":     "X",
+            "password": "Xpassword123!",
+        }),
+    )
+    assert r.status_code == 404
+    assert r.get_json()["error"] == "invitation_not_found"
+
+
+def test_accept_invitation_weak_password(client, flask_app, test_user):
+    _reset_limiter(flask_app)
+    inv = _make_invitation(test_user, "accept-weak")
+    try:
+        r = client.post(
+            "/api/auth/accept-invitation",
+            headers={"Content-Type": "application/json",
+                     "X-Forwarded-For": "10.42.9.6"},
+            data=json.dumps({
+                "token":    inv.token,
+                "name":     "Weak",
+                "password": "1234",
+            }),
+        )
+        assert r.status_code == 400
+        assert r.get_json()["error"] == "weak_password"
+    finally:
+        _delete_invitation(inv)
+
+
+# --- expire_pending_invitations() helper --------------------------
+
+def test_expire_pending_invitations(flask_app, test_user):
+    """Helper transitions only past-expiry pending rows to expired.
+    Already-accepted and not-yet-expired stay untouched."""
+    inv_expired   = _make_invitation(test_user, "exp-old", status="pending")
+    inv_expired.expires_at = _dt.now(_tz.utc) - _td(hours=1)
+    inv_active    = _make_invitation(test_user, "exp-fresh", status="pending",
+                                     expires_in_days=7)
+    inv_accepted  = _make_invitation(test_user, "exp-acc", status="accepted")
+    inv_accepted.expires_at = _dt.now(_tz.utc) - _td(hours=1)  # expired but accepted
+    db.session.commit()
+    try:
+        transitioned = _expire_pending()
+        assert transitioned >= 1
+        assert _Invitation.query.filter_by(id=inv_expired.id).first().status == "expired"
+        assert _Invitation.query.filter_by(id=inv_active.id).first().status == "pending"
+        # Accepted stays accepted regardless of expiry.
+        assert _Invitation.query.filter_by(id=inv_accepted.id).first().status == "accepted"
+    finally:
+        _delete_invitation(inv_expired)
+        _delete_invitation(inv_active)
+        _delete_invitation(inv_accepted)

@@ -434,6 +434,127 @@ def reset_password():
     return jsonify({"message": "Password reset successfully", "token": jwt, "user": user.to_dict()}), 200
 
 
+# ── Accept invitation (public) ───────────────────────────────
+# Phase B § 4.4. Recipient endpoint hit after clicking the email
+# link. Token IS the auth -- no JWT required. Successful accept
+# creates a User, assigns the invited role, marks the invitation
+# accepted, and issues the new user a JWT (so the frontend can
+# log them in immediately).
+@auth_bp.route("/api/auth/accept-invitation", methods=["POST"])
+def accept_invitation():
+    from dashboard.backend.iam.models import Invitation, Role
+    from dashboard.backend.iam.routes import (
+        assign_role_to_user, log_action,
+    )
+
+    data     = request.get_json(silent=True) or {}
+    token_str = (data.get("token") or "").strip()
+    name     = (data.get("name") or "").strip()
+    password = data.get("password") or ""
+
+    if not token_str:
+        return jsonify({"error": "missing_token"}), 400
+    if not name:
+        return jsonify({"error": "missing_name"}), 400
+    if not password or len(password) < 8:
+        return jsonify({
+            "error":   "weak_password",
+            "message": "Password must be at least 8 characters.",
+        }), 400
+
+    inv = Invitation.query.filter_by(token=token_str).first()
+    if inv is None:
+        return jsonify({"error": "invitation_not_found"}), 404
+
+    if inv.status == 'accepted':
+        return jsonify({"error": "already_accepted"}), 400
+    if inv.status == 'revoked':
+        return jsonify({"error": "revoked"}), 400
+
+    # Defensive expiry check + lazy status transition.
+    now      = datetime.now(timezone.utc)
+    expiry   = inv.expires_at
+    if expiry is not None and expiry.tzinfo is None:
+        expiry = expiry.replace(tzinfo=timezone.utc)
+    if expiry is not None and expiry < now:
+        if inv.status == 'pending':
+            inv.status = 'expired'
+            db.session.commit()
+        return jsonify({"error": "expired"}), 400
+
+    if inv.status != 'pending':
+        return jsonify({"error": "not_pending",
+                        "status": inv.status}), 400
+
+    # Race: someone may have registered with this email between
+    # invite creation and acceptance.
+    existing = User.query.filter_by(email=inv.email).first()
+    if existing is not None:
+        return jsonify({
+            "error":   "email_collision",
+            "message": ("An account with this email already exists; "
+                        "sign in to apply the invited role."),
+        }), 409
+
+    # Resolve role for the assignment + the audit row.
+    role = Role.query.filter_by(id=inv.role_id).first() if inv.role_id else None
+    role_name = role.name if role else 'viewer'
+
+    pw_hash = bcrypt.hashpw(
+        password.encode("utf-8"), bcrypt.gensalt()
+    ).decode("utf-8")
+    new_user = User(
+        email         = inv.email,
+        password_hash = pw_hash,
+        name          = name,
+        plan          = "free",
+        is_active     = True,
+        created_at    = now,
+    )
+    db.session.add(new_user)
+    db.session.commit()
+
+    # Role assignment via F2 helper (caller commits).
+    try:
+        assign_role_to_user(new_user.id, role_name,
+                            assigned_by=inv.invited_by,
+                            reason="invitation-accepted")
+        db.session.commit()
+    except Exception:
+        db.session.rollback()
+        current_app.logger.exception(
+            "Role assignment failed during invitation accept; "
+            "user_id=%s role=%s",
+            new_user.id, role_name,
+        )
+
+    inv.status      = 'accepted'
+    inv.accepted_at = now
+    inv.accepted_by = new_user.id
+    db.session.commit()
+
+    log_action(
+        new_user.id,
+        'invitation.accepted',
+        resource=f'invitation:{inv.id}',
+        details={
+            'role':         role_name,
+            'invited_by':   inv.invited_by,
+            'new_user_id':  new_user.id,
+        },
+    )
+
+    token = create_access_token(identity=str(new_user.id))
+    _record_issued_token(new_user.id, token)
+
+    return jsonify({
+        "message": "Invitation accepted",
+        "token":   token,
+        "user":    new_user.to_dict(),
+        "role":    role_name,
+    }), 201
+
+
 @auth_bp.route("/api/auth/complete-onboarding", methods=["POST"])
 @jwt_required()
 def complete_onboarding():

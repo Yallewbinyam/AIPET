@@ -62,6 +62,49 @@ class SSOProvider(db.Model):
     created_at   = db.Column(db.DateTime, default=datetime.utcnow)
 
 
+class Invitation(db.Model):
+    """Pending team-member invitation. Token is the recipient's auth
+    when they accept (`POST /api/auth/accept-invitation`); never
+    exposed via API list/detail responses, only delivered in the
+    invitation email body.
+
+    status transitions:
+      pending  -> accepted   (recipient hits accept endpoint)
+      pending  -> revoked    (admin revokes before accept)
+      pending  -> expired    (expires_at passed; expire helper or
+                              accept endpoint marks it lazily)
+    Accepted / revoked / expired states are terminal."""
+    __tablename__ = 'invitations'
+    id             = db.Column(db.String(36), primary_key=True,
+                               default=lambda: str(uuid.uuid4()))
+    email          = db.Column(db.String(255), nullable=False, index=True)
+    token          = db.Column(db.String(64), unique=True,
+                               nullable=False, index=True)
+    role_id        = db.Column(db.String(36),
+                               db.ForeignKey('roles.id'),
+                               nullable=False)
+    invited_by     = db.Column(db.Integer,
+                               db.ForeignKey('users.id'),
+                               nullable=False)
+    invited_at     = db.Column(db.DateTime,
+                               default=datetime.utcnow,
+                               nullable=False)
+    expires_at     = db.Column(db.DateTime, nullable=False)
+    accepted_at    = db.Column(db.DateTime, nullable=True)
+    accepted_by    = db.Column(db.Integer,
+                               db.ForeignKey('users.id'),
+                               nullable=True)
+    revoked_at     = db.Column(db.DateTime, nullable=True)
+    revoked_by     = db.Column(db.Integer,
+                               db.ForeignKey('users.id'),
+                               nullable=True)
+    status         = db.Column(db.String(20),
+                               default='pending',
+                               nullable=False, index=True)
+    resend_count   = db.Column(db.Integer, default=0, nullable=False)
+    last_resent_at = db.Column(db.DateTime, nullable=True)
+
+
 class IssuedToken(db.Model):
     """JWT blocklist row written on every successful login. The
     `token_in_blocklist_loader` callback in app_cloud.py consults

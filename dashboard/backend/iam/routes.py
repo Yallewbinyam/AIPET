@@ -1,11 +1,14 @@
+import os
+import secrets
 import uuid
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from functools import wraps
-from flask import Blueprint, request, jsonify, Response
+from flask import Blueprint, current_app, request, jsonify, Response
 from flask_jwt_extended import jwt_required, get_jwt_identity
 from dashboard.backend.models import db, User
 from dashboard.backend.iam.models import (
     Role, Permission, UserRole, AuditLog, SSOProvider, IssuedToken,
+    Invitation,
 )
 
 iam_bp = Blueprint('iam', __name__, url_prefix='/api/iam')
@@ -491,6 +494,371 @@ def restore_user(user_id):
         details={'reason': reason} if reason else None,
     )
     return jsonify(_serialize_member(user)), 200
+
+
+# ── Invitations ──────────────────────────────────────────────
+# Phase B § 8 I1-I4. Five admin endpoints + one public endpoint
+# (the accept-invitation flow lives in auth/routes.py because
+# it creates a user and issues a JWT, mirroring register/login).
+#
+# Token discipline: `Invitation.token` is the recipient's auth
+# at accept time. It is delivered ONCE in the invitation email
+# body and MUST NOT appear in any list/detail/audit response.
+# `_serialize_invitation` enforces that contract.
+#
+# Email delivery is best-effort: if SMTP is down, the row still
+# persists with status='pending' and the admin can resend.
+
+# Resend rate limiting (per-invitation, in-process). Phase B
+# v1.1 may move this to Redis for multi-worker correctness; the
+# v1 dev/test footprint with a single Gunicorn process is fine.
+INVITATION_RESEND_MAX        = 3
+INVITATION_RESEND_COOLDOWN_S = 5 * 60   # 5 min between resends
+
+
+def _serialize_invitation(inv):
+    """Canonical invitation dict. **Token is deliberately omitted**
+    -- it leaves the system exactly once via email and is the
+    recipient's auth credential. Any list/detail surface that
+    leaked it would be a credential disclosure."""
+    role = db.session.get(Role, inv.role_id) if inv.role_id else None
+    inviter = db.session.get(User, inv.invited_by) if inv.invited_by else None
+    return {
+        'id':              inv.id,
+        'email':           inv.email,
+        'role':            role.name if role else None,
+        'role_id':         inv.role_id,
+        'invited_by':      inv.invited_by,
+        'invited_by_email': inviter.email if inviter else None,
+        'invited_at':      inv.invited_at.isoformat() if inv.invited_at else None,
+        'expires_at':      inv.expires_at.isoformat() if inv.expires_at else None,
+        'accepted_at':     inv.accepted_at.isoformat() if inv.accepted_at else None,
+        'accepted_by':     inv.accepted_by,
+        'revoked_at':      inv.revoked_at.isoformat() if inv.revoked_at else None,
+        'revoked_by':      inv.revoked_by,
+        'status':          inv.status,
+        'resend_count':    inv.resend_count,
+        'last_resent_at':  inv.last_resent_at.isoformat() if inv.last_resent_at else None,
+        # NB: 'token' field intentionally absent.
+    }
+
+
+def _send_invitation_email(invitation, role_name):
+    """Best-effort email send. Returns True on send, False
+    otherwise. Logs WARNING on failure but never raises -- the
+    invitation row is the durable record; admin can resend."""
+    if not getattr(current_app, 'email_enabled', False):
+        current_app.logger.warning(
+            "Invitation email NOT sent for invitation_id=%s -- "
+            "email backend disabled (PLB-4 SMTP unset). "
+            "Token created; admin can resend after fixing SMTP.",
+            invitation.id,
+        )
+        return False
+
+    try:
+        from flask_mail import Mail, Message
+        mail = Mail(current_app)
+        frontend_url = os.environ.get(
+            "FRONTEND_URL", "http://localhost:3000"
+        ).rstrip('/')
+        accept_url = f"{frontend_url}/accept-invitation?token={invitation.token}"
+        inviter = db.session.get(User, invitation.invited_by)
+        inviter_name = (inviter.name if inviter else "An administrator")
+        expires_str = invitation.expires_at.strftime("%Y-%m-%d %H:%M UTC")
+
+        subject = "You're invited to AIPET X"
+        body_text = (
+            f"Hi,\n\n"
+            f"{inviter_name} has invited you to join AIPET X with the role "
+            f"`{role_name}`.\n\n"
+            f"Accept this invitation: {accept_url}\n\n"
+            f"This link expires at {expires_str}. If you did not expect "
+            f"this invitation, you can safely ignore it.\n\n"
+            f"-- AIPET X"
+        )
+        body_html = (
+            f'<div style="font-family:Arial,sans-serif;max-width:540px;'
+            f'margin:0 auto;background:#0a0f1a;color:#e0e0e0;padding:32px;'
+            f'border-radius:8px;">'
+            f'<div style="border-bottom:3px solid #00e5ff;padding-bottom:16px;'
+            f'margin-bottom:24px;"><span style="color:#00e5ff;font-size:18px;'
+            f'font-weight:700;">AIPET X</span></div>'
+            f'<h2 style="color:#e0e0e0;margin:0 0 12px;">You\'re invited</h2>'
+            f'<p style="color:#94a3b8;margin:0 0 16px;">'
+            f'<strong style="color:#e0e0e0;">{inviter_name}</strong> has '
+            f'invited you to join AIPET X with role '
+            f'<strong style="color:#e0e0e0;">{role_name}</strong>.</p>'
+            f'<p style="color:#94a3b8;margin:0 0 24px;">Click the button '
+            f'below to set a password and join. This link expires '
+            f'<strong>{expires_str}</strong>.</p>'
+            f'<a href="{accept_url}" style="display:inline-block;'
+            f'background:#00e5ff;color:#000;font-weight:700;padding:12px 28px;'
+            f'border-radius:6px;text-decoration:none;font-size:14px;">'
+            f'Accept invitation</a>'
+            f'<p style="color:#475569;font-size:12px;margin-top:28px;">'
+            f'If you did not expect this invitation, you can safely '
+            f'ignore it.</p></div>'
+        )
+
+        msg = Message(
+            subject    = subject,
+            sender     = current_app.config.get("MAIL_DEFAULT_SENDER",
+                                                 "noreply@aipet.io"),
+            recipients = [invitation.email],
+            body       = body_text,
+            html       = body_html,
+        )
+        mail.send(msg)
+        return True
+    except Exception:
+        current_app.logger.exception(
+            "Invitation email failed for invitation_id=%s; row persists, "
+            "admin can resend",
+            invitation.id,
+        )
+        return False
+
+
+def expire_pending_invitations():
+    """Mark every pending Invitation past its expires_at as expired.
+    Not auto-scheduled in v1 -- run manually or wire a Celery beat
+    task in v2. Returns the count of rows transitioned."""
+    now = datetime.now(timezone.utc)
+    updated = (Invitation.query
+               .filter(Invitation.status == 'pending',
+                       Invitation.expires_at < now)
+               .update({'status': 'expired'},
+                       synchronize_session=False))
+    db.session.commit()
+    return updated
+
+
+@iam_bp.route('/invitations', methods=['POST'])
+@require_permission('iam:manage')
+def create_invitation():
+    """Invite a new team member by email.
+
+    Body: {"email": str, "role_name": str,
+           "expires_in_days": int (optional, default 7, max 30)}
+
+    On success: 201 + serialised Invitation (without token).
+    On 4xx: 400 with field-level error code.
+    """
+    data = request.get_json(silent=True) or {}
+    email     = (data.get('email') or '').strip().lower()
+    role_name = (data.get('role_name') or '').strip()
+    expires_in_days = data.get('expires_in_days', 7)
+
+    if not email or '@' not in email:
+        return jsonify({'error': 'invalid_email',
+                        'message': "'email' must be a valid email"}), 400
+    if not role_name:
+        return jsonify({'error': 'invalid_role',
+                        'message': "'role_name' is required"}), 400
+    try:
+        expires_in_days = int(expires_in_days)
+    except (TypeError, ValueError):
+        return jsonify({'error': 'invalid_expires_in_days',
+                        'message': "'expires_in_days' must be an integer"}), 400
+    if expires_in_days < 1 or expires_in_days > 30:
+        return jsonify({'error': 'invalid_expires_in_days',
+                        'message': "'expires_in_days' must be in [1, 30]"}), 400
+
+    role = Role.query.filter_by(name=role_name).first()
+    if role is None:
+        return jsonify({'error': 'role_not_found',
+                        'message': f"No role named {role_name!r}"}), 400
+
+    existing_user = User.query.filter_by(email=email).first()
+    if existing_user is not None:
+        return jsonify({
+            'error':   'user_exists',
+            'message': "User already exists; assign role directly.",
+        }), 400
+
+    pending = (Invitation.query
+               .filter_by(email=email, status='pending')
+               .first())
+    if pending is not None:
+        return jsonify({
+            'error':       'duplicate_pending',
+            'message':     ("Pending invitation already exists for this "
+                            "email; resend or revoke."),
+            'invitation_id': pending.id,
+        }), 400
+
+    now = datetime.now(timezone.utc)
+    inv = Invitation(
+        email      = email,
+        token      = secrets.token_urlsafe(48),
+        role_id    = role.id,
+        invited_by = int(get_jwt_identity()),
+        invited_at = now,
+        expires_at = now + timedelta(days=expires_in_days),
+        status     = 'pending',
+    )
+    db.session.add(inv)
+    db.session.commit()
+
+    sent = _send_invitation_email(inv, role_name)
+
+    log_action(
+        get_jwt_identity(),
+        'invitation.created',
+        resource=f'invitation:{inv.id}',
+        details={
+            'email':       email,
+            'role':        role_name,
+            'expires_at':  inv.expires_at.isoformat(),
+            'email_sent':  sent,
+        },
+    )
+
+    body = _serialize_invitation(inv)
+    body['email_delivered'] = sent
+    return jsonify(body), 201
+
+
+@iam_bp.route('/invitations', methods=['GET'])
+@require_permission('iam:manage')
+def list_invitations():
+    """List invitations. Default status filter is 'pending';
+    pass ?status=all to see every status, or specific values
+    'accepted' / 'revoked' / 'expired'."""
+    status = request.args.get('status', 'pending')
+    page     = request.args.get('page', 1, type=int)
+    per_page = min(request.args.get('per_page', 25, type=int), 100)
+
+    q = Invitation.query.order_by(Invitation.invited_at.desc())
+    if status != 'all':
+        q = q.filter(Invitation.status == status)
+
+    pagination = q.paginate(page=page, per_page=per_page, error_out=False)
+    return jsonify({
+        'invitations': [_serialize_invitation(i) for i in pagination.items],
+        'total': pagination.total,
+        'pages': pagination.pages,
+        'page':  pagination.page,
+    })
+
+
+@iam_bp.route('/invitations/<inv_id>/resend', methods=['POST'])
+@require_permission('iam:manage')
+def resend_invitation(inv_id):
+    """Re-send an existing pending invitation. Same token; expiry
+    optionally extended (capped at 30 days from original
+    invited_at). Rate-limited per-invitation: max 3 resends, no
+    closer than 5 min apart."""
+    inv = db.session.get(Invitation, inv_id)
+    if inv is None:
+        return jsonify({'error': 'invitation_not_found'}), 404
+
+    if inv.status != 'pending':
+        return jsonify({
+            'error':   'not_pending',
+            'message': f"Cannot resend an invitation with status={inv.status}",
+        }), 400
+
+    if inv.resend_count >= INVITATION_RESEND_MAX:
+        return jsonify({
+            'error':   'resend_limit_exceeded',
+            'message': (f"Resend limit of {INVITATION_RESEND_MAX} reached "
+                        f"for this invitation. Revoke and re-invite."),
+        }), 429
+
+    if inv.last_resent_at is not None:
+        elapsed = (datetime.now(timezone.utc)
+                   - inv.last_resent_at.replace(tzinfo=timezone.utc)
+                   ).total_seconds()
+        if elapsed < INVITATION_RESEND_COOLDOWN_S:
+            wait_min = int((INVITATION_RESEND_COOLDOWN_S - elapsed) // 60) + 1
+            return jsonify({
+                'error':   'resend_cooldown',
+                'message': (f"Resent too recently. Wait ~{wait_min} "
+                            f"minute(s) and try again."),
+            }), 429
+
+    data = request.get_json(silent=True) or {}
+    extend_days = data.get('extend_expiry_days')
+    if extend_days is not None:
+        try:
+            extend_days = int(extend_days)
+        except (TypeError, ValueError):
+            return jsonify({'error': 'invalid_extend_expiry_days'}), 400
+        if extend_days < 0:
+            return jsonify({'error': 'invalid_extend_expiry_days'}), 400
+        # Cap: 30 days from original invited_at.
+        max_expiry = inv.invited_at + timedelta(days=30)
+        new_expiry = min(
+            datetime.now(timezone.utc) + timedelta(days=extend_days),
+            max_expiry,
+        )
+        # Naive-datetime comparison guard for nullable awareness.
+        if new_expiry.tzinfo is not None:
+            new_expiry = new_expiry.replace(tzinfo=None)
+        inv.expires_at = new_expiry
+
+    role = db.session.get(Role, inv.role_id)
+    role_name = role.name if role else 'unknown'
+    sent = _send_invitation_email(inv, role_name)
+
+    inv.resend_count   += 1
+    inv.last_resent_at  = datetime.now(timezone.utc)
+    db.session.commit()
+
+    log_action(
+        get_jwt_identity(),
+        'invitation.resent',
+        resource=f'invitation:{inv.id}',
+        details={
+            'email_sent':   sent,
+            'resend_count': inv.resend_count,
+            'expires_at':   inv.expires_at.isoformat(),
+        },
+    )
+
+    body = _serialize_invitation(inv)
+    body['email_delivered'] = sent
+    return jsonify(body), 200
+
+
+@iam_bp.route('/invitations/<inv_id>/revoke', methods=['POST'])
+@require_permission('iam:manage')
+def revoke_invitation(inv_id):
+    """Revoke a pending or expired invitation. Already-accepted
+    invitations cannot be revoked (use member /remove instead)."""
+    inv = db.session.get(Invitation, inv_id)
+    if inv is None:
+        return jsonify({'error': 'invitation_not_found'}), 404
+
+    if inv.status == 'accepted':
+        return jsonify({
+            'error':   'already_accepted',
+            'message': ("Cannot revoke an accepted invitation; "
+                        "use the member remove endpoint instead."),
+        }), 400
+
+    if inv.status == 'revoked':
+        # Idempotent.
+        return jsonify(_serialize_invitation(inv)), 200
+
+    data   = request.get_json(silent=True) or {}
+    reason = data.get('reason')
+    actor  = get_jwt_identity()
+
+    inv.status     = 'revoked'
+    inv.revoked_at = datetime.now(timezone.utc)
+    inv.revoked_by = int(actor) if actor is not None else None
+    db.session.commit()
+
+    log_action(
+        actor,
+        'invitation.revoked',
+        resource=f'invitation:{inv.id}',
+        details={'reason': reason} if reason else None,
+    )
+    return jsonify(_serialize_invitation(inv)), 200
 
 
 # ── Audit log ────────────────────────────────────────────────
