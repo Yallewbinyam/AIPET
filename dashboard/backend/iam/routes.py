@@ -1055,6 +1055,42 @@ def configure_sso():
     log_action(get_jwt_identity(), 'sso_configured', resource=data.get('name'))
     return jsonify({'message': 'SSO provider configured', 'id': provider.id}), 201
 
+# ── Permission matrix ────────────────────────────────────────
+# Phase B § 4.10 / § 8 H1. Read-only view backing the
+# "Permissions" tab in the frontend. Returns the full role +
+# permission catalogues plus the junction (role_id, permission_id)
+# pairs. Frontend renders a checkbox grid; cell ticked iff a grant
+# row exists. Tier 1 v1 ships read-only; mutation endpoints (G1
+# create-with-permissions, G2 custom-role CRUD, PATCH grant
+# add/remove) are deferred to v1.1.
+@iam_bp.route('/permission-matrix', methods=['GET'])
+@require_permission('iam:manage')
+def get_permission_matrix():
+    roles = Role.query.order_by(Role.name).all()
+    perms = Permission.query.order_by(Permission.name).all()
+
+    grants = []
+    for role in roles:
+        for perm in role.permissions:
+            grants.append({'role_id':       role.id,
+                           'permission_id': perm.id})
+
+    return jsonify({
+        'roles': [{
+            'id':          r.id,
+            'name':        r.name,
+            'description': r.description,
+        } for r in roles],
+        'permissions': [{
+            'id':       p.id,
+            'name':     p.name,
+            'resource': p.resource,
+            'action':   p.action,
+        } for p in perms],
+        'grants': grants,
+    })
+
+
 # ── Seed default roles ───────────────────────────────────────
 def seed_default_roles():
     """Create default roles and permissions if they don't exist."""
@@ -1076,10 +1112,57 @@ def seed_default_roles():
         {'name': 'sso:manage',    'resource': 'sso',      'action': 'manage'},
         {'name': 'terminal:use',  'resource': 'terminal', 'action': 'use'},
     ]
+    # Default grant matrix (Phase B § 8 H1). Seeded so a real
+    # admin / analyst / viewer can pass require_permission() via
+    # the granted-permission path, not just the owner-name bypass.
+    # User-confirmed mapping (2026-04-29):
+    #   owner   -> all 10 (defensive; bypass already covers but
+    #              explicit is clearer in the matrix UI)
+    #   admin   -> 8: everything except billing:manage and
+    #              iam:manage (admins are security-scoped, not
+    #              org-scoped)
+    #   analyst -> 5: scan:create, scan:read, findings:read,
+    #              reports:read, reports:create
+    #   viewer  -> 3: findings:read, reports:read, scan:read
+    default_grants = {
+        'owner':   ['scan:create', 'scan:read',
+                    'findings:read',
+                    'reports:read', 'reports:create',
+                    'billing:manage', 'iam:manage',
+                    'audit:read', 'sso:manage', 'terminal:use'],
+        'admin':   ['scan:create', 'scan:read',
+                    'findings:read',
+                    'reports:read', 'reports:create',
+                    'audit:read', 'sso:manage', 'terminal:use'],
+        'analyst': ['scan:create', 'scan:read',
+                    'findings:read',
+                    'reports:read', 'reports:create'],
+        'viewer':  ['findings:read', 'reports:read', 'scan:read'],
+    }
+
     for rdata in default_roles:
         if not Role.query.filter_by(name=rdata['name']).first():
             db.session.add(Role(**rdata))
     for pdata in default_permissions:
         if not Permission.query.filter_by(name=pdata['name']).first():
             db.session.add(Permission(**pdata))
+    db.session.commit()
+
+    # Wire up role -> permission grants. The relationship lookup
+    # (`role.permissions`) is the canonical view of role_permissions;
+    # appending a Permission inserts the junction row. The "perm.id
+    # not in existing_perm_ids" guard makes this idempotent across
+    # re-runs (NOT EXISTS in junction-row terms).
+    for role_name, perm_names in default_grants.items():
+        role = Role.query.filter_by(name=role_name).first()
+        if role is None:
+            continue
+        existing_perm_ids = {p.id for p in role.permissions}
+        for perm_name in perm_names:
+            perm = Permission.query.filter_by(name=perm_name).first()
+            if perm is None:
+                continue
+            if perm.id not in existing_perm_ids:
+                role.permissions.append(perm)
+                existing_perm_ids.add(perm.id)
     db.session.commit()
