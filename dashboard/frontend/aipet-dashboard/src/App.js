@@ -12,6 +12,7 @@ import RiskScoreDashboard       from "./components/risk/RiskScoreDashboard";
 import AutomatedResponsePanel   from "./components/automated_response/AutomatedResponsePanel";
 import RiskForecastPanel        from "./components/forecast/RiskForecastPanel";
 import TeamAccessPage           from "./components/team_access/TeamAccessPage";
+import AcceptInvitationPage    from "./components/AcceptInvitationPage";
 import {
   isPushSupported, getCurrentPermission,
   requestPermissionAndSubscribe, sendTestPush,
@@ -29634,6 +29635,10 @@ export default function App() {
     const _resetToken = _urlParams.get("reset_token");
     if (_resetToken) {
       return <ResetPasswordPage resetToken={_resetToken} onLogin={handleLogin} />;
+    }
+    const _inviteToken = _urlParams.get("token");
+    if (_inviteToken && window.location.pathname === "/accept-invitation") {
+      return <AcceptInvitationPage inviteToken={_inviteToken} onLogin={handleLogin} />;
     }
     if (legalPage) {
       return (
