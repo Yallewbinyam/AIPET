@@ -294,6 +294,38 @@ def create_app(config_name="development"):
         }
     })
 
+    # PLB-15 defensive CORS backfill on 4xx/5xx responses.
+    # The 2026-04-30 diagnostic showed flask-cors 6.0.0 already adds
+    # Access-Control-Allow-Origin on 429 responses, so the original
+    # PLB-15 symptom is currently mitigated by the library version.
+    # This hook ships defensively anyway: it (a) ensures CORS headers
+    # survive future flask-cors upgrades or rollbacks, (b) explicitly
+    # covers 401/403/500 which flask-cors may not always handle in
+    # every code path, and (c) puts the origin allowlist at the
+    # application layer rather than relying on library-version
+    # behaviour. Same allowlist as the CORS(...) call above; if one
+    # changes the other must too (kept inline for readability over
+    # the alternative of pulling out a shared module-level constant).
+    @app.after_request
+    def add_cors_to_error_responses(response):
+        if response.status_code >= 400:
+            origin = request.headers.get("Origin", "")
+            allowed = [
+                "http://localhost:3000",
+                "http://localhost:3001",
+                "https://aipet.io",
+                "https://www.aipet.io",
+            ]
+            if origin in allowed:
+                response.headers["Access-Control-Allow-Origin"] = origin
+                response.headers["Access-Control-Allow-Headers"] = (
+                    "Content-Type, Authorization"
+                )
+                response.headers["Access-Control-Allow-Methods"] = (
+                    "GET, POST, PUT, DELETE, OPTIONS"
+                )
+        return response
+
     # ── Rate limiter ──────────────────────────────────────
     # Key: JWT user ID when available, else remote IP.
     def _rate_limit_key():
