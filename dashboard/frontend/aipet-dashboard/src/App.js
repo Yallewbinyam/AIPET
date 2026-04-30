@@ -26868,6 +26868,45 @@ function RealScannerPage({ token, showToast }) {
   const [history, setHistory]         = useState([]);
   const [selectedHost, setSelectedHost] = useState(null);
   const [pollRef, setPollRef]         = useState(null);
+  // Capability 16: per-host Shodan lookup. Lazy-set when the user
+  // clicks the Shodan button on a card. Shape:
+  //   {ip, loading?: bool, data?: ShodanResp, error?: string,
+  //    configured?: bool}
+  const [shodanLookup, setShodanLookup] = useState(null);
+
+  async function handleShodanLookup(ip) {
+    setShodanLookup({ ip, loading: true });
+    try {
+      const r = await fetch(`${API}/api/shodan/lookup/${encodeURIComponent(ip)}`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      const d = await r.json().catch(() => ({}));
+      if (r.status === 503) {
+        // Skip-if-no-key path: surface the configured=false message
+        // verbatim so the user sees a clean "set SHODAN_API_KEY" hint
+        // instead of a generic error.
+        setShodanLookup({
+          ip, loading: false, configured: false,
+          error: d.message || "Shodan not configured",
+        });
+        return;
+      }
+      if (!r.ok) {
+        const raw = d.message || d.error;
+        const msg = (typeof raw === "string" && raw.length > 0)
+          ? raw
+          : `Lookup failed (${r.status}).`;
+        setShodanLookup({ ip, loading: false, error: msg });
+        return;
+      }
+      setShodanLookup({ ip, loading: false, data: d, configured: true });
+    } catch (e) {
+      setShodanLookup({
+        ip, loading: false,
+        error: "Network error — please retry.",
+      });
+    }
+  }
 
   const SEV_COLOR  = { CRITICAL:"#ff2d55", HIGH:"#ff6b00", MEDIUM:"#ffd60a", LOW:"#00e5ff", UNKNOWN:"#444" };
   const riskColor  = s => s >= 70 ? "#ff2d55" : s >= 40 ? "#ff6b00" : s >= 20 ? "#ffd60a" : "#00ff88";
@@ -26996,6 +27035,103 @@ function RealScannerPage({ token, showToast }) {
         </div>
       )}
 
+      {/* ── Shodan lookup result panel (Cap 16) ── */}
+      {shodanLookup && (
+        <div style={{ background:"#0d1526", border:"1px solid #00e5ff44", borderRadius:"12px", padding:"18px 20px", marginBottom:"20px" }}>
+          <div style={{ display:"flex", justifyContent:"space-between", alignItems:"center", marginBottom:"12px" }}>
+            <div style={{ color:"#00e5ff", fontWeight:"700", fontSize:"14px", letterSpacing:"0.04em" }}>
+              🔍 SHODAN — {shodanLookup.ip}
+            </div>
+            <button
+              onClick={() => setShodanLookup(null)}
+              style={{ background:"transparent", border:"none", color:"#445", cursor:"pointer", fontSize:"18px", padding:"0 4px" }}
+              aria-label="Close Shodan panel"
+            >×</button>
+          </div>
+
+          {shodanLookup.loading && (
+            <div style={{ color:"#445", fontSize:"12px" }}>Looking up…</div>
+          )}
+
+          {shodanLookup.error && (
+            <div style={{ color:"#ff2d55", fontSize:"12px", lineHeight:1.5 }}>
+              {shodanLookup.configured === false ? "⚠ " : "✗ "}
+              {shodanLookup.error}
+              {shodanLookup.configured === false && (
+                <div style={{ color:"#445", fontSize:"11px", marginTop:"6px" }}>
+                  Set <code style={{ color:"#00e5ff" }}>SHODAN_API_KEY</code> in start_cloud.sh
+                  and restart the backend. Free-tier is 100 lookups/month.
+                </div>
+              )}
+            </div>
+          )}
+
+          {shodanLookup.data && (
+            <div style={{ display:"grid", gridTemplateColumns:"1fr 1fr", gap:"16px", color:"#888", fontSize:"12px" }}>
+              <div>
+                <div style={{ color:"#445", fontSize:"10px", letterSpacing:"0.06em", marginBottom:"4px" }}>SOURCE</div>
+                <div style={{ color:"#e0e0e0", marginBottom:"10px" }}>
+                  {shodanLookup.data.source}
+                  {shodanLookup.data.looked_up_at && (
+                    <span style={{ color:"#445", fontSize:"10px", marginLeft:"6px" }}>
+                      ({shodanLookup.data.looked_up_at.slice(0,19).replace("T"," ")})
+                    </span>
+                  )}
+                </div>
+                {!shodanLookup.data.found && (
+                  <div style={{ color:"#ffd60a" }}>
+                    Shodan has no record for this IP.
+                  </div>
+                )}
+                {shodanLookup.data.found && shodanLookup.data.shodan && (
+                  <>
+                    {shodanLookup.data.shodan.country && (
+                      <div>{shodanLookup.data.shodan.country}{shodanLookup.data.shodan.city ? `, ${shodanLookup.data.shodan.city}` : ""}</div>
+                    )}
+                    {shodanLookup.data.shodan.org && <div>org: {shodanLookup.data.shodan.org}</div>}
+                    {shodanLookup.data.shodan.isp && <div>isp: {shodanLookup.data.shodan.isp}</div>}
+                    {shodanLookup.data.shodan.asn && <div>asn: {shodanLookup.data.shodan.asn}</div>}
+                  </>
+                )}
+              </div>
+              <div>
+                {shodanLookup.data.found && shodanLookup.data.shodan && (
+                  <>
+                    {(shodanLookup.data.shodan.ports?.length || 0) > 0 && (
+                      <div style={{ marginBottom:"6px" }}>
+                        <div style={{ color:"#445", fontSize:"10px", letterSpacing:"0.06em", marginBottom:"4px" }}>PORTS</div>
+                        <div style={{ color:"#a78bfa", fontFamily:"JetBrains Mono, monospace" }}>
+                          {shodanLookup.data.shodan.ports.join(", ")}
+                        </div>
+                      </div>
+                    )}
+                    {(shodanLookup.data.shodan.tags?.length || 0) > 0 && (
+                      <div style={{ marginBottom:"6px" }}>
+                        <div style={{ color:"#445", fontSize:"10px", letterSpacing:"0.06em", marginBottom:"4px" }}>TAGS</div>
+                        <div style={{ color:"#ffd60a" }}>
+                          {shodanLookup.data.shodan.tags.join(", ")}
+                        </div>
+                      </div>
+                    )}
+                    {(shodanLookup.data.shodan.vulns?.length || 0) > 0 && (
+                      <div>
+                        <div style={{ color:"#445", fontSize:"10px", letterSpacing:"0.06em", marginBottom:"4px" }}>SHODAN-LISTED CVEs</div>
+                        <div style={{ color:"#ff2d55", fontSize:"11px" }}>
+                          {(Array.isArray(shodanLookup.data.shodan.vulns)
+                            ? shodanLookup.data.shodan.vulns
+                            : Object.keys(shodanLookup.data.shodan.vulns)).slice(0,8).join(", ")}
+                          {((shodanLookup.data.shodan.vulns?.length || Object.keys(shodanLookup.data.shodan.vulns || {}).length) > 8) && " …"}
+                        </div>
+                      </div>
+                    )}
+                  </>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
       {/* ── Host grid ── */}
       {hosts.length > 0 && !host && (
         <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill,minmax(300px,1fr))", gap:"14px", marginBottom:"24px" }}>
@@ -27038,6 +27174,19 @@ function RealScannerPage({ token, showToast }) {
               ) : (
                 <div style={{ color:"#00ff8888", fontSize:"11px" }}>✓ No CVEs matched</div>
               )}
+
+              {/* Shodan lookup (Cap 16). stopPropagation so clicking
+                  the button doesn't also trigger setSelectedHost. */}
+              <div style={{ marginTop:"10px", display:"flex", justifyContent:"flex-end" }}>
+                <button
+                  onClick={(e) => { e.stopPropagation(); handleShodanLookup(h.ip); }}
+                  style={{ background:"transparent", border:"1px solid #00e5ff55", color:"#00e5ff", fontSize:"11px", padding:"4px 10px", borderRadius:"5px", cursor:"pointer", fontFamily:"inherit" }}
+                  onMouseEnter={(e) => { e.currentTarget.style.borderColor = "#00e5ff"; }}
+                  onMouseLeave={(e) => { e.currentTarget.style.borderColor = "#00e5ff55"; }}
+                >
+                  🔍 Shodan
+                </button>
+              </div>
             </div>
           ))}
         </div>

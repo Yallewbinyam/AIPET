@@ -167,3 +167,10 @@ echo "============================================================"
 export SMTP_USER="yallewbinyam@gmail.com"
 export SMTP_PASSWORD="zbggazzspycjojjp"
 export SENTRY_DSN="${SENTRY_DSN:-}"
+
+# Capability 16: Shodan API integration. Empty by default — the
+# shodan blueprint loads identically when this is unset, logs a
+# single WARNING, and the /api/shodan/* endpoints return 503 with
+# a clear "not configured" message. Set in production secrets
+# manager once a real Shodan account is provisioned.
+export SHODAN_API_KEY="${SHODAN_API_KEY:-}"

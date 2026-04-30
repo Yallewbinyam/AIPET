@@ -110,6 +110,11 @@ from dashboard.backend.supplychain.routes import supplychain_bp
 from dashboard.backend.supplychain.models import ScComponent, ScVuln, ScSbom
 from dashboard.backend.netvisualizer.routes import netvisualizer_bp
 from dashboard.backend.netvisualizer.models import NvNode, NvEdge, NvIssue
+# Capability 16: Shodan integration. Blueprint loads identically
+# whether or not SHODAN_API_KEY is set; routes return 503 with a
+# clear "not configured" payload when the key is absent.
+from dashboard.backend.shodan.routes import shodan_bp
+from dashboard.backend.shodan.models import ShodanLookup
 from dashboard.backend.terminal.routes import terminal_bp
 from dashboard.backend.terminal.models import TerminalSession, TerminalAuditLog
 from dashboard.backend.resilience.routes import resilience_bp
@@ -263,6 +268,18 @@ def create_app(config_name="development"):
     from dashboard.backend.observability.email_setup import init_email
     init_email(app)
 
+    # Capability 16: Shodan API. Log a single WARNING at startup if
+    # SHODAN_API_KEY is unset. Mirrors the PLB-4 email-disabled and
+    # PLB-5 sentry-disabled startup messages so an operator running
+    # `tail -f gunicorn.log` sees one clear line per disabled
+    # integration.
+    if not os.environ.get("SHODAN_API_KEY"):
+        app.logger.warning(
+            "Shodan: DISABLED -- SHODAN_API_KEY not set in environment. "
+            "Per-host Shodan lookups (Capability 16) will return 503 "
+            "until the key is populated. See dashboard/backend/shodan/."
+        )
+
     # Extensions
     CORS(app, resources={
         r"/*": {
@@ -357,6 +374,7 @@ def create_app(config_name="development"):
     app.register_blueprint(apisecurity_bp)
     app.register_blueprint(supplychain_bp)
     app.register_blueprint(netvisualizer_bp)
+    app.register_blueprint(shodan_bp)
     app.register_blueprint(terminal_bp)
     app.register_blueprint(resilience_bp)
     app.register_blueprint(driftdetector_bp)
